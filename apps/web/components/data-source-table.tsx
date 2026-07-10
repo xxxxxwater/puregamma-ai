@@ -8,9 +8,10 @@ import type { Locale } from "@/i18n/routing";
 import { checkDataSource, controlDataSource, DataSourcePreview, DataSourceRow, getDataSourcePreview, getDataSources, syncDataSource } from "@/lib/api";
 
 const PRIMARY = ["rss", "fintwit", "x-twitter", "bloomberg"];
+const primarySources = (rows: DataSourceRow[]) => rows.filter((row) => PRIMARY.includes(row.id)).sort((left, right) => PRIMARY.indexOf(left.id) - PRIMARY.indexOf(right.id));
 
 export function DataSourceTable({ initialSources, locale }: { initialSources: DataSourceRow[]; locale: Locale; labels?: Record<string, string> }) {
-  const [sources, setSources] = useState(initialSources.filter((row) => PRIMARY.includes(row.id)));
+  const [sources, setSources] = useState(primarySources(initialSources));
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [previewId, setPreviewId] = useState("");
@@ -19,7 +20,7 @@ export function DataSourceTable({ initialSources, locale }: { initialSources: Da
 
   useEffect(() => {
     if (sources.length) return;
-    getDataSources(locale).then((result) => setSources(result.sources.filter((row) => PRIMARY.includes(row.id)))).catch((reason) => setError((reason as Error).message));
+    getDataSources(locale).then((result) => setSources(primarySources(result.sources))).catch((reason) => setError((reason as Error).message));
   }, [locale, sources.length]);
 
   const replace = (source: DataSourceRow) => setSources((rows) => rows.map((row) => row.id === source.id ? source : row));

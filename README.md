@@ -313,3 +313,12 @@ curl -X POST http://localhost:8000/auth/mock-login \
 - Add durable queue retries and dead-letter handling for worker tasks.
 - Add enterprise tenant isolation, audit export, data deletion workflow, and private deployment controls.
 - Add richer observability for LLM usage, source freshness, credits, webhook failures, and notification delivery.
+## Research document data sources
+
+The primary document pipeline is now RSS, curated FinTwit, the official X API, and authorized Bloomberg data. It stores raw and normalized records with provenance, license status, retention policy, entity mentions, sentiment components, event fingerprints, and provider sync logs. Binance, DefiLlama, Subgraph, and RPC adapters remain optional extension providers and are not scheduled as this pipeline's main flow.
+
+Configuration and operating details:
+
+- [Data source setup](docs/DATA_SOURCES.md)
+- [License and redistribution rules](docs/DATA_LICENSE.md)
+- [Agent evidence pipeline](docs/AGENT_DATA_PIPELINE.md)

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import timedelta
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -19,7 +19,7 @@ from packages.data.provider import DataSourceStatus, ProviderError
 from packages.data.rss_provider import RSSProvider
 from packages.data.subgraph_provider import SubgraphProvider
 from packages.data.x_twitter_provider import XTwitterProvider
-from packages.database.models import DataSource, DataSourceSyncRun, DefiMetric, FinTwitAccount, MarketQuoteRecord, NewsItem, NormalizedDocument, OnchainMetric, ProviderSyncLog, RawDocument, Source, utcnow
+from packages.database.models import DataSource, DataSourceSyncRun, DefiMetric, FinTwitAccount, MarketQuoteRecord, NewsItem, NormalizedDocument, OnchainMetric, utcnow
 from apps.api.services.document_pipeline_service import run_document_pipeline
 
 
@@ -53,6 +53,7 @@ def redact_error(value: str | None) -> str | None:
 def seed_data_sources(db: Session) -> None:
     settings = get_settings()
     optional_status = {
+        "rss": DataSourceStatus.DEGRADED.value,
         "fintwit": FinTwitProvider().health_check().status.value,
         "x-twitter": XTwitterProvider().health_check().status.value,
         "bloomberg": BloombergProvider().health_check().status.value,

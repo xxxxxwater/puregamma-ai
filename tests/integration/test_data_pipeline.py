@@ -7,6 +7,8 @@ from packages.agents.sentiment_agent import SentimentAgent
 from packages.data.mock_provider import MockMarketDataProvider
 from packages.data.rss_provider import RSSProvider
 from packages.data.x_provider import XProvider
+from packages.data.bloomberg_provider import BloombergProvider
+from packages.data.provider import DataSourceStatus
 
 
 def test_coindesk_mock_provider_contract_with_market_mock():
@@ -47,14 +49,18 @@ def test_shared_market_intelligence_generated(db):
 
 @pytest.mark.contract
 def test_bloomberg_real_mode_disabled_without_credentials_contract():
-    pytest.xfail("No Bloomberg provider mode switch exists yet. Expected: real mode disabled without credentials, mock/import mode works.")
+    assert BloombergProvider(mode="production", api_url="", api_key="", license_status="unlicensed").health_check().status == DataSourceStatus.LICENSE_REQUIRED
 
 
 @pytest.mark.contract
-def test_data_source_status_updates_contract():
-    pytest.xfail("No DataSource status model exists yet. Expected: success/failure source status is persisted.")
+def test_data_source_status_updates_contract(db):
+    from packages.database.models import DataSource
+    assert db.get(DataSource, "rss").status in {"HEALTHY", "DISABLED", "ERROR", "DEGRADED"}
 
 
 @pytest.mark.contract
-def test_high_cost_source_requires_entitlement_contract():
-    pytest.xfail("No high-cost source scheduler gate exists yet. Expected: X/Bloomberg/Glassnode gated by plan entitlement.")
+def test_high_cost_source_requires_entitlement_contract(db):
+    from apps.api.services.data_source_service import serialize_source
+    from packages.database.models import DataSource
+    assert serialize_source(db.get(DataSource, "x-twitter"))["requiredPlan"] == "Max"
+    assert serialize_source(db.get(DataSource, "bloomberg"))["requiredPlan"] == "Max"

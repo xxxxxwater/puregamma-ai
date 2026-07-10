@@ -192,18 +192,19 @@ class BacktestEngine:
 
         metrics = calculate_metrics(returns)
 
+        is_mock_catalog = catalog.get("data_freshness", "mock") == "mock"
         return {
             "strategy_name": strategy_name,
             "asset": asset,
             "params": params,
             "metrics": metrics,
-            "mode": "simulation",
+            "mode": "mock" if is_mock_catalog else "simulation",
             "engine": "puregamma_simulation_with_nautilus_catalog",
             "data_freshness": catalog.get("data_freshness", "mock"),
             "bar_count": catalog["bar_count"],
             "is_live": False,
             "paper_trading": False,
-            "execution_environment": "research_simulation",
+            "execution_environment": "research_mock" if is_mock_catalog else "research_simulation",
             "live_trading": live_trading_status(),
             "disclaimer": "This is not financial advice. Simulation results use PureGamma data catalog.",
         }

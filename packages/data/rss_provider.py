@@ -16,7 +16,6 @@ import yaml
 from apps.api.config import get_settings
 from packages.data.enrichment import classify_topics, extract_symbols, sentiment, summarize
 from packages.data.provider import DataProvenance, DataSourceHealth, DataSourceProvider, DataSourceStatus, DataSourceSyncResult, ProviderDocument, ProviderError, ProviderFetchResult, ProviderUsage, validate_public_https_url
-from packages.data.sentiment import score_text
 
 
 SCRIPT_RE = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.I | re.S)
