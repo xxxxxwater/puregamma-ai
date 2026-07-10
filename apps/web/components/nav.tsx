@@ -1,0 +1,177 @@
+"use client";
+
+import Link from "next/link";
+import { useEffect, useState, type ReactNode } from "react";
+import { usePathname } from "next/navigation";
+import { Activity, Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, CreditCard, Database, FlaskConical, LayoutDashboard, LockKeyhole, PlugZap, Send, Shield, Signal, UserRound, type LucideIcon } from "lucide-react";
+import { DisclaimerFooter, MockModeBadge, PlanBadge, Badge } from "@/components/puregamma";
+import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
+import { LocaleProvider } from "@/components/i18n/LocaleProvider";
+import type { Locale } from "@/i18n/routing";
+import { stripLocale, withLocale } from "@/i18n/routing";
+import { t } from "@/lib/translations";
+import type { TranslationKey } from "@/lib/translations";
+import { getMe } from "@/lib/api";
+
+type NavItem = {
+  href: string;
+  labelKey: TranslationKey;
+  icon: LucideIcon;
+};
+
+type NavGroup = {
+  labelKey: TranslationKey;
+  items: NavItem[];
+};
+
+type StoredUser = {
+  email?: string;
+  name?: string;
+  avatar_url?: string | null;
+  auth_provider?: string;
+  plan?: string;
+};
+
+const groups: NavGroup[] = [
+  {
+    labelKey: "common.nav.groups.research",
+    items: [
+      { href: "/dashboard", labelKey: "common.nav.dashboard", icon: LayoutDashboard },
+      { href: "/chat", labelKey: "common.nav.chat", icon: Bot },
+      { href: "/reports", labelKey: "common.nav.reports", icon: BookOpen },
+      { href: "/signals", labelKey: "common.nav.signals", icon: Signal },
+      { href: "/playbooks", labelKey: "common.nav.playbooks", icon: Activity }
+    ]
+  },
+  {
+    labelKey: "common.nav.groups.portfolio",
+    items: [
+      { href: "/portfolio", labelKey: "common.nav.nav", icon: BriefcaseBusiness },
+      { href: "/integrations", labelKey: "common.nav.integrations", icon: PlugZap },
+      { href: "/daily-push", labelKey: "common.nav.dailyPush", icon: Send }
+    ]
+  },
+  {
+    labelKey: "common.nav.groups.infrastructure",
+    items: [
+      { href: "/data-sources", labelKey: "common.nav.dataSources", icon: Database },
+      { href: "/nautilus", labelKey: "common.nav.nautilus", icon: FlaskConical },
+      { href: "/billing", labelKey: "common.nav.billing", icon: CreditCard },
+      { href: "/admin", labelKey: "common.nav.admin", icon: Shield }
+    ]
+  },
+  {
+    labelKey: "common.nav.groups.company",
+    items: [
+      { href: "/account", labelKey: "common.nav.account", icon: UserRound },
+      { href: "/", labelKey: "common.nav.access", icon: LockKeyhole }
+    ]
+  }
+];
+
+export function AppShell({ children, locale }: { children: ReactNode; locale: Locale }) {
+  return (
+    <LocaleProvider locale={locale}>
+      <div className="relative min-h-screen">
+        <SidebarNav locale={locale} />
+
+        <div className="lg:pl-72">
+          <TopStatusBar locale={locale} />
+
+          <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
+            {children}
+            <DisclaimerFooter locale={locale} />
+          </main>
+        </div>
+      </div>
+    </LocaleProvider>
+  );
+}
+
+export function SidebarNav({ locale }: { locale: Locale }) {
+  const pathname = usePathname();
+  const activePathname = stripLocale(pathname);
+  return (
+    <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border-pg bg-bg-panel p-4 lg:block">
+      <Link href={withLocale(locale, "/")} className="flex items-center gap-2 font-semibold text-text-pg">
+        <Bell className="h-5 w-5 text-text-pg" aria-hidden />
+        PureGamma.ai
+      </Link>
+      <div className="mt-2 text-xs leading-5 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
+      <div className="mt-4">
+        <LanguageSwitcher compact />
+      </div>
+      <nav className="mt-8 space-y-7">
+        {groups.map((group) => (
+          <div key={group.labelKey}>
+            <div className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-text-pg-dim">{t(locale, group.labelKey)}</div>
+            <div className="space-y-1">
+              {group.items.map((item) => {
+                const Icon = item.icon;
+                const active = item.href === "/" ? activePathname === "/" : activePathname.startsWith(item.href);
+                return (
+                  <Link key={item.href} href={withLocale(locale, item.href)} className={`flex items-center gap-2 border px-3 py-2 text-sm ${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
+                    <Icon className="h-4 w-4" aria-hidden />
+                    {t(locale, item.labelKey)}
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        ))}
+      </nav>
+    </aside>
+  );
+}
+
+export function TopStatusBar({ locale }: { locale: Locale }) {
+  const [storedUser, setStoredUser] = useState<StoredUser | null>(null);
+  useEffect(() => {
+    try {
+      getMe().then((result) => setStoredUser(result.user)).catch(() => setStoredUser(null));
+    } catch { setStoredUser(null); }
+  }, []);
+  return (
+    <header className="sticky top-0 z-20 border-b border-border-pg bg-bg-app/95 backdrop-blur">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 py-3">
+        <Link href={withLocale(locale, "/")} className="flex items-center gap-2 font-semibold text-text-pg lg:hidden">
+          <Bell className="h-5 w-5 text-text-pg" aria-hidden />
+          PureGamma.ai
+        </Link>
+        <div className="hidden items-center gap-2 text-xs md:flex">
+          <MockModeBadge locale={locale} />
+          <PlanBadge plan="Free" />
+          <Badge tone="neutral">{t(locale, "common.topbar.credits")}</Badge>
+          <Badge tone="neutral">{t(locale, "common.topbar.riskRegime")}</Badge>
+          <Badge tone="neutral">{t(locale, "common.topbar.freshness")}</Badge>
+          <Badge tone="neutral">{t(locale, "common.topbar.imessage")}</Badge>
+          <Badge tone="neutral">{t(locale, "common.topbar.stripe")}</Badge>
+          <LanguageSwitcher compact />
+          {storedUser ? (
+            <Link href={withLocale(locale, "/account")} className="ml-2 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-2 py-1 hover:border-border-pg-strong">
+              {storedUser.avatar_url ? <span aria-hidden className="h-5 w-5 rounded-full bg-cover bg-center" style={{ backgroundImage: `url(${storedUser.avatar_url})` }} /> : null}
+              {storedUser.auth_provider === "google" ? <Chrome className="h-3.5 w-3.5" aria-label="Google" /> : null}
+              <span className="max-w-[140px] truncate">{storedUser.name || storedUser.email}</span>
+            </Link>
+          ) : (
+            <>
+              <Link href={withLocale(locale, "/signup")} className="ml-2 border border-border-pg-strong bg-pg-white px-3 py-1 text-xs font-semibold text-pg-black hover:bg-pg-white-soft">{t(locale, "common.nav.signup")}</Link>
+              <Link href={withLocale(locale, "/login")} className="border border-border-pg px-3 py-1 text-xs text-text-pg hover:border-border-pg-strong">{t(locale, "common.nav.signin")}</Link>
+            </>
+          )}
+        </div>
+        <div className="flex items-center gap-3 text-xs text-text-pg-muted">
+          <span>{t(locale, "common.topbar.executionDisabled")}</span>
+          <div className="md:hidden"><LanguageSwitcher compact /></div>
+        </div>
+      </div>
+      <nav className="flex gap-1 overflow-x-auto border-t border-border-pg px-3 py-2 lg:hidden">
+        {groups.flatMap((group) => group.items).map((item) => (
+          <Link key={item.href} href={withLocale(locale, item.href)} className="whitespace-nowrap border border-transparent px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted">
+            {t(locale, item.labelKey)}
+          </Link>
+        ))}
+      </nav>
+    </header>
+  );
+}

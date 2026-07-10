@@ -1,0 +1,126 @@
+from __future__ import annotations
+
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
+from sqlalchemy.orm import Session
+
+from apps.api.dependencies import get_current_user, get_db
+from apps.api.services.agent_service import AgentQuotaError, create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from packages.database.models import AgentConversation, AgentMessage, AgentRun, User, utcnow
+
+
+router = APIRouter(prefix="/agent", tags=["agent"])
+
+
+class ConversationRequest(BaseModel):
+    title: str | None = None
+
+
+class ConversationPatch(BaseModel):
+    title: str | None = None
+    archived: bool | None = None
+
+
+class MessageRequest(BaseModel):
+    content: str
+    locale: str = "en"
+
+
+@router.get("/quota")
+def get_quota(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    return quota_state(db, user)
+
+
+@router.get("/conversations")
+def conversations(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    recover_stale_runs(db)
+    rows = db.query(AgentConversation).filter(AgentConversation.user_id == user.id, AgentConversation.status != "deleted").order_by(AgentConversation.updated_at.desc()).all()
+    return {"conversations": [serialize_conversation(row) for row in rows]}
+
+
+@router.post("/conversations")
+def new_conversation(payload: ConversationRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    return {"conversation": serialize_conversation(create_conversation(db, user, payload.title))}
+
+
+@router.get("/conversations/{conversation_id}")
+def conversation(conversation_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        row = owned_conversation(db, user, conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    messages = db.query(AgentMessage).filter_by(conversation_id=row.id, user_id=user.id).order_by(AgentMessage.created_at).all()
+    return {"conversation": serialize_conversation(row), "messages": [serialize_message(db, item) for item in messages]}
+
+
+@router.patch("/conversations/{conversation_id}")
+def update_conversation(conversation_id: str, payload: ConversationPatch, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        row = owned_conversation(db, user, conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    if payload.title is not None:
+        row.title = payload.title.strip()[:160] or row.title
+    if payload.archived is not None:
+        row.archived_at = utcnow() if payload.archived else None
+        row.status = "archived" if payload.archived else "active"
+    db.commit()
+    return {"conversation": serialize_conversation(row)}
+
+
+@router.delete("/conversations/{conversation_id}")
+def delete_conversation(conversation_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        row = owned_conversation(db, user, conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    row.status = "deleted"
+    row.archived_at = utcnow()
+    db.commit()
+    return {"ok": True}
+
+
+@router.get("/conversations/{conversation_id}/messages")
+def messages(conversation_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    owned_conversation(db, user, conversation_id)
+    rows = db.query(AgentMessage).filter_by(conversation_id=conversation_id, user_id=user.id).order_by(AgentMessage.created_at).all()
+    return {"messages": [serialize_message(db, row) for row in rows]}
+
+
+@router.post("/conversations/{conversation_id}/messages")
+def send_message(conversation_id: str, payload: MessageRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> StreamingResponse:
+    try:
+        row = owned_conversation(db, user, conversation_id)
+        run = start_run(db, user, row, payload.content)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AgentQuotaError as exc:
+        raise HTTPException(status_code=402, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return StreamingResponse(stream_run(db, user, run.id, payload.locale), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.post("/messages/{message_id}/regenerate")
+def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> StreamingResponse:
+    assistant = db.query(AgentMessage).filter_by(id=message_id, user_id=user.id, role="assistant").one_or_none()
+    if not assistant:
+        raise HTTPException(status_code=404, detail="Assistant message not found")
+    previous = db.query(AgentMessage).filter(AgentMessage.conversation_id == assistant.conversation_id, AgentMessage.user_id == user.id, AgentMessage.role == "user", AgentMessage.created_at <= assistant.created_at).order_by(AgentMessage.created_at.desc()).first()
+    if not previous:
+        raise HTTPException(status_code=400, detail="Original user message not found")
+    conversation = owned_conversation(db, user, assistant.conversation_id)
+    run = start_run(db, user, conversation, previous.content)
+    return StreamingResponse(stream_run(db, user, run.id, payload.locale), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.post("/runs/{run_id}/cancel")
+def cancel_run(run_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    row = db.query(AgentRun).filter_by(id=run_id, user_id=user.id).one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Run not found")
+    if row.status in {"pending", "running"}:
+        row.status = "canceled"
+        db.commit()
+    return {"id": row.id, "status": row.status}

@@ -1,0 +1,29 @@
+{
+  "seo": {
+    "title": "Research Desk",
+    "description": "Structured market, portfolio, event, strategy, and risk memos with source freshness and controlled delivery."
+  },
+  "eyebrow": "RESEARCH DESK",
+  "title": "Research Desk",
+  "subtitle": "Structured market, portfolio, event, strategy, and risk memos with source freshness and controlled delivery.",
+  "filters": ["Daily Brief", "Portfolio Review", "Event Note", "Strategy Memo", "Risk Review"],
+  "archive": {
+    "eyebrow": "Research Archive",
+    "title": "Available reports",
+    "created": "Created",
+    "sourceFreshness": "Source freshness",
+    "openReport": "Open report",
+    "emptyTitle": "No reports",
+    "emptyDescription": "Research archive is empty for the current account."
+  },
+  "detail": {
+    "eyebrow": "Detail Memo",
+    "noSelectionTitle": "No report selected",
+    "noSelectionDescription": "Generate a daily brief to populate the research desk.",
+    "language": "Language"
+  },
+  "mock": {
+    "title": "PureGamma Daily Crypto Brief",
+    "content": "# PureGamma Daily Crypto Brief\n\n## Market Regime\nRisk-on momentum with contained leverage.\n\n## Key Signals\n- BTC leadership remains the cleanest expression of crypto beta.\n- SOL and HYPE show high beta follow-through, but funding risk is rising.\n\n## Risk\nModerate risk; favor liquid assets and explicit invalidation levels.\n\n## Disclaimer\nThis is not financial advice."
+  }
+}

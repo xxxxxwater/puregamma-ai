@@ -1,0 +1,55 @@
+{
+  "seo": {
+    "title": "Access & Subscription",
+    "description": "Stripe subscription state, monthly credits, and high-cost research entitlement controls."
+  },
+  "eyebrow": "ACCESS CONTROL",
+  "title": "Access & Subscription",
+  "subtitle": "Stripe subscription state, monthly credits, and high-cost research entitlement controls.",
+  "summary": {
+    "currentPlan": "Current Plan",
+    "subscription": "Subscription",
+    "creditBalance": "Credit Balance",
+    "periodEnd": "Period end",
+    "accountSource": "Account source",
+    "checkoutMode": "Checkout mode",
+    "primaryPaymentLink": "Primary Payment Link configured",
+    "creditUsage": "Credit usage",
+    "usageHistory": "Usage History"
+  },
+  "checkoutModes": {
+    "session": "Checkout Session",
+    "paymentLink": "Payment Link"
+  },
+  "accountSources": {
+    "google": "Google OAuth",
+    "email": "Email / Mock"
+  },
+  "cancelSubscription": "Cancel subscription",
+  "reactivateSubscription": "Reactivate subscription",
+  "cancelWarning": "Cancellation is scheduled at period end. Entitlements remain active until then.",
+  "cancelAtPeriodEnd": "Cancels on {date}",
+  "subscriptionCanceled": "Subscription cancellation scheduled.",
+  "paymentLinkMissing": "Stripe Payment Link is not configured for this plan.",
+  "plans": [
+    { "name": "Free", "price": "$0", "credits": "30", "research": "Delayed shared daily brief", "data": "Delayed market data", "notifications": "Email only", "strategy": "No strategy lab", "restrictions": ["no Plaid", "no iMessage", "no X sentiment", "no on-chain scan"] },
+    { "name": "Pro", "price": "$29.9", "credits": "1,000", "research": "Daily market and portfolio review", "data": "Plaid manual sync", "notifications": "Telegram and Email", "strategy": "Basic mock backtest", "restrictions": ["no advanced X sentiment", "no iMessage by default"] },
+    { "name": "Max", "price": "$199", "credits": "10,000", "research": "Daily iMessage Brief and playbooks", "data": "Portfolio NAV, X KOL Scan, On-chain Scan", "notifications": "Telegram, Slack, Email, iMessage", "strategy": "NautilusTrader Advanced Backtest", "restrictions": ["research only", "live trading disabled"] },
+    { "name": "Enterprise", "price": "Custom", "credits": "Custom", "research": "Team research archive and review trail", "data": "Bloomberg Adapter, Custom Data Sources", "notifications": "All channels and private relay", "strategy": "Private strategy lab deployment", "restrictions": ["custom contract", "API Access", "Team Workspace", "Private Deployment"] }
+  ],
+  "featureLabels": {
+    "monthlyCredits": "Monthly credits",
+    "researchAccess": "Research access",
+    "dataAccess": "Data access",
+    "notificationAccess": "Notification access",
+    "strategyLabAccess": "Strategy lab access",
+    "perMonth": " / month"
+  },
+  "features": ["Monthly credits", "Daily market brief", "Portfolio NAV", "iMessage delivery", "X KOL scan", "On-chain scan", "NautilusTrader backtest", "Bloomberg adapter", "Private deployment"],
+  "usageTable": {
+    "action": "Action",
+    "delta": "Delta",
+    "balanceAfter": "Balance after",
+    "created": "Created"
+  }
+}

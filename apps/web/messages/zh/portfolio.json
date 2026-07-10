@@ -1,0 +1,58 @@
+{
+  "seo": {
+    "title": "组合净值 NAV 复盘",
+    "description": "基于已同步数据源估算组合净值、资产配置与风险敞口。"
+  },
+  "eyebrow": "组合净值 NAV 复盘",
+  "title": "组合净值 NAV 复盘",
+  "subtitle": "基于已同步数据源估算组合净值、资产配置与风险敞口。",
+  "actions": {
+    "syncAll": "同步全部数据源",
+    "calculateNav": "计算 NAV",
+    "generateBrief": "生成组合简报",
+    "sendBrief": "发送 iMessage 简报"
+  },
+  "modules": {
+    "navSummary": "NAV 概览",
+    "navCurve": "净值曲线",
+    "allocation": "资产配置",
+    "positions": "持仓明细",
+    "riskReview": "风险复盘",
+    "dataTrail": "数据轨迹"
+  },
+  "metrics": {
+    "cashStablecoin": "现金 / 稳定币",
+    "liquidityBuffer": "流动性缓冲",
+    "cryptoExposure": "加密资产敞口",
+    "btcBetaIncluded": "包含 BTC Beta",
+    "equityExposure": "权益敞口",
+    "mstrProxy": "MSTR / IBIT 代理敞口",
+    "drawdownEstimate": "回撤估算",
+    "simulatedStress": "模拟压力"
+  },
+  "tables": {
+    "asset": "资产",
+    "source": "来源",
+    "qty": "数量",
+    "price": "价格",
+    "value": "市值",
+    "costBasis": "成本",
+    "unrealizedPnl": "未实现盈亏",
+    "risk": "风险"
+  },
+  "warning": "数据不完整。当前 NAV 仅基于已同步的数据源估算。",
+  "riskItems": [
+    "集中度风险：中",
+    "BTC Beta 敞口：0.74",
+    "MSTR/BTC 代理敞口：偏高",
+    "稳定币比例：14%",
+    "过期数据警告：Plaid 2 小时"
+  ],
+  "diligence": [
+    { "label": "Plaid 已同步", "status": "延迟", "detail": "券商持仓两小时前刷新。" },
+    { "label": "CEX 已同步", "status": "健康", "detail": "只读交易所余额可用。" },
+    { "label": "钱包已同步", "status": "健康", "detail": "已纳入链上钱包来源。" },
+    { "label": "价格新鲜度", "status": "Mock", "detail": "本地 Demo 使用 fallback 定价。" },
+    { "label": "数据完整性状态", "status": "警告", "detail": "数据不完整。当前 NAV 仅基于已同步的数据源估算。" }
+  ]
+}

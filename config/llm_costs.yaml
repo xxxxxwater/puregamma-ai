@@ -1,0 +1,22 @@
+providers:
+  deepseek:
+    default_model: deepseek-v4-flash
+    base_url: https://api.deepseek.com
+    cost_estimation_enabled: true
+    input_per_1m_tokens_usd: 0.0
+    output_per_1m_tokens_usd: 0.0
+    notes: "Use official pricing page for exact values; keep this config editable."
+  openai:
+    default_model: ""
+    base_url: ""
+    cost_estimation_enabled: true
+    input_per_1m_tokens_usd: 0.0
+    output_per_1m_tokens_usd: 0.0
+    notes: "Configure model-specific pricing before using production cost reporting."
+  mock:
+    default_model: mock-model
+    base_url: ""
+    cost_estimation_enabled: false
+    input_per_1m_tokens_usd: 0.0
+    output_per_1m_tokens_usd: 0.0
+    notes: "Mock provider has no external API cost."

@@ -1,0 +1,29 @@
+{
+  "seo": {
+    "title": "研究台",
+    "description": "市场、组合、事件、策略与风险备忘录，包含数据新鲜度与受控投递记录。"
+  },
+  "eyebrow": "研究台",
+  "title": "研究台",
+  "subtitle": "市场、组合、事件、策略与风险备忘录，包含数据新鲜度与受控投递记录。",
+  "filters": ["每日简报", "组合复盘", "事件笔记", "策略备忘录", "风险复盘"],
+  "archive": {
+    "eyebrow": "研究归档",
+    "title": "可用报告",
+    "created": "创建时间",
+    "sourceFreshness": "数据新鲜度",
+    "openReport": "打开报告",
+    "emptyTitle": "暂无报告",
+    "emptyDescription": "当前账户的研究归档为空。"
+  },
+  "detail": {
+    "eyebrow": "详细备忘录",
+    "noSelectionTitle": "未选择报告",
+    "noSelectionDescription": "生成每日简报后将填充研究台。",
+    "language": "语言"
+  },
+  "mock": {
+    "title": "PureGamma 每日加密市场简报",
+    "content": "# PureGamma 每日加密市场简报\n\n## 市场状态\n风险偏好动能延续，杠杆水平仍可控。\n\n## 重点信号\n- BTC 领先结构仍是最清晰的加密 Beta 表达。\n- SOL 与 HYPE 延续高 Beta 表现，但资金费率风险上升。\n\n## 风险\n整体风险中等；优先关注高流动性资产与明确的失效条件。\n\n## 披露\n本内容仅供信息和研究参考，不构成投资建议。"
+  }
+}

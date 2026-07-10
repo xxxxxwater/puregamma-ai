@@ -1,0 +1,33 @@
+{
+  "seo": {
+    "title": "策略研究实验室",
+    "description": "带有明确真实交易保护的回测与模拟交易研究层。"
+  },
+  "eyebrow": "NAUTILUSTRADER",
+  "title": "策略研究实验室",
+  "subtitle": "带有明确真实交易保护的回测与模拟交易研究层。",
+  "warningTitle": "真实交易默认禁用。",
+  "warningBody": "当前 MVP 仅支持研究、回测和模拟交易。",
+  "modules": {
+    "strategyCatalog": "策略目录",
+    "runBacktest": "运行回测",
+    "backtestResults": "回测结果",
+    "equityCurve": "权益曲线",
+    "drawdown": "回撤",
+    "riskAssumptions": "风险假设",
+    "liveTradingGuard": "真实交易保护"
+  },
+  "inputs": {
+    "strategy": "策略",
+    "startDate": "开始日期",
+    "initialCapital": "初始资金"
+  },
+  "riskSteps": [
+    { "label": "资产范围", "detail": "BTC、ETH、SOL、HYPE、MSTR、STRC 研究资产。" },
+    { "label": "成本", "detail": "Mock 手续费与滑点；不执行交易所订单。" },
+    { "label": "回撤", "detail": "压力路径仅供复核，不构成配置指令。" },
+    { "label": "保护", "detail": "当前 MVP 中真实订单标志保持 false。" }
+  ],
+  "latestEquity": "最新权益：$118.4K",
+  "drawdownBadge": "回撤：-4.8%"
+}

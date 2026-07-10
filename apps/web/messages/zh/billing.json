@@ -1,0 +1,55 @@
+{
+  "seo": {
+    "title": "访问权限与订阅",
+    "description": "Stripe 订阅状态、每月 Credits 与高成本研究权限控制。"
+  },
+  "eyebrow": "访问控制",
+  "title": "访问权限与订阅",
+  "subtitle": "Stripe 订阅状态、每月 Credits 与高成本研究权限控制。",
+  "summary": {
+    "currentPlan": "当前套餐",
+    "subscription": "订阅",
+    "creditBalance": "Credits 余额",
+    "periodEnd": "周期结束",
+    "accountSource": "账户来源",
+    "checkoutMode": "Checkout 模式",
+    "primaryPaymentLink": "已配置 Primary Payment Link",
+    "creditUsage": "Credit 使用",
+    "usageHistory": "使用记录"
+  },
+  "checkoutModes": {
+    "session": "Checkout Session",
+    "paymentLink": "Payment Link"
+  },
+  "accountSources": {
+    "google": "Google OAuth",
+    "email": "Email / Mock"
+  },
+  "cancelSubscription": "取消订阅",
+  "reactivateSubscription": "恢复订阅",
+  "cancelWarning": "取消会在当前周期结束时生效，期间权限继续保留。",
+  "cancelAtPeriodEnd": "将在 {date} 取消",
+  "subscriptionCanceled": "订阅取消已排期。",
+  "paymentLinkMissing": "该套餐尚未配置 Stripe Payment Link。",
+  "plans": [
+    { "name": "Free", "price": "$0", "credits": "30", "research": "延迟共享每日简报", "data": "延迟市场数据", "notifications": "仅 Email", "strategy": "无策略实验室", "restrictions": ["无 Plaid", "无 iMessage", "无 X 情绪", "无链上扫描"] },
+    { "name": "Pro", "price": "$29.9", "credits": "1,000", "research": "每日市场与组合复盘", "data": "Plaid 手动同步", "notifications": "Telegram 与 Email", "strategy": "基础 Mock 回测", "restrictions": ["无高级 X 情绪", "默认无 iMessage"] },
+    { "name": "Max", "price": "$199", "credits": "10,000", "research": "每日 iMessage 简报与策略框架", "data": "组合净值 NAV、X KOL 扫描、链上扫描", "notifications": "Telegram、Slack、Email、iMessage", "strategy": "NautilusTrader 高级回测", "restrictions": ["仅供研究", "真实交易已禁用"] },
+    { "name": "Enterprise", "price": "Custom", "credits": "Custom", "research": "团队研究归档与审查轨迹", "data": "Bloomberg 适配器、自定义数据源", "notifications": "全部渠道与私有 Relay", "strategy": "私有策略实验室部署", "restrictions": ["自定义合同", "API 访问", "团队工作区", "私有化部署"] }
+  ],
+  "featureLabels": {
+    "monthlyCredits": "每月 Credits",
+    "researchAccess": "研究权限",
+    "dataAccess": "数据权限",
+    "notificationAccess": "通知权限",
+    "strategyLabAccess": "策略实验室权限",
+    "perMonth": " / 月"
+  },
+  "features": ["每月 Credits", "每日市场简报", "组合净值 NAV", "iMessage 推送", "X KOL 扫描", "链上扫描", "NautilusTrader 回测", "Bloomberg 适配器", "私有化部署"],
+  "usageTable": {
+    "action": "操作",
+    "delta": "变化",
+    "balanceAfter": "变动后余额",
+    "created": "创建时间"
+  }
+}

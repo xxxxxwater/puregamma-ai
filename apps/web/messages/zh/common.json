@@ -1,0 +1,123 @@
+{
+  "brand": "PureGamma.ai",
+  "localeName": "简体中文",
+  "language": {
+    "label": "语言",
+    "english": "EN",
+    "chinese": "中文",
+    "switchToEnglish": "切换到英文",
+    "switchToChinese": "切换到简体中文"
+  },
+  "nav": {
+    "tagline": "机构级加密资产投研基础设施。",
+    "groups": {
+      "research": "研究",
+      "portfolio": "组合",
+      "infrastructure": "基础设施",
+      "company": "公司"
+    },
+    "dashboard": "控制台",
+    "reports": "报告",
+    "signals": "信号",
+    "playbooks": "策略框架",
+    "chat": "Agent 对话",
+    "nav": "NAV",
+    "integrations": "集成",
+    "dailyPush": "每日推送",
+    "dataSources": "数据源",
+    "nautilus": "NautilusTrader",
+    "billing": "订阅",
+    "admin": "管理",
+    "account": "账户",
+    "access": "访问权限",
+    "signup": "注册",
+    "signin": "登录"
+  },
+  "auth": {
+    "googleLogin": "使用 Google 登录",
+    "orUseGoogle": "或使用 Google",
+    "googleProcessing": "正在完成 Google 登录",
+    "googleCallbackError": "Google 登录失败，请返回登录页重试。"
+  },
+  "topbar": {
+    "credits": "30 Credits",
+    "riskRegime": "风险偏好动能",
+    "freshness": "60 秒内更新",
+    "imessage": "iMessage Mock",
+    "stripe": "Stripe 未启用",
+    "executionDisabled": "交易执行已禁用"
+  },
+  "actions": {
+    "openResearchLibrary": "打开研究库",
+    "openFullReport": "打开完整报告",
+    "sendToIMessage": "发送至 iMessage",
+    "connect": "连接",
+    "sync": "同步",
+    "upgrade": "升级",
+    "manageSubscription": "管理订阅",
+    "upgradeTo": "升级至 {plan}",
+    "generatePlaybook": "生成策略框架",
+    "sendTestPush": "测试发送",
+    "runMockBacktest": "运行 Mock 回测"
+  },
+  "badges": {
+    "mockMode": "Mock 模式",
+    "liveMode": "实时模式",
+    "researchOnly": "仅供研究",
+    "available": "可用",
+    "active": "当前",
+    "default": "默认",
+    "signalFusion": "信号融合",
+    "liveBoard": "实时面板",
+    "paperStopped": "模拟会话：已停止",
+    "executionDisabled": "交易执行已禁用",
+    "entitlementReady": "权限可用",
+    "entitlementDenied": "权限受限"
+  },
+  "status": {
+    "healthy": "健康",
+    "delayed": "延迟",
+    "mock": "Mock",
+    "warning": "警告",
+    "available": "可用",
+    "processed": "已处理",
+    "pending": "待处理",
+    "idle": "空闲",
+    "requiresKey": "需要 Key",
+    "staleWarning": "过期警告",
+    "sent": "已发送",
+    "skipped": "已跳过"
+  },
+  "risk": {
+    "label": "风险",
+    "low": "低",
+    "medium": "中",
+    "high": "高",
+    "extreme": "极高"
+  },
+  "shared": {
+    "sourceFreshness": "数据新鲜度",
+    "assets": "资产",
+    "createdAt": "创建时间",
+    "source": "来源",
+    "freshDemo": "Demo 快照",
+    "sharedIntelligence": "共享市场情报",
+    "demoSnapshot": "Demo 快照",
+    "partialData": "数据不完整",
+    "synced": "已同步",
+    "netValueCurve": "净值曲线",
+    "portfolioNAV": "组合净值 NAV",
+    "marketRegime": "市场状态",
+    "credits": "Credits",
+    "creditCost": "{credits} Credits",
+    "month": "月",
+    "mockMode": "Mock 模式"
+  },
+  "forms": {
+    "enabled": "启用",
+    "localTime": "本地时间",
+    "timezone": "时区",
+    "pushType": "推送类型",
+    "channel": "渠道"
+  }
+}

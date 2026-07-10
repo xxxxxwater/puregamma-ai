@@ -1,0 +1,37 @@
+sources:
+  - id: coindesk
+    name: CoinDesk
+    url: https://www.coindesk.com/arc/outboundfeeds/rss
+    language: en
+    enabled: true
+    credibility_score: 0.82
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+  - id: decrypt
+    name: Decrypt
+    url: https://decrypt.co/feed
+    language: en
+    enabled: true
+    credibility_score: 0.72
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+  - id: blockworks
+    name: Blockworks
+    url: https://blockworks.com/feed
+    language: en
+    enabled: true
+    credibility_score: 0.80
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+  - id: cryptoslate
+    name: CryptoSlate
+    url: https://cryptoslate.com/feed/
+    language: en
+    enabled: true
+    credibility_score: 0.68
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary

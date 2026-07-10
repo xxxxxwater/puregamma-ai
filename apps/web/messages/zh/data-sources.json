@@ -1,0 +1,39 @@
+{
+  "seo": {
+    "title": "数据验证账本",
+    "description": "追踪数据源新鲜度、摄取状态与下游情报可用性。"
+  },
+  "eyebrow": "数据管道",
+  "title": "数据验证账本",
+  "subtitle": "追踪数据源新鲜度、摄取状态与下游情报可用性。",
+  "batchScan": "批量市场扫描已启用",
+  "headers": {
+    "source": "数据源",
+    "category": "类别",
+    "provider": "提供方",
+    "status": "状态",
+    "lastSync": "上次同步",
+    "requiredPlan": "所需套餐",
+    "items": "条目数",
+    "error": "错误",
+    "manualSync": "手动同步"
+  },
+  "freshnessTimeline": "新鲜度时间线",
+  "pipelineFlow": "管道流程",
+  "flow": [
+    { "label": "原始摄取", "detail": "一次性收集来源载荷，用于共享市场情报。" },
+    { "label": "标准化", "detail": "市场、新闻、组合与情绪记录进入统一 schema。" },
+    { "label": "去重", "detail": "折叠重复标题、行情点与来源事件。" },
+    { "label": "实体关联", "detail": "资产、ticker、钱包与发行主体映射到研究实体。" },
+    { "label": "评分", "detail": "对新鲜度、来源质量与事件严重性进行评分。" },
+    { "label": "共享情报", "detail": "在用户个性化之前生成批量情报。" },
+    { "label": "个性化简报", "detail": "报告结合组合、套餐与偏好上下文。" },
+    { "label": "iMessage 推送", "detail": "发送前检查权限、Credits 与投递账本。" }
+  ],
+  "mockTypes": {
+    "sentiment": "情绪",
+    "market": "市场",
+    "portfolio": "组合"
+  },
+  "sync": "同步"
+}

@@ -1,0 +1,98 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #030303;
+  --foreground: #ededed;
+  --panel: #0d0d0d;
+  --panel-muted: #111111;
+  --panel-strong: #161616;
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --muted: #a3a3a3;
+  --muted-2: #737373;
+  --positive: #d9f99d;
+  --negative: #fca5a5;
+  --warning: #fde68a;
+  --info: #d4d4d8;
+  --bg-app: var(--background);
+  --bg-card: var(--panel);
+  --bg-card-muted: var(--panel-muted);
+  --border-subtle: var(--border);
+  --text-primary: var(--foreground);
+  --text-secondary: var(--muted);
+  --accent-cyan: var(--info);
+  --accent-emerald: var(--positive);
+  --accent-amber: var(--warning);
+  --accent-red: var(--negative);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 82%);
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.sparkline {
+  height: 34px;
+  width: 100%;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.10) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 18px 100%, 100% 11px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sparkline::after {
+  content: "";
+  position: absolute;
+  inset: 8px 0 5px 0;
+  background: linear-gradient(135deg, transparent 0 12%, #ededed 13% 15%, transparent 16% 28%, #a3a3a3 29% 31%, transparent 32% 49%, #737373 50% 52%, transparent 53% 68%, #ededed 69% 71%, transparent 72%);
+}
+
+::selection {
+  background: #ededed;
+  color: #030303;
+}

@@ -1,0 +1,59 @@
+{
+  "seo": {
+    "title": "PureGamma Intelligence Console",
+    "description": "Portfolio-aware research, signal fusion, and daily market verification."
+  },
+  "eyebrow": "INTELLIGENCE CONSOLE",
+  "title": "PureGamma Intelligence Console",
+  "subtitle": "Portfolio-aware research, signal fusion, and daily market verification.",
+  "marketRegime": {
+    "regime": "Risk-on momentum",
+    "summary": "BTC leadership is intact while high beta assets are participating. Funding remains contained, but HYPE and MSTR require tighter risk controls."
+  },
+  "metrics": {
+    "totalNav": "Total NAV",
+    "dailyPnl": "Daily PnL",
+    "creditBalance": "Credit Balance",
+    "activeSignals": "Active Signals",
+    "dataHealth": "Data Health",
+    "imessage": "iMessage",
+    "partialPortfolioData": "Partial portfolio data",
+    "simulated": "+1.42% simulated",
+    "activeResearchSignals": "Active research signals",
+    "dataKeys": "X/Bloomberg require keys",
+    "enabled": "Enabled",
+    "restricted": "Restricted"
+  },
+  "process": [
+    { "label": "Input", "detail": "Market data, KOL notes, portfolio sources, and macro context." },
+    { "label": "Fusion", "detail": "Signals are merged with risk, freshness, and source quality." },
+    { "label": "Allocation", "detail": "Research is reviewed against portfolio NAV and exposure." },
+    { "label": "Review", "detail": "Outputs are archived with disclosure and delivery ledger." }
+  ],
+  "assetMonitor": {
+    "title": "Asset monitor",
+    "change24h": "24h change",
+    "funding": "Funding",
+    "openInterest": "Open interest",
+    "sentiment": "Sentiment",
+    "volume24h": "24h volume",
+    "source": "Source",
+    "updated": "Updated",
+    "liveRest": "REST live",
+    "fallback": "Mock fallback"
+  },
+  "sections": {
+    "latestDailyBrief": "Latest Daily Brief",
+    "topSignals": "Top Signals",
+    "portfolioSnapshot": "Portfolio Snapshot",
+    "dataPipelineHealth": "Data Pipeline Health",
+    "diligenceLedger": "Diligence Ledger",
+    "confidenceDistribution": "Confidence Distribution"
+  },
+  "diligence": [
+    { "label": "Strategy memo", "status": "Available", "detail": "Daily market regime note archived." },
+    { "label": "Performance review", "status": "Mock", "detail": "NAV path currently uses fallback data." },
+    { "label": "Operational boundary", "status": "Healthy", "detail": "Execution disabled; research-only delivery." },
+    { "label": "Data trail", "status": "Delayed", "detail": "X/Bloomberg require configured keys." }
+  ]
+}

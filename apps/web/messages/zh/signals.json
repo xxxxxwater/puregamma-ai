@@ -1,0 +1,46 @@
+{
+  "seo": {
+    "title": "信号审查台",
+    "description": "包含分类、置信度、催化因素、失效条件、来源轨迹与明确风险复盘的研究信号。"
+  },
+  "eyebrow": "信号审查台",
+  "title": "信号审查台",
+  "subtitle": "包含分类、置信度、催化因素、失效条件、来源轨迹与明确风险复盘的研究信号。",
+  "metrics": {
+    "longWatch": "多头观察",
+    "shortWatch": "空头观察",
+    "monitor": "监控",
+    "highConfidence": "高置信度",
+    "highRisk": "高风险",
+    "directionalResearchOnly": "仅方向性研究",
+    "noActiveShortReview": "暂无空头审查",
+    "noAllocationAction": "不构成配置动作",
+    "confidenceAbove": "置信度高于 65%",
+    "riskAbove": "风险评分大于等于 65"
+  },
+  "table": {
+    "id": "ID",
+    "asset": "资产",
+    "signalType": "信号类型",
+    "direction": "方向",
+    "confidence": "置信度",
+    "risk": "风险",
+    "catalyst": "催化因素",
+    "invalidation": "失效条件",
+    "timeframe": "时间周期",
+    "source": "来源"
+  },
+  "detail": {
+    "eyebrow": "信号详情抽屉",
+    "title": "证据复盘预览",
+    "thesis": "投资逻辑",
+    "evidence": "证据",
+    "risk": "风险",
+    "riskCopy": "资金费率、流动性与失效距离均需要复核。",
+    "invalidation": "失效条件",
+    "dataFreshness": "数据新鲜度",
+    "freshnessCopy": "共享市场情报 Demo 快照。"
+  },
+  "confidenceDistribution": "置信度分布",
+  "reviewDensity": "审查密度"
+}

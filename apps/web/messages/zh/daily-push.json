@@ -1,0 +1,23 @@
+{
+  "seo": {
+    "title": "每日研究推送",
+    "description": "配置每日 iMessage 简报，并保留权限、Credits、幂等与投递账本控制。"
+  },
+  "eyebrow": "每日研究推送",
+  "title": "每日研究推送",
+  "subtitle": "配置每日 iMessage 简报，并保留权限、Credits、幂等与投递账本控制。",
+  "entitlement": "每日 iMessage 推送仅适用于 Max 和 Enterprise 套餐。",
+  "modules": {
+    "deliverySettings": "推送设置",
+    "messagePreview": "消息预览",
+    "deliveryLedger": "推送记录",
+    "sendTest": "测试发送",
+    "pushHistory": "历史记录",
+    "contentControls": "内容控制"
+  },
+  "controls": ["包含组合", "包含市场情报", "包含重点信号", "包含风险", "包含 KOL 情绪", "最大消息长度"],
+  "preview": {
+    "label": "iMessage 每日简报",
+    "message": "PureGamma.ai 每日简报\n\n市场：\n风险偏好动能\n\n组合：\nNAV：$1.28M\n日内盈亏：+1.42%\n\n风险：\n高 Beta 山寨资产资金拥挤，关注 MSTR 溢价压缩。\n\nKOL 情绪仅作为输入信号，并非已核实事实。\n本内容仅供信息和研究参考，不构成投资建议。"
+  }
+}

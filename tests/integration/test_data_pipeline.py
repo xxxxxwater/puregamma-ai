@@ -1,0 +1,60 @@
+from __future__ import annotations
+
+import pytest
+
+from apps.api.services.market_intelligence_service import generate_shared_market_intelligence
+from packages.agents.sentiment_agent import SentimentAgent
+from packages.data.mock_provider import MockMarketDataProvider
+from packages.data.rss_provider import RSSProvider
+from packages.data.x_provider import XProvider
+
+
+def test_coindesk_mock_provider_contract_with_market_mock():
+    quotes = MockMarketDataProvider().get_snapshot(["BTC", "ETH"])
+
+    assert [quote.symbol for quote in quotes] == ["BTC", "ETH"]
+    assert all(quote.price > 0 for quote in quotes)
+
+
+def test_rss_provider_returns_headlines(monkeypatch):
+    feed = b'''<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title><item><guid>btc-1</guid><title>BTC inflow growth</title><link>https://www.coindesk.com/test</link><description>Market update</description><pubDate>Fri, 10 Jul 2026 00:00:00 GMT</pubDate></item></channel></rss>'''
+    monkeypatch.setattr(RSSProvider, "_fetch", lambda self, source: feed)
+    headlines = RSSProvider().headlines()
+
+    assert len(headlines) >= 1
+    assert all(isinstance(item, str) for item in headlines)
+
+
+def test_x_kol_mock_returns_posts_as_sentiment_scores():
+    scores = XProvider().scan_sentiment(["BTC", "SOL"])
+
+    assert scores == {"BTC": 0.5, "SOL": 0.5}
+
+
+def test_sentiment_classifier_returns_valid_score():
+    scores = SentimentAgent().aggregate(["BTC", "ETH", "SOL"])
+
+    assert all(0 <= score <= 1 for score in scores.values())
+
+
+def test_shared_market_intelligence_generated(db):
+    intelligence = generate_shared_market_intelligence(db, ["BTC", "ETH"])
+
+    assert intelligence.id
+    assert intelligence.assets == ["BTC", "ETH"]
+    assert "This is not financial advice." in intelligence.summary_markdown
+
+
+@pytest.mark.contract
+def test_bloomberg_real_mode_disabled_without_credentials_contract():
+    pytest.xfail("No Bloomberg provider mode switch exists yet. Expected: real mode disabled without credentials, mock/import mode works.")
+
+
+@pytest.mark.contract
+def test_data_source_status_updates_contract():
+    pytest.xfail("No DataSource status model exists yet. Expected: success/failure source status is persisted.")
+
+
+@pytest.mark.contract
+def test_high_cost_source_requires_entitlement_contract():
+    pytest.xfail("No high-cost source scheduler gate exists yet. Expected: X/Bloomberg/Glassnode gated by plan entitlement.")

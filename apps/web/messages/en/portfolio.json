@@ -1,0 +1,58 @@
+{
+  "seo": {
+    "title": "Portfolio NAV Review",
+    "description": "Estimated net asset value, allocation, and risk exposure across synced sources."
+  },
+  "eyebrow": "PORTFOLIO NAV REVIEW",
+  "title": "Portfolio NAV Review",
+  "subtitle": "Estimated net asset value, allocation, and risk exposure across synced sources.",
+  "actions": {
+    "syncAll": "Sync All Sources",
+    "calculateNav": "Calculate NAV",
+    "generateBrief": "Generate Portfolio Brief",
+    "sendBrief": "Send iMessage Brief"
+  },
+  "modules": {
+    "navSummary": "NAV Summary",
+    "navCurve": "NAV Curve",
+    "allocation": "Allocation",
+    "positions": "Positions",
+    "riskReview": "Risk Review",
+    "dataTrail": "Data Trail"
+  },
+  "metrics": {
+    "cashStablecoin": "Cash / Stablecoin",
+    "liquidityBuffer": "Liquidity buffer",
+    "cryptoExposure": "Crypto exposure",
+    "btcBetaIncluded": "BTC beta included",
+    "equityExposure": "Equity exposure",
+    "mstrProxy": "MSTR / IBIT proxy",
+    "drawdownEstimate": "Drawdown estimate",
+    "simulatedStress": "Simulated stress"
+  },
+  "tables": {
+    "asset": "Asset",
+    "source": "Source",
+    "qty": "Qty",
+    "price": "Price",
+    "value": "Value",
+    "costBasis": "Cost Basis",
+    "unrealizedPnl": "Unrealized PnL",
+    "risk": "Risk"
+  },
+  "warning": "Partial data. NAV is based only on currently synced sources.",
+  "riskItems": [
+    "Concentration risk: Medium",
+    "BTC beta exposure: 0.74",
+    "MSTR/BTC proxy exposure: Elevated",
+    "Stablecoin ratio: 14%",
+    "Stale data warning: Plaid 2h"
+  ],
+  "diligence": [
+    { "label": "Plaid synced", "status": "Delayed", "detail": "Brokerage holdings refreshed two hours ago." },
+    { "label": "CEX synced", "status": "Healthy", "detail": "Read-only exchange balances available." },
+    { "label": "Wallet synced", "status": "Healthy", "detail": "On-chain wallet sources included." },
+    { "label": "Price freshness", "status": "Mock", "detail": "Fallback pricing active for local demo." },
+    { "label": "Partial data status", "status": "Warning", "detail": "Partial data. NAV is based only on currently synced sources." }
+  ]
+}

@@ -1,0 +1,9 @@
+subgraphs:
+  # Enable only after configuring a currently deployed, reviewed endpoint.
+  - id: uniswap-v3-ethereum
+    name: Uniswap V3 Ethereum
+    protocol: uniswap
+    chain: ethereum
+    endpoint_env: UNISWAP_V3_SUBGRAPH_URL
+    entity_type: pools
+    enabled: false

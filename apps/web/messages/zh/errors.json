@@ -1,0 +1,9 @@
+{
+  "insufficientCredits": "此操作需要 {credits} Credits。请升级套餐，或等待下个计费周期刷新额度。",
+  "entitlementDenied": "该功能仅适用于 {plans} 套餐。",
+  "partialData": "当前组合净值 NAV 基于已同步的数据源估算。部分集成同步失败。",
+  "staleData": "部分数据源已过期。请在参考结果前检查数据新鲜度。",
+  "imessageUnavailable": "iMessage Relay 当前离线。简报已生成，但未成功投递。",
+  "liveTradingDisabled": "真实交易默认禁用。",
+  "missingTranslation": "缺失翻译：{key}"
+}

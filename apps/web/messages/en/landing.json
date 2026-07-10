@@ -1,0 +1,74 @@
+{
+  "seo": {
+    "title": "PureGamma.ai - Institutional Digital Asset Research",
+    "description": "Portfolio-aware crypto research, market intelligence, and daily iMessage briefs for digital asset investors."
+  },
+  "header": {
+    "research": "Research",
+    "process": "Process",
+    "verification": "Verification",
+    "portfolio": "Portfolio",
+    "access": "Access",
+    "login": "Login"
+  },
+  "hero": {
+    "eyebrow": "Institutional Digital Asset Research",
+    "headline": "Verifiable market intelligence for digital asset portfolios.",
+    "subheadline": "PureGamma.ai combines market data, KOL sentiment, portfolio NAV, NautilusTrader research, and daily iMessage briefs into one risk-governed research system.",
+    "primaryCta": "Open Intelligence Console",
+    "secondaryCta": "Request Institutional Brief"
+  },
+  "engine": {
+    "eyebrow": "PG AI Research Engine",
+    "rows": [
+      { "label": "MARKET DATA", "detail": "flow - depth - macro" },
+      { "label": "RESEARCH", "detail": "notes - regimes - KOL sentiment" },
+      { "label": "RISK", "detail": "limits - stress - drawdown" },
+      { "label": "OUTPUTS", "detail": "briefs - signals - NAV" }
+    ]
+  },
+  "stats": ["24/7 Market Watch", "Portfolio-aware Briefs", "Risk-first Research", "iMessage Delivery"],
+  "sections": {
+    "researchProcess": "Research Process",
+    "portfolioAware": "Portfolio-aware Intelligence",
+    "signalFusion": "Signal Fusion",
+    "riskGovernance": "Risk Governance",
+    "dailyDelivery": "Daily Research Delivery",
+    "strategyLab": "Strategy Research Lab",
+    "accessDisclosure": "Access & Disclosure"
+  },
+  "research": {
+    "eyebrow": "About",
+    "headline": "Research and engineering as core advantages.",
+    "cards": [
+      { "title": "Market Microstructure", "body": "Evidence before allocation, with transparent data lineage and review boundaries." },
+      { "title": "Hedging Framework", "body": "Risk context is tracked before any portfolio-aware research output is delivered." },
+      { "title": "Research-driven Iteration", "body": "Signals, reports, and playbooks retain source and disclosure context." }
+    ]
+  },
+  "trust": [
+    { "title": "Governance", "body": "Transparent review materials and suitability boundaries." },
+    { "title": "Verification", "body": "Source freshness and data lineage are visible before relying on an output." },
+    { "title": "Access", "body": "Plans, credits, and entitlements control high-cost research workflows." },
+    { "title": "Disclosure", "body": "Investment limits and research-only boundaries are present across the system." }
+  ],
+  "process": [
+    { "label": "Input / Signal Generation", "detail": "Market, portfolio, KOL, and risk data are captured." },
+    { "label": "Fusion / Signal Fusion", "detail": "Signals are scored against source freshness and risk." },
+    { "label": "Allocation / Portfolio Management", "detail": "NAV context informs research prioritization." },
+    { "label": "Review / Risk Governance", "detail": "Every output is reviewed against disclosure boundaries." }
+  ],
+  "deskItems": [
+    { "title": "Daily Market Brief", "body": "Research desk material available in the console." },
+    { "title": "Portfolio NAV Brief", "body": "Portfolio-aware research material with NAV context." },
+    { "title": "X KOL Sentiment Notes", "body": "Sentiment is treated as an input, not a verified fact." },
+    { "title": "NautilusTrader Strategy Lab", "body": "Backtest and paper trading research workflow with live trading disabled." }
+  ],
+  "portfolioTitle": "Net Value / Portfolio Snapshot",
+  "accessCards": [
+    { "title": "Request consultation", "body": "Institutional access workflow placeholder." },
+    { "title": "Request NDA pack", "body": "Review materials and disclosure boundaries can be shared with qualified teams." },
+    { "title": "Contact form", "body": "Start an access review for team deployment and private data needs." }
+  ],
+  "footer": "This website is for informational purposes only and does not constitute investment advice."
+}

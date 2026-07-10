@@ -1,0 +1,13 @@
+{
+  "notFinancialAdvice": "This is not financial advice.",
+  "siteDisclaimer": "This website is for informational purposes only and does not constitute investment advice.",
+  "backtest": "Historical or backtested performance is not indicative of future results.",
+  "backtestShort": "Backtested performance is hypothetical and does not guarantee future results.",
+  "kol": "KOL sentiment is an input, not a verified fact.",
+  "portfolioNav": "Portfolio NAV is an estimate based on currently synced sources and may be incomplete or delayed.",
+  "plaid": "Plaid is used for holdings and investment transaction data only, not trade execution.",
+  "exchange": "Use read-only API keys only. Never provide withdrawal permissions or private keys.",
+  "nautilus": "Live trading is disabled by default. PureGamma supports research, backtesting, and paper trading only in this MVP.",
+  "subscription": "Subscription access does not create an advisory relationship.",
+  "footer": "This website is for informational purposes only and does not constitute investment advice. KOL sentiment is an input, not a verified fact. Live trading is disabled by default. Use read-only API keys only. Never provide withdrawal permissions or private keys. Plaid is used for holdings and investment transaction data only, not trade execution."
+}

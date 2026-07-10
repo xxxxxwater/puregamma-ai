@@ -1,0 +1,123 @@
+{
+  "brand": "PureGamma.ai",
+  "localeName": "English",
+  "language": {
+    "label": "Language",
+    "english": "EN",
+    "chinese": "中文",
+    "switchToEnglish": "Switch language to English",
+    "switchToChinese": "Switch language to Simplified Chinese"
+  },
+  "nav": {
+    "tagline": "Institutional crypto research infrastructure.",
+    "groups": {
+      "research": "Research",
+      "portfolio": "Portfolio",
+      "infrastructure": "Infrastructure",
+      "company": "Company"
+    },
+    "dashboard": "Dashboard",
+    "reports": "Reports",
+    "signals": "Signals",
+    "playbooks": "Playbooks",
+    "chat": "Agent Chat",
+    "nav": "NAV",
+    "integrations": "Integrations",
+    "dailyPush": "Daily Push",
+    "dataSources": "Data Sources",
+    "nautilus": "NautilusTrader",
+    "billing": "Billing",
+    "admin": "Admin",
+    "account": "Account",
+    "access": "Access",
+    "signup": "Sign Up",
+    "signin": "Sign In"
+  },
+  "auth": {
+    "googleLogin": "Continue with Google",
+    "orUseGoogle": "or use Google",
+    "googleProcessing": "Completing Google sign-in",
+    "googleCallbackError": "Google sign-in failed. Please return to the login page and try again."
+  },
+  "topbar": {
+    "credits": "30 credits",
+    "riskRegime": "Risk-on momentum",
+    "freshness": "Fresh 60s",
+    "imessage": "iMessage mock",
+    "stripe": "Stripe inactive",
+    "executionDisabled": "Execution disabled"
+  },
+  "actions": {
+    "openResearchLibrary": "Open Research Library",
+    "openFullReport": "Open Full Report",
+    "sendToIMessage": "Send to iMessage",
+    "connect": "Connect",
+    "sync": "Sync",
+    "upgrade": "Upgrade",
+    "manageSubscription": "Manage Subscription",
+    "upgradeTo": "Upgrade to {plan}",
+    "generatePlaybook": "Generate playbook",
+    "sendTestPush": "Send test push",
+    "runMockBacktest": "Run mock backtest"
+  },
+  "badges": {
+    "mockMode": "Mock Mode",
+    "liveMode": "Live Mode",
+    "researchOnly": "Research only",
+    "available": "Available",
+    "active": "Active",
+    "default": "Default",
+    "signalFusion": "SIGNAL FUSION",
+    "liveBoard": "Live board",
+    "paperStopped": "Paper session: stopped",
+    "executionDisabled": "Execution disabled",
+    "entitlementReady": "Entitlement ready",
+    "entitlementDenied": "Entitlement denied"
+  },
+  "status": {
+    "healthy": "Healthy",
+    "delayed": "Delayed",
+    "mock": "Mock",
+    "warning": "Warning",
+    "available": "Available",
+    "processed": "processed",
+    "pending": "pending",
+    "idle": "idle",
+    "requiresKey": "requires key",
+    "staleWarning": "stale warning",
+    "sent": "sent",
+    "skipped": "skipped"
+  },
+  "risk": {
+    "label": "Risk",
+    "low": "Low",
+    "medium": "Medium",
+    "high": "High",
+    "extreme": "Extreme"
+  },
+  "shared": {
+    "sourceFreshness": "Source Freshness",
+    "assets": "Assets",
+    "createdAt": "Created At",
+    "source": "source",
+    "freshDemo": "fresh demo",
+    "sharedIntelligence": "shared intelligence",
+    "demoSnapshot": "Demo snapshot",
+    "partialData": "Partial data",
+    "synced": "Synced",
+    "netValueCurve": "Net Value Curve",
+    "portfolioNAV": "Portfolio NAV",
+    "marketRegime": "Market Regime",
+    "credits": "Credits",
+    "creditCost": "{credits} credits",
+    "month": "month",
+    "mockMode": "Mock mode"
+  },
+  "forms": {
+    "enabled": "Enabled",
+    "localTime": "Local time",
+    "timezone": "Timezone",
+    "pushType": "Push type",
+    "channel": "Channel"
+  }
+}

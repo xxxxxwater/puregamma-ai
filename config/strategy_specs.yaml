@@ -1,0 +1,189 @@
+strategies:
+  - strategy_name: BTC momentum breakout
+    asset_universe: [BTC]
+    signal_type: trend_breakout
+    direction: long_watch
+    raw_score: 0.66
+    normalized_score: 0.66
+    confidence: 0.62
+    risk_score: 48
+    regime_filter: Risk-on or neutral crypto regime; BTC realized volatility below stress threshold.
+    entry_condition: Daily close above 20-day range high, confirmed after bar close with volume above 30-day median.
+    exit_condition: Close back inside breakout range, funding crowding, or stop based on ATR.
+    invalidation: Breakout level lost on rising volume or BTC dominance fails while market breadth weakens.
+    data_freshness_requirement: OHLCV <= 5 minutes for intraday, <= 1 bar for daily; funding/OI <= 30 minutes.
+    minimum_liquidity: 500000000
+    max_leverage_assumption: 1.0
+    timeframe: 1-3 weeks
+    source_data: [OHLCV, volume, funding, open_interest, liquidations, ETF_flow_proxy]
+    disclaimers: [Research signal only., This is not financial advice., No live trading is enabled.]
+    readiness: MVP Ready
+    backtest_quality: insufficient
+
+  - strategy_name: ETH/BTC rotation
+    asset_universe: [ETH, BTC]
+    signal_type: relative_strength
+    direction: relative_long_eth_short_btc_watch
+    raw_score: 0.61
+    normalized_score: 0.61
+    confidence: 0.58
+    risk_score: 54
+    regime_filter: BTC volatility declining and ETH/BTC reclaiming trend support.
+    entry_condition: ETH/BTC closes above 20-day moving average after BTC range compression.
+    exit_condition: ETH/BTC loses moving average or BTC dominance resumes upside breakout.
+    invalidation: ETH/BTC lower low with broad alt weakness.
+    data_freshness_requirement: Pair OHLCV <= 1 bar; funding/OI <= 30 minutes.
+    minimum_liquidity: 300000000
+    max_leverage_assumption: 1.0
+    timeframe: 1-4 weeks
+    source_data: [ETH_BTC_OHLCV, BTC_volatility, funding, open_interest, market_breadth]
+    disclaimers: [Relative rotation research only., This is not financial advice.]
+    readiness: MVP Ready
+    backtest_quality: insufficient
+
+  - strategy_name: SOL high beta rotation
+    asset_universe: [SOL]
+    signal_type: high_beta_relative_strength
+    direction: long_watch
+    raw_score: 0.56
+    normalized_score: 0.56
+    confidence: 0.44
+    risk_score: 66
+    regime_filter: Broad risk-on with contained funding and improving alt breadth.
+    entry_condition: SOL relative strength versus ETH positive for two sessions after volatility contraction.
+    exit_condition: Funding or basis becomes crowded, trend support breaks, or BTC regime turns risk-off.
+    invalidation: Failed retest with broad alt weakness and rising liquidations.
+    data_freshness_requirement: OHLCV <= 5 minutes; funding/OI/liquidations <= 15 minutes.
+    minimum_liquidity: 150000000
+    max_leverage_assumption: 1.0
+    timeframe: 3-10 days
+    source_data: [OHLCV, relative_strength, funding, open_interest, liquidations, market_breadth]
+    disclaimers: [High beta research only., Not suitable for high-confidence signals in MVP.]
+    readiness: Research-only
+    backtest_quality: mock
+
+  - strategy_name: SOL/HYPE high beta rotation
+    asset_universe: [SOL, HYPE]
+    signal_type: high_beta_relative_strength
+    direction: long_watch
+    raw_score: 0.54
+    normalized_score: 0.54
+    confidence: 0.4
+    risk_score: 72
+    regime_filter: Active only when BTC regime is risk-on, alt breadth improves, and HYPE liquidity is acceptable.
+    entry_condition: SOL/HYPE relative momentum positive after funding reset and no liquidation cluster near price.
+    exit_condition: Relative momentum rolls over, HYPE liquidity thins, or BTC regime flips risk-off.
+    invalidation: HYPE loses trend support while SOL breadth weakens and OI rises.
+    data_freshness_requirement: OHLCV <= 5 minutes; funding/OI/liquidations <= 15 minutes.
+    minimum_liquidity: 75000000
+    max_leverage_assumption: 1.0
+    timeframe: 2-8 days
+    source_data: [SOL_OHLCV, HYPE_OHLCV, funding, open_interest, liquidations, market_breadth]
+    disclaimers: [Research-only due to HYPE liquidity and venue data risk.]
+    readiness: Research-only
+    backtest_quality: mock
+
+  - strategy_name: HYPE trend following
+    asset_universe: [HYPE]
+    signal_type: trend_following
+    direction: long_watch
+    raw_score: 0.53
+    normalized_score: 0.53
+    confidence: 0.4
+    risk_score: 74
+    regime_filter: Risk-on crypto regime with stable exchange/protocol activity and non-stressed funding.
+    entry_condition: Higher high after volatility contraction with funding below stress threshold.
+    exit_condition: Trend support fails, liquidations cluster near price, or vertical extension appears.
+    invalidation: Loss of 7-day trend support with rising OI and negative breadth.
+    data_freshness_requirement: OHLCV/funding/OI <= 5 minutes; protocol metrics <= 1 day.
+    minimum_liquidity: 75000000
+    max_leverage_assumption: 1.0
+    timeframe: 2-8 days
+    source_data: [OHLCV, funding, open_interest, liquidations, protocol_metrics]
+    disclaimers: [Research-only due to liquidity and data quality risk.]
+    readiness: Research-only
+    backtest_quality: mock
+
+  - strategy_name: MSTR premium / BTC proxy trade
+    asset_universe: [MSTR, BTC]
+    signal_type: cross_market_proxy
+    direction: proxy_watch
+    raw_score: 0.5
+    normalized_score: 0.5
+    confidence: 0.38
+    risk_score: 70
+    regime_filter: BTC trend supportive and US equity liquidity stable.
+    entry_condition: BTC breakout with MSTR premium stable or expanding after equity market open.
+    exit_condition: Premium compresses despite BTC strength or equity risk regime deteriorates.
+    invalidation: BTC loses breakout, MSTR underperforms BTC materially, or premium data is stale.
+    data_freshness_requirement: BTC <= 5 minutes, MSTR equity quote <= 15 minutes, premium estimate <= 1 day.
+    minimum_liquidity: 100000000
+    max_leverage_assumption: 1.0
+    timeframe: 1-3 weeks
+    source_data: [BTC_OHLCV, MSTR_equity_price, premium_discount, equity_regime]
+    disclaimers: [Cross-market research only., Equity borrow/tax/session risks are not modeled in MVP.]
+    readiness: Research-only
+    backtest_quality: insufficient
+
+  - strategy_name: STRC event-driven credit trade
+    asset_universe: [STRC]
+    signal_type: event_driven_credit
+    direction: credit_watch
+    raw_score: 0.42
+    normalized_score: 0.42
+    confidence: 0.22
+    risk_score: 63
+    regime_filter: Issuer-specific credit data is fresh, liquid, and legally usable.
+    entry_condition: Credit spread widens without matching deterioration in issuer or collateral quality.
+    exit_condition: Spread normalizes, issuer risk rises, or event catalyst resolves.
+    invalidation: Issuer stress, liquidity break, stale spread data, or BTC collateral shock.
+    data_freshness_requirement: Issuer events <= publication timestamp; quotes/spreads <= 1 day and source-verified.
+    minimum_liquidity: 25000000
+    max_leverage_assumption: 1.0
+    timeframe: 2-6 weeks
+    source_data: [credit_spread, issuer_events, BTC_collateral_proxy, liquidity]
+    disclaimers: [Do not launch without licensed credit data and issuer-risk review.]
+    readiness: Do not launch
+    backtest_quality: none
+
+  - strategy_name: basis funding arbitrage
+    asset_universe: [BTC, ETH, SOL]
+    signal_type: market_neutral_carry
+    direction: market_neutral_watch
+    raw_score: 0.58
+    normalized_score: 0.58
+    confidence: 0.36
+    risk_score: 66
+    regime_filter: Exchange, borrow, and funding data are reliable; counterparty limits available.
+    entry_condition: Annualized funding or basis exceeds fee, slippage, borrow, and counterparty hurdle.
+    exit_condition: Carry compresses below hurdle, margin risk rises, or venue health deteriorates.
+    invalidation: Exchange withdrawal, borrow, liquidation, or settlement risk exceeds limit.
+    data_freshness_requirement: Funding/OI/order book <= 1 minute; borrow and venue status <= 1 day.
+    minimum_liquidity: 500000000
+    max_leverage_assumption: 1.0
+    timeframe: 1 day-4 weeks
+    source_data: [funding, basis, order_book, borrow, fees, venue_health]
+    disclaimers: [Enterprise-only research; requires venue risk controls and licensed data.]
+    readiness: Enterprise-only
+    backtest_quality: insufficient
+
+  - strategy_name: cross-market crypto / equity risk regime
+    asset_universe: [BTC, ETH, MSTR, QQQ, SPY, DXY, rates]
+    signal_type: regime_filter
+    direction: regime_context
+    raw_score: 0.55
+    normalized_score: 0.55
+    confidence: 0.48
+    risk_score: 58
+    regime_filter: Requires equity index, rates, USD, and crypto cross-asset alignment.
+    entry_condition: Used as a filter only; cannot independently trigger a trade.
+    exit_condition: Deactivate when macro data is stale or cross-asset correlations break.
+    invalidation: Stale macro feeds, contradictory equity/crypto beta, or event shock.
+    data_freshness_requirement: Crypto <= 5 minutes; equities <= 15 minutes; macro rates <= 1 day.
+    minimum_liquidity: 500000000
+    max_leverage_assumption: 1.0
+    timeframe: 1 day-4 weeks
+    source_data: [crypto_OHLCV, equity_indices, rates, DXY, realized_volatility, correlations]
+    disclaimers: [Regime context only; not an actionable strategy by itself.]
+    readiness: Research-only
+    backtest_quality: insufficient
