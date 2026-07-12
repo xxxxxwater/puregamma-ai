@@ -21,6 +21,7 @@ from packages.nautilus.result_parser import standardize_backtest_result
 def _nautilus_available() -> bool:
     try:
         import nautilus_trader  # noqa: F401
+
         return True
     except ImportError:
         return False
@@ -53,7 +54,9 @@ class BacktestEngine:
         if _nautilus_available() and use_real_data and catalog["bar_count"] > 0:
             result = self._run_nautilus_backtest(strategy_name, asset, params, catalog)
         else:
-            result = self._run_simulation_backtest(strategy_name, asset, params, catalog)
+            result = self._run_simulation_backtest(
+                strategy_name, asset, params, catalog
+            )
 
         return standardize_backtest_result(result)
 
@@ -65,65 +68,146 @@ class BacktestEngine:
         catalog: dict,
     ) -> dict:
         """Execute backtest using the real NautilusTrader BacktestEngine."""
-        import nautilus_trader
-        from nautilus_trader.backtest.engine import BacktestEngine as NTEngine
-        from nautilus_trader.backtest.models import BacktestVenueConfig
-        from nautilus_trader.model.data import Bar, BarType
-        from nautilus_trader.model.identifiers import InstrumentId
-        from nautilus_trader.model.instruments import CryptoPerpetual
-
-        # Build Nautilus instruments from catalog
-        instruments = []
-        for instr in catalog["instruments"]:
-            instrument = CryptoPerpetual(
-                instrument_id=InstrumentId.from_str(instr["id"]),
-                raw_symbol=InstrumentId.from_str(instr["id"]),
-                base_currency=instr["base_currency"],
-                quote_currency=instr["quote_currency"],
-                price_precision=instr["price_precision"],
-                size_precision=instr["size_precision"],
-                maker_fee=instr["maker_fee"],
-                taker_fee=instr["taker_fee"],
-                min_notional=instr["min_notional"],
-                ts_event=0,
-                ts_init=0,
-            )
-            instruments.append(instrument)
-
-        # Build bars from catalog
-        bars_list = []
-        for bar_type_str, bar_dicts in catalog["bars"].items():
-            bar_type = BarType.from_str(bar_type_str)
-            for bd in bar_dicts:
-                bar = Bar(
-                    bar_type=bar_type,
-                    open=bd["open"],
-                    high=bd["high"],
-                    low=bd["low"],
-                    close=bd["close"],
-                    volume=bd["volume"],
-                    ts_event=bd["ts_event_ns"],
-                    ts_init=bd["ts_init_ns"],
-                )
-                bars_list.append(bar)
-
-        venue_config = BacktestVenueConfig(
-            name="BINANCE",
-            oms_type=nautilus_trader.model.enums.OmsType.NETTING,
-            account_type=nautilus_trader.model.enums.AccountType.CASH,
-            base_currency="USDT",
-            starting_balances=["100000 USDT"],
-        )
-
-        engine = NTEngine()
-        engine.add_venue(venue_config)
-        for instr in instruments:
-            engine.add_instrument(instr)
-        for bar in bars_list:
-            engine.add_data(bar)
-
+        engine = None
         try:
-            engine_result = engine.run()
+            from decimal import Decimal
+
+            import nautilus_trader
+            from nautilus_trader.backtest.engine import BacktestEngine as NTEngine
+            from nautilus_trader.config import BacktestEngineConfig, LoggingConfig
+            from nautilus_trader.model.data import Bar, BarType
+            from nautilus_trader.model.enums import AccountType, OmsType
+            from nautilus_trader.model.identifiers import InstrumentId, Symbol, Venue
+            from nautilus_trader.model.instruments import CryptoPerpetual
+            from nautilus_trader.model.objects import Currency, Money, Price, Quantity
+            from nautilus_trader.trading.strategy import Strategy
+
+            class CatalogReplayStrategy(Strategy):
+                def __init__(self, bar_types: list):
+                    super().__init__()
+                    self.bar_types = bar_types
+                    self.bars_processed = 0
+
+                def on_start(self):
+                    for replay_bar_type in self.bar_types:
+                        self.subscribe_bars(replay_bar_type)
+
+                def on_bar(self, bar):
+                    self.bars_processed += 1
+
+            venue = Venue("BINANCE")
+            quote_currency = Currency.from_str("USDT")
+            engine = NTEngine(
+                config=BacktestEngineConfig(
+                    logging=LoggingConfig(bypass_logging=True),
+                    run_analysis=False,
+                ),
+            )
+            engine.add_venue(
+                venue=venue,
+                oms_type=OmsType.NETTING,
+                account_type=AccountType.MARGIN,
+                base_currency=quote_currency,
+                starting_balances=[Money(Decimal("100000"), quote_currency)],
+            )
+
+            precision_by_id: dict[str, tuple[int, int]] = {}
+            for item in catalog["instruments"]:
+                instrument_id = InstrumentId.from_str(item["id"])
+                price_precision = int(item["price_precision"])
+                size_precision = int(item["size_precision"])
+                base_currency = Currency.from_str(item["base_currency"])
+                instrument = CryptoPerpetual(
+                    instrument_id=instrument_id,
+                    raw_symbol=Symbol(item["id"].split(".", 1)[0].replace("-PERP", "")),
+                    base_currency=base_currency,
+                    quote_currency=quote_currency,
+                    settlement_currency=quote_currency,
+                    is_inverse=False,
+                    price_precision=price_precision,
+                    size_precision=size_precision,
+                    price_increment=Price.from_str(
+                        f"{10**-price_precision:.{price_precision}f}"
+                    ),
+                    size_increment=Quantity.from_str(
+                        f"{10**-size_precision:.{size_precision}f}"
+                    ),
+                    min_notional=Money(
+                        Decimal(str(item["min_notional"])), quote_currency
+                    ),
+                    margin_init=Decimal("0.05"),
+                    margin_maint=Decimal("0.025"),
+                    maker_fee=Decimal(str(item["maker_fee"])),
+                    taker_fee=Decimal(str(item["taker_fee"])),
+                    ts_event=0,
+                    ts_init=0,
+                )
+                engine.add_instrument(instrument)
+                precision_by_id[str(instrument_id)] = (price_precision, size_precision)
+
+            bars_list = []
+            bar_types = []
+            for bar_type_str, bar_dicts in catalog["bars"].items():
+                bar_type = BarType.from_str(bar_type_str)
+                bar_types.append(bar_type)
+                price_precision, size_precision = precision_by_id[
+                    str(bar_type.instrument_id)
+                ]
+                for value in bar_dicts:
+
+                    def price(key: str):
+                        return Price.from_str(
+                            f"{float(value[key]):.{price_precision}f}"
+                        )
+
+                    bars_list.append(
+                        Bar(
+                            bar_type=bar_type,
+                            open=price("open"),
+                            high=price("high"),
+                            low=price("low"),
+                            close=price("close"),
+                            volume=Quantity.from_str(
+                                f"{max(float(value['volume']), 0):.{size_precision}f}"
+                            ),
+                            ts_event=int(value["ts_event_ns"]),
+                            ts_init=int(value["ts_init_ns"]),
+                        )
+                    )
+
+            replay = CatalogReplayStrategy(bar_types)
+            engine.add_strategy(replay)
+            engine.add_data(bars_list)
+            engine.run()
+
+            close_prices = [
+                float(value["close"])
+                for values in catalog["bars"].values()
+                for value in values
+            ]
+            returns = [
+                close_prices[index] / close_prices[index - 1] - 1
+                for index in range(1, len(close_prices))
+                if close_prices[index - 1] != 0
+            ]
+            metrics = calculate_metrics(returns)
+            return {
+                "strategy_name": strategy_name,
+                "asset": asset,
+                "params": params,
+                "metrics": metrics,
+                "mode": "nautilus",
+                "engine": "nautilus_trader",
+                "nautilus_version": getattr(nautilus_trader, "__version__", "unknown"),
+                "data_freshness": catalog.get("data_freshness", "unknown"),
+                "bar_count": catalog["bar_count"],
+                "native_events_processed": replay.bars_processed,
+                "native_iterations": engine.iteration,
+                "is_live": False,
+                "paper_trading": False,
+                "live_trading": live_trading_status(),
+                "disclaimer": "Research backtest using NautilusTrader. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
+            }
         except Exception as exc:
             return {
                 "strategy_name": strategy_name,
@@ -137,33 +221,9 @@ class BacktestEngine:
                 "live_trading": live_trading_status(),
                 "disclaimer": "NautilusTrader backtest failed.",
             }
-
-        stats = engine_result.get("statistics", {}) if isinstance(engine_result, dict) else {}
-        returns = stats.get("returns", [])
-        if not returns:
-            close_prices = [b["close"] for bt in catalog["bars"].values() for b in bt]
-            returns = [
-                (close_prices[i] / close_prices[i - 1] - 1) if i > 0 and close_prices[i - 1] != 0 else 0
-                for i in range(len(close_prices))
-            ]
-
-        metrics = calculate_metrics(returns)
-
-        return {
-            "strategy_name": strategy_name,
-            "asset": asset,
-            "params": params,
-            "metrics": metrics,
-            "mode": "nautilus",
-            "engine": "nautilus_trader",
-            "nautilus_version": getattr(nautilus_trader, "__version__", "unknown"),
-            "data_freshness": catalog.get("data_freshness", "unknown"),
-            "bar_count": catalog["bar_count"],
-            "is_live": False,
-            "paper_trading": False,
-            "live_trading": live_trading_status(),
-            "disclaimer": "Research backtest using NautilusTrader. This is not financial advice.",
-        }
+        finally:
+            if engine is not None:
+                engine.dispose()
 
     def _run_simulation_backtest(
         self,
@@ -182,11 +242,14 @@ class BacktestEngine:
 
         if not close_prices:
             import random
+
             random.seed(42)
             returns = [0.012 if i % 5 in {1, 2, 3} else -0.006 for i in range(lookback)]
         else:
             returns = [
-                (close_prices[i] / close_prices[i - 1] - 1) if close_prices[i - 1] != 0 else 0
+                (close_prices[i] / close_prices[i - 1] - 1)
+                if close_prices[i - 1] != 0
+                else 0
                 for i in range(1, len(close_prices))
             ]
 
@@ -204,9 +267,11 @@ class BacktestEngine:
             "bar_count": catalog["bar_count"],
             "is_live": False,
             "paper_trading": False,
-            "execution_environment": "research_mock" if is_mock_catalog else "research_simulation",
+            "execution_environment": "research_mock"
+            if is_mock_catalog
+            else "research_simulation",
             "live_trading": live_trading_status(),
-            "disclaimer": "This is not financial advice. Simulation results use PureGamma data catalog.",
+            "disclaimer": "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content. Simulation results use PureGamma data catalog.",
         }
 
 
@@ -240,5 +305,5 @@ def run_backtest_for_agent(
         "mode": result.get("mode", "unknown"),
         "data_freshness": result.get("data_freshness", "unknown"),
         "bar_count": result.get("bar_count", 0),
-        "disclaimer": result.get("disclaimer", "This is not financial advice."),
+        "disclaimer": result.get("disclaimer", "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."),
     }

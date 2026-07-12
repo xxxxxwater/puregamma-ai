@@ -1,6 +1,6 @@
 # Deployment Overview
 
-PureGamma.ai production deployment has five core runtime groups:
+PureGamma AI production deployment has five core runtime groups:
 
 - Web app: Next.js frontend.
 - API: FastAPI backend.
@@ -9,7 +9,7 @@ PureGamma.ai production deployment has five core runtime groups:
 - Workers: Celery worker and APScheduler process.
 - Optional relay: self-hosted macOS iMessage relay.
 
-PureGamma.ai is research software. Deployment must preserve disclaimers, source freshness warnings, and safety gates around Portfolio NAV, backtests, and notifications.
+PureGamma AI is research software. Deployment must preserve disclaimers, source freshness warnings, and safety gates around Portfolio NAV, backtests, and notifications.
 
 ## Recommended Topology
 

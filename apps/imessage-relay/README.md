@@ -1,4 +1,4 @@
-# PureGamma.ai iMessage Relay
+# PureGamma AI iMessage Relay
 
 The relay is a self-hosted FastAPI service for users who choose to run iMessage delivery from their own Mac. It does not read the Messages private database and does not bypass Apple security controls.
 

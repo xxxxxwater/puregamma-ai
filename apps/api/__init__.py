@@ -1,1 +1,1 @@
-"""FastAPI backend for PureGamma.ai."""
+"""FastAPI backend for PureGamma AI."""

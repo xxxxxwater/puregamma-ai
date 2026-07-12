@@ -1,8 +1,8 @@
-# PureGamma.ai Documentation
+# PureGamma AI Documentation
 
-This documentation turns PureGamma.ai from a code project into an operating manual for users, developers, administrators, operators, and enterprise customers.
+This documentation turns PureGamma AI from a code project into an operating manual for users, developers, administrators, operators, and enterprise customers.
 
-PureGamma.ai is investment research software. It does not trade, custody assets, provide tax advice, or guarantee returns. Investment content must keep the disclaimer: `This is not financial advice.`
+PureGamma AI is investment research software. It does not trade, custody assets, provide tax advice, or guarantee returns. Investment content must keep the disclaimer: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Current Implementation Status
 

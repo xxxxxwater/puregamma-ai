@@ -42,7 +42,7 @@ Exchange key material must be:
 
 ## What Not To Store
 
-PureGamma.ai must never ask users for:
+PureGamma AI must never ask users for:
 
 - Seed phrases.
 - Wallet private keys.

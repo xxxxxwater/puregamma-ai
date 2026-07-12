@@ -1,8 +1,8 @@
 # Architecture
 
-PureGamma.ai is organized as a monorepo with application entrypoints in `apps/` and reusable domain packages in `packages/`.
+PureGamma AI is organized as a monorepo with application entrypoints in `apps/` and reusable domain packages in `packages/`.
 
-PureGamma.ai produces research, signals, reports, NAV estimates, and backtests only. It does not place trades or guarantee returns.
+PureGamma AI produces research, signals, reports, NAV estimates, and backtests only. It does not place trades or guarantee returns.
 
 ## Runtime Components
 

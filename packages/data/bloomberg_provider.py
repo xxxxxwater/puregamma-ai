@@ -61,7 +61,7 @@ class BloombergProvider(DataProvider):
         params: dict[str, Any] = {"limit": 100}
         if cursor:
             params["cursor"] = cursor
-        headers = {"Authorization": f"Bearer {self.api_key}", "Accept": "application/json", "User-Agent": "PureGamma.ai/1.0"}
+        headers = {"Authorization": f"Bearer {self.api_key}", "Accept": "application/json", "User-Agent": "PureGamma AI/1.0"}
         self._usage.requests += 1
         response = self._request_get(self.api_url, headers=headers, params=params, timeout=self.timeout) if self._request_get else httpx.get(self.api_url, headers=headers, params=params, timeout=self.timeout, follow_redirects=False)
         if response.status_code >= 400:

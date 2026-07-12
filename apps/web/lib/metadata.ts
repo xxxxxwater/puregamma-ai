@@ -36,7 +36,9 @@ export function localizedMetadata(locale: Locale, namespace: SeoKey, path = ""):
       locale: locale === "zh" ? "zh_CN" : "en_US",
       alternateLocale: locale === "zh" ? ["en_US"] : ["zh_CN"],
       url: canonical,
-      siteName: "PureGamma.ai"
-    }
+      siteName: "PureGamma AI",
+      images: [{ url: `${baseUrl}/logo.png`, width: 512, height: 512 }]
+    },
+    icons: { icon: "/logo.png", apple: "/logo.png" }
   };
 }

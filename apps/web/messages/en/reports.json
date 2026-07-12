@@ -5,7 +5,7 @@
   },
   "eyebrow": "RESEARCH DESK",
   "title": "Research Desk",
-  "subtitle": "Structured market, portfolio, event, strategy, and risk memos with source freshness and controlled delivery.",
+  "subtitle": "A concise daily brief under 200 words, combining real-time market data, sources, and your agent conversation memory. Pushed to your channels.",
   "filters": ["Daily Brief", "Portfolio Review", "Event Note", "Strategy Memo", "Risk Review"],
   "archive": {
     "eyebrow": "Research Archive",
@@ -23,7 +23,7 @@
     "language": "Language"
   },
   "mock": {
-    "title": "PureGamma Daily Crypto Brief",
-    "content": "# PureGamma Daily Crypto Brief\n\n## Market Regime\nRisk-on momentum with contained leverage.\n\n## Key Signals\n- BTC leadership remains the cleanest expression of crypto beta.\n- SOL and HYPE show high beta follow-through, but funding risk is rising.\n\n## Risk\nModerate risk; favor liquid assets and explicit invalidation levels.\n\n## Disclaimer\nThis is not financial advice."
+    "title": "PureGamma Daily Brief",
+    "content": "Risk-on momentum persists with contained leverage. BTC at $62,340 leads the rally; ETH follows at $3,410. SOL and HYPE show high-beta momentum but funding rates are elevated, suggesting caution. Key watch: ETF inflows remain positive for the fifth consecutive day. On-chain activity shows accumulation at support levels. Moderate overall risk; favor liquid assets with clear invalidation. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
   }
 }

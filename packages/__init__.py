@@ -1,1 +1,1 @@
-"""Shared PureGamma.ai domain packages."""
+"""Shared PureGamma AI domain packages."""

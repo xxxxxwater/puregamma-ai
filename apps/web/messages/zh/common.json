@@ -1,5 +1,5 @@
 {
-  "brand": "PureGamma.ai",
+  "brand": "PureGamma AI",
   "localeName": "简体中文",
   "language": {
     "label": "语言",
@@ -9,7 +9,7 @@
     "switchToChinese": "切换到简体中文"
   },
   "nav": {
-    "tagline": "机构级加密资产投研基础设施。",
+    "tagline": "面向个人投资者的 Beta、Alpha 与 Long Gamma AI 决策助手。",
     "groups": {
       "research": "研究",
       "portfolio": "组合",
@@ -18,6 +18,7 @@
     },
     "dashboard": "控制台",
     "reports": "报告",
+    "options": "期权",
     "signals": "信号",
     "playbooks": "策略框架",
     "chat": "Agent 对话",

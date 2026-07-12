@@ -1,8 +1,8 @@
 # Product Overview
 
-PureGamma.ai is an AI-native investment research SaaS for crypto and equity-aware portfolios. It helps active investors consume market intelligence, understand portfolio exposure, review research signals, and receive daily summaries without opening multiple tools.
+PureGamma AI is an AI-native investment research SaaS for crypto and equity-aware portfolios. It helps active investors consume market intelligence, understand portfolio exposure, review research signals, and receive daily summaries without opening multiple tools.
 
-PureGamma.ai is research software only. It does not place trades, custody assets, provide tax advice, or promise returns. All investment content must include: `This is not financial advice.`
+PureGamma AI is research software only. It does not place trades, custody assets, provide tax advice, or promise returns. All investment content must include: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Who It Is For
 

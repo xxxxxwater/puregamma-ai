@@ -3,12 +3,11 @@ from __future__ import annotations
 import logging
 import os
 from dataclasses import replace
-from datetime import datetime, timezone
-
-from packages.data.base import AssetType, MarketQuote, asset_type_for
+from packages.data.base import MarketQuote, asset_type_for
 from packages.data.equity_providers.alpha_vantage_provider import AlphaVantageProvider
 from packages.data.equity_providers.fmp_provider import FMPProvider
 from packages.data.equity_providers.massive_provider import MassiveProvider
+from packages.data.equity_providers.nasdaq_provider import NasdaqDataLinkProvider
 from packages.data.mock_provider import MockMarketDataProvider
 
 logger = logging.getLogger(__name__)
@@ -18,20 +17,22 @@ def _mock_enabled() -> bool:
 
 
 def _provider_order() -> str:
-    return os.environ.get("MARKET_DATA_PROVIDER", "massive").lower()
+    return os.environ.get("MARKET_DATA_PROVIDER", "nasdaq").lower()
 
 
 EQUITY_SOURCE_LABELS: dict[str, str] = {
-    "massive": "NASDAQ",
-    "fmp": "NASDAQ",
-    "alpha_vantage": "NASDAQ",
+    "nasdaq": "Nasdaq Data Link",
+    "massive": "Massive",
+    "fmp": "Financial Modeling Prep",
+    "alpha_vantage": "Alpha Vantage",
     "mock": "MOCK",
 }
 
 PREFERRED_SOURCE_LABELS: dict[str, str] = {
-    "massive": "NASDAQ Preferred",
-    "fmp": "NASDAQ Preferred",
-    "alpha_vantage": "NASDAQ Preferred",
+    "nasdaq": "Nasdaq Data Link",
+    "massive": "Massive",
+    "fmp": "Financial Modeling Prep",
+    "alpha_vantage": "Alpha Vantage",
     "mock": "MOCK",
 }
 
@@ -39,8 +40,8 @@ PREFERRED_SOURCE_LABELS: dict[str, str] = {
 def equity_source_label(symbol: str, source: str) -> str:
     asset_type = asset_type_for(symbol)
     if asset_type == "preferred_equity":
-        return PREFERRED_SOURCE_LABELS.get(source, "MOCK")
-    return EQUITY_SOURCE_LABELS.get(source, "MOCK")
+        return PREFERRED_SOURCE_LABELS.get(source, source.upper())
+    return EQUITY_SOURCE_LABELS.get(source, source.upper())
 
 
 class EquityDataProvider:
@@ -52,14 +53,16 @@ class EquityDataProvider:
         if self._providers:
             return self._providers
         priority = _provider_order()
-        if priority == "massive":
+        if priority == "nasdaq":
+            chain = [NasdaqDataLinkProvider()]
+        elif priority == "massive":
             chain = [MassiveProvider(), FMPProvider(), AlphaVantageProvider()]
         elif priority == "fmp":
             chain = [FMPProvider(), AlphaVantageProvider(), MassiveProvider()]
         elif priority == "alpha_vantage":
             chain = [AlphaVantageProvider(), FMPProvider(), MassiveProvider()]
         else:
-            chain = [MassiveProvider(), FMPProvider(), AlphaVantageProvider()]
+            chain = [NasdaqDataLinkProvider()]
         self._providers = chain
         return chain
 

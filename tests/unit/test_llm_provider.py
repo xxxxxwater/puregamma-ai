@@ -24,7 +24,7 @@ def test_deepseek_missing_key_falls_back_to_mock_and_logs_redacted_prompt(db, de
     assert status["active_provider"] == "mock"
     assert status["model"] == "deepseek-v4-flash"
     assert status["configured"] is False
-    assert "This is not financial advice." in content
+    assert "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." in content
     assert log.status == "fallback_mock"
     assert "[REDACTED]" in log.prompt_summary
     assert "sk-testsecret123" not in log.prompt_summary

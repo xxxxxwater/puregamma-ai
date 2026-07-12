@@ -1,4 +1,4 @@
-# PureGamma.ai — 用户旅程
+# PureGamma AI — 用户旅程
 
 **版本**: v1.0  
 **日期**: 2026-07-06
@@ -46,7 +46,7 @@ Landing → Sign Up → Onboarding → Watchlist → Research Style → Channels
 **成功状态**: 用户获得 JWT token + 重定向到 Dashboard
 **失败状态**: 登录失败提示
 **升级提示**: 不在此步骤
-**合规提示**: "By continuing, you agree to our Terms. This is not financial advice."
+**合规提示**: "By continuing, you agree to our Terms. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
 **Telemetry**: `signup_start`, `signup_complete`, `signup_error`
 
 **MVP 需要的改进**:
@@ -137,7 +137,7 @@ Landing → Sign Up → Onboarding → Watchlist → Research Style → Channels
 **成功状态**: 报告生成成功，Dashboard 完整展示
 **失败状态**: 报告生成失败 → "Research engine is warming up. Try again."
 **升级提示**: 信用剩余显示在顶部状态栏
-**合规提示**: "This is not financial advice." 在报告底部
+**合规提示**: "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." 在报告底部
 **Telemetry**: `first_report_generated`, `dashboard_view`, `report_open`
 
 ---
@@ -251,7 +251,7 @@ Landing → Sign Up → Onboarding → Watchlist → Research Style → Channels
 **成功状态**: Portfolio-Aware Report 生成
 **失败状态**: 无持仓数据 → "Add positions to generate portfolio analysis"
 **升级提示**: "Auto-sync from Plaid/CEX requires Pro/Max plan"
-**合规提示**: "Portfolio data is processed locally. This is not financial advice."
+**合规提示**: "Portfolio data is processed locally. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
 **Telemetry**: `portfolio_page_view`, `portfolio_brief_generated`
 
 ---

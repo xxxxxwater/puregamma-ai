@@ -1,6 +1,6 @@
 # Bloomberg
 
-Bloomberg support is planned for enterprise/private deployments where the customer has appropriate licensed data access. PureGamma.ai must not bypass data licensing restrictions.
+Bloomberg support is planned for enterprise/private deployments where the customer has appropriate licensed data access. PureGamma AI must not bypass data licensing restrictions.
 
 Bloomberg-derived research is still research only and not financial advice.
 

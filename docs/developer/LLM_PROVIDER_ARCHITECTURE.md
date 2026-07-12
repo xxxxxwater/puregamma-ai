@@ -1,6 +1,6 @@
 # LLM Provider Architecture
 
-PureGamma.ai uses a provider interface instead of hard-coding a model or vendor in agents.
+PureGamma AI uses a provider interface instead of hard-coding a model or vendor in agents.
 
 ```text
 Report / Playbook Service

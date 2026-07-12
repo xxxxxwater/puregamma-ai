@@ -95,7 +95,7 @@ class XTwitterProvider(DataProvider):
         if self._usage.requests >= self.request_budget:
             raise ProviderError("budget_exhausted", "X request budget exhausted for this sync")
         self._usage.requests += 1
-        headers = {"Authorization": f"Bearer {self.bearer_token}", "User-Agent": "PureGamma.ai/1.0"}
+        headers = {"Authorization": f"Bearer {self.bearer_token}", "User-Agent": "PureGamma AI/1.0"}
         if self._request_get:
             return self._request_get(url, headers=headers, timeout=self.timeout, **kwargs)
         return httpx.get(url, headers=headers, timeout=self.timeout, follow_redirects=False, **kwargs)

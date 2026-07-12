@@ -69,7 +69,7 @@ test.describe("localized routes", () => {
   test("daily push preview localized", async ({ page }) => {
     await page.goto("/zh/daily-push");
     await expect(page.getByRole("heading", { name: "每日研究推送" })).toBeVisible();
-    await expect(page.getByText("PureGamma.ai 每日简报").first()).toBeVisible();
+    await expect(page.getByText("PureGamma AI 每日简报").first()).toBeVisible();
   });
 
   test("portfolio partial data warning localized", async ({ page }) => {
@@ -85,12 +85,12 @@ test.describe("localized routes", () => {
 
   test("disclaimers localized", async ({ page }) => {
     await page.goto("/zh/signals");
-    await expect(page.getByText("本内容仅供信息和研究参考，不构成投资建议。").first()).toBeVisible();
+    await expect(page.getByText("使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。").first()).toBeVisible();
   });
 
   test("metadata localized", async ({ page }) => {
     await page.goto("/zh");
-    await expect(page).toHaveTitle("PureGamma.ai - 机构级数字资产研究系统");
+    await expect(page).toHaveTitle("PureGamma AI - 机构级数字资产研究系统");
     const description = await page.locator("meta[name='description']").getAttribute("content");
     expect(description).toContain("组合感知投研系统");
   });

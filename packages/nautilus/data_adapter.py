@@ -60,18 +60,20 @@ def instruments_for_symbols(symbols: list[str]) -> list[dict]:
             prec = 3
         else:
             prec = 4
-        instruments.append({
-            "id": f"{upper}USDT.BINANCE",
-            "symbol": upper,
-            "base_currency": upper,
-            "quote_currency": "USDT",
-            "exchange": "BINANCE",
-            "price_precision": prec,
-            "size_precision": 6,
-            "min_notional": 10.0,
-            "maker_fee": 0.001,
-            "taker_fee": 0.001,
-        })
+        instruments.append(
+            {
+                "id": f"{upper}USDT-PERP.BINANCE",
+                "symbol": upper,
+                "base_currency": upper,
+                "quote_currency": "USDT",
+                "exchange": "BINANCE",
+                "price_precision": prec,
+                "size_precision": 6,
+                "min_notional": 10.0,
+                "maker_fee": 0.001,
+                "taker_fee": 0.001,
+            }
+        )
     return instruments
 
 
@@ -104,18 +106,22 @@ def bars_from_db(
             continue
         high = close * 1.002
         low = close * 0.998
-        open_price = close * 1.001 if bars and close > bars[-1]["close"] else close * 0.999
+        open_price = (
+            close * 1.001 if bars and close > bars[-1]["close"] else close * 0.999
+        )
         volume = _safe_float(row.volume_24h_base) / 24.0 if row.volume_24h_base else 0.0
-        bars.append({
-            "bar_type": f"{symbol}USDT.BINANCE-1-HOUR-LAST",
-            "open": round(open_price, 8),
-            "high": round(high, 8),
-            "low": round(low, 8),
-            "close": round(close, 8),
-            "volume": round(volume, 8),
-            "ts_event_ns": int(ts.timestamp() * 1e9),
-            "ts_init_ns": int(ts.timestamp() * 1e9),
-        })
+        bars.append(
+            {
+                "bar_type": f"{symbol}USDT-PERP.BINANCE-1-HOUR-LAST-EXTERNAL",
+                "open": round(open_price, 8),
+                "high": round(high, 8),
+                "low": round(low, 8),
+                "close": round(close, 8),
+                "volume": round(volume, 8),
+                "ts_event_ns": int(ts.timestamp() * 1e9),
+                "ts_init_ns": int(ts.timestamp() * 1e9),
+            }
+        )
     return bars
 
 
@@ -130,12 +136,14 @@ def catalog_from_db(
     for symbol in symbols:
         bars = bars_from_db(db, symbol, lookback_days)
         if bars:
-            all_bars[f"{symbol}USDT.BINANCE-1-HOUR-LAST"] = bars
+            all_bars[f"{symbol}USDT-PERP.BINANCE-1-HOUR-LAST-EXTERNAL"] = bars
 
     sources = {
         row.id: row.status
         for row in db.query(DataSource)
-        .filter(DataSource.id.in_(["binance", "defillama-free", "evm-rpc", "the-graph"]))
+        .filter(
+            DataSource.id.in_(["binance", "defillama-free", "evm-rpc", "the-graph"])
+        )
         .all()
     }
     healthy = all(v == "healthy" for v in sources.values())
@@ -175,18 +183,20 @@ def mock_catalog(symbols: list[str] | None = None, bar_count: int = 720) -> dict
             low = min(open_price, close) * (1 - abs(random.gauss(0, 0.003)))
             volume = abs(random.gauss(100, 30))
             ts = base_ts + i * hour_ns
-            bars.append({
-                "bar_type": f"{symbol}USDT.BINANCE-1-HOUR-LAST",
-                "open": round(open_price, 2),
-                "high": round(high, 2),
-                "low": round(low, 2),
-                "close": round(close, 2),
-                "volume": round(volume, 4),
-                "ts_event_ns": ts,
-                "ts_init_ns": ts,
-            })
+            bars.append(
+                {
+                    "bar_type": f"{symbol}USDT-PERP.BINANCE-1-HOUR-LAST-EXTERNAL",
+                    "open": round(open_price, 2),
+                    "high": round(high, 2),
+                    "low": round(low, 2),
+                    "close": round(close, 2),
+                    "volume": round(volume, 4),
+                    "ts_event_ns": ts,
+                    "ts_init_ns": ts,
+                }
+            )
             price = close
-        all_bars[f"{symbol}USDT.BINANCE-1-HOUR-LAST"] = bars
+        all_bars[f"{symbol}USDT-PERP.BINANCE-1-HOUR-LAST-EXTERNAL"] = bars
 
     return {
         "instruments": instruments,

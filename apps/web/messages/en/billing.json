@@ -5,7 +5,7 @@
   },
   "eyebrow": "ACCESS CONTROL",
   "title": "Access & Subscription",
-  "subtitle": "Stripe subscription state, monthly credits, and high-cost research entitlement controls.",
+  "subtitle": "Manage plans and subscriptions. Currently in development mode — all features are unrestricted.",
   "summary": {
     "currentPlan": "Current Plan",
     "subscription": "Subscription",

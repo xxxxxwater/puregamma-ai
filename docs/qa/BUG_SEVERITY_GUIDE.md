@@ -1,4 +1,4 @@
-# PureGamma.ai Bug Severity Guide
+# PureGamma AI Bug Severity Guide
 
 ## Sev-1 Critical
 

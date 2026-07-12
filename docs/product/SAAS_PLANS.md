@@ -1,4 +1,4 @@
-# PureGamma.ai — SaaS 套餐设计
+# PureGamma AI — SaaS 套餐设计
 
 **版本**: v1.0  
 **日期**: 2026-07-06
@@ -7,7 +7,7 @@
 
 ## 定价哲学
 
-PureGamma.ai 按**研究能力**分层定价，而非按功能数量。每一层解锁新的研究维度：
+PureGamma AI 按**研究能力**分层定价，而非按功能数量。每一层解锁新的研究维度：
 
 - **Free**: 体验 AI 研究能力
 - **Pro**: 个性化研究（Portfolio-Aware）

@@ -3,8 +3,9 @@
 import Link from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { Activity, Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, CreditCard, Database, FlaskConical, LayoutDashboard, LockKeyhole, PlugZap, Send, Shield, Signal, UserRound, type LucideIcon } from "lucide-react";
-import { DisclaimerFooter, MockModeBadge, PlanBadge, Badge } from "@/components/puregamma";
+import { Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, CreditCard, Gauge, LayoutDashboard, UserRound, type LucideIcon } from "lucide-react";
+import { AppearanceControls } from "@/components/appearance-controls";
+import { DisclaimerFooter, PlanBadge, Badge } from "@/components/puregamma";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { LocaleProvider } from "@/components/i18n/LocaleProvider";
 import type { Locale } from "@/i18n/routing";
@@ -39,32 +40,20 @@ const groups: NavGroup[] = [
       { href: "/dashboard", labelKey: "common.nav.dashboard", icon: LayoutDashboard },
       { href: "/chat", labelKey: "common.nav.chat", icon: Bot },
       { href: "/reports", labelKey: "common.nav.reports", icon: BookOpen },
-      { href: "/signals", labelKey: "common.nav.signals", icon: Signal },
-      { href: "/playbooks", labelKey: "common.nav.playbooks", icon: Activity }
+      { href: "/options", labelKey: "common.nav.options", icon: Gauge }
     ]
   },
   {
     labelKey: "common.nav.groups.portfolio",
     items: [
-      { href: "/portfolio", labelKey: "common.nav.nav", icon: BriefcaseBusiness },
-      { href: "/integrations", labelKey: "common.nav.integrations", icon: PlugZap },
-      { href: "/daily-push", labelKey: "common.nav.dailyPush", icon: Send }
-    ]
-  },
-  {
-    labelKey: "common.nav.groups.infrastructure",
-    items: [
-      { href: "/data-sources", labelKey: "common.nav.dataSources", icon: Database },
-      { href: "/nautilus", labelKey: "common.nav.nautilus", icon: FlaskConical },
-      { href: "/billing", labelKey: "common.nav.billing", icon: CreditCard },
-      { href: "/admin", labelKey: "common.nav.admin", icon: Shield }
+      { href: "/portfolio", labelKey: "common.nav.nav", icon: BriefcaseBusiness }
     ]
   },
   {
     labelKey: "common.nav.groups.company",
     items: [
-      { href: "/account", labelKey: "common.nav.account", icon: UserRound },
-      { href: "/", labelKey: "common.nav.access", icon: LockKeyhole }
+      { href: "/billing", labelKey: "common.nav.billing", icon: CreditCard },
+      { href: "/account", labelKey: "common.nav.account", icon: UserRound }
     ]
   }
 ];
@@ -94,12 +83,11 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border-pg bg-bg-panel p-4 lg:block">
       <Link href={withLocale(locale, "/")} className="flex items-center gap-2 font-semibold text-text-pg">
-        <Bell className="h-5 w-5 text-text-pg" aria-hidden />
-        PureGamma.ai
+        <img src="/logo.png" alt="PureGamma" className="h-5 w-5" />PureGamma AI
       </Link>
       <div className="mt-2 text-xs leading-5 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
       <div className="mt-4">
-        <LanguageSwitcher compact />
+        <div className="flex items-center gap-2"><LanguageSwitcher compact /><AppearanceControls locale={locale} /></div>
       </div>
       <nav className="mt-8 space-y-7">
         {groups.map((group) => (
@@ -135,18 +123,14 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
     <header className="sticky top-0 z-20 border-b border-border-pg bg-bg-app/95 backdrop-blur">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 py-3">
         <Link href={withLocale(locale, "/")} className="flex items-center gap-2 font-semibold text-text-pg lg:hidden">
-          <Bell className="h-5 w-5 text-text-pg" aria-hidden />
-          PureGamma.ai
+          <img src="/logo.png" alt="PureGamma" className="h-5 w-5" />
+          PureGamma AI
         </Link>
         <div className="hidden items-center gap-2 text-xs md:flex">
-          <MockModeBadge locale={locale} />
           <PlanBadge plan="Free" />
           <Badge tone="neutral">{t(locale, "common.topbar.credits")}</Badge>
-          <Badge tone="neutral">{t(locale, "common.topbar.riskRegime")}</Badge>
-          <Badge tone="neutral">{t(locale, "common.topbar.freshness")}</Badge>
-          <Badge tone="neutral">{t(locale, "common.topbar.imessage")}</Badge>
-          <Badge tone="neutral">{t(locale, "common.topbar.stripe")}</Badge>
           <LanguageSwitcher compact />
+          <AppearanceControls locale={locale} />
           {storedUser ? (
             <Link href={withLocale(locale, "/account")} className="ml-2 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-2 py-1 hover:border-border-pg-strong">
               {storedUser.avatar_url ? <span aria-hidden className="h-5 w-5 rounded-full bg-cover bg-center" style={{ backgroundImage: `url(${storedUser.avatar_url})` }} /> : null}
@@ -161,8 +145,7 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
           )}
         </div>
         <div className="flex items-center gap-3 text-xs text-text-pg-muted">
-          <span>{t(locale, "common.topbar.executionDisabled")}</span>
-          <div className="md:hidden"><LanguageSwitcher compact /></div>
+          <div className="flex items-center gap-2 md:hidden"><LanguageSwitcher compact /><AppearanceControls locale={locale} /></div>
         </div>
       </div>
       <nav className="flex gap-1 overflow-x-auto border-t border-border-pg px-3 py-2 lg:hidden">

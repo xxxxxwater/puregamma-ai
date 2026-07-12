@@ -1,6 +1,6 @@
 # Data Privacy
 
-PureGamma.ai can process sensitive financial research context even without custody or trading.
+PureGamma AI can process sensitive financial research context even without custody or trading.
 
 ## Data Classes
 

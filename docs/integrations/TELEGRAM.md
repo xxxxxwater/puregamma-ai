@@ -1,8 +1,8 @@
 # Telegram
 
-PureGamma.ai supports Telegram notifications through a Telegram Bot token.
+PureGamma AI supports Telegram notifications through a Telegram Bot token.
 
-All investment messages must include: `This is not financial advice.`
+All investment messages must include: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Configuration
 
@@ -28,7 +28,7 @@ mock-telegram-chat
 curl -X POST http://localhost:8000/notifications/send \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"channel":"telegram","message":"PureGamma Telegram test. This is not financial advice.","metadata":{"idempotency_key":"telegram-test-1"}}'
+  -d '{"channel":"telegram","message":"PureGamma Telegram test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.","metadata":{"idempotency_key":"telegram-test-1"}}'
 ```
 
 ## Entitlements and Credits

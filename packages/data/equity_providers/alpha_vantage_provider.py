@@ -61,7 +61,6 @@ class AlphaVantageProvider:
                 return None
 
             price = float(global_quote.get("05. price") or 0)
-            prev_close = float(global_quote.get("08. previous close") or 0)
             change_pct_str = (global_quote.get("10. change percent") or "0%").rstrip("%")
             try:
                 change_pct = float(change_pct_str)

@@ -2,7 +2,7 @@
 
 Signals and playbooks are structured research artifacts. They are not trading instructions, investment advice, or promises of future returns.
 
-Required disclaimer: `This is not financial advice.`
+Required disclaimer: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Signals
 

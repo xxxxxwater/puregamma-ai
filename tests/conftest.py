@@ -15,10 +15,10 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
-from apps.api.dependencies import create_access_token, get_db
-from apps.api.main import app
-from packages.database.models import Base, User, UserPreference
-from packages.database.seed import seed_all
+from apps.api.dependencies import create_access_token, get_db  # noqa: E402
+from apps.api.main import app  # noqa: E402
+from packages.database.models import Base, User, UserPreference  # noqa: E402
+from packages.database.seed import seed_all  # noqa: E402
 
 
 @pytest.fixture()

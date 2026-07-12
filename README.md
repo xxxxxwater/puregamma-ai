@@ -1,16 +1,16 @@
-# PureGamma.ai
+# PureGamma AI
 
 Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), and [implementation report](docs/IMPLEMENTATION_REPORT.md).
 
-PureGamma.ai is an AI-native crypto and equity investment research SaaS. It combines market data, sentiment, portfolio context, strategy playbooks, simulated backtests, billing entitlements, credit controls, and notification delivery into one research console.
+PureGamma AI is an AI-native crypto and equity investment research SaaS. It combines market data, sentiment, portfolio context, strategy playbooks, simulated backtests, billing entitlements, credit controls, and notification delivery into one research console.
 
-PureGamma.ai is research software only. It does not place trades, custody funds, automate execution, give tax advice, or promise investment returns. Every report, signal, playbook, backtest, portfolio view, and push notification must include or preserve the disclaimer: `This is not financial advice.`
+PureGamma AI is research software only. It does not place trades, custody funds, automate execution, give tax advice, or promise investment returns. Every report, signal, playbook, backtest, portfolio view, and push notification must include or preserve the disclaimer: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 Start with the full documentation index: [docs/README.md](./docs/README.md).
 
-## What is PureGamma.ai?
+## What is PureGamma AI?
 
-PureGamma.ai helps active crypto and equity investors answer three daily questions:
+PureGamma AI helps active crypto and equity investors answer three daily questions:
 
 - What changed in the market?
 - How does it affect my portfolio and risk?
@@ -30,7 +30,7 @@ The product is built around a daily research workflow: shared market intelligenc
 - Exchange read-only balance and trade sync design for Binance, OKX, Bybit, and Hyperliquid.
 - On-chain wallet sync design for public wallet holdings.
 - CoinDesk/RSS, X KOL, Bloomberg, market, on-chain, and macro data pipeline docs.
-- Strategy playbooks and mock backtests.
+- Strategy drafts, versioned activation intents, mock/native backtests, and PAPER/SHADOW runtime control.
 - Admin dashboard for users, reports, data sources, Stripe events, notifications, and subscriptions.
 - Mock mode for local product demos without third-party credentials.
 
@@ -51,14 +51,16 @@ flowchart TD
   API --> Data["Market and sentiment providers"]
   API --> Portfolio["Portfolio NAV connectors"]
   API --> Backtest["Backtest research layer"]
+  API --> Runtime["Nautilus runtime control"]
+  Runtime --> MockExchange["Mock Exchange: PAPER / SHADOW"]
   API --> DB["Postgres or local SQLite"]
   API --> Redis["Redis and workers"]
 ```
 
 Current implementation status:
 
-- Implemented: FastAPI, Next.js app, auth mock login, reports, signals, playbooks, Stripe Billing, Payment Links, credits, DeepSeek/mock LLM provider, notifications, iMessage relay, worker tasks, mock market data, mock backtest engine.
-- Partially implemented or placeholder: real market provider adapters, data source observability, NautilusTrader-facing UI.
+- Implemented: FastAPI, Next.js app, auth mock login, reports, signals, playbooks, Stripe Billing, Payment Links, credits, DeepSeek/mock LLM provider, notifications, iMessage relay, worker tasks, mock market data, mock/native backtest selection, strategy control, and PAPER/SHADOW Nautilus runtime.
+- Partially implemented or placeholder: real market provider adapters and external exchange adapter execution.
 - Planned or documented contract: Plaid account sync, exchange read-only account sync, on-chain wallet sync, full Portfolio NAV backend, Bloomberg enterprise import.
 
 More detail: [Architecture](./docs/developer/ARCHITECTURE.md).
@@ -131,6 +133,7 @@ Services:
 - Postgres: `localhost:5432`
 - Redis: `localhost:6379`
 - iMessage relay: `http://localhost:8787`
+- Nautilus runtime: `http://localhost:8090` (private service in production)
 
 Reference: [Docker Compose](./docs/getting-started/DOCKER_COMPOSE.md).
 
@@ -229,11 +232,19 @@ Details: [Portfolio NAV](./docs/product/PORTFOLIO_NAV.md).
 
 ## NautilusTrader
 
-PureGamma treats NautilusTrader as a research and backtesting layer. Live trading is disabled by default and must remain disabled unless a future audited release explicitly enables it.
+PureGamma uses an isolated Nautilus-compatible runtime for research, backtesting, and PAPER/SHADOW strategy execution. Live trading remains disabled.
 
-Current status: the backend has a mock `BacktestEngine`; the frontend has a Nautilus research UI. Real NautilusTrader integration is planned.
+Current status: strategy control, public market-driven paper fills, persistent paper positions, restart recovery, and idempotent main-database projection are implemented. Native Nautilus is used where a supported wheel is available; otherwise the runtime reports Mock Bridge explicitly.
 
 Details: [NautilusTrader](./docs/integrations/NAUTILUS_TRADER.md).
+
+- [Phase 2 public market runtime](./docs/trading/PHASE_2_PUBLIC_MARKET_RUNTIME.md)
+- [Phase 3 persistent paper portfolio sync](./docs/trading/PHASE_3_PAPER_PORTFOLIO_SYNC.md)
+
+Product direction:
+
+- [V3 commercial design](./docs/product/V3_COMMERCIAL_DESIGN.md)
+- [V4 Deribit and Long Gamma](./docs/product/V4_DERIBIT_LONG_GAMMA.md)
 
 ## Data Pipeline
 

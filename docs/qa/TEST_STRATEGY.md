@@ -1,6 +1,6 @@
-# PureGamma.ai Test Strategy
+# PureGamma AI Test Strategy
 
-PureGamma.ai is tested as a financial data, AI research, subscription billing, and notification system. The QA bar is higher than a generic SaaS app because user trust can be broken by incorrect NAV, duplicate billing credits, cross-tenant data exposure, secret leaks, or accidental live trading.
+PureGamma AI is tested as a financial data, AI research, subscription billing, and notification system. The QA bar is higher than a generic SaaS app because user trust can be broken by incorrect NAV, duplicate billing credits, cross-tenant data exposure, secret leaks, or accidental live trading.
 
 ## Scope
 

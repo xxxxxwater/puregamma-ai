@@ -28,10 +28,7 @@ def consume_credits(db: Session, user_id: str, action: str, amount: int, metadat
     user = db.query(User).filter(User.id == user_id).with_for_update().one_or_none()
     if not user:
         raise ValueError(f"User not found: {user_id}")
-    if user.credit_balance < amount:
-        raise InsufficientCreditsError(f"Insufficient credits for {action}: need {amount}, have {user.credit_balance}")
-    user.credit_balance -= amount
-    return _ledger(db, user, action, -amount, metadata)
+    return _ledger(db, user, action, 0, {**(metadata or {}), "credits_bypassed": amount})
 
 
 def refund_credits(db: Session, user_id: str, action: str, amount: int, metadata: dict | None = None) -> CreditLedger:
@@ -40,8 +37,7 @@ def refund_credits(db: Session, user_id: str, action: str, amount: int, metadata
     user = db.query(User).filter(User.id == user_id).with_for_update().one_or_none()
     if not user:
         raise ValueError(f"User not found: {user_id}")
-    user.credit_balance += amount
-    return _ledger(db, user, f"{action}_refund", amount, metadata)
+    return _ledger(db, user, f"{action}_refund", 0, {**(metadata or {}), "credits_bypassed": amount})
 
 
 def grant_credits(db: Session, user_id: str, action: str, amount: int, metadata: dict | None = None) -> CreditLedger:

@@ -1,6 +1,6 @@
 # On-chain Wallets
 
-On-chain wallet integration uses public wallet addresses to estimate token balances and portfolio exposure. PureGamma.ai must never ask for private keys or seed phrases.
+On-chain wallet integration uses public wallet addresses to estimate token balances and portfolio exposure. PureGamma AI must never ask for private keys or seed phrases.
 
 Wallet-derived NAV is an estimate and not financial advice, tax advice, or an official custody statement.
 

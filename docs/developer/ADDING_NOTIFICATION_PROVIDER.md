@@ -2,7 +2,7 @@
 
 Notification providers live in `packages/notifications`.
 
-All investment notifications must preserve: `This is not financial advice.`
+All investment notifications must preserve: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Existing Interface
 

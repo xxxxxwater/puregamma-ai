@@ -1,4 +1,4 @@
-# PureGamma.ai — 产品路线图
+# PureGamma AI — 产品路线图
 
 **版本**: v2.0 — Founder PM Convergence  
 **日期**: 2026-07-06

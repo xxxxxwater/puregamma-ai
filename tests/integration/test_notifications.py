@@ -11,7 +11,7 @@ from tests.conftest import auth_headers
 def test_notification_send_api_email(api_client, demo_user: User):
     response = api_client.post(
         "/notifications/send",
-        json={"channel": "email", "message": "API email test. This is not financial advice.", "metadata": {"idempotency_key": "api-email-1"}},
+        json={"channel": "email", "message": "API email test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.", "metadata": {"idempotency_key": "api-email-1"}},
         headers=auth_headers(demo_user),
     )
 

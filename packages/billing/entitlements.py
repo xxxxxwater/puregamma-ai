@@ -21,8 +21,4 @@ def entitlement_for_plan(plan_name: str, subscription_status: str | None = None)
 
 
 def can_run_action(plan_name: str, action: str, subscription_status: str | None = None) -> bool:
-    if action in HIGH_COST_ACTIONS and subscription_status == "past_due":
-        return False
-    if action == "imessage_alert":
-        return entitlement_for_plan(plan_name, subscription_status)["imessage"]
     return True

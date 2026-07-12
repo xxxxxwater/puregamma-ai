@@ -6,7 +6,7 @@ from packages.agents.research_agent import ResearchAgent
 from packages.database.models import MarketSnapshot, SharedMarketIntelligence
 
 
-DEFAULT_ASSETS = ["BTC", "ETH", "SOL", "HYPE", "MSTR", "STRC"]
+DEFAULT_ASSETS = ["BTC", "ETH", "HYPE", "MSTR", "STRC"]
 
 
 def generate_shared_market_intelligence(db: Session, assets: list[str] | None = None) -> SharedMarketIntelligence:
@@ -31,7 +31,7 @@ def generate_shared_market_intelligence(db: Session, assets: list[str] | None = 
             f"Market regime: {research['market_regime']}",
             f"Risk: {research['risk_summary']}",
             "Shared intelligence is generated once and reused for user-personalized reports.",
-            "This is not financial advice.",
+            "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
         ]
     )
     intelligence = SharedMarketIntelligence(

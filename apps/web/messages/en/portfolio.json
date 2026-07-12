@@ -1,10 +1,10 @@
 {
   "seo": {
-    "title": "Portfolio NAV Review",
+    "title": "Portfolio NAV",
     "description": "Estimated net asset value, allocation, and risk exposure across synced sources."
   },
-  "eyebrow": "PORTFOLIO NAV REVIEW",
-  "title": "Portfolio NAV Review",
+  "eyebrow": "PORTFOLIO / NAV",
+  "title": "Portfolio NAV",
   "subtitle": "Estimated net asset value, allocation, and risk exposure across synced sources.",
   "actions": {
     "syncAll": "Sync All Sources",

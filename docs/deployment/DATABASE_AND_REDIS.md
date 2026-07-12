@@ -1,6 +1,6 @@
 # Database and Redis
 
-PureGamma.ai stores application state in SQLAlchemy models and uses Redis for Celery broker/backend.
+PureGamma AI stores application state in SQLAlchemy models and uses Redis for Celery broker/backend.
 
 ## Database
 

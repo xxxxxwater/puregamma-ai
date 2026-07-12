@@ -62,6 +62,7 @@ def get_subscription(db: Session, user_id: str) -> dict:
         "cancel_at_period_end": bool(sub.cancel_at_period_end) if sub else False,
         "cancel_at": sub.current_period_end.isoformat() if sub and sub.cancel_at_period_end and sub.current_period_end else None,
         "credit_balance": user.credit_balance,
+        "billing_mode": settings.billing_mode,
         "account": {"auth_provider": user.auth_provider, "avatar_url": user.avatar_url, "email": user.email},
         "entitlement": get_user_entitlement(db, user_id),
         "checkout_mode": settings.billing_checkout_mode,
@@ -624,7 +625,7 @@ def _handle_trial_will_end(db: Session, obj: dict) -> None:
         user = db.get(User, sub.user_id) if sub else None
     if not user:
         return
-    message = "Your PureGamma.ai trial will end soon. Review your subscription settings in Billing. This is not financial advice."
+    message = "Your PureGamma AI trial will end soon. Review your subscription settings in Billing. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
     try:
         send_notification(db, user.id, "email", message, {"source": "customer.subscription.trial_will_end", "subscription_id": obj.get("id")})
     except Exception as exc:

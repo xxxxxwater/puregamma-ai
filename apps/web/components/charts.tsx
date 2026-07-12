@@ -25,14 +25,13 @@ function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: 
 
 export function NavHistoryChart({ data }: { data: Point[] }) {
   return (
-    <div className="h-72">
+    <div className="h-72 select-none touch-pan-y">
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={data}>
-          <CartesianGrid stroke={grid} vertical={false} />
-          <XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} />
-          <YAxis stroke={text} tickLine={false} axisLine={false} tickFormatter={(v) => `$${Math.round(Number(v) / 1000)}k`} />
-          <Tooltip content={<ChartTooltip />} />
-          <Line type="monotone" dataKey="nav" stroke={white} strokeWidth={2} dot={false} />
+        <LineChart data={data} margin={{ top: 18, right: 4, bottom: 8, left: 4 }}>
+          <XAxis dataKey="date" hide />
+          <YAxis domain={["dataMin", "dataMax"]} hide />
+          <Tooltip cursor={{ stroke: "rgba(255,255,255,0.35)", strokeWidth: 1 }} content={<ChartTooltip />} />
+          <Line type="monotoneX" dataKey="nav" stroke={positive} strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: positive, stroke: "#0a0a0a", strokeWidth: 2 }} animationDuration={450} />
         </LineChart>
       </ResponsiveContainer>
     </div>

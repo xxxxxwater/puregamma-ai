@@ -1,0 +1,2 @@
+ALTER TABLE agent_messages
+ADD COLUMN IF NOT EXISTS context_json JSON NOT NULL DEFAULT '{}';

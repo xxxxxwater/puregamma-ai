@@ -1,7 +1,7 @@
-# PureGamma.ai Product Requirements Document (PRD)
+# PureGamma AI Product Requirements Document (PRD)
 
 > **Version**: 1.0 — MVP Convergence  
-> **Author**: PureGamma.ai Product Team  
+> **Author**: PureGamma AI Product Team  
 > **Date**: 2026-07-06  
 > **Status**: Draft for Review
 
@@ -9,9 +9,9 @@
 
 ## 1. One-Line Positioning
 
-**PureGamma.ai 是唯一一个每天早上通过 iMessage 把"你的持仓 + 市场结构 + 风险"三合一推到你面前的 AI-native 加密投研 SaaS。**
+**PureGamma AI 是唯一一个每天早上通过 iMessage 把"你的持仓 + 市场结构 + 风险"三合一推到你面前的 AI-native 加密投研 SaaS。**
 
-> PureGamma.ai is the only AI-native crypto investment research SaaS that pushes a fused brief of your portfolio, market structure, and risk directly to your iMessage every morning.
+> PureGamma AI is the only AI-native crypto investment research SaaS that pushes a fused brief of your portfolio, market structure, and risk directly to your iMessage every morning.
 
 ---
 
@@ -130,7 +130,7 @@ PureGamma 的价值不是"更多数据"，而是**每天早上 3 分钟的 fused
 | **Stripe Subscription** | Free / Pro / Max 三档，checkout + webhook + entitlement |
 | **Credit System** | 消费扣减 + 月度重置 + 余额展示 |
 | **Mock Data** | 所有数据源默认 mock，真实 API key 可替换 |
-| **Disclaimer** | 所有页面和消息带 "This is not financial advice." |
+| **Disclaimer** | 所有页面和消息带 "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." |
 | **iMessage Relay** | macOS self-host relay 或 mock provider |
 
 ### Should-Have for Beta
@@ -350,7 +350,7 @@ PureGamma 的价值不是"更多数据"，而是**每天早上 3 分钟的 fused
 - [ ] 无明文 secret 在代码中
 
 ### 合规标准
-- [ ] 所有 report 包含 "This is not financial advice."
+- [ ] 所有 report 包含 "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
 - [ ] 所有 iMessage 包含 disclaimer
 - [ ] 所有 signal 包含 invalidation condition
 - [ ] KOL sentiment 标注 "an input, not a verified fact"

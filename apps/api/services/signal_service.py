@@ -8,7 +8,7 @@ from packages.risk.scoring import risk_score_for_quote
 
 
 def scan_signals(db: Session, assets: list[str] | None = None) -> list[Signal]:
-    assets = assets or ["BTC", "ETH", "SOL", "HYPE", "MSTR", "STRC"]
+    assets = assets or ["BTC", "ETH", "HYPE", "MSTR", "STRC"]
     research = ResearchAgent().research(assets)
     rows = []
     for quote in research["quotes"]:
@@ -46,5 +46,5 @@ def serialize_signal(signal: Signal) -> dict:
         "invalidation": signal.invalidation,
         "timeframe": signal.timeframe,
         "created_at": signal.created_at.isoformat(),
-        "disclaimer": "This is not financial advice.",
+        "disclaimer": "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
     }

@@ -93,7 +93,7 @@ def test_agent_conversation_stream_persists_usage(api_client, db, normal_user, m
     assistant = db.query(AgentMessage).filter_by(id=run.assistant_message_id).one()
     assert run.status == "completed"
     assert assistant.status == "completed"
-    assert "This is not financial advice." in assistant.content
+    assert "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." in assistant.content
     assert db.query(UsageEvent).filter_by(idempotency_key=f"agent-run:{run.id}").count() == 1
 
 

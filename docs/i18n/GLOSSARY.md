@@ -1,10 +1,10 @@
-# PureGamma.ai i18n Glossary
+# PureGamma AI i18n Glossary
 
-PureGamma.ai bilingual copy uses institutional research language. Chinese copy should be concise, risk-first, and avoid retail trading slang.
+PureGamma AI bilingual copy uses institutional research language. Chinese copy should be concise, risk-first, and avoid retail trading slang.
 
 | Term | English UI | Simplified Chinese UI |
 | --- | --- | --- |
-| PureGamma.ai | PureGamma.ai | PureGamma.ai |
+| PureGamma AI | PureGamma AI | PureGamma AI |
 | PGResearch | PGResearch | PGResearch |
 | NautilusTrader | NautilusTrader | NautilusTrader |
 | iMessage | iMessage | iMessage |

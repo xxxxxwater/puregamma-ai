@@ -1,6 +1,6 @@
 # Stripe
 
-PureGamma.ai uses Stripe Billing for subscriptions, Checkout Sessions, Payment Links, Customer Portal, webhook-driven subscription state, and monthly credit grants.
+PureGamma AI uses Stripe Billing for subscriptions, Checkout Sessions, Payment Links, Customer Portal, webhook-driven subscription state, and monthly credit grants.
 
 ## 1. Billing Mode
 

@@ -1,4 +1,4 @@
-# PureGamma.ai — 每日 iMessage Brief 产品规格
+# PureGamma AI — 每日 iMessage Brief 产品规格
 
 **版本**: v1.0  
 **日期**: 2026-07-06  
@@ -8,7 +8,7 @@
 
 ## 1. 产品定位
 
-每日 iMessage Brief 是 PureGamma.ai 的**核心留存功能**。它不是"另一个推送通知"，而是用户的**晨间研究仪式**——像读早报一样，在 60 秒内完成市场概览。
+每日 iMessage Brief 是 PureGamma AI 的**核心留存功能**。它不是"另一个推送通知"，而是用户的**晨间研究仪式**——像读早报一样，在 60 秒内完成市场概览。
 
 ---
 
@@ -39,7 +39,7 @@
 适用于：没有连接 portfolio 的用户
 
 ```
-PureGamma.ai Daily Crypto Brief — {date}
+PureGamma AI Daily Crypto Brief — {date}
 
 Market Regime:
 {market_regime_summary}
@@ -56,7 +56,7 @@ Data Freshness: {freshness_indicator}
 
 Open Dashboard → {dashboard_deep_link}
 
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ### 4.2 Portfolio-Only Brief（纯组合简报）
@@ -64,7 +64,7 @@ This is not financial advice.
 适用于：已连接 portfolio 的用户
 
 ```
-PureGamma.ai Portfolio Brief — {date}
+PureGamma AI Portfolio Brief — {date}
 
 NAV: ${total_nav} | Daily: {pnl_change}
 
@@ -79,7 +79,7 @@ Top Movers:
 
 View Portfolio → {portfolio_deep_link}
 
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ### 4.3 Combined Brief（市场 + 组合）
@@ -87,7 +87,7 @@ This is not financial advice.
 适用于：Max 用户，同时关注市场和组合
 
 ```
-PureGamma.ai Daily Brief — {date}
+PureGamma AI Daily Brief — {date}
 
 Market: {regime_one_liner}
 Portfolio: ${nav} {pnl_emoji} {pnl_pct}%
@@ -97,7 +97,7 @@ Risk Level: {risk_level}
 
 View Full Report → {dashboard_deep_link}
 
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ---
@@ -159,13 +159,13 @@ This is not financial advice.
 
 ```
 ---
-This is not financial advice. PureGamma.ai provides research tools, not investment recommendations. Past performance does not guarantee future results.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content. PureGamma AI provides research tools, not investment recommendations. Past performance does not guarantee future results.
 ```
 
 或者精简版：
 
 ```
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 **精简版适用于空间不足时。**
@@ -230,7 +230,7 @@ View Signal   → https://puregamma.ai/signals/{signal_id}
 ### 示例 1: 普通 Market Regime 日
 
 ```
-PureGamma.ai Daily Crypto Brief — Jul 6, 2026
+PureGamma AI Daily Crypto Brief — Jul 6, 2026
 
 Market Regime: Risk-on momentum with contained leverage.
 BTC leads, ETH/SOL participating, HYPE elevated.
@@ -246,13 +246,13 @@ Data Freshness: Fresh <60s | Mock mode
 
 Open Dashboard → https://puregamma.ai/dashboard
 
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ### 示例 2: 高波动风险日
 
 ```
-PureGamma.ai Daily Crypto Brief — Jul 6, 2026
+PureGamma AI Daily Crypto Brief — Jul 6, 2026
 
 Market Regime: Crowded leverage risk. Funding elevated across majors.
 Liquidation clusters visible. Reduce size.
@@ -267,13 +267,13 @@ Avoid adding to winners until funding resets.
 
 Open Dashboard → https://puregamma.ai/dashboard
 
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ### 示例 3: Portfolio Drawdown 日
 
 ```
-PureGamma.ai Portfolio Brief — Jul 6, 2026
+PureGamma AI Portfolio Brief — Jul 6, 2026
 
 NAV: $1,284,200 | Daily: -$32,400 (-2.46%)
 
@@ -288,7 +288,7 @@ Top Movers:
 
 View Portfolio → https://puregamma.ai/portfolio
 
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ---

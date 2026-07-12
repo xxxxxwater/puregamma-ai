@@ -4,25 +4,27 @@ import os
 from dataclasses import replace
 from typing import Protocol
 
-from packages.data.base import MarketDataProvider, MarketQuote, asset_type_for, is_equity
+from packages.data.base import (
+    MarketDataProvider,
+    MarketQuote,
+    is_equity,
+)
 from packages.data.binance_provider import BinanceProvider
 from packages.data.coinbase_provider import CoinbaseProvider
-from packages.data.equity_providers.equity_provider import EquityDataProvider, equity_source_label
+from packages.data.equity_providers.equity_provider import EquityDataProvider
 from packages.data.mock_provider import MockMarketDataProvider
 
 
 class QuoteProvider(Protocol):
     provider_name: str
 
-    def get_quote(self, symbol: str) -> MarketQuote:
-        ...
+    def get_quote(self, symbol: str) -> MarketQuote: ...
 
 
 class PublicMarketDataProvider(MarketDataProvider):
     """Composite market data provider for dashboard REST quotes.
 
-    Crypto assets (BTC, ETH, SOL, HYPE) route through Binance → Coinbase → mock.
-    Equity assets (MSTR, STRC, STRD, STRK, STRF) route through Massive → FMP → Alpha Vantage → mock (dev only).
+    Production never substitutes mock quotes when a live provider is unavailable.
     """
 
     def __init__(
@@ -34,7 +36,9 @@ class PublicMarketDataProvider(MarketDataProvider):
         self.mode = (mode or os.getenv("MARKET_DATA_MODE") or "auto").lower()
         self.fallback_provider = fallback_provider or MockMarketDataProvider()
         self.last_errors: dict[str, list[str]] = {}
-        self.providers = providers if providers is not None else self._providers_for_mode(self.mode)
+        self.providers = (
+            providers if providers is not None else self._providers_for_mode(self.mode)
+        )
         self._equity_provider: EquityDataProvider | None = None
 
     @property
@@ -47,10 +51,10 @@ class PublicMarketDataProvider(MarketDataProvider):
         crypto_symbols = [s for s in symbols if not is_equity(s)]
         equity_symbols = [s for s in symbols if is_equity(s)]
 
-        mock_all = self.fallback_provider.get_snapshot(symbols)
-        mock_map = {q.symbol: q for q in mock_all}
-
         if self.mode == "mock":
+            mock_map = {
+                q.symbol: q for q in self.fallback_provider.get_snapshot(symbols)
+            }
             return [
                 replace(mock_map[s], fallback_reason="MARKET_DATA_MODE=mock")
                 for s in symbols
@@ -66,14 +70,6 @@ class PublicMarketDataProvider(MarketDataProvider):
             if quote:
                 resolved[normalized] = quote
             else:
-                fallback = mock_map.get(normalized) or self.fallback_provider.get_snapshot([normalized])[0]
-                resolved[normalized] = replace(
-                    fallback,
-                    source="mock",
-                    source_symbol=normalized,
-                    is_realtime=False,
-                    fallback_reason="; ".join(errors) if errors else "No Binance/Coinbase public USD market mapping",
-                )
                 self.last_errors[normalized] = errors
 
         for symbol in equity_symbols:
@@ -81,28 +77,22 @@ class PublicMarketDataProvider(MarketDataProvider):
             try:
                 quote = self.equity_provider.get_quote(normalized)
                 resolved[normalized] = quote
-            except RuntimeError:
-                mock_quote = mock_map.get(normalized) or self.fallback_provider.get_snapshot([normalized])[0]
-                asset_type = asset_type_for(normalized)
-                resolved[normalized] = replace(
-                    mock_quote,
-                    source="mock",
-                    source_symbol=normalized,
-                    is_realtime=False,
-                    fallback_reason="All equity providers failed and mock disabled",
-                    asset_type=asset_type,
-                    funding_rate=0.0,
-                    open_interest=0.0,
-                    open_interest_usd=None,
-                )
+            except RuntimeError as exc:
+                self.last_errors[normalized] = [str(exc)[:200]]
 
         for symbol in symbols:
-            quotes.append(resolved[symbol.upper()])
+            quote = resolved.get(symbol.upper())
+            if quote:
+                quotes.append(quote)
 
         return quotes
 
     def get_market_regime(self, quotes: list[MarketQuote]) -> str:
-        return self.fallback_provider.get_market_regime(quotes)
+        if not quotes:
+            return "unavailable"
+        changes = [quote.change_24h for quote in quotes if quote.change_24h is not None]
+        average = sum(changes) / len(changes) if changes else 0.0
+        return "risk_on" if average > 1 else "risk_off" if average < -1 else "neutral"
 
     def _first_live_quote(self, symbol: str, errors: list[str]) -> MarketQuote | None:
         for provider in self.providers:

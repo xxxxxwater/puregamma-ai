@@ -7,7 +7,7 @@ import json
 import time
 from typing import Generator
 
-from fastapi import Cookie, Depends, Header, HTTPException, Request, Response
+from fastapi import Depends, Header, HTTPException, Request, Response
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings

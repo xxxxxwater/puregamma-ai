@@ -1,4 +1,4 @@
-# PureGamma.ai — MVP 上线清单
+# PureGamma AI — MVP 上线清单
 
 **版本**: v1.0  
 **日期**: 2026-07-06
@@ -21,7 +21,7 @@
 | P4 | 所有页面有 Loading / Empty / Error 三种状态 | ⚠️ 部分 | HIGH |
 | P5 | 所有页面有响应式设计（Desktop + Mobile） | ⚠️ 部分 | MEDIUM |
 | P6 | 所有 CTA 按钮有明确的点击反馈 | ✅ 已有 | — |
-| P7 | 所有研究内容包含 "This is not financial advice." | ⚠️ 部分 | **BLOCKER** |
+| P7 | 所有研究内容包含 "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." | ⚠️ 部分 | **BLOCKER** |
 | P8 | 所有错误信息对用户友好（不暴露技术细节） | ⚠️ 部分 | HIGH |
 
 ---
@@ -102,7 +102,7 @@
 
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
-| C1 | 所有研究和信号标注 "This is not financial advice." | ⚠️ 部分 | **BLOCKER** |
+| C1 | 所有研究和信号标注 "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." | ⚠️ 部分 | **BLOCKER** |
 | C2 | 无自动交易功能 | ✅ | — |
 | C3 | 不托管用户资金 | ✅ | — |
 | C4 | Privacy Policy 页面 | ❌ | **BLOCKER** |

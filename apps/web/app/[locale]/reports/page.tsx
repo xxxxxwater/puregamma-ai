@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Markdown } from "@/components/markdown";
 import { SendReportButton } from "@/components/actions";
-import { Badge, CreditCostBadge, EmptyState, MockModeBadge, PageHeader, ResearchCard, StatusDot } from "@/components/puregamma";
+import { Badge, CreditCostBadge, EmptyState, PageHeader, ResearchCard, StatusDot } from "@/components/puregamma";
 import { getReports } from "@/lib/api";
 import { formatDateTime } from "@/lib/formatters";
 import { localizedMetadata } from "@/lib/metadata";
@@ -26,7 +26,7 @@ export default async function ReportsPage({ params }: { params: { locale: Locale
         title={copy.title}
         description={copy.subtitle}
         sectionNumber="01"
-        actions={<><MockModeBadge locale={locale} live={!data.mockMode} /><CreditCostBadge locale={locale} cost={10} /></>}
+        actions={<CreditCostBadge locale={locale} cost={10} />}
       />
       <div className="flex flex-wrap gap-2">{copy.filters.map((filter) => <Badge key={filter} tone="neutral">{filter}</Badge>)}</div>
       <div className="grid gap-4 lg:grid-cols-[340px_1fr]">
@@ -48,7 +48,7 @@ export default async function ReportsPage({ params }: { params: { locale: Locale
                   </div>
                   <div className="mt-3 grid gap-1 text-xs text-text-pg-muted">
                     <span>{copy.archive.created}: {formatDateTime(locale, report.created_at)}</span>
-                    <span>{copy.archive.sourceFreshness}: {t(locale, "common.shared.demoSnapshot")}</span>
+                    <span>{copy.archive.sourceFreshness}: {report.source_intelligence_id ? t(locale, "common.badges.available") : "-"}</span>
                     <a href="#report-detail" className="text-text-pg underline-offset-4 hover:underline">{copy.archive.openReport}</a>
                   </div>
                 </div>
@@ -67,11 +67,11 @@ export default async function ReportsPage({ params }: { params: { locale: Locale
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selected.assets.map((asset) => <Badge key={asset}>{asset}</Badge>)}
                     <Badge tone="neutral">{t(locale, "common.shared.source")}: {selected.source_intelligence_id || "shared-intel"}</Badge>
-                    <Badge tone="neutral"><StatusDot tone="emerald" /> {t(locale, "common.shared.freshDemo")}</Badge>
+                    <Badge tone="neutral"><StatusDot tone="emerald" /> {t(locale, "common.badges.available")}</Badge>
                     <Badge tone="neutral">{copy.detail.language}: {(selected.language || locale).toUpperCase()}</Badge>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">{["telegram", "slack", "email", "imessage"].map((channel) => <SendReportButton key={channel} channel={channel} reportId={selected.id} />)}</div>
+                <div className="flex flex-wrap gap-2">{["telegram", "imessage"].map((channel) => <SendReportButton key={channel} channel={channel} reportId={selected.id} />)}</div>
               </div>
               <Markdown content={selected.content_markdown} />
             </>

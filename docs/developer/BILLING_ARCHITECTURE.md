@@ -1,6 +1,6 @@
 # Billing Architecture
 
-PureGamma.ai supports two Stripe checkout entrypoints:
+PureGamma AI supports two Stripe checkout entrypoints:
 
 - Checkout Sessions for app-created subscription sessions.
 - Payment Links for Stripe-hosted checkout URLs.

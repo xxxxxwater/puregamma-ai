@@ -1,6 +1,6 @@
 # Mock Mode
 
-Mock mode lets developers and product reviewers run PureGamma.ai without real Stripe, market-data, notification, Plaid, exchange, wallet, Bloomberg, or Nautilus credentials.
+Mock mode lets developers and product reviewers run PureGamma AI without real Stripe, market-data, notification, Plaid, exchange, wallet, Bloomberg, or Nautilus credentials.
 
 Mock research content is not financial advice and must not be used as live investment input.
 
@@ -56,7 +56,7 @@ This is available only when `BILLING_MODE=mock`.
 curl -X POST http://localhost:8000/notifications/send \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"channel":"imessage","message":"Demo message. This is not financial advice.","metadata":{"idempotency_key":"demo-imessage-1"}}'
+  -d '{"channel":"imessage","message":"Demo message. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.","metadata":{"idempotency_key":"demo-imessage-1"}}'
 ```
 
 If the user is not entitled to iMessage, the delivery is skipped with `entitlement_denied`.

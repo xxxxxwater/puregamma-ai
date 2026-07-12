@@ -10,7 +10,7 @@ def test_daily_report_generated_with_disclaimer(db, demo_user):
     report = create_daily_report(db, demo_user.id)
 
     assert report.report_type == "daily_market_report"
-    assert "This is not financial advice." in report.content_markdown
+    assert "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." in report.content_markdown
 
 
 def test_report_cache_returns_same_daily_report(db, demo_user):
@@ -41,4 +41,4 @@ def test_agent_report_strict_copy_avoids_direct_buy_sell_command():
 
     assert "buy now" not in lowered
     assert "sell now" not in lowered
-    assert "This is not financial advice." in content
+    assert "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." in content

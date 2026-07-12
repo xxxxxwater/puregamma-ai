@@ -4,7 +4,7 @@ import logging
 import os
 from datetime import datetime, timezone
 
-from packages.data.base import AssetType, MarketQuote, ProviderSource, asset_type_for
+from packages.data.base import AssetType, MarketQuote, ProviderSource
 
 logger = logging.getLogger(__name__)
 

@@ -1,8 +1,8 @@
 # Slack
 
-PureGamma.ai supports Slack notifications through incoming webhooks.
+PureGamma AI supports Slack notifications through incoming webhooks.
 
-All investment messages must include: `This is not financial advice.`
+All investment messages must include: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Configuration
 
@@ -22,7 +22,7 @@ If the webhook is missing or starts with `mock`, the provider returns mock succe
 curl -X POST http://localhost:8000/notifications/send \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"channel":"slack","message":"PureGamma Slack test. This is not financial advice.","metadata":{"idempotency_key":"slack-test-1"}}'
+  -d '{"channel":"slack","message":"PureGamma Slack test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.","metadata":{"idempotency_key":"slack-test-1"}}'
 ```
 
 ## Entitlements and Credits

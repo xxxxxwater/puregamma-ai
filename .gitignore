@@ -7,6 +7,7 @@
 
 # Python
 .venv/
+.venv-nautilus/
 venv/
 __pycache__/
 *.py[cod]

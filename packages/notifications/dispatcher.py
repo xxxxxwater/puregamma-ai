@@ -7,8 +7,11 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.i18n import normalize_locale
-from apps.api.services.credit_service import InsufficientCreditsError, consume_credits, refund_credits
-from apps.api.services.entitlement_service import get_user_entitlement
+from apps.api.services.credit_service import (
+    InsufficientCreditsError,
+    consume_credits,
+    refund_credits,
+)
 from packages.billing.credits import cost_for
 from packages.database.models import NotificationDelivery, User, UserPreference, utcnow
 from packages.notifications.email import EmailProvider
@@ -38,10 +41,16 @@ class NotificationDispatcher:
         if channel == "email":
             return EmailProvider()
         if channel == "imessage":
-            return MacOSIMessageRelayClient() if self.settings.imessage_provider == "macos_relay" else MockIMessageProvider()
+            return (
+                MacOSIMessageRelayClient()
+                if self.settings.imessage_provider == "macos_relay"
+                else MockIMessageProvider()
+            )
         raise ValueError(f"Unsupported channel: {channel}")
 
-    def _recipient(self, pref: UserPreference | None, channel: str, metadata: dict) -> str | None:
+    def _recipient(
+        self, pref: UserPreference | None, channel: str, metadata: dict
+    ) -> str | None:
         if not pref:
             return None
         return {
@@ -55,11 +64,15 @@ class NotificationDispatcher:
         explicit = metadata.get("idempotency_key")
         if explicit:
             return explicit
-        digest = hashlib.sha256(f"{user_id}:{channel}:{message}".encode()).hexdigest()[:32]
+        digest = hashlib.sha256(f"{user_id}:{channel}:{message}".encode()).hexdigest()[
+            :32
+        ]
         return f"pg_{digest}"
 
     def _imessage_count_today(self, db: Session, user_id: str) -> int:
-        start = datetime.combine(datetime.now(timezone.utc).date(), time.min, tzinfo=timezone.utc)
+        start = datetime.combine(
+            datetime.now(timezone.utc).date(), time.min, tzinfo=timezone.utc
+        )
         return (
             db.query(NotificationDelivery)
             .filter(
@@ -99,39 +112,126 @@ class NotificationDispatcher:
         db.refresh(delivery)
         return delivery
 
-    def send(self, db: Session, user_id: str, channel: str, message: str, metadata: dict | None = None) -> NotificationDelivery:
+    def send(
+        self,
+        db: Session,
+        user_id: str,
+        channel: str,
+        message: str,
+        metadata: dict | None = None,
+    ) -> NotificationDelivery:
         metadata = metadata or {}
         user = db.get(User, user_id)
         if not user:
             raise ValueError("User not found")
         idempotency_key = self._key(user_id, channel, message, metadata)
-        existing = db.query(NotificationDelivery).filter(NotificationDelivery.idempotency_key == idempotency_key).one_or_none()
+        existing = (
+            db.query(NotificationDelivery)
+            .filter(NotificationDelivery.idempotency_key == idempotency_key)
+            .one_or_none()
+        )
         if existing:
             return existing
         pref = user.preference
-        locale = normalize_locale(metadata.get("locale") or getattr(pref, "locale", None))
+        locale = normalize_locale(
+            metadata.get("locale") or getattr(pref, "locale", None)
+        )
         recipient = self._recipient(pref, channel, metadata)
         if not recipient:
-            return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, "skipped", {"reason": "missing_recipient"}, locale=locale)
-        entitlement = get_user_entitlement(db, user_id)
-        if channel not in entitlement["notification_channels"]:
-            return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, "skipped", {"reason": "entitlement_denied"}, locale=locale)
+            return self._create_delivery(
+                db,
+                user_id,
+                channel,
+                recipient,
+                message,
+                idempotency_key,
+                "skipped",
+                {"reason": "missing_recipient"},
+                locale=locale,
+            )
+        if self.settings.app_environment.lower() == "production":
+            configured = {
+                "telegram": bool(self.settings.telegram_bot_token),
+                "slack": bool(
+                    self.settings.slack_webhook_url
+                    or getattr(pref, "slack_webhook_url", None)
+                ),
+                "email": bool(self.settings.smtp_host),
+                "imessage": self.settings.imessage_provider == "macos_relay"
+                and bool(self.settings.imessage_relay_secret),
+            }.get(channel, False)
+            if not configured:
+                return self._create_delivery(
+                    db,
+                    user_id,
+                    channel,
+                    recipient,
+                    message,
+                    idempotency_key,
+                    "failed",
+                    {"reason": "provider_not_configured"},
+                    locale=locale,
+                )
         if channel == "imessage":
             if len(message) > self.settings.imessage_max_message_length:
-                return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, "skipped", {"reason": "message_too_long"}, locale=locale)
-            if self._imessage_count_today(db, user_id) >= self.settings.imessage_rate_limit_per_user_per_day:
-                return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, "skipped", {"reason": "daily_rate_limit"}, locale=locale)
+                return self._create_delivery(
+                    db,
+                    user_id,
+                    channel,
+                    recipient,
+                    message,
+                    idempotency_key,
+                    "skipped",
+                    {"reason": "message_too_long"},
+                    locale=locale,
+                )
         action = CHANNEL_ACTION[channel]
         try:
-            consume_credits(db, user_id, action, cost_for(action), {"channel": channel, "idempotency_key": idempotency_key})
+            consume_credits(
+                db,
+                user_id,
+                action,
+                cost_for(action),
+                {"channel": channel, "idempotency_key": idempotency_key},
+            )
             db.commit()
         except InsufficientCreditsError:
             db.rollback()
-            return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, "skipped", {"reason": "insufficient_credits"}, locale=locale)
+            return self._create_delivery(
+                db,
+                user_id,
+                channel,
+                recipient,
+                message,
+                idempotency_key,
+                "skipped",
+                {"reason": "insufficient_credits"},
+                locale=locale,
+            )
         provider = self._provider(channel)
         result = provider.send(recipient, message, idempotency_key)
         status = "sent" if result.ok else "failed"
         if not result.ok:
-            refund_credits(db, user_id, action, cost_for(action), {"channel": channel, "idempotency_key": idempotency_key, "reason": "provider_failure"})
+            refund_credits(
+                db,
+                user_id,
+                action,
+                cost_for(action),
+                {
+                    "channel": channel,
+                    "idempotency_key": idempotency_key,
+                    "reason": "provider_failure",
+                },
+            )
             db.commit()
-        return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, status, result.response, locale=locale)
+        return self._create_delivery(
+            db,
+            user_id,
+            channel,
+            recipient,
+            message,
+            idempotency_key,
+            status,
+            result.response,
+            locale=locale,
+        )

@@ -32,8 +32,10 @@ export async function generateMetadata({ params }: { params: { locale: string } 
       locale: params.locale === "zh" ? "zh_CN" : "en_US",
       alternateLocale: params.locale === "zh" ? ["en_US"] : ["zh_CN"],
       url: `${baseUrl}/${params.locale}`,
-      siteName: "PureGamma.ai"
-    }
+      siteName: "PureGamma AI",
+      images: [{ url: `${baseUrl}/logo.png`, width: 512, height: 512 }]
+    },
+    icons: { icon: "/logo.png", apple: "/logo.png" }
   };
 }
 

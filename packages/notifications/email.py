@@ -15,7 +15,7 @@ class EmailProvider:
         if not settings.smtp_host:
             return NotificationResult(True, self.channel, {"mode": "mock", "recipient": recipient, "idempotency_key": idempotency_key})
         email = EmailMessage()
-        email["Subject"] = "PureGamma.ai Alert"
+        email["Subject"] = "PureGamma AI Alert"
         email["From"] = settings.smtp_user
         email["To"] = recipient
         email.set_content(message)

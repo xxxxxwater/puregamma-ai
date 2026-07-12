@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { defaultLocale, isLocale, legacyLocaleRoutes, localeCookieName, localeFromAcceptLanguage, localePrefixPattern } from "@/i18n/routing";
 
 const PUBLIC_FILE = /\.(.*)$/;
+const INITIAL_LAUNCH_HIDDEN = ["/signals", "/playbooks", "/strategies", "/trading", "/nautilus", "/data-sources", "/integrations", "/daily-push", "/admin", "/billing/mock-checkout"];
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
@@ -12,6 +13,14 @@ export function middleware(request: NextRequest) {
 
   const pathnameLocale = pathname.match(localePrefixPattern)?.[1];
   if (isLocale(pathnameLocale)) {
+    const localPath = pathname.replace(localePrefixPattern, "") || "/";
+    const initialLaunch = process.env.NEXT_PUBLIC_INITIAL_LAUNCH_MODE !== "false";
+    if (initialLaunch && INITIAL_LAUNCH_HIDDEN.some((route) => localPath === route || localPath.startsWith(`${route}/`))) {
+      const url = request.nextUrl.clone();
+      url.pathname = `/${pathnameLocale}/dashboard`;
+      url.search = "";
+      return NextResponse.redirect(url);
+    }
     const response = NextResponse.next();
     response.cookies.set(localeCookieName, pathnameLocale, { path: "/", sameSite: "lax" });
     return response;

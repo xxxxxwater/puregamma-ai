@@ -1,7 +1,7 @@
 {
   "seo": {
-    "title": "PureGamma.ai - 机构级数字资产研究系统",
-    "description": "面向数字资产投资者的组合感知投研系统，整合市场情报、风险复盘与每日 iMessage 简报。"
+    "title": "PureGamma AI - Beta、Alpha 与 Long Gamma AI 决策助手",
+    "description": "面向个人投资者的二级市场 AI 决策支持，研究市场 Beta、证据型 Alpha 与 Long Gamma 机会。"
   },
   "header": {
     "research": "研究",
@@ -12,22 +12,21 @@
     "login": "登录"
   },
   "hero": {
-    "eyebrow": "机构级数字资产研究",
-    "headline": "面向数字资产组合的可验证市场情报系统。",
-    "subheadline": "PureGamma.ai 将市场数据、KOL 情绪、组合净值 NAV、NautilusTrader 策略研究和每日 iMessage 简报整合为一个风险优先的投研系统。",
-    "primaryCta": "打开投研控制台",
-    "secondaryCta": "申请机构简报"
+    "eyebrow": "面向二级市场的 AI 决策支持",
+    "headline": "判断何时承担 Beta、哪里可能存在 Alpha，Long Gamma NAV 1 > 50。",
+    "subheadline": "PureGamma AI 帮助个人投资者理解市场方向、验证差异化机会，并用实时数据、来源证据和风险上下文评估 Long Gamma。",
+    "primaryCta": "开始对话"
   },
   "engine": {
     "eyebrow": "PG AI 研究引擎",
     "rows": [
-      { "label": "市场数据", "detail": "资金流 - 深度 - 宏观" },
-      { "label": "研究", "detail": "笔记 - 市场状态 - KOL 情绪" },
-      { "label": "风险", "detail": "限制 - 压力 - 回撤" },
-      { "label": "输出", "detail": "简报 - 信号 - NAV" }
+      { "label": "BETA", "detail": "方向 - 敞口 - 市场状态" },
+      { "label": "ALPHA", "detail": "证据 - 催化 - 独立来源" },
+      { "label": "LONG GAMMA", "detail": "IV - Greeks - 流动性 - Theta 成本" },
+      { "label": "决策", "detail": "简报 - 风险 - 来源链路" }
     ]
   },
-  "stats": ["全天候市场监控", "组合感知简报", "风险优先研究", "iMessage 推送"],
+  "stats": ["实时市场背景", "证据型 Alpha 研究", "Long Gamma 筛选", "风险优先决策"],
   "sections": {
     "researchProcess": "研究流程",
     "portfolioAware": "组合感知情报",
@@ -39,11 +38,11 @@
   },
   "research": {
     "eyebrow": "关于",
-    "headline": "以研究与工程能力作为核心优势。",
+    "headline": "三类收益问题，需要三套不同的决策框架。",
     "cards": [
-      { "title": "市场微观结构", "body": "在配置判断之前先验证证据，并保留透明的数据链路与审查边界。" },
-      { "title": "对冲框架", "body": "在交付组合感知研究结果前，优先识别风险背景。" },
-      { "title": "研究驱动迭代", "body": "信号、报告与策略框架均保留来源和披露上下文。" }
+      { "title": "Beta 敞口", "body": "理解市场状态、方向和波动，明确承担的是大盘风险还是个体机会。" },
+      { "title": "Alpha 发掘", "body": "寻找无法仅由市场 Beta 解释的差异化信息、催化因素和相对价值证据。" },
+      { "title": "Long Gamma", "body": "结合隐含波动率、Gamma、Theta 成本、流动性和事件窗口评估凸性机会。" }
     ]
   },
   "trust": [
@@ -59,16 +58,16 @@
     { "label": "复核 / 风险治理", "detail": "每项输出均经过披露边界复核。" }
   ],
   "deskItems": [
-    { "title": "每日市场简报", "body": "研究台材料可在控制台内查看。" },
-    { "title": "组合净值 NAV 简报", "body": "带有 NAV 上下文的组合感知研究材料。" },
-    { "title": "X KOL 情绪笔记", "body": "情绪仅作为输入信号，并非已核实事实。" },
-    { "title": "NautilusTrader 策略实验室", "body": "回测与模拟交易研究流程，真实交易已禁用。" }
+    { "title": "市场 Beta", "body": "跟踪方向、市场广度、资金费率、波动和整体风险敞口。" },
+    { "title": "Alpha 证据", "body": "比较催化因素与独立来源，不把 AI 推断包装为市场事实。" },
+    { "title": "Long Gamma 研究", "body": "使用 Deribit 实时期权的 IV、Greeks、流动性和 Theta 成本筛选机会。" },
+    { "title": "简短每日决策简报", "body": "把证据整理成带来源、假设和风险的简短研究备忘录。" }
   ],
   "portfolioTitle": "净值 / 组合快照",
   "accessCards": [
-    { "title": "申请咨询", "body": "机构访问流程占位。" },
-    { "title": "申请 NDA 材料包", "body": "可向合格团队提供审查材料与披露边界。" },
-    { "title": "联系表单", "body": "启动团队部署与私有数据需求的访问审查。" }
+    { "title": "观察", "body": "使用实时市场与期权数据理解当前决策环境。" },
+    { "title": "验证", "body": "行动前检查来源、新鲜度、假设和相互冲突的证据。" },
+    { "title": "决策", "body": "在明确失效条件、成本和最大风险后选择敞口。" }
   ],
-  "footer": "本网站内容仅供信息和研究参考，不构成投资建议。"
+  "footer": "使用该服务用户自行承担风险。提供本服务的主体概不负责AI生成所有责任。"
 }

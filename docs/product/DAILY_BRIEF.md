@@ -1,8 +1,8 @@
 # Daily Brief
 
-The Daily Brief is PureGamma.ai's core user workflow: one concise research update that combines market regime, top signals, risk context, portfolio impact, and delivery through the user's selected notification channel.
+The Daily Brief is PureGamma AI's core user workflow: one concise research update that combines market regime, top signals, risk context, portfolio impact, and delivery through the user's selected notification channel.
 
-The brief is research only and must include: `This is not financial advice.`
+The brief is research only and must include: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Content Model
 

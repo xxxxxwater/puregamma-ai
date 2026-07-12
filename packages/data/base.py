@@ -1,12 +1,12 @@
 from __future__ import annotations
 
 from abc import ABC, abstractmethod
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from datetime import datetime
 from typing import Literal
 
 AssetType = Literal["equity", "preferred_equity", "crypto", "credit"]
-ProviderSource = Literal["massive", "fmp", "alpha_vantage", "binance", "coinbase", "coingecko", "mock"]
+ProviderSource = Literal["nasdaq", "massive", "fmp", "alpha_vantage", "binance", "coinbase", "coingecko", "mock"]
 
 EQUITY_SYMBOLS: set[str] = {"MSTR", "STRC", "STRD", "STRK", "STRF"}
 PREFERRED_EQUITY_SYMBOLS: set[str] = {"STRC", "STRD", "STRK", "STRF"}

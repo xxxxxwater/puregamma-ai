@@ -1,6 +1,6 @@
 # Exchange Read-only Keys
 
-PureGamma.ai exchange integrations must use read-only API keys only. Never enable withdrawal permissions, trading permissions, margin transfer, or account modification permissions.
+PureGamma AI exchange integrations must use read-only API keys only. Never enable withdrawal permissions, trading permissions, margin transfer, or account modification permissions.
 
 Current status: backend account sync is planned. This document defines the security contract for Binance, OKX, Bybit, and Hyperliquid.
 

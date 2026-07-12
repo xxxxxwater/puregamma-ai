@@ -1,11 +1,11 @@
 {
   "seo": {
     "title": "PureGamma Intelligence Console",
-    "description": "Portfolio-aware research, signal fusion, and daily market verification."
+    "description": "Signal fusion and daily market verification."
   },
   "eyebrow": "INTELLIGENCE CONSOLE",
   "title": "PureGamma Intelligence Console",
-  "subtitle": "Portfolio-aware research, signal fusion, and daily market verification.",
+  "subtitle": "Signal fusion and daily market verification.",
   "marketRegime": {
     "regime": "Risk-on momentum",
     "summary": "BTC leadership is intact while high beta assets are participating. Funding remains contained, but HYPE and MSTR require tighter risk controls."
@@ -46,7 +46,7 @@
     "latestDailyBrief": "Latest Daily Brief",
     "topSignals": "Top Signals",
     "portfolioSnapshot": "Portfolio Snapshot",
-    "dataPipelineHealth": "Data Pipeline Health",
+    "dataPipelineHealth": "Market Data Terminal",
     "diligenceLedger": "Diligence Ledger",
     "confidenceDistribution": "Confidence Distribution"
   },

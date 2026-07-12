@@ -1,6 +1,6 @@
 # Production Checklist
 
-Use this checklist before exposing PureGamma.ai to real users or enterprise customers.
+Use this checklist before exposing PureGamma AI to real users or enterprise customers.
 
 ## Product and Compliance
 

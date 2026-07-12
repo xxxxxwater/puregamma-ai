@@ -1,6 +1,6 @@
 # Security Overview
 
-PureGamma.ai handles investment research data, billing state, notification recipients, and planned portfolio connector data. Treat the system as sensitive even when it does not custody funds.
+PureGamma AI handles investment research data, billing state, notification recipients, and planned portfolio connector data. Treat the system as sensitive even when it does not custody funds.
 
 ## Security Principles
 

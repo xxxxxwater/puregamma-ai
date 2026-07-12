@@ -4,10 +4,10 @@ from sqlalchemy.orm import Session
 
 from apps.api.services.cost_control_service import assert_daily_report_limit, cached_daily_report
 from apps.api.services.credit_service import consume_credits
+from apps.api.services.daily_brief_service import generate_daily_brief
 from apps.api.services.entitlement_service import assert_action_allowed
 from apps.api.services.market_intelligence_service import latest_or_create_intelligence
 from apps.api.services.signal_service import scan_signals, serialize_signal
-from packages.agents.research_agent import ResearchAgent
 from packages.agents.report_writer_agent import ReportWriterAgent
 from packages.billing.credits import cost_for
 from packages.database.models import Report
@@ -23,13 +23,11 @@ def create_daily_report(db: Session, user_id: str, language: str = "en") -> Repo
     assert_daily_report_limit(db, user_id)
     assert_action_allowed(db, user_id, "daily_market_report")
     consume_credits(db, user_id, "daily_market_report", cost_for("daily_market_report"))
+    content = generate_daily_brief(db, user_id, language)
     intelligence = latest_or_create_intelligence(db)
-    signals = [serialize_signal(signal) for signal in scan_signals(db, intelligence.assets)]
-    research = ResearchAgent().research(intelligence.assets)
-    content = ReportWriterAgent().daily(research, signals, language, user_id=user_id, db=db)
     report = Report(
         user_id=user_id,
-        title="PureGamma 每日加密市场简报" if language == "zh" else "PureGamma Daily Crypto Brief",
+        title="PureGamma 每日简报" if language == "zh" else "PureGamma Daily Brief",
         report_type="daily_market_report",
         language=language,
         content_markdown=content,
@@ -72,7 +70,7 @@ def create_playbook_report(db: Session, user_id: str, language: str = "en") -> R
             user_id=user_id,
             db=db,
         )
-        disclaimer = "本内容仅供信息和研究参考，不构成投资建议。" if language == "zh" else "This is not financial advice."
+        disclaimer = "使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" if language == "zh" else "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
         if generated.lstrip().startswith("#"):
             content = generated if disclaimer in generated else f"{generated.rstrip()}\n\n{disclaimer}"
     except Exception:

@@ -1,8 +1,8 @@
-DISCLAIMER = "This is not financial advice."
-DISCLAIMER_ZH = "本内容仅供信息和研究参考，不构成投资建议。"
+DISCLAIMER = "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+DISCLAIMER_ZH = "使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。"
 
 
-IMESSAGE_DAILY_TEMPLATE = """PureGamma.ai Daily Crypto Brief
+IMESSAGE_DAILY_TEMPLATE = """PureGamma AI Daily Crypto Brief
 
 Market Regime:
 {market_regime}
@@ -18,10 +18,10 @@ Risk:
 Playbook:
 {playbook_summary}
 
-This is not financial advice."""
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."""
 
 
-IMESSAGE_DAILY_TEMPLATE_ZH = """PureGamma.ai 每日简报
+IMESSAGE_DAILY_TEMPLATE_ZH = """PureGamma AI 每日简报
 
 市场：
 {market_regime}
@@ -38,7 +38,7 @@ IMESSAGE_DAILY_TEMPLATE_ZH = """PureGamma.ai 每日简报
 {playbook_summary}
 
 KOL 情绪仅作为输入信号，并非已核实事实。
-本内容仅供信息和研究参考，不构成投资建议。"""
+使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。"""
 
 
 def disclaimer_for(language: str) -> str:

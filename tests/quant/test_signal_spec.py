@@ -46,7 +46,7 @@ def test_default_signal_specs_include_required_fields():
     assert btc.asset_universe == ["BTC"]
     assert btc.entry_condition
     assert btc.invalidation
-    assert "This is not financial advice." in btc.disclaimers
+    assert "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." in btc.disclaimers
 
 
 def test_research_only_strategy_cannot_emit_actionable_language():

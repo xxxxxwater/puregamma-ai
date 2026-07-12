@@ -2,7 +2,7 @@
 
 The admin surface is for operational review of users, reports, data sources, Stripe events, notification deliveries, and subscriptions.
 
-Admins must not use PureGamma.ai outputs as investment advice. Admin views can expose user-sensitive data and must be access controlled.
+Admins must not use PureGamma AI outputs as investment advice. Admin views can expose user-sensitive data and must be access controlled.
 
 ## Access
 

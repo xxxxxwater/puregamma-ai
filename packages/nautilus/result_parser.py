@@ -36,6 +36,6 @@ def standardize_backtest_result(result: dict) -> dict:
     standardized["live_trading"] = live_trading_status()
     standardized["disclaimer"] = standardized.get(
         "disclaimer",
-        "Research backtest only. This is not financial advice. Past results do not guarantee future results.",
+        "Research backtest only. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content. Past results do not guarantee future results.",
     )
     return standardized

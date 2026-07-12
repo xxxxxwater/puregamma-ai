@@ -12,7 +12,7 @@ Protected endpoints require:
 Authorization: Bearer <token>
 ```
 
-Investment outputs are research only and must include or preserve the disclaimer: `This is not financial advice.`
+Investment outputs are research only and must include or preserve the disclaimer: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Auth
 
@@ -44,7 +44,7 @@ Investment outputs are research only and must include or preserve the disclaimer
 
 | Method | Path | Auth required | Request body | Response example | Errors | Entitlement | Credit cost |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `POST` | `/signals/scan` | Yes | None | `{"signals":[{"asset":"BTC","direction":"long_watch","disclaimer":"This is not financial advice."}]}` | `401`, `402` insufficient credits | Current implementation does not block by plan | 8 |
+| `POST` | `/signals/scan` | Yes | None | `{"signals":[{"asset":"BTC","direction":"long_watch","disclaimer":"Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."}]}` | `401`, `402` insufficient credits | Current implementation does not block by plan | 8 |
 | `GET` | `/signals` | Yes | None | `{"signals":[{"asset":"BTC","risk_score":46}]}` | `401` | Authenticated user | 0 |
 
 ## Playbooks
@@ -118,7 +118,7 @@ The real NautilusTrader runtime is not implemented. Current backend uses mock `B
 
 | Method | Path | Auth required | Request body | Response example | Errors | Entitlement | Credit cost |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `POST` | `/backtest` | Yes | `{"strategy_name":"BTC momentum breakout","asset":"BTC","params":{"lookback_days":30}}` | `{"backtest":{"result":{"metrics":{"sharpe":1.23},"disclaimer":"This is not financial advice."}}}` | `401`, `402` | High-cost task required | 25 |
+| `POST` | `/backtest` | Yes | `{"strategy_name":"BTC momentum breakout","asset":"BTC","params":{"lookback_days":30}}` | `{"backtest":{"result":{"metrics":{"sharpe":1.23},"disclaimer":"Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."}}}` | `401`, `402` | High-cost task required | 25 |
 | `GET` | `/backtest/{run_id}` | Yes | None | `{"backtest":{"id":"...","strategy_name":"..."}}` | `401`, `404` | Own run only | 0 |
 
 ## Data Sources

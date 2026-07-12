@@ -198,7 +198,7 @@ class SafeHttpClient:
                     timeout=self.timeout_seconds,
                     follow_redirects=False,
                     transport=self.transport,
-                    headers={"User-Agent": "PureGamma.ai/1.0 public-data"},
+                    headers={"User-Agent": "PureGamma AI/1.0 public-data"},
                 ) as client:
                     response = client.request(method, url, **kwargs)
                 if response.is_redirect:

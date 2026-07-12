@@ -1,4 +1,4 @@
-# PureGamma.ai — 用户画像 (User Personas)
+# PureGamma AI — 用户画像 (User Personas)
 
 **版本**: v1.0  
 **日期**: 2026-07-06

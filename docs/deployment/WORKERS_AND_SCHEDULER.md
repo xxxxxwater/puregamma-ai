@@ -1,6 +1,6 @@
 # Workers and Scheduler
 
-PureGamma.ai uses Celery for background tasks and APScheduler for recurring schedules.
+PureGamma AI uses Celery for background tasks and APScheduler for recurring schedules.
 
 ## Celery App
 

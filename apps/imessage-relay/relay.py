@@ -16,7 +16,7 @@ from pydantic import BaseModel
 from config import settings
 
 
-app = FastAPI(title="PureGamma.ai iMessage Relay", version="0.1.0")
+app = FastAPI(title="PureGamma AI iMessage Relay", version="0.1.0")
 
 
 class SendRequest(BaseModel):

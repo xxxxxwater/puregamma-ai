@@ -5,7 +5,11 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.dependencies import get_db
-from apps.api.services.market_intelligence_service import DEFAULT_ASSETS, generate_shared_market_intelligence, latest_or_create_intelligence
+from apps.api.services.market_intelligence_service import (
+    DEFAULT_ASSETS,
+    generate_shared_market_intelligence,
+    latest_or_create_intelligence,
+)
 from packages.data.cache import market_cache
 from packages.data.base import MarketQuote, asset_type_for, is_equity
 from packages.data.equity_providers.equity_provider import equity_source_label
@@ -19,10 +23,16 @@ router = APIRouter(prefix="/market", tags=["market"])
 @router.get("/snapshot")
 def snapshot() -> dict:
     settings = get_settings()
-    cached = market_cache.get(f"api:market:snapshot:{settings.market_data_mode}")
+    mode = (
+        "auto"
+        if settings.app_environment.lower() == "production"
+        and settings.market_data_mode == "mock"
+        else settings.market_data_mode
+    )
+    cached = market_cache.get(f"api:market:snapshot:{mode}")
     if cached:
         return cached
-    quotes = PublicMarketDataProvider(mode=settings.market_data_mode).get_snapshot(DEFAULT_ASSETS)
+    quotes = PublicMarketDataProvider(mode=mode).get_snapshot(DEFAULT_ASSETS)
     live_count = sum(1 for quote in quotes if quote.is_realtime)
     payload = {
         "mockMode": live_count == 0,
@@ -30,7 +40,11 @@ def snapshot() -> dict:
         "source_summary": sorted({quote.source for quote in quotes}),
         "assets": [_serialize_quote(quote) for quote in quotes],
     }
-    market_cache.set(f"api:market:snapshot:{settings.market_data_mode}", payload, ttl_seconds=settings.market_snapshot_cache_ttl_seconds)
+    market_cache.set(
+        f"api:market:snapshot:{mode}",
+        payload,
+        ttl_seconds=settings.market_snapshot_cache_ttl_seconds,
+    )
     return payload
 
 
@@ -88,4 +102,8 @@ def intelligence(db: Session = Depends(get_db)) -> dict:
 @router.post("/intelligence")
 def regenerate_intelligence(db: Session = Depends(get_db)) -> dict:
     item = generate_shared_market_intelligence(db)
-    return {"id": item.id, "market_regime": item.market_regime, "summary_markdown": item.summary_markdown}
+    return {
+        "id": item.id,
+        "market_regime": item.market_regime,
+        "summary_markdown": item.summary_markdown,
+    }

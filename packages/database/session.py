@@ -39,6 +39,9 @@ def ensure_compat_columns() -> None:
         ("users", "session_version", "INTEGER NOT NULL DEFAULT 0"),
         ("reports", "language", "VARCHAR NOT NULL DEFAULT 'en'"),
         ("notification_deliveries", "locale", "VARCHAR NOT NULL DEFAULT 'en'"),
+        ("agent_messages", "context_json", "JSON NOT NULL DEFAULT '{}'"),
+        ("exchange_connections", "credential_ciphertext", "TEXT"),
+        ("user_preferences", "portfolio_autopilot_json", "JSON NOT NULL DEFAULT '{}'"),
         ("stripe_webhook_events", "requires_manual_review", "BOOLEAN NOT NULL DEFAULT 0"),
         ("stripe_webhook_events", "error_message", "TEXT"),
     ]

@@ -1,0 +1,116 @@
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: puregamma
+      POSTGRES_USER: puregamma
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U puregamma -d puregamma"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 768mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+
+  nautilus-runtime:
+    build:
+      context: .
+      dockerfile: services/nautilus-runtime/Dockerfile
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      NAUTILUS_EXECUTION_MODE: paper
+      NAUTILUS_LIVE_TRADING_ENABLED: "false"
+      NAUTILUS_ALLOW_LIVE_ORDER: "false"
+      NAUTILUS_ALLOW_WITHDRAWAL: "false"
+      NAUTILUS_ALLOW_TRANSFER: "false"
+      NAUTILUS_RUNTIME_STATE_DB: /runtime/state/nautilus_runtime.sqlite3
+    expose: ["8090"]
+    volumes:
+      - nautilus_state:/runtime/state
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      APP_ENV: production
+      AUTH_ALLOW_DEMO_FALLBACK: "false"
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: redis://redis:6379/0
+      NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
+    expose: ["8000"]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_started }
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    env_file: .env
+    command: ["sh", "-c", "celery -A packages.workers.celery_app.celery_app worker --loglevel=INFO --concurrency=$${WORKER_CONCURRENCY:-2}"]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: redis://redis:6379/0
+      NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
+    depends_on: [api]
+
+  scheduler:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    restart: unless-stopped
+    env_file: .env
+    command: ["python", "-m", "packages.workers.scheduler"]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: redis://redis:6379/0
+      NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
+    depends_on: [api]
+
+  web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+      args:
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
+        NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN}
+        NEXT_PUBLIC_INITIAL_LAUNCH_MODE: "true"
+    restart: unless-stopped
+    expose: ["3000"]
+    depends_on: [api]
+
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports: ["80:80", "443:443"]
+    environment:
+      APP_DOMAIN: ${APP_DOMAIN}
+      API_DOMAIN: ${API_DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on: [web, api]
+
+volumes:
+  pgdata:
+  redisdata:
+  nautilus_state:
+  caddy_data:
+  caddy_config:

@@ -1,6 +1,6 @@
 # DeepSeek Provider
 
-PureGamma.ai uses a provider abstraction for LLM calls. DeepSeek is supported through the OpenAI-compatible chat completion API.
+PureGamma AI uses a provider abstraction for LLM calls. DeepSeek is supported through the OpenAI-compatible chat completion API.
 
 ## Environment
 
@@ -22,7 +22,7 @@ Keep `DEEPSEEK_API_KEY` out of documentation, tests, screenshots, and commits. U
 - Report and playbook generation call the provider through the shared abstraction.
 - The provider uses bounded timeout, retry, and exponential backoff.
 - Structured JSON calls use `response_format={"type":"json_object"}` when requested.
-- All investment content must preserve `This is not financial advice.`
+- All investment content must preserve `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Logging
 

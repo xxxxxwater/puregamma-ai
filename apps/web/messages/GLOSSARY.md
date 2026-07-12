@@ -1,8 +1,8 @@
-# PureGamma.ai i18n Glossary
+# PureGamma AI i18n Glossary
 
 | English | Simplified Chinese | Notes |
 | --- | --- | --- |
-| PureGamma.ai | PureGamma.ai | Brand, do not translate. |
+| PureGamma AI | PureGamma AI | Brand, do not translate. |
 | PGResearch | PGResearch | Product style name, do not translate. |
 | NautilusTrader | NautilusTrader | Product name, do not translate. |
 | iMessage | iMessage | Product name, do not translate. |

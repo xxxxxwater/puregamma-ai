@@ -1,6 +1,6 @@
 # Observability
 
-Observability should answer whether PureGamma.ai is healthy, accurate enough for research use, and delivering user-visible workflows on time.
+Observability should answer whether PureGamma AI is healthy, accurate enough for research use, and delivering user-visible workflows on time.
 
 ## Health Checks
 

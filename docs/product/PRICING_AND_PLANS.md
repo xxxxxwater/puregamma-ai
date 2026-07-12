@@ -1,8 +1,8 @@
 # Pricing and Plans
 
-PureGamma.ai uses a subscription plus credits model. Subscriptions control entitlements, and credits meter high-cost research actions.
+PureGamma AI uses a subscription plus credits model. Subscriptions control entitlements, and credits meter high-cost research actions.
 
-Pricing and credits are product configuration, not investment performance claims. PureGamma.ai does not promise returns.
+Pricing and credits are product configuration, not investment performance claims. PureGamma AI does not promise returns.
 
 ## Plans
 

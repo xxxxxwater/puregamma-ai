@@ -15,7 +15,7 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 class SendNotificationRequest(BaseModel):
     channel: str = "email"
-    message: str = "PureGamma.ai test notification. This is not financial advice."
+    message: str = "PureGamma AI test notification. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
     metadata: dict = {}
     locale: str | None = None
 
@@ -29,7 +29,7 @@ def test_notification(
     user: User = Depends(get_current_user),
 ) -> dict:
     language = resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
-    message = "PureGamma.ai 测试通知。本内容仅供信息和研究参考，不构成投资建议。" if language == "zh" else "PureGamma.ai test notification. This is not financial advice."
+    message = "PureGamma AI 测试通知。使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" if language == "zh" else "PureGamma AI test notification. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
     delivery = send_notification(db, user.id, "email", message, {"idempotency_key": f"test-{user.id}-{language}", "locale": language})
     return {"delivery": serialize_delivery(delivery)}
 

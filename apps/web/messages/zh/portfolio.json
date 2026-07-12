@@ -1,10 +1,10 @@
 {
   "seo": {
-    "title": "组合净值 NAV 复盘",
+    "title": "组合净值 NAV",
     "description": "基于已同步数据源估算组合净值、资产配置与风险敞口。"
   },
-  "eyebrow": "组合净值 NAV 复盘",
-  "title": "组合净值 NAV 复盘",
+  "eyebrow": "PORTFOLIO / NAV",
+  "title": "组合净值 NAV",
   "subtitle": "基于已同步数据源估算组合净值、资产配置与风险敞口。",
   "actions": {
     "syncAll": "同步全部数据源",

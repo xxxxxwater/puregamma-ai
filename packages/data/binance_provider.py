@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -10,7 +9,14 @@ import httpx
 
 from packages.data.base import MarketDataProvider, MarketQuote
 from packages.data.mock_provider import MockMarketDataProvider
-from packages.data.provider import DataProvenance, DataSourceHealth, DataSourceProvider, DataSourceStatus, DataSourceSyncResult, ProviderError
+from packages.data.provider import (
+    DataProvenance,
+    DataSourceHealth,
+    DataSourceProvider,
+    DataSourceStatus,
+    DataSourceSyncResult,
+    ProviderError,
+)
 
 
 BINANCE_SYMBOLS = {
@@ -28,7 +34,9 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
     provider_name = "binance"
 
     def __init__(self, base_url: str | None = None, timeout_seconds: float = 4.0):
-        self.base_url = (base_url or os.getenv("BINANCE_REST_BASE_URL") or "https://api.binance.com").rstrip("/")
+        self.base_url = (
+            base_url or os.getenv("BINANCE_REST_BASE_URL") or "https://api.binance.com"
+        ).rstrip("/")
         self.timeout_seconds = timeout_seconds
         self._mock = MockMarketDataProvider()
 
@@ -49,13 +57,24 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
 
     def _get_json(self, path: str, params: dict | None = None) -> Any:
         try:
-            response = httpx.get(f"{self.base_url}{path}", params=params, timeout=self.timeout_seconds, headers={"User-Agent": "PureGamma.ai/1.0 public-market"})
+            response = httpx.get(
+                f"{self.base_url}{path}",
+                params=params,
+                timeout=self.timeout_seconds,
+                headers={"User-Agent": "PureGamma AI/1.0 public-market"},
+            )
         except httpx.TimeoutException as exc:
             raise ProviderError("timeout", "Binance request timed out") from exc
         if response.status_code == 429:
-            raise ProviderError("rate_limited", "Binance rate limit reached", status_code=429)
+            raise ProviderError(
+                "rate_limited", "Binance rate limit reached", status_code=429
+            )
         if response.status_code >= 400:
-            raise ProviderError("http_error", f"Binance returned HTTP {response.status_code}", status_code=response.status_code)
+            raise ProviderError(
+                "http_error",
+                f"Binance returned HTTP {response.status_code}",
+                status_code=response.status_code,
+            )
         return response.json()
 
     def ping(self) -> bool:
@@ -63,34 +82,66 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
 
     def server_time(self) -> datetime:
         payload = self._get_json("/api/v3/time")
-        return datetime.fromtimestamp(int(payload["serverTime"]) / 1000, tz=timezone.utc)
+        return datetime.fromtimestamp(
+            int(payload["serverTime"]) / 1000, tz=timezone.utc
+        )
 
     def exchange_info(self, symbols: list[str] | None = None) -> dict:
-        mapped = [BINANCE_SYMBOLS.get(symbol.upper(), symbol.upper()) for symbol in (symbols or [])]
+        mapped = [
+            BINANCE_SYMBOLS.get(symbol.upper(), symbol.upper())
+            for symbol in (symbols or [])
+        ]
         params = {"symbols": __import__("json").dumps(mapped)} if mapped else None
         return self._get_json("/api/v3/exchangeInfo", params)
 
     def current_price(self, symbol: str) -> Decimal:
         source_symbol = BINANCE_SYMBOLS.get(symbol.upper(), symbol.upper())
-        return _decimal(self._get_json("/api/v3/ticker/price", {"symbol": source_symbol})["price"])
+        return _decimal(
+            self._get_json("/api/v3/ticker/price", {"symbol": source_symbol})["price"]
+        )
 
-    def klines(self, symbol: str, interval: str = "1h", limit: int = 100) -> list[list[Any]]:
+    def klines(
+        self, symbol: str, interval: str = "1h", limit: int = 100
+    ) -> list[list[Any]]:
         if interval not in {"1m", "5m", "15m", "1h", "4h", "1d"}:
             raise ValueError("Unsupported Binance kline interval")
-        return self._get_json("/api/v3/klines", {"symbol": BINANCE_SYMBOLS.get(symbol.upper(), symbol.upper()), "interval": interval, "limit": min(max(limit, 1), 500)})
+        return self._get_json(
+            "/api/v3/klines",
+            {
+                "symbol": BINANCE_SYMBOLS.get(symbol.upper(), symbol.upper()),
+                "interval": interval,
+                "limit": min(max(limit, 1), 500),
+            },
+        )
 
     def depth(self, symbol: str, limit: int = 20) -> dict:
-        allowed = min((value for value in (5, 10, 20, 50, 100) if value >= limit), default=100)
-        return self._get_json("/api/v3/depth", {"symbol": BINANCE_SYMBOLS.get(symbol.upper(), symbol.upper()), "limit": allowed})
+        allowed = min(
+            (value for value in (5, 10, 20, 50, 100) if value >= limit), default=100
+        )
+        return self._get_json(
+            "/api/v3/depth",
+            {
+                "symbol": BINANCE_SYMBOLS.get(symbol.upper(), symbol.upper()),
+                "limit": allowed,
+            },
+        )
 
     def health_check(self) -> DataSourceHealth:
         started = datetime.now(timezone.utc)
         try:
             self.ping()
             latency = int((datetime.now(timezone.utc) - started).total_seconds() * 1000)
-            return DataSourceHealth(DataSourceStatus.HEALTHY, "Binance public REST reachable", latency_ms=latency)
+            return DataSourceHealth(
+                DataSourceStatus.HEALTHY,
+                "Binance public REST reachable",
+                latency_ms=latency,
+            )
         except ProviderError as exc:
-            status = DataSourceStatus.RATE_LIMITED if exc.code == "rate_limited" else DataSourceStatus.ERROR
+            status = (
+                DataSourceStatus.RATE_LIMITED
+                if exc.code == "rate_limited"
+                else DataSourceStatus.ERROR
+            )
             return DataSourceHealth(status, str(exc))
 
     def sync(self, symbols: list[str] | None = None) -> DataSourceSyncResult:
@@ -102,31 +153,58 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
                 errors.append(f"{asset}: no Binance spot mapping")
                 continue
             try:
-                payload = self._get_json("/api/v3/ticker/24hr", {"symbol": source_symbol})
+                payload = self._get_json(
+                    "/api/v3/ticker/24hr", {"symbol": source_symbol}
+                )
                 fetched_at = datetime.now(timezone.utc)
-                source_time = datetime.fromtimestamp(int(payload.get("closeTime", 0)) / 1000, tz=timezone.utc) if payload.get("closeTime") else fetched_at
-                records.append({
-                    "symbol": source_symbol,
-                    "base_asset": asset.upper(),
-                    "quote_asset": "USDT",
-                    "asset_type": "spot",
-                    "provider": "binance",
-                    "price": _decimal_or_none(payload.get("lastPrice")),
-                    "change_24h_pct": _decimal_or_none(payload.get("priceChangePercent")),
-                    "volume_24h_base": _decimal_or_none(payload.get("volume")),
-                    "volume_24h_quote": _decimal_or_none(payload.get("quoteVolume")),
-                    "high_24h": _decimal_or_none(payload.get("highPrice")),
-                    "low_24h": _decimal_or_none(payload.get("lowPrice")),
-                    "bid": _decimal_or_none(payload.get("bidPrice")),
-                    "ask": _decimal_or_none(payload.get("askPrice")),
-                    "source_timestamp": source_time,
-                    "fetched_at": fetched_at,
-                    "provenance_json": DataProvenance(provider="binance", source_url=f"{self.base_url}/api/v3/ticker/24hr", source_timestamp=source_time, fetched_at=fetched_at).as_dict(),
-                })
+                source_time = (
+                    datetime.fromtimestamp(
+                        int(payload.get("closeTime", 0)) / 1000, tz=timezone.utc
+                    )
+                    if payload.get("closeTime")
+                    else fetched_at
+                )
+                records.append(
+                    {
+                        "symbol": source_symbol,
+                        "base_asset": asset.upper(),
+                        "quote_asset": "USDT",
+                        "asset_type": "spot",
+                        "provider": "binance",
+                        "price": _decimal_or_none(payload.get("lastPrice")),
+                        "change_24h_pct": _decimal_or_none(
+                            payload.get("priceChangePercent")
+                        ),
+                        "volume_24h_base": _decimal_or_none(payload.get("volume")),
+                        "volume_24h_quote": _decimal_or_none(
+                            payload.get("quoteVolume")
+                        ),
+                        "high_24h": _decimal_or_none(payload.get("highPrice")),
+                        "low_24h": _decimal_or_none(payload.get("lowPrice")),
+                        "bid": _decimal_or_none(payload.get("bidPrice")),
+                        "ask": _decimal_or_none(payload.get("askPrice")),
+                        "source_timestamp": source_time,
+                        "fetched_at": fetched_at,
+                        "provenance_json": DataProvenance(
+                            provider="binance",
+                            source_url=f"{self.base_url}/api/v3/ticker/24hr",
+                            source_timestamp=source_time,
+                            fetched_at=fetched_at,
+                        ).as_dict(),
+                    }
+                )
             except Exception as exc:
                 errors.append(f"{asset}: {str(exc)[:200]}")
-        status = DataSourceStatus.ERROR if not records else DataSourceStatus.PARTIAL if errors else DataSourceStatus.HEALTHY
-        return DataSourceSyncResult(status=status, records=records, fetched_count=len(records), errors=errors)
+        status = (
+            DataSourceStatus.ERROR
+            if not records
+            else DataSourceStatus.PARTIAL
+            if errors
+            else DataSourceStatus.HEALTHY
+        )
+        return DataSourceSyncResult(
+            status=status, records=records, fetched_count=len(records), errors=errors
+        )
 
     def get_snapshot(self, symbols: list[str]) -> list[MarketQuote]:
         quotes: list[MarketQuote] = []
@@ -140,18 +218,25 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
     def get_market_regime(self, quotes: list[MarketQuote]) -> str:
         return self._mock.get_market_regime(quotes)
 
-    def _quote_from_payload(self, symbol: str, source_symbol: str, payload: dict[str, Any]) -> MarketQuote:
-        fallback = self._mock.get_snapshot([symbol])[0]
+    def _quote_from_payload(
+        self, symbol: str, source_symbol: str, payload: dict[str, Any]
+    ) -> MarketQuote:
         close_time_ms = _float(payload.get("closeTime"), default=0.0)
         timestamp = (
             datetime.fromtimestamp(close_time_ms / 1000, tz=timezone.utc)
             if close_time_ms > 0
             else datetime.now(timezone.utc)
         )
-        return replace(
-            fallback,
+        return MarketQuote(
+            symbol=symbol,
             price=round(_float(payload.get("lastPrice")), 8),
-            volume_24h=round(_float(payload.get("quoteVolume"), fallback.volume_24h), 2),
+            volume_24h=round(_float(payload.get("quoteVolume")), 2),
+            market_cap=0.0,
+            funding_rate=0.0,
+            open_interest=0.0,
+            volatility=0.0,
+            liquidation_estimate=0.0,
+            sentiment_score=0.0,
             timestamp=timestamp,
             source=self.provider_name,
             source_symbol=source_symbol,
@@ -172,7 +257,9 @@ def _decimal(value: Any) -> Decimal:
     try:
         return Decimal(str(value))
     except (InvalidOperation, TypeError, ValueError) as exc:
-        raise ProviderError("invalid_number", "Binance returned an invalid decimal") from exc
+        raise ProviderError(
+            "invalid_number", "Binance returned an invalid decimal"
+        ) from exc
 
 
 def _decimal_or_none(value: Any) -> Decimal | None:

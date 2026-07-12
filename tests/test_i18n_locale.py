@@ -42,7 +42,7 @@ def test_report_language_saved(api_client, max_user):
 def test_notification_delivery_locale_saved(api_client, max_user):
     response = api_client.post(
         "/notifications/send?locale=zh",
-        json={"channel": "imessage", "message": "PureGamma.ai 每日简报", "metadata": {"idempotency_key": "locale-imessage"}},
+        json={"channel": "imessage", "message": "PureGamma AI 每日简报", "metadata": {"idempotency_key": "locale-imessage"}},
         headers=auth_headers(max_user),
     )
 

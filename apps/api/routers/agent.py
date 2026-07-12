@@ -2,11 +2,11 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
-from apps.api.services.agent_service import AgentQuotaError, create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from apps.api.services.agent_service import create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
 from packages.database.models import AgentConversation, AgentMessage, AgentRun, User, utcnow
 
 
@@ -25,6 +25,10 @@ class ConversationPatch(BaseModel):
 class MessageRequest(BaseModel):
     content: str
     locale: str = "en"
+    data_sources: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    custom_prompt: str = ""
+    attachments: list[dict] = Field(default_factory=list)
 
 
 @router.get("/quota")
@@ -92,11 +96,9 @@ def messages(conversation_id: str, db: Session = Depends(get_db), user: User = D
 def send_message(conversation_id: str, payload: MessageRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> StreamingResponse:
     try:
         row = owned_conversation(db, user, conversation_id)
-        run = start_run(db, user, row, payload.content)
+        run = start_run(db, user, row, payload.content, context={"data_sources": payload.data_sources, "skills": payload.skills, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments})
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
-    except AgentQuotaError as exc:
-        raise HTTPException(status_code=402, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     return StreamingResponse(stream_run(db, user, run.id, payload.locale), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

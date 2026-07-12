@@ -11,6 +11,7 @@ from packages.data.binance_provider import BinanceProvider
 from packages.data.base import MarketQuote, asset_type_for, is_equity
 from packages.data.coinbase_provider import CoinbaseProvider
 from packages.data.equity_providers.equity_provider import EquityDataProvider, equity_source_label
+from packages.data.equity_providers.nasdaq_provider import NasdaqDataLinkProvider
 from packages.data.mock_provider import MockMarketDataProvider
 from packages.data.public_market_provider import PublicMarketDataProvider
 from packages.risk.scoring import risk_score_for_quote
@@ -51,12 +52,47 @@ def test_is_equity():
 
 
 def test_equity_source_labels():
-    assert equity_source_label("MSTR", "massive") == "NASDAQ"
-    assert equity_source_label("MSTR", "fmp") == "NASDAQ"
+    assert equity_source_label("MSTR", "nasdaq") == "Nasdaq Data Link"
+    assert equity_source_label("MSTR", "massive") == "Massive"
+    assert equity_source_label("MSTR", "fmp") == "Financial Modeling Prep"
     assert equity_source_label("MSTR", "mock") == "MOCK"
-    assert equity_source_label("STRC", "massive") == "NASDAQ Preferred"
-    assert equity_source_label("STRC", "fmp") == "NASDAQ Preferred"
+    assert equity_source_label("STRC", "nasdaq") == "Nasdaq Data Link"
+    assert equity_source_label("STRC", "massive") == "Massive"
+    assert equity_source_label("STRC", "fmp") == "Financial Modeling Prep"
     assert equity_source_label("STRC", "mock") == "MOCK"
+
+
+def test_nasdaq_data_link_snapshot_parsing():
+    class Response:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            return [{"symbol": "MSTR", "timestamp": "2026-07-10T15:30:01.000", "lastSale": 410.25, "volume": 1000, "percentChange": 1.75}]
+
+    class Session:
+        def post(self, *args, **kwargs):
+            class TokenResponse(Response):
+                def json(self):
+                    return {"access_token": "token", "expires_in": 3600}
+
+            return TokenResponse()
+
+        def get(self, *args, **kwargs):
+            assert kwargs["headers"]["Authorization"] == "Bearer token"
+            return Response()
+
+    provider = NasdaqDataLinkProvider("https://licensed.example", "client", "secret")
+    provider._session = Session()
+    quote = provider.get_quote("MSTR")
+    assert quote is not None
+    assert quote.price == 410.25
+    assert quote.volume_24h == 410250
+    assert quote.source == "nasdaq"
+    assert quote.source_symbol == "NASDAQ:MSTR"
+    assert quote.is_realtime is False
 
 
 def test_public_market_provider_prefers_binance_before_coinbase():
@@ -320,7 +356,7 @@ def test_coinbase_provider_parses_public_ticker_and_stats_payload():
 def test_daily_report_generation(db, demo_user):
     report = create_daily_report(db, demo_user.id)
     assert "PureGamma Daily Crypto Brief" in report.content_markdown
-    assert "This is not financial advice." in report.content_markdown
+    assert "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." in report.content_markdown
 
 
 def test_signal_scan(db):

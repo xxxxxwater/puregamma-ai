@@ -1,6 +1,6 @@
 # Investment Research Limits
 
-PureGamma.ai is an investment research product, not an adviser, broker, custodian, tax tool, or execution system.
+PureGamma AI is an investment research product, not an adviser, broker, custodian, tax tool, or execution system.
 
 ## Allowed
 

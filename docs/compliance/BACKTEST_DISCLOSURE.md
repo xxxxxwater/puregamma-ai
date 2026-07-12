@@ -1,11 +1,11 @@
 # Backtest Disclosure
 
-Backtests in PureGamma.ai are hypothetical research outputs. They do not predict or guarantee future results.
+Backtests in PureGamma AI are hypothetical research outputs. They do not predict or guarantee future results.
 
 ## Required Disclosure
 
 ```text
-Backtests are hypothetical, depend on assumptions, and do not guarantee future results. This is not financial advice.
+Backtests are hypothetical, depend on assumptions, and do not guarantee future results. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ## Required Metadata

@@ -33,8 +33,8 @@ export default async function BillingPage({ params }: { params: { locale: Locale
           <div className="grid gap-4 md:grid-cols-5">
             <div><div className="text-sm text-text-pg-muted">{copy.summary.currentPlan}</div><div className="mt-2"><PlanBadge plan={subscription.plan} /></div></div>
             <div><div className="text-sm text-text-pg-muted">{copy.summary.subscription}</div><div className="mt-2"><Badge tone="neutral"><StatusDot tone={subscription.subscription_status === "past_due" ? "red" : "emerald"} /> {subscription.subscription_status}</Badge></div></div>
-            <div><div className="text-sm text-text-pg-muted">{copy.summary.creditBalance}</div><div className="mt-2 text-2xl font-semibold">{subscription.credit_balance}</div></div>
-            <div><div className="text-sm text-text-pg-muted">{copy.summary.periodEnd}</div><div className="mt-2 text-sm">{subscription.current_period_end ? formatDateTime(locale, subscription.current_period_end) : t(locale, "common.shared.mockMode")}</div></div>
+            <div><div className="text-sm text-text-pg-muted">{copy.summary.creditBalance}</div><div className="mt-2 text-2xl font-semibold">{subscription.billing_mode === "mock" ? "∞" : subscription.credit_balance}</div></div>
+            <div><div className="text-sm text-text-pg-muted">{copy.summary.periodEnd}</div><div className="mt-2 text-sm">{subscription.current_period_end ? formatDateTime(locale, subscription.current_period_end) : "-"}</div></div>
             <div><div className="text-sm text-text-pg-muted">{copy.summary.accountSource}</div><div className="mt-2 text-sm">{subscription.account?.auth_provider === "google" ? copy.accountSources.google : copy.accountSources.email}</div></div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2 border-t border-border-pg pt-3 text-xs">
@@ -78,8 +78,9 @@ export default async function BillingPage({ params }: { params: { locale: Locale
               {plan.name === "Pro" || plan.name === "Max" || plan.name === "Enterprise" ? (
                 <BillingButton
                   plan={plan.name as "Pro" | "Max" | "Enterprise"}
-                  checkoutMode={subscription.checkout_mode}
-                  disabled={subscription.checkout_mode === "payment_link" && !subscription.payment_links[plan.name]}
+                  checkoutMode={subscription.checkout_mode === "payment_link" && !subscription.payment_links[plan.name] ? "session" : subscription.checkout_mode}
+                  billingMode={subscription.billing_mode}
+                  disabled={false}
                   disabledMessage={copy.paymentLinkMissing}
                 />
               ) : <Badge>{t(locale, "common.badges.default")}</Badge>}

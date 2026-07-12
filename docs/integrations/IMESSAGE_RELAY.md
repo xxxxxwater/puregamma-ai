@@ -1,6 +1,6 @@
 # iMessage Relay
 
-iMessage has no ordinary server API for third-party server-side sending. PureGamma.ai supports iMessage delivery through a self-hosted Mac relay controlled by the user or deployment operator.
+iMessage has no ordinary server API for third-party server-side sending. PureGamma AI supports iMessage delivery through a self-hosted Mac relay controlled by the user or deployment operator.
 
 The relay does not read the private Messages database. It only receives signed send requests from PureGamma API and asks Messages.app to send a message through AppleScript.
 
@@ -96,7 +96,7 @@ packages/notifications/imessage/templates.py
 Every investment-related message must include:
 
 ```text
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ## 10. Security Limitations
@@ -134,7 +134,7 @@ Send:
 curl -X POST http://localhost:8000/notifications/send \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"channel":"imessage","message":"Test. This is not financial advice.","metadata":{"idempotency_key":"imessage-test-1"}}'
+  -d '{"channel":"imessage","message":"Test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.","metadata":{"idempotency_key":"imessage-test-1"}}'
 ```
 
 Relay health:

@@ -1,4 +1,4 @@
-# PureGamma.ai Release Checklist
+# PureGamma AI Release Checklist
 
 Use this checklist before promoting a build to staging or production.
 

@@ -1,8 +1,8 @@
 # Email
 
-PureGamma.ai supports email notifications through SMTP.
+PureGamma AI supports email notifications through SMTP.
 
-All investment messages must include: `This is not financial advice.`
+All investment messages must include: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
 
 ## Configuration
 
@@ -25,7 +25,7 @@ The dispatcher reads `user_preferences.email_recipient`.
 curl -X POST http://localhost:8000/notifications/send \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"channel":"email","message":"PureGamma email test. This is not financial advice.","metadata":{"idempotency_key":"email-test-1"}}'
+  -d '{"channel":"email","message":"PureGamma email test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.","metadata":{"idempotency_key":"email-test-1"}}'
 ```
 
 ## Entitlements and Credits

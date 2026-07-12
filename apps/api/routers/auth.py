@@ -1,11 +1,17 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Response
+from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from apps.api.dependencies import clear_session_cookie, create_access_token, get_current_user, get_db, set_session_cookie
+from apps.api.dependencies import (
+    clear_session_cookie,
+    get_current_user,
+    get_db,
+    set_session_cookie,
+)
 from apps.api.i18n import normalize_locale
+from apps.api.config import get_settings
 from packages.database.models import User, UserPreference
 
 
@@ -35,9 +41,13 @@ def serialize_user(user: User) -> dict:
         "avatar_url": user.avatar_url,
         "auth_provider": user.auth_provider,
         "email_verified": bool(user.email_verified_at),
-        "email_verified_at": user.email_verified_at.isoformat() if user.email_verified_at else None,
+        "email_verified_at": user.email_verified_at.isoformat()
+        if user.email_verified_at
+        else None,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
-        "login_methods": sorted({identity.provider for identity in user.identities} | {user.auth_provider}),
+        "login_methods": sorted(
+            {identity.provider for identity in user.identities} | {user.auth_provider}
+        ),
         "locale": user.preference.locale if user.preference else "en",
         "created_at": user.created_at.isoformat(),
         "updated_at": user.updated_at.isoformat(),
@@ -45,10 +55,22 @@ def serialize_user(user: User) -> dict:
 
 
 @router.post("/auth/mock-login")
-def mock_login(payload: MockLoginRequest, response: Response, db: Session = Depends(get_db)) -> dict:
+def mock_login(
+    payload: MockLoginRequest, response: Response, db: Session = Depends(get_db)
+) -> dict:
+    settings = get_settings()
+    if settings.app_environment.lower() == "production":
+        raise HTTPException(status_code=404, detail="Not found")
     user = db.query(User).filter(User.email == payload.email).one_or_none()
     if not user:
-        user = User(email=payload.email, name=payload.name, role="user", plan="Free", credit_balance=30, auth_provider="mock")
+        user = User(
+            email=payload.email,
+            name=payload.name,
+            role="user",
+            plan="Free",
+            credit_balance=30,
+            auth_provider="mock",
+        )
         db.add(user)
         db.flush()
     user.auth_provider = user.auth_provider or "mock"
@@ -57,14 +79,26 @@ def mock_login(payload: MockLoginRequest, response: Response, db: Session = Depe
         user.role = "user"
     locale = normalize_locale(payload.locale)
     if not user.preference:
-        db.add(UserPreference(user_id=user.id, email_recipient=user.email, imessage_recipient="+15555550100", locale=locale))
+        db.add(
+            UserPreference(
+                user_id=user.id,
+                email_recipient=user.email,
+                imessage_recipient="+15555550100",
+                locale=locale,
+            )
+        )
     else:
         user.preference.locale = locale
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     db.refresh(user)
     token = set_session_cookie(response, user)
-    return {"user": serialize_user(user), "access_token": token, "token_type": "bearer", "auth_header": {"Authorization": f"Bearer {token}"}}
+    return {
+        "user": serialize_user(user),
+        "access_token": token,
+        "token_type": "bearer",
+        "auth_header": {"Authorization": f"Bearer {token}"},
+    }
 
 
 @router.get("/me")
@@ -73,7 +107,11 @@ def me(user: User = Depends(get_current_user)) -> dict:
 
 
 @router.post("/auth/logout")
-def logout(response: Response, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+def logout(
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     clear_session_cookie(response)
@@ -81,10 +119,21 @@ def logout(response: Response, db: Session = Depends(get_db), user: User = Depen
 
 
 @router.post("/auth/preferences/locale")
-def save_locale(payload: LocalePreferenceRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+def save_locale(
+    payload: LocalePreferenceRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
     locale = normalize_locale(payload.locale)
     if not user.preference:
-        db.add(UserPreference(user_id=user.id, email_recipient=user.email, imessage_recipient="+15555550100", locale=locale))
+        db.add(
+            UserPreference(
+                user_id=user.id,
+                email_recipient=user.email,
+                imessage_recipient="+15555550100",
+                locale=locale,
+            )
+        )
     else:
         user.preference.locale = locale
     db.commit()

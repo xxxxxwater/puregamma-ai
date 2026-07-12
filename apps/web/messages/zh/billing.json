@@ -5,7 +5,7 @@
   },
   "eyebrow": "访问控制",
   "title": "访问权限与订阅",
-  "subtitle": "Stripe 订阅状态、每月 Credits 与高成本研究权限控制。",
+  "subtitle": "管理套餐与订阅。当前为开发模式，所有功能无限制开放。",
   "summary": {
     "currentPlan": "当前套餐",
     "subscription": "订阅",

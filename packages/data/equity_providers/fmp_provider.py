@@ -56,7 +56,6 @@ class FMPProvider:
             quote_data = data[0]
 
             price = float(quote_data.get("price") or 0)
-            prev_close = float(quote_data.get("previousClose") or 0)
             change_pct = float(quote_data.get("changesPercentage") or 0)
             volume_shares = float(quote_data.get("volume") or 0)
             market_cap = float(quote_data.get("marketCap") or 0)

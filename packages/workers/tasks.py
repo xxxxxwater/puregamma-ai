@@ -2,15 +2,68 @@ from __future__ import annotations
 
 from datetime import timedelta
 
-from apps.api.services.market_intelligence_service import generate_shared_market_intelligence
+from apps.api.services.market_intelligence_service import (
+    generate_shared_market_intelligence,
+)
 from apps.api.services.notification_service import send_notification
 from apps.api.services.report_service import create_daily_report
 from apps.api.services.signal_service import scan_signals
+from apps.api.services.runtime_sync_service import sync_runtime_account
+from apps.api.services.portfolio_service import run_autopilot_review, sync_account
 from apps.api.services.data_source_service import sync_all_providers, sync_provider
 from apps.api.config import get_settings
-from packages.database.models import RawDocument, User, utcnow
+from packages.database.models import (
+    AccountSnapshot,
+    PortfolioAutopilotReview,
+    RawDocument,
+    ReconciliationRecord,
+    StrategyRun,
+    TradingAccount,
+    User,
+    UserPreference,
+    utcnow,
+)
 from packages.database.session import SessionLocal
+from packages.trading.runtime_client import NautilusRuntimeClient
 from packages.workers.celery_app import celery_app
+
+
+@celery_app.task(name="puregamma.sync_portfolio_autopilot_accounts")
+def sync_portfolio_autopilot_accounts() -> dict:
+    db = SessionLocal()
+    synced = 0
+    errors = 0
+    try:
+        preferences = db.query(UserPreference).all()
+        for preference in preferences:
+            config = preference.portfolio_autopilot_json or {}
+            if not config.get("enabled") or not config.get("auto_sync", True):
+                continue
+            user = db.get(User, preference.user_id)
+            accounts = db.query(TradingAccount).filter_by(user_id=preference.user_id, account_type="READ_ONLY", status="ACTIVE").all()
+            for account in accounts:
+                try:
+                    sync_account(db, user, account)
+                    synced += 1
+                except Exception:
+                    db.rollback()
+                    errors += 1
+            cadence = config.get("cadence", "daily")
+            last_review = db.query(PortfolioAutopilotReview).filter_by(user_id=preference.user_id).order_by(PortfolioAutopilotReview.created_at.desc()).first()
+            interval = timedelta(days=7 if cadence == "weekly" else 1)
+            if accounts and (not last_review or utcnow() - last_review.created_at >= interval):
+                try:
+                    review = run_autopilot_review(db, user)
+                    delivery = config.get("delivery", "in_app")
+                    if delivery in {"telegram", "imessage"}:
+                        findings = "; ".join(item["title"] for item in review["findings"][:5])
+                        send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"]})
+                except Exception:
+                    db.rollback()
+                    errors += 1
+        return {"synced": synced, "errors": errors}
+    finally:
+        db.close()
 
 
 @celery_app.task(name="puregamma.generate_shared_daily_market_intelligence")
@@ -31,7 +84,11 @@ def generate_personalized_daily_reports() -> list[str]:
         users = db.query(User).all()
         for user in users:
             try:
-                language = getattr(user.preference, "locale", "en") if user.preference else "en"
+                language = (
+                    getattr(user.preference, "locale", "en")
+                    if user.preference
+                    else "en"
+                )
                 ids.append(create_daily_report(db, user.id, language).id)
             except Exception:
                 db.rollback()
@@ -54,26 +111,60 @@ def send_daily_reports_to_channels() -> int:
     db = SessionLocal()
     sent = 0
     try:
+        from apps.api.services.report_service import create_daily_report, serialize_report
         users = db.query(User).all()
         for user in users:
             pref = user.preference
             if not pref:
                 continue
             language = getattr(pref, "locale", "en")
-            message = "PureGamma.ai 每日报告已生成。This is not financial advice." if language == "zh" else "PureGamma.ai daily report is ready. This is not financial advice."
+            try:
+                report = create_daily_report(db, user.id, language)
+                db.commit()
+            except Exception:
+                db.rollback()
+                try:
+                    report = create_daily_report(db, user.id, language)
+                    db.commit()
+                except Exception:
+                    db.rollback()
+                    continue
+            brief_text = report.content_markdown
+            if not brief_text:
+                brief_text = (
+                    "PureGamma 每日简报已生成。Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+                    if language == "zh"
+                    else "PureGamma daily brief is ready. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+                )
             for channel in pref.notification_channels:
                 try:
                     delivery = send_notification(
                         db,
                         user.id,
                         channel,
-                        message,
-                        {"idempotency_key": f"daily-{user.id}-{channel}-{language}", "locale": language},
+                        brief_text,
+                        {
+                            "idempotency_key": f"daily-{user.id}-{channel}-{language}",
+                            "locale": language,
+                            "report_id": report.id,
+                        },
                     )
                     sent += 1 if delivery.status == "sent" else 0
                 except Exception:
                     db.rollback()
         return sent
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.refresh_earnings_gamma_candidates")
+def refresh_earnings_gamma_candidates() -> dict:
+    db = SessionLocal()
+    try:
+        from packages.options.earnings_gamma import force_refresh_earnings
+        en = force_refresh_earnings(db, "en")
+        zh = force_refresh_earnings(db, "zh")
+        return {"en_count": len(en), "zh_count": len(zh)}
     finally:
         db.close()
 
@@ -97,7 +188,10 @@ def sync_data_provider(provider_id: str) -> dict:
 def sync_all_data_providers() -> list[dict]:
     db = SessionLocal()
     try:
-        return [{"id": row.id, "provider": row.provider_id, "status": row.status} for row in sync_all_providers(db)]
+        return [
+            {"id": row.id, "provider": row.provider_id, "status": row.status}
+            for row in sync_all_providers(db)
+        ]
     finally:
         db.close()
 
@@ -115,3 +209,142 @@ def purge_expired_source_documents() -> int:
         return count
     finally:
         db.close()
+
+
+@celery_app.task(name="puregamma.sync_nautilus_runtime_runs")
+def sync_nautilus_runtime_runs() -> dict:
+    db = SessionLocal()
+    updated = 0
+    errors = 0
+    client = NautilusRuntimeClient()
+    try:
+        rows = (
+            db.query(StrategyRun)
+            .filter(
+                StrategyRun.status.in_(
+                    ["PENDING", "RUNNING", "PAUSED", "RECONCILIATION_REQUIRED"]
+                ),
+            )
+            .all()
+        )
+        for row in rows:
+            try:
+                runtime = client.run(row.runtime_run_id).get("run", {})
+                row.status = runtime.get("status", row.status)
+                row.performance_json = runtime.get("performance", row.performance_json)
+                row.error_code = None
+                row.error_message = None
+                updated += 1
+            except Exception as exc:
+                row.error_code = "RUNTIME_SYNC_FAILED"
+                row.error_message = str(exc)[:300]
+                errors += 1
+        db.commit()
+        return {"updated": updated, "errors": errors}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.sync_nautilus_paper_accounts")
+def sync_nautilus_paper_accounts() -> dict:
+    db = SessionLocal()
+    synced = 0
+    errors = 0
+    client = NautilusRuntimeClient()
+    try:
+        accounts = db.query(TradingAccount).filter_by(status="ACTIVE").all()
+        for account in accounts:
+            try:
+                sync_runtime_account(db, account, runtime=client)
+                synced += 1
+            except Exception:
+                db.rollback()
+                errors += 1
+        return {"synced": synced, "errors": errors}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.reconcile_active_trading_accounts")
+def reconcile_active_trading_accounts() -> dict:
+    """Operational safety reconciliation is never blocked by user credits."""
+    db = SessionLocal()
+    reconciled = 0
+    errors = 0
+    client = NautilusRuntimeClient()
+    try:
+        accounts = db.query(TradingAccount).filter_by(status="ACTIVE").all()
+        for account in accounts:
+            try:
+                bucket = int(utcnow().timestamp() // 300)
+                ack = client.command(
+                    "reconcile",
+                    f"worker:reconcile:{account.id}:{bucket}",
+                    {"account_id": account.id},
+                )
+                exchange = ack.get("exchange", {})
+                db.add(
+                    ReconciliationRecord(
+                        user_id=account.user_id,
+                        account_id=account.id,
+                        status=ack.get("status", "ERROR"),
+                        local_state_json={"orders": ack.get("local_open_orders", [])},
+                        exchange_state_json=exchange,
+                        differences_json=ack.get("unknown_orders", []),
+                        actions_json=["pause_opening"]
+                        if ack.get("opening_paused")
+                        else [],
+                        raw_event_reference={
+                            "runtime_command_id": ack.get("command_id"),
+                            "source": "scheduler",
+                        },
+                        completed_at=utcnow(),
+                    )
+                )
+                snapshot = exchange.get("account")
+                if snapshot:
+                    db.add(
+                        AccountSnapshot(
+                            user_id=account.user_id,
+                            account_id=account.id,
+                            balance=snapshot["balance"],
+                            equity=snapshot["equity"],
+                            available_margin=snapshot["available_margin"],
+                            daily_pnl=snapshot["daily_pnl"],
+                            drawdown=snapshot["drawdown"],
+                            exposure=snapshot["exposure"],
+                            stale=snapshot["stale"],
+                            raw_event_reference={
+                                "runtime_command_id": ack.get("command_id"),
+                                "source": "scheduler",
+                            },
+                        )
+                    )
+                reconciled += 1
+            except Exception as exc:
+                db.add(
+                    ReconciliationRecord(
+                        user_id=account.user_id,
+                        account_id=account.id,
+                        status="ERROR",
+                        error_code="RUNTIME_UNAVAILABLE",
+                        error_message=str(exc)[:300],
+                        completed_at=utcnow(),
+                    )
+                )
+                errors += 1
+            db.commit()
+        return {"reconciled": reconciled, "errors": errors}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.refresh_nautilus_public_market_data")
+def refresh_nautilus_public_market_data() -> dict:
+    interval = max(5, get_settings().nautilus_market_refresh_interval_seconds)
+    bucket = int(utcnow().timestamp() // interval)
+    return NautilusRuntimeClient().command(
+        "refresh_market_data",
+        f"worker:market-refresh:{bucket}",
+        {"symbols": []},
+    )

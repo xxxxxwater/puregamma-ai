@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
-import { Activity, BellRing, CreditCard, Database, LineChart, Radio } from "lucide-react";
-import { getDashboard, fallbackDataSourcesForLocale } from "@/lib/api";
-import { ActionLink, Badge, DataSourceStatusBadge, DiligenceLedger, MarketRegimeBanner, MetricCard, MockModeBadge, PageHeader, ProcessStepper, ResearchCard, RiskBadge, SignalTable } from "@/components/puregamma";
+import { BookOpen, CreditCard, Database } from "lucide-react";
+import { getDashboard } from "@/lib/api";
+import { ActionLink, Badge, EmptyState, MetricCard, PageHeader, ResearchCard, RiskBadge } from "@/components/puregamma";
 import { Markdown } from "@/components/markdown";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { localizedMetadata } from "@/lib/metadata";
@@ -16,11 +16,8 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
 export default async function DashboardPage({ params }: { params: { locale: Locale } }) {
   const locale = params.locale;
   const copy = getMessageNamespace(locale, "dashboard");
-  const { market, subscription, reports, signals, mockMode } = await getDashboard(locale);
+  const { market, subscription, reports } = await getDashboard(locale);
   const latest = reports.reports[0];
-  const signalRows = signals.signals;
-  const confidenceRows = signalRows.slice(0, 4).map((signal) => ({ ...signal, confidencePct: Math.round(signal.confidence * 100) }));
-  const dataSources = fallbackDataSourcesForLocale(locale);
 
   return (
     <div className="space-y-5">
@@ -29,21 +26,14 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
         title={copy.title}
         description={copy.subtitle}
         sectionNumber="00"
-        actions={<><MockModeBadge locale={locale} live={!mockMode} /><ActionLink href={withLocale(locale, "/reports")}>{t(locale, "common.actions.openResearchLibrary")}</ActionLink></>}
+        actions={<ActionLink href={withLocale(locale, "/reports")}>{t(locale, "common.actions.openResearchLibrary")}</ActionLink>}
       />
 
-      <MarketRegimeBanner locale={locale} regime={copy.marketRegime.regime} freshness={mockMode ? t(locale, "common.shared.demoSnapshot") : t(locale, "common.topbar.freshness")} summary={copy.marketRegime.summary} />
-
-      <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-6">
-        <MetricCard label={copy.metrics.totalNav} value={formatCurrency(locale, 1284200, true)} detail={copy.metrics.partialPortfolioData} tone="cyan" icon={<LineChart className="h-4 w-4" />} />
-        <MetricCard label={copy.metrics.dailyPnl} value="+$18.2K" detail={copy.metrics.simulated} tone="emerald" icon={<Activity className="h-4 w-4" />} />
+      <div className="grid gap-3 md:grid-cols-3">
         <MetricCard label={copy.metrics.creditBalance} value={String(subscription.credit_balance)} detail={`${subscription.plan} plan`} tone="cyan" icon={<CreditCard className="h-4 w-4" />} />
-        <MetricCard label={copy.metrics.activeSignals} value={String(signalRows.length)} detail={copy.metrics.activeResearchSignals} tone="emerald" icon={<Radio className="h-4 w-4" />} />
-        <MetricCard label={copy.metrics.dataHealth} value="83%" detail={copy.metrics.dataKeys} tone="amber" icon={<Database className="h-4 w-4" />} />
-        <MetricCard label={copy.metrics.imessage} value={subscription.entitlement.imessage ? copy.metrics.enabled : copy.metrics.restricted} detail="Max / Enterprise" tone={subscription.entitlement.imessage ? "emerald" : "amber"} icon={<BellRing className="h-4 w-4" />} />
+        <MetricCard label={locale === "zh" ? "研究简报" : "Research briefs"} value={String(reports.reports.length)} detail={locale === "zh" ? "附来源的简短研究" : "Concise sourced research"} tone="emerald" icon={<BookOpen className="h-4 w-4" />} />
+        <MetricCard label={locale === "zh" ? "实时资产" : "Live assets"} value={String(market.live_assets || 0)} detail={(market.source_summary || []).join(" / ") || (locale === "zh" ? "数据源暂不可用" : "Sources unavailable")} tone="amber" icon={<Database className="h-4 w-4" />} />
       </div>
-
-      <ProcessStepper steps={copy.process} />
 
       <section>
         <div className="mb-3 text-eyebrow uppercase text-text-pg-muted">{copy.assetMonitor.title}</div>
@@ -54,10 +44,10 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
                 <div>
                   <div className="flex flex-wrap items-center gap-2">
                     <div className="text-xl font-semibold">{asset.symbol}</div>
-                    <Badge tone={asset.is_realtime ? "emerald" : "amber"}>{asset.is_realtime ? copy.assetMonitor.liveRest : copy.assetMonitor.fallback}</Badge>
+                    <Badge tone={asset.is_realtime ? "emerald" : "amber"}>{asset.is_realtime ? copy.assetMonitor.liveRest : (locale === "zh" ? "延迟行情" : "Delayed")}</Badge>
                   </div>
                   <div className="mt-3 text-3xl font-semibold tracking-normal">{formatCurrency(locale, asset.price)}</div>
-                  <div className="mt-2 text-xs text-text-pg-muted">{asset.is_mock ? t(locale, "dashboard.assetMonitor.fallback") : (asset.source_display || (asset.source ? `${asset.source.toUpperCase()}${asset.source_symbol ? ` / ${asset.source_symbol}` : ""}` : "MOCK"))}</div>
+                  <div className="mt-2 text-xs text-text-pg-muted">{asset.source_display || (asset.source ? `${asset.source.toUpperCase()}${asset.source_symbol ? ` / ${asset.source_symbol}` : ""}` : "-")}</div>
                 </div>
                 <RiskBadge locale={locale} score={asset.risk_score || 50} />
               </div>
@@ -68,8 +58,8 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
                 <span>{formatCurrency(locale, asset.volume_24h || 0, true)}</span>
                 <span className="text-text-pg-muted">{copy.assetMonitor.openInterest}</span>
                 <span>{asset.open_interest != null ? formatCurrency(locale, asset.open_interest, true) : "N/A"}</span>
-                <span className="text-text-pg-muted">{copy.assetMonitor.sentiment}</span>
-                <span>{Math.round(asset.sentiment_score * 100)}</span>
+                <span className="text-text-pg-muted">{locale === "zh" ? "资金费率" : "Funding rate"}</span>
+                <span>{asset.funding_rate != null ? `${(asset.funding_rate * 100).toFixed(3)}%` : "N/A"}</span>
               </div>
               <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border-pg pt-3 text-xs text-text-pg-dim">
                 <span>{copy.assetMonitor.updated}</span>
@@ -77,60 +67,36 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
               </div>
             </ResearchCard>
           ))}
+          {!market.assets.length ? <EmptyState title={locale === "zh" ? "市场数据暂不可用" : "Market data unavailable"} description={locale === "zh" ? "系统不会使用模拟价格替代真实行情。" : "The system will not replace live prices with simulated values."} /> : null}
         </div>
       </section>
-
-      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(300px,0.65fr)]">
-        <ResearchCard className="min-w-0">
-          <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{copy.sections.topSignals}</h2><Badge tone="cyan">{t(locale, "common.badges.signalFusion")}</Badge></div>
-          <SignalTable locale={locale} rows={signalRows} />
-        </ResearchCard>
-        <ResearchCard className="flex min-h-[430px] min-w-0 flex-col">
-          <div className="mb-5 flex flex-wrap items-start justify-between gap-3 border-b border-border-pg pb-4">
-            <div>
-              <h2 className="mt-2 text-lg font-semibold">{copy.sections.confidenceDistribution}</h2>
-            </div>
-            <Badge tone="emerald">{t(locale, "common.badges.liveBoard")}</Badge>
-          </div>
-          <div className="flex-1 space-y-5">
-            {confidenceRows.map((signal) => (
-              <div key={signal.id} className="border-b border-border-pg pb-5 last:border-0 last:pb-0">
-                <div className="grid grid-cols-[3.5rem_1fr_4.75rem] items-center gap-3">
-                  <div className="text-sm font-semibold">{signal.asset}</div>
-                  <div className="h-3 bg-bg-panel-muted">
-                    <div className="h-full bg-pg-white" style={{ width: `${signal.confidencePct}%` }} />
-                  </div>
-                  <div className="text-right text-sm tabular-nums">{signal.confidencePct}%</div>
-                </div>
-                <div className="mt-3 grid grid-cols-[3.5rem_1fr_auto] items-center gap-3 text-xs text-text-pg-muted">
-                  <span>{t(locale, "common.risk.label")} {signal.risk_score}</span>
-                  <span className="truncate">{signal.signal_type}</span>
-                  <span>{signal.direction}</span>
-                </div>
-              </div>
-            ))}
-            <div className="grid grid-cols-[3.5rem_1fr_4.75rem] items-center gap-3 border-t border-border-pg pt-4 text-[0.68rem] text-text-pg-dim">
-              <span />
-              <div className="grid grid-cols-5">
-                {[0, 25, 50, 75, 100].map((tick) => <span key={tick} className={tick === 100 ? "text-right" : ""}>{tick}</span>)}
-              </div>
-              <span />
-            </div>
-          </div>
-        </ResearchCard>
-      </div>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
         <ResearchCard>
           <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{copy.sections.latestDailyBrief}</h2><ActionLink href={withLocale(locale, "/reports")}>{t(locale, "common.actions.openFullReport")}</ActionLink></div>
-          <Markdown content={latest.content_markdown} />
+          {latest ? <Markdown content={latest.content_markdown} /> : <EmptyState title={locale === "zh" ? "暂无研究简报" : "No research brief"} description={locale === "zh" ? "数据和 Agent 就绪后将在此生成带来源的简报。" : "A sourced brief will appear after data and the Agent are available."} />}
         </ResearchCard>
         <div className="space-y-4">
-          <ResearchCard>
-            <h2 className="mb-3 font-semibold">{copy.sections.dataPipelineHealth}</h2>
-            <div className="grid gap-2">{dataSources.sources.slice(0, 7).map((source) => <div key={source.source} className="flex items-center justify-between border border-border-pg bg-bg-panel-muted p-3 text-sm"><span>{source.source}</span><DataSourceStatusBadge locale={locale} status={source.status} /></div>)}</div>
+          <ResearchCard className="overflow-hidden p-0">
+            <div className="flex items-center justify-between border-b border-border-pg px-4 py-3">
+              <div>
+                <div className="text-eyebrow uppercase text-text-pg-muted">{locale === "zh" ? "实时市场终端" : "Market data terminal"}</div>
+                <h2 className="mt-1 font-semibold">{locale === "zh" ? "跨市场行情" : "Cross-market tape"}</h2>
+              </div>
+              <span className="font-mono text-[11px] text-status-positive">● FEED</span>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[520px] font-mono text-xs">
+                <thead className="bg-bg-panel-muted text-left text-[10px] uppercase text-text-pg-dim">
+                  <tr><th className="px-4 py-2 font-medium">{locale === "zh" ? "代码" : "Ticker"}</th><th className="px-3 py-2 text-right font-medium">{locale === "zh" ? "最新" : "Last"}</th><th className="px-3 py-2 text-right font-medium">%</th><th className="px-3 py-2 font-medium">{locale === "zh" ? "来源" : "Source"}</th><th className="px-4 py-2 text-right font-medium">UTC</th></tr>
+                </thead>
+                <tbody>
+                  {market.assets.map((asset) => <tr key={asset.symbol} className="border-t border-border-pg/70 hover:bg-bg-panel-muted"><td className="px-4 py-3 font-semibold text-text-pg">{asset.symbol}<span className={`ml-2 text-[9px] ${asset.is_realtime ? "text-status-positive" : "text-status-warning"}`}>{asset.is_realtime ? "LIVE" : "DLY"}</span></td><td className="px-3 py-3 text-right text-text-pg">{formatCurrency(locale, asset.price)}</td><td className={`px-3 py-3 text-right ${asset.change_24h != null && asset.change_24h >= 0 ? "text-status-positive" : "text-status-negative"}`}>{asset.change_24h != null ? `${asset.change_24h >= 0 ? "+" : ""}${asset.change_24h.toFixed(2)}` : "-"}</td><td className="max-w-[150px] truncate px-3 py-3 text-text-pg-muted">{asset.source_display || asset.source || "-"}</td><td className="px-4 py-3 text-right text-text-pg-dim">{asset.timestamp ? new Date(asset.timestamp).toISOString().slice(11, 19) : "-"}</td></tr>)}
+                </tbody>
+              </table>
+              {!market.assets.length ? <p className="p-4 text-sm text-text-pg-muted">{locale === "zh" ? "等待已授权行情源。" : "Waiting for an authorized market feed."}</p> : null}
+            </div>
           </ResearchCard>
-          <DiligenceLedger locale={locale} items={copy.diligence} />
         </div>
       </div>
     </div>

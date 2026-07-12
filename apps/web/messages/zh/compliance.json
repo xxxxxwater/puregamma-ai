@@ -1,6 +1,6 @@
 {
-  "notFinancialAdvice": "本内容仅供信息和研究参考，不构成投资建议。",
-  "siteDisclaimer": "本网站内容仅供信息和研究参考，不构成投资建议。",
+  "notFinancialAdvice": "使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。",
+  "siteDisclaimer": "使用该服务用户自行承担风险。提供本服务的主体概不负责AI生成所有责任。",
   "backtest": "历史或回测表现不代表未来结果。",
   "backtestShort": "回测表现为假设结果，不代表未来结果。",
   "kol": "KOL 情绪仅作为输入信号，并非已核实事实。",

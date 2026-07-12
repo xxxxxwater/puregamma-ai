@@ -1,8 +1,8 @@
 # Quickstart
 
-This guide gets a developer running PureGamma.ai locally in about 15 minutes with mock billing, mock market data, and mock notifications.
+This guide gets a developer running PureGamma AI locally in about 15 minutes with mock billing, mock market data, and mock notifications.
 
-PureGamma.ai is research software only. Local reports and signals are demo data and are not financial advice.
+PureGamma AI is research software only. Local reports and signals are demo data and are not financial advice.
 
 ## 1. Prerequisites
 
@@ -155,7 +155,7 @@ Send a mock iMessage notification:
 curl -X POST http://localhost:8000/notifications/send \
   -H "Authorization: Bearer $TOKEN" \
   -H "Content-Type: application/json" \
-  -d '{"channel":"imessage","message":"PureGamma.ai test push. This is not financial advice.","metadata":{"idempotency_key":"quickstart-imessage-1"}}'
+  -d '{"channel":"imessage","message":"PureGamma AI test push. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.","metadata":{"idempotency_key":"quickstart-imessage-1"}}'
 ```
 
 The response should contain a `delivery` with `status` set to `sent` and provider response `mode` set to `mock`.

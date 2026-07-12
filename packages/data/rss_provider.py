@@ -20,7 +20,7 @@ from packages.data.provider import DataProvenance, DataSourceHealth, DataSourceP
 
 SCRIPT_RE = re.compile(r"<(script|style)[^>]*>.*?</\1>", re.I | re.S)
 TAG_RE = re.compile(r"<[^>]+>")
-SYMBOLS = ("BTC", "ETH", "SOL", "HYPE", "MSTR", "STRC")
+SYMBOLS = ("BTC", "ETH", "HYPE", "MSTR", "STRC")
 
 
 @dataclass(frozen=True)
@@ -83,7 +83,7 @@ class RSSProvider(DataSourceProvider):
     def _fetch(self, source: RSSSource) -> bytes | None:
         host = urlsplit(source.url).hostname or ""
         validate_public_https_url(source.url, {host}, resolve_dns=False)
-        headers = {"User-Agent": "PureGamma.ai/1.0 RSS", **self._validators.get(source.id, {})}
+        headers = {"User-Agent": "PureGamma AI/1.0 RSS", **self._validators.get(source.id, {})}
         last_error: Exception | None = None
         response = None
         for attempt in range(3):

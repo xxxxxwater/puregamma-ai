@@ -1,6 +1,6 @@
 # Plaid
 
-Plaid is used for investments data only. PureGamma.ai does not use Plaid for trading, money movement, order placement, custody, or account control.
+Plaid is used for investments data only. PureGamma AI does not use Plaid for trading, money movement, order placement, custody, or account control.
 
 Current status: Plaid backend routes and persistence are planned. The frontend integration page uses fallback data. This document defines the intended secure contract.
 

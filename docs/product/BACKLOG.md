@@ -1,4 +1,4 @@
-# PureGamma.ai — 产品 Backlog
+# PureGamma AI — 产品 Backlog
 
 **版本**: v1.0  
 **日期**: 2026-07-06

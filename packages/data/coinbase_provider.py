@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from dataclasses import replace
 from datetime import datetime, timezone
 from typing import Any
 
@@ -23,7 +22,11 @@ class CoinbaseProvider(MarketDataProvider):
     provider_name = "coinbase"
 
     def __init__(self, base_url: str | None = None, timeout_seconds: float = 4.0):
-        self.base_url = (base_url or os.getenv("COINBASE_REST_BASE_URL") or "https://api.exchange.coinbase.com").rstrip("/")
+        self.base_url = (
+            base_url
+            or os.getenv("COINBASE_REST_BASE_URL")
+            or "https://api.exchange.coinbase.com"
+        ).rstrip("/")
         self.timeout_seconds = timeout_seconds
         self._mock = MockMarketDataProvider()
 
@@ -33,13 +36,19 @@ class CoinbaseProvider(MarketDataProvider):
         if not product_id:
             raise ValueError(f"{normalized} has no Coinbase USD product mapping")
 
-        ticker_response = httpx.get(f"{self.base_url}/products/{product_id}/ticker", timeout=self.timeout_seconds)
+        ticker_response = httpx.get(
+            f"{self.base_url}/products/{product_id}/ticker",
+            timeout=self.timeout_seconds,
+        )
         ticker_response.raise_for_status()
         ticker = ticker_response.json()
 
         stats: dict[str, Any] = {}
         try:
-            stats_response = httpx.get(f"{self.base_url}/products/{product_id}/stats", timeout=self.timeout_seconds)
+            stats_response = httpx.get(
+                f"{self.base_url}/products/{product_id}/stats",
+                timeout=self.timeout_seconds,
+            )
             stats_response.raise_for_status()
             stats = stats_response.json()
         except Exception:
@@ -66,16 +75,25 @@ class CoinbaseProvider(MarketDataProvider):
         ticker: dict[str, Any],
         stats: dict[str, Any],
     ) -> MarketQuote:
-        fallback = self._mock.get_snapshot([symbol])[0]
-        price = _float(ticker.get("price") or stats.get("last"), fallback.price)
-        base_volume = _float(stats.get("volume") or ticker.get("volume"), fallback.volume_24h / max(price, 1.0))
+        price = _float(ticker.get("price") or stats.get("last"))
+        if price <= 0:
+            raise ValueError("Coinbase returned an invalid price")
+        base_volume = _float(stats.get("volume") or ticker.get("volume"))
         open_price = _float(stats.get("open"), 0.0)
-        change_24h = ((price - open_price) / open_price * 100) if open_price > 0 else None
+        change_24h = (
+            ((price - open_price) / open_price * 100) if open_price > 0 else None
+        )
 
-        return replace(
-            fallback,
+        return MarketQuote(
+            symbol=symbol,
             price=round(price, 8),
             volume_24h=round(base_volume * price, 2),
+            market_cap=0.0,
+            funding_rate=0.0,
+            open_interest=0.0,
+            volatility=0.0,
+            liquidation_estimate=0.0,
+            sentiment_score=0.0,
             timestamp=_parse_coinbase_time(ticker.get("time")),
             source=self.provider_name,
             source_symbol=source_symbol,

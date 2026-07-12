@@ -13,7 +13,7 @@ export default function AccountPage() {
   const zh = locale === "zh";
   const router = useRouter();
   const [user, setUser] = useState<AuthResponse["user"] | null>(null);
-  const [quota, setQuota] = useState<{ used: number; limit: number; remaining: number; credit_balance: number } | null>(null);
+  const [quota, setQuota] = useState<{ used: number; limit: number | null; remaining: number | null; credit_balance: number } | null>(null);
   const [error, setError] = useState("");
   useEffect(() => { Promise.all([getMe(), getAgentQuota()]).then(([me, usage]) => { setUser(me.user); setQuota(usage); }).catch((reason) => setError(String(reason))); }, []);
   const signOut = async () => { await logout(); localStorage.removeItem("pg_user"); router.replace(withLocale(locale, "/login")); };

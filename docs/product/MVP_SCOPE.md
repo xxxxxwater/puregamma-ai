@@ -1,4 +1,4 @@
-# PureGamma.ai MVP Scope Convergence
+# PureGamma AI MVP Scope Convergence
 
 > **Version**: 1.0  
 > **Date**: 2026-07-06
@@ -99,7 +99,7 @@ MVP 不做"功能最多的 crypto research 平台"。MVP 做"每天早上让你�
 
 | 要求 | 范围 |
 |------|------|
-| 全局 disclaimer | ✅ "This is not financial advice." |
+| 全局 disclaimer | ✅ "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." |
 | iMessage disclaimer | ✅ 每条消息 |
 | KOL 标注 | ✅ "an input, not a verified fact" |
 | Signal invalidation | ✅ 每个 signal |

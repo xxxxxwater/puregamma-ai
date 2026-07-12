@@ -4,7 +4,7 @@ test.describe("/portfolio", () => {
   test("shows NAV, allocation, partial warning, and sync entrypoint", async ({ page }) => {
     await page.goto("/portfolio");
 
-    await expect(page.getByRole("heading", { name: "Portfolio NAV Review" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Portfolio NAV" })).toBeVisible();
     await expect(page.getByText("02 / Portfolio NAV")).toBeVisible();
     await expect(page.getByText("Partial data. NAV is based only on currently synced sources.").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Allocation" })).toBeVisible();

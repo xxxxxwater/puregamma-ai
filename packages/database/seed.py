@@ -4,7 +4,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from packages.billing.plans import PLANS
-from packages.database.models import Asset, SubscriptionPlan, User, UserPreference
+from packages.database.models import Asset, SubscriptionPlan, TradingAccount, User, UserPreference
 
 
 ASSETS = [
@@ -57,10 +57,19 @@ def seed_demo_user(db: Session) -> User:
     return user
 
 
+def seed_paper_account(db: Session, user: User) -> TradingAccount:
+    account = db.query(TradingAccount).filter_by(user_id=user.id, venue="MOCK", account_type="PAPER").one_or_none()
+    if not account:
+        account = TradingAccount(user_id=user.id, name="PureGamma Paper", venue="MOCK", account_type="PAPER", base_currency="USD", status="ACTIVE", permissions_json={"paper_order": True, "shadow_order": True, "live_order": False, "withdraw": False, "transfer": False})
+        db.add(account)
+    return account
+
+
 def seed_all(db: Session) -> User:
     seed_plans(db)
     seed_assets(db)
     user = seed_demo_user(db)
+    seed_paper_account(db, user)
     db.commit()
     from apps.api.services.data_source_service import seed_data_sources
     seed_data_sources(db)

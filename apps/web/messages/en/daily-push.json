@@ -18,6 +18,6 @@
   "controls": ["include portfolio", "include market intelligence", "include top signals", "include risk", "include KOL sentiment", "max message length"],
   "preview": {
     "label": "iMessage Daily Brief",
-    "message": "PureGamma.ai Daily Brief\n\nMarket:\nRisk-on momentum\n\nPortfolio:\nNAV: $1.28M\nDaily PnL: +1.42%\n\nRisk:\nFunding crowding in high beta alts. MSTR premium compression watch.\n\nKOL sentiment is an input, not a verified fact.\nThis is not financial advice."
+    "message": "PureGamma AI Daily Brief\n\nMarket:\nRisk-on momentum\n\nPortfolio:\nNAV: $1.28M\nDaily PnL: +1.42%\n\nRisk:\nFunding crowding in high beta alts. MSTR premium compression watch.\n\nKOL sentiment is an input, not a verified fact.\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content."
   }
 }

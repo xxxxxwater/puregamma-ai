@@ -7,6 +7,7 @@ import { API_URL, cancelSubscription, createBillingCheckout, createPortalSession
 import { Button } from "@/components/ui";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { t } from "@/lib/translations";
+import { withLocale } from "@/i18n/routing";
 
 async function post(path: string, body: unknown) {
   const response = await fetch(`${API_URL}${path}`, {
@@ -21,23 +22,31 @@ async function post(path: string, body: unknown) {
 export function BillingButton({
   plan,
   checkoutMode = "session",
+  billingMode = "mock",
   disabled = false,
   disabledMessage
 }: {
   plan: "Pro" | "Max" | "Enterprise";
   checkoutMode?: "session" | "payment_link";
+  billingMode?: string;
   disabled?: boolean;
   disabledMessage?: string;
 }) {
   const [busy, setBusy] = useState(false);
   const locale = useLocale();
+  const router = useRouter();
+  const isMock = billingMode === "mock";
   return (
     <div className="space-y-2">
       <Button
-        disabled={busy || disabled}
+        disabled={busy || (disabled && !isMock)}
         onClick={async () => {
           setBusy(true);
           try {
+            if (isMock) {
+              router.push(withLocale(locale, `/billing/mock-checkout?session=mock&plan=${plan}`));
+              return;
+            }
             const data = await createBillingCheckout(plan, checkoutMode, locale);
             window.location.href = data.checkout_url;
           } finally {
@@ -48,7 +57,7 @@ export function BillingButton({
         <CreditCard className="h-4 w-4" aria-hidden />
         {t(locale, "common.actions.upgradeTo", { plan })}
       </Button>
-      {disabled && disabledMessage ? <p className="text-xs text-status-warning">{disabledMessage}</p> : null}
+      {disabled && !isMock && disabledMessage ? <p className="text-xs text-status-warning">{disabledMessage}</p> : null}
     </div>
   );
 }

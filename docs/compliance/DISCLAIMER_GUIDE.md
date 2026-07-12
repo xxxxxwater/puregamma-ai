@@ -1,13 +1,13 @@
 # Disclaimer Guide
 
-PureGamma.ai must consistently disclose that product output is research, not financial advice.
+PureGamma AI must consistently disclose that product output is research, not financial advice.
 
 ## Required Default Disclaimer
 
 Use:
 
 ```text
-This is not financial advice.
+Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.
 ```
 
 ## Where It Must Appear

@@ -6,11 +6,11 @@ from sqlalchemy import text
 
 from apps.api.config import get_settings
 from apps.api.dependencies import ensure_bootstrap
-from apps.api.routers import admin, agent, assets, auth, backtest, billing, google_auth, market, notifications, playbooks, reports, signals, stripe_webhook
+from apps.api.routers import admin, agent, assets, auth, backtest, billing, google_auth, market, notifications, options, playbooks, portfolio, reports, signals, strategies, stripe_webhook, trading
 
 
 settings = get_settings()
-app = FastAPI(title="PureGamma.ai API", version="0.1.0")
+app = FastAPI(title="PureGamma AI API", version="0.1.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -64,14 +64,19 @@ app.include_router(auth.router)
 app.include_router(google_auth.router)
 app.include_router(assets.router)
 app.include_router(market.router)
+app.include_router(options.router)
 app.include_router(reports.router)
 app.include_router(signals.router)
 app.include_router(playbooks.router)
 app.include_router(backtest.router)
+app.include_router(strategies.router)
+app.include_router(trading.router)
+app.include_router(portfolio.router)
 app.include_router(billing.router)
 app.include_router(stripe_webhook.router)
 app.include_router(notifications.router)
 app.include_router(admin.router)
 app.include_router(agent.router)
 app.include_router(agent.router, prefix="/api")
+app.include_router(portfolio.router, prefix="/api")
 app.include_router(admin.router, prefix="/api")

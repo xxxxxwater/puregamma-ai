@@ -76,6 +76,7 @@ class UserPreference(Base):
     telegram_chat_id = Column(String, nullable=True)
     slack_webhook_url = Column(String, nullable=True)
     email_recipient = Column(String, nullable=True)
+    portfolio_autopilot_json = Column(JSON, default=dict, nullable=False)
 
     user = relationship("User", back_populates="preference")
 
@@ -570,6 +571,7 @@ class AgentMessage(Base, TimestampMixin):
     latency_ms = Column(Integer, nullable=True)
     error_code = Column(String, nullable=True)
     error_message = Column(Text, nullable=True)
+    context_json = Column(JSON, default=dict, nullable=False)
 
 
 class AgentRun(Base):
@@ -634,4 +636,348 @@ class UsageEvent(Base):
     output_tokens = Column(Integer, nullable=False, default=0)
     metadata_json = Column(JSON, default=dict, nullable=False)
     idempotency_key = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class TradingAccount(Base, TimestampMixin):
+    __tablename__ = "trading_accounts"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    venue = Column(String, nullable=False, default="MOCK", index=True)
+    account_type = Column(String, nullable=False, default="PAPER")
+    base_currency = Column(String, nullable=False, default="USD")
+    status = Column(String, nullable=False, default="ACTIVE", index=True)
+    permissions_json = Column(JSON, default=lambda: {"paper_order": True, "shadow_order": True, "live_order": False, "withdraw": False, "transfer": False}, nullable=False)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class ExchangeConnection(Base, TimestampMixin):
+    __tablename__ = "exchange_connections"
+    __table_args__ = (UniqueConstraint("user_id", "account_id", "adapter", name="uq_exchange_connection_account_adapter"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    adapter = Column(String, nullable=False)
+    environment = Column(String, nullable=False, default="paper")
+    credential_reference = Column(String, nullable=True)
+    credential_ciphertext = Column(Text, nullable=True)
+    status = Column(String, nullable=False, default="DISCONNECTED", index=True)
+    last_health_at = Column(DateTime(timezone=True), nullable=True)
+    metadata_json = Column(JSON, default=dict, nullable=False)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class TradingStrategy(Base, TimestampMixin):
+    __tablename__ = "strategies"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(String, ForeignKey("agent_conversations.id", ondelete="SET NULL"), nullable=True, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=False, default="")
+    status = Column(String, nullable=False, default="DRAFT", index=True)
+    current_version = Column(Integer, nullable=False, default=1)
+    execution_mode = Column(String, nullable=False, default="PAPER")
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class StrategyVersion(Base):
+    __tablename__ = "strategy_versions"
+    __table_args__ = (UniqueConstraint("strategy_id", "version", name="uq_strategy_version"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, index=True)
+    version = Column(Integer, nullable=False)
+    draft_json = Column(JSON, default=dict, nullable=False)
+    config_hash = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, default="DRAFT")
+    created_by = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class StrategyIntent(Base, TimestampMixin):
+    __tablename__ = "strategy_intents"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_strategy_intent_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(String, ForeignKey("agent_conversations.id", ondelete="SET NULL"), nullable=True, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_version = Column(Integer, nullable=False)
+    intent_type = Column(String, nullable=False, index=True)
+    execution_mode = Column(String, nullable=False)
+    payload_json = Column(JSON, default=dict, nullable=False)
+    config_hash = Column(String, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+    confirmation_required = Column(Boolean, nullable=False, default=True)
+    confirmation_token_hash = Column(String, nullable=True)
+    approval_status = Column(String, nullable=False, default="PENDING", index=True)
+    status = Column(String, nullable=False, default="PREVIEWED", index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class StrategyActivation(Base, TimestampMixin):
+    __tablename__ = "strategy_activations"
+    __table_args__ = (UniqueConstraint("intent_id", name="uq_strategy_activation_intent"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(String, ForeignKey("agent_conversations.id", ondelete="SET NULL"), nullable=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_version = Column(Integer, nullable=False)
+    intent_id = Column(String, ForeignKey("strategy_intents.id", ondelete="CASCADE"), nullable=False)
+    execution_mode = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="PENDING", index=True)
+    runtime_command_id = Column(String, nullable=True, index=True)
+    runtime_ack_json = Column(JSON, default=dict, nullable=False)
+    activated_at = Column(DateTime(timezone=True), nullable=True)
+    stopped_at = Column(DateTime(timezone=True), nullable=True)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class StrategyRiskPolicy(Base, TimestampMixin):
+    __tablename__ = "strategy_risk_policies"
+    __table_args__ = (UniqueConstraint("strategy_id", "strategy_version", name="uq_strategy_risk_version"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_version = Column(Integer, nullable=False)
+    max_position = Column(Float, nullable=False)
+    max_notional = Column(Float, nullable=False)
+    max_leverage = Column(Float, nullable=False)
+    max_daily_loss = Column(Float, nullable=False)
+    max_drawdown = Column(Float, nullable=False)
+    max_orders_per_minute = Column(Integer, nullable=False)
+    reduce_only = Column(Boolean, nullable=False, default=False)
+    pause_opening = Column(Boolean, nullable=False, default=False)
+    global_kill_switch = Column(Boolean, nullable=False, default=False)
+    policy_json = Column(JSON, default=dict, nullable=False)
+
+
+class StrategyRun(Base, TimestampMixin):
+    __tablename__ = "strategy_runs"
+    __table_args__ = (UniqueConstraint("runtime_run_id", name="uq_strategy_runtime_run"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_version = Column(Integer, nullable=False)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="SET NULL"), nullable=True, index=True)
+    activation_id = Column(String, ForeignKey("strategy_activations.id", ondelete="SET NULL"), nullable=True)
+    runtime_run_id = Column(String, nullable=False)
+    execution_mode = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="PENDING", index=True)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    stopped_at = Column(DateTime(timezone=True), nullable=True)
+    performance_json = Column(JSON, default=dict, nullable=False)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class SignalEvent(Base):
+    __tablename__ = "signal_events"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_strategy_signal_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_version = Column(Integer, nullable=False)
+    run_id = Column(String, ForeignKey("strategy_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_ids = Column(JSON, default=list, nullable=False)
+    source_urls = Column(JSON, default=list, nullable=False)
+    data_timestamp = Column(DateTime(timezone=True), nullable=False)
+    fetch_timestamp = Column(DateTime(timezone=True), nullable=False)
+    freshness = Column(Float, nullable=False)
+    credibility_score = Column(Float, nullable=False)
+    sentiment_score = Column(Float, nullable=False)
+    confidence = Column(Float, nullable=False)
+    asset = Column(String, nullable=False, index=True)
+    model_version = Column(String, nullable=False)
+    feature_version = Column(String, nullable=False)
+    signal_direction = Column(String, nullable=False)
+    signal_strength = Column(Float, nullable=False)
+    target_position = Column(Float, nullable=False)
+    execution_note = Column(Text, nullable=True)
+    risk_state = Column(String, nullable=False)
+    raw_event_reference = Column(JSON, default=dict, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class OrderIntent(Base, TimestampMixin):
+    __tablename__ = "order_intents"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_order_intent_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(String, ForeignKey("agent_conversations.id", ondelete="SET NULL"), nullable=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    strategy_version = Column(Integer, nullable=True)
+    run_id = Column(String, ForeignKey("strategy_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    instrument = Column(String, nullable=False)
+    venue = Column(String, nullable=False)
+    direction = Column(String, nullable=False)
+    quantity = Column(Float, nullable=False)
+    notional = Column(Float, nullable=False)
+    leverage = Column(Float, nullable=False, default=1)
+    order_type = Column(String, nullable=False)
+    reduce_only = Column(Boolean, nullable=False, default=False)
+    execution_mode = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="PREVIEWED", index=True)
+    risk_limits_json = Column(JSON, default=dict, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+    confirmation_token_hash = Column(String, nullable=True)
+    approval_status = Column(String, nullable=False, default="PENDING")
+    expires_at = Column(DateTime(timezone=True), nullable=False)
+    raw_event_reference = Column(JSON, default=dict, nullable=False)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class RiskDecision(Base):
+    __tablename__ = "risk_decisions"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    run_id = Column(String, ForeignKey("strategy_runs.id", ondelete="SET NULL"), nullable=True)
+    order_intent_id = Column(String, ForeignKey("order_intents.id", ondelete="CASCADE"), nullable=False, index=True)
+    decision = Column(String, nullable=False, index=True)
+    reasons = Column(JSON, default=list, nullable=False)
+    limits_json = Column(JSON, default=dict, nullable=False)
+    state_json = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class OrderJournal(Base):
+    __tablename__ = "order_journal"
+    __table_args__ = (
+        UniqueConstraint("client_order_id", "sequence", name="uq_order_journal_sequence"),
+        UniqueConstraint("idempotency_key", name="uq_order_journal_idempotency"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    run_id = Column(String, ForeignKey("strategy_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    order_intent_id = Column(String, ForeignKey("order_intents.id", ondelete="CASCADE"), nullable=False, index=True)
+    client_order_id = Column(String, nullable=False, index=True)
+    exchange_order_id = Column(String, nullable=True, index=True)
+    sequence = Column(Integer, nullable=False, default=1)
+    state = Column(String, nullable=False, index=True)
+    instrument = Column(String, nullable=False)
+    side = Column(String, nullable=False)
+    quantity = Column(Float, nullable=False)
+    filled_quantity = Column(Float, nullable=False, default=0)
+    remaining_quantity = Column(Float, nullable=False)
+    average_price = Column(Float, nullable=True)
+    reduce_only = Column(Boolean, nullable=False, default=False)
+    event_json = Column(JSON, default=dict, nullable=False)
+    raw_event_reference = Column(JSON, default=dict, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class PositionSnapshot(Base):
+    __tablename__ = "position_snapshots"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    run_id = Column(String, ForeignKey("strategy_runs.id", ondelete="SET NULL"), nullable=True)
+    instrument = Column(String, nullable=False, index=True)
+    quantity = Column(Float, nullable=False)
+    side = Column(String, nullable=False)
+    average_price = Column(Float, nullable=False)
+    mark_price = Column(Float, nullable=False)
+    unrealized_pnl = Column(Float, nullable=False, default=0)
+    realized_pnl = Column(Float, nullable=False, default=0)
+    leverage = Column(Float, nullable=False, default=1)
+    raw_event_reference = Column(JSON, default=dict, nullable=False)
+    captured_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class AccountSnapshot(Base):
+    __tablename__ = "account_snapshots"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    balance = Column(Float, nullable=False)
+    equity = Column(Float, nullable=False)
+    available_margin = Column(Float, nullable=False)
+    daily_pnl = Column(Float, nullable=False, default=0)
+    drawdown = Column(Float, nullable=False, default=0)
+    exposure = Column(Float, nullable=False, default=0)
+    stale = Column(Boolean, nullable=False, default=False)
+    raw_event_reference = Column(JSON, default=dict, nullable=False)
+    captured_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class PortfolioAutopilotReview(Base, TimestampMixin):
+    __tablename__ = "portfolio_autopilot_reviews"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    nav = Column(Float, nullable=False, default=0)
+    account_count = Column(Integer, nullable=False, default=0)
+    findings_json = Column(JSON, default=list, nullable=False)
+    concentration_json = Column(JSON, default=dict, nullable=False)
+    status = Column(String, nullable=False, default="COMPLETED", index=True)
+    data_as_of = Column(DateTime(timezone=True), nullable=True)
+
+
+class ReconciliationRecord(Base, TimestampMixin):
+    __tablename__ = "reconciliation_records"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    run_id = Column(String, ForeignKey("strategy_runs.id", ondelete="SET NULL"), nullable=True)
+    status = Column(String, nullable=False, default="PENDING", index=True)
+    local_state_json = Column(JSON, default=dict, nullable=False)
+    exchange_state_json = Column(JSON, default=dict, nullable=False)
+    differences_json = Column(JSON, default=list, nullable=False)
+    actions_json = Column(JSON, default=list, nullable=False)
+    raw_event_reference = Column(JSON, default=dict, nullable=False)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class TradingAuditLog(Base):
+    __tablename__ = "trading_audit_logs"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_trading_audit_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(String, ForeignKey("agent_conversations.id", ondelete="SET NULL"), nullable=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="SET NULL"), nullable=True, index=True)
+    run_id = Column(String, ForeignKey("strategy_runs.id", ondelete="SET NULL"), nullable=True)
+    action = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, index=True)
+    actor_type = Column(String, nullable=False, default="user")
+    request_json = Column(JSON, default=dict, nullable=False)
+    result_json = Column(JSON, default=dict, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)

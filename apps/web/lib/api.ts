@@ -139,6 +139,7 @@ export type SubscriptionState = {
   cancel_at_period_end?: boolean;
   cancel_at?: string | null;
   credit_balance: number;
+  billing_mode?: string;
   account?: { auth_provider?: string; avatar_url?: string | null; email?: string };
   entitlement: { notification_channels: string[]; high_cost_tasks: boolean; imessage: boolean };
   checkout_mode: "session" | "payment_link";
@@ -149,15 +150,10 @@ export type DataSourceRow = { id: string; source: string; type: string; provider
 export type DataSourcePreview = { raw: Array<{ id: string; externalId: string; url?: string | null; publishedAt?: string | null; fetchedAt: string; licenseStatus: string; retentionPolicy: string; processingStatus: string }>; normalized: Array<{ id: string; provider: string; sourceType: string; sourceName: string; title: string; summary: string; url?: string | null; author?: string | null; publishedAt?: string | null; symbols: string[]; topics: string[]; sentiment: { label?: string; score?: number }; credibilityScore: number; finalScore: number; licenseStatus: string; retentionPolicy: string }> };
 
 export const fallbackMarket: MarketSnapshotResponse = {
-  mockMode: true,
-  assets: [
-    { symbol: "BTC", price: 108500, volume_24h: 42000000000, funding_rate: 0.006, open_interest: 18900000000, sentiment_score: 0.62, risk_score: 46, change_24h: 1.8, source: "mock", source_symbol: "BTC", is_realtime: false },
-    { symbol: "ETH", price: 5850, volume_24h: 18000000000, funding_rate: 0.004, open_interest: 9600000000, sentiment_score: 0.58, risk_score: 52, change_24h: 0.9, source: "mock", source_symbol: "ETH", is_realtime: false },
-    { symbol: "SOL", price: 228, volume_24h: 7400000000, funding_rate: 0.012, open_interest: 3800000000, sentiment_score: 0.66, risk_score: 64, change_24h: 3.1, source: "mock", source_symbol: "SOL", is_realtime: false },
-    { symbol: "HYPE", price: 39.2, volume_24h: 1200000000, funding_rate: 0.018, open_interest: 990000000, sentiment_score: 0.71, risk_score: 71, change_24h: 4.4, source: "mock", source_symbol: "HYPE", is_realtime: false },
-    { symbol: "MSTR", price: 1840, volume_24h: 2100000000, funding_rate: 0, open_interest: null, sentiment_score: 0.55, risk_score: 67, change_24h: 2.2, source: "mock", source_display: "MOCK", source_symbol: "MSTR", is_realtime: false, asset_type: "equity", is_mock: true },
-    { symbol: "STRC", price: 101.8, volume_24h: 140000000, funding_rate: 0, open_interest: null, sentiment_score: 0.49, risk_score: 49, change_24h: -0.2, source: "mock", source_display: "MOCK", source_symbol: "STRC", is_realtime: false, asset_type: "preferred_equity", is_mock: true }
-  ]
+  mockMode: false,
+  live_assets: 0,
+  source_summary: [],
+  assets: []
 };
 
 export const fallbackSubscription: SubscriptionState = {
@@ -183,7 +179,7 @@ export const fallbackReport = {
       report_type: "daily_market_report",
       source_intelligence_id: "mock-shared-intel",
       content_markdown:
-        "# PureGamma Daily Crypto Brief\n\n## Market Regime\nRisk-on momentum with contained leverage.\n\n## Key Signals\n- BTC leadership remains the cleanest expression of crypto beta.\n- SOL and HYPE show high beta follow-through, but funding risk is rising.\n\n## Risk\nModerate risk; favor liquid assets and explicit invalidation levels.\n\n## Disclaimer\nThis is not financial advice.",
+        "# PureGamma Daily Crypto Brief\n\n## Market Regime\nRisk-on momentum with contained leverage.\n\n## Key Signals\n- BTC leadership remains the cleanest expression of crypto beta.\n- SOL and HYPE show high beta follow-through, but funding risk is rising.\n\n## Risk\nModerate risk; favor liquid assets and explicit invalidation levels.\n\n## Disclaimer\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
       assets: ["BTC", "ETH", "SOL", "HYPE", "MSTR", "STRC"],
       created_at: new Date().toISOString(),
       language: "en" as Locale
@@ -298,7 +294,7 @@ export const fallbackIntegrations = {
   integrations: [
     { name: "Plaid Brokerage", description: "Holdings and investment transaction sync only.", status: "stale warning", plan: "Pro", cost: 3, lastSync: "2h ago", failureReason: "Manual refresh required for demo brokerage." },
     { name: "Binance Read-only", description: "CEX balances through read-only API keys.", status: "healthy", plan: "Max", cost: 5, lastSync: "8m ago" },
-    { name: "Ethereum Wallet", description: "On-chain wallet positions and stablecoins.", status: "healthy", plan: "Max", cost: 4, lastSync: "11m ago" },
+    { name: "Telegram", description: "Research briefs and account-risk notifications.", status: "requires key", plan: "Pro", cost: 1, lastSync: "not configured" },
     { name: "iMessage", description: "Self-hosted Mac relay for daily brief push.", status: "requires Max", plan: "Max", cost: 3, lastSync: "mock" }
   ] satisfies IntegrationRow[]
 };
@@ -382,16 +378,16 @@ export function fallbackDailyPushForLocale(locale: Locale) {
 }
 
 export async function getDashboard(locale: Locale = defaultLocale) {
-  const [market, subscription, reports, signals] = await Promise.all([getMarketSnapshot(locale), getBillingSubscription(locale), getReports(locale), getSignals(locale)]);
-  return { market, subscription, reports, signals, mockMode: Boolean((market as { mockMode?: boolean }).mockMode) };
+  const [market, subscription, reports] = await Promise.all([getMarketSnapshot(locale), getBillingSubscription(locale), getReports(locale)]);
+  return { market, subscription, reports, mockMode: Boolean((market as { mockMode?: boolean }).mockMode) };
 }
 
 export function getMarketSnapshot(locale: Locale = defaultLocale) {
-  return api<MarketSnapshotResponse>("/market/snapshot", { fallback: fallbackMarket, locale });
+  return api<MarketSnapshotResponse>("/market/snapshot", { fallback: { mockMode: false, live_assets: 0, source_summary: [], assets: [] }, locale });
 }
 
 export function getReports(locale: Locale = defaultLocale) {
-  return api<ReturnType<typeof fallbackReportForLocale>>(`/reports?locale=${locale}`, { fallback: fallbackReportForLocale(locale), locale });
+  return api<ReturnType<typeof fallbackReportForLocale>>(`/reports?locale=${locale}`, { fallback: { mockMode: false, reports: [] }, locale });
 }
 
 export function getReport(id: string, locale: Locale = defaultLocale) {
@@ -399,7 +395,7 @@ export function getReport(id: string, locale: Locale = defaultLocale) {
 }
 
 export function sendReport(channel: string, locale: Locale = defaultLocale) {
-  return post("/notifications/send", { channel, message: locale === "zh" ? "PureGamma.ai 报告已生成。本内容仅供信息和研究参考，不构成投资建议。" : "PureGamma.ai report is ready. This is not financial advice.", locale }, { delivery: { status: "mock" } }, locale);
+  return requestStrict<{ delivery: { status: string } }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, message: locale === "zh" ? "PureGamma AI 报告已生成。使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" : "PureGamma AI report is ready. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.", locale }) });
 }
 
 export function getSignals(locale: Locale = defaultLocale) {
@@ -407,15 +403,30 @@ export function getSignals(locale: Locale = defaultLocale) {
 }
 
 export function getPortfolioSnapshot(locale: Locale = defaultLocale) {
-  return Promise.resolve(fallbackPortfolioForLocale(locale));
+  return api<PortfolioSnapshot>("/portfolio", { fallback: { connected: false, nav: 0, available_cash: 0, nav_history: [], connections: [], providers: { plaid: false, ibkr: false, hyperliquid: true } }, locale });
 }
 
+export type PortfolioConnection = { id: string; provider: string; name: string; status: string; last_sync: string | null; error?: string | null };
+export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; nav_history: Array<{ date: string; nav: number }>; connections: PortfolioConnection[]; providers: { plaid: boolean; ibkr: boolean; hyperliquid: boolean } };
+
+export function createPlaidLinkToken() { return requestStrict<{ link_token: string }>("/portfolio/plaid/link-token", { method: "POST" }); }
+export function exchangePlaidToken(publicToken: string, institutionName: string) { return requestStrict<PortfolioSnapshot>("/portfolio/plaid/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken, institution_name: institutionName }) }); }
+export function connectHyperliquid(address: string) { return requestStrict<PortfolioSnapshot>("/portfolio/hyperliquid/connect", { method: "POST", body: JSON.stringify({ address }) }); }
+export function getIbkrAuthorizeUrl() { return requestStrict<{ authorize_url: string }>("/portfolio/ibkr/authorize"); }
+export function exchangeIbkrCode(code: string, state: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/ibkr/exchange?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, { method: "POST" }); }
+export function syncPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}/sync`, { method: "POST" }); }
+export function disconnectPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" }); }
+export type PortfolioAutopilot = { config: { enabled: boolean; cadence: "daily" | "weekly"; auto_sync: boolean; risk_alerts: boolean; long_gamma_watch: boolean; delivery: "in_app" | "telegram" | "imessage" }; account_count: number; findings: Array<{ severity: string; title: string }>; concentration?: Record<string, number>; execution: "RESEARCH_ONLY"; last_review: string | null };
+export function getPortfolioAutopilot() { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot"); }
+export function updatePortfolioAutopilot(config: Partial<PortfolioAutopilot["config"]>) { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot", { method: "PUT", body: JSON.stringify(config) }); }
+export function runPortfolioAutopilot() { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot/run", { method: "POST" }); }
+
 export function getPortfolioPositions() {
-  return Promise.resolve({ positions: fallbackPortfolio.positions, mockMode: true });
+  return Promise.resolve({ positions: [], status: "NOT_CONNECTED" });
 }
 
 export function syncPortfolio() {
-  return Promise.resolve({ status: "queued", mockMode: true });
+  return Promise.resolve({ status: "NOT_CONNECTED" });
 }
 
 export function getIntegrations(locale: Locale = defaultLocale) {
@@ -425,14 +436,14 @@ export function getIntegrations(locale: Locale = defaultLocale) {
     integrations: [
       { name: "Plaid 券商", description: "仅同步持仓与投资交易数据。", status: "过期警告", plan: "Pro", cost: 3, lastSync: "2 小时前", failureReason: "Demo 券商需要手动刷新。" },
       { name: "Binance 只读", description: "通过只读 API Key 同步 CEX 余额。", status: "健康", plan: "Max", cost: 5, lastSync: "8 分钟前" },
-      { name: "Ethereum 钱包", description: "链上钱包持仓与稳定币资产。", status: "健康", plan: "Max", cost: 4, lastSync: "11 分钟前" },
+      { name: "Telegram", description: "研究简报与账户风险通知。", status: "需要 Key", plan: "Pro", cost: 1, lastSync: "未配置" },
       { name: "iMessage", description: "用于每日简报推送的自托管 Mac Relay。", status: "需要 Max", plan: "Max", cost: 3, lastSync: "Mock" }
     ] satisfies IntegrationRow[]
   });
 }
 
 export function connectPlaid() {
-  return Promise.resolve({ status: "mock_link_created" });
+  return Promise.resolve({ status: "NOT_CONFIGURED" });
 }
 
 export function syncExchange() {
@@ -440,7 +451,7 @@ export function syncExchange() {
 }
 
 export function addWallet() {
-  return Promise.resolve({ status: "queued" });
+  return Promise.resolve({ status: "NOT_CONFIGURED" });
 }
 
 export function getDataSources(locale: Locale = defaultLocale) {
@@ -465,8 +476,19 @@ export function getDataSourcePreview(providerId: string) {
 
 export type AgentConversation = { id: string; title: string; summary?: string | null; status: string; created_at: string; updated_at: string; archived_at?: string | null };
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
-export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; error_code?: string | null; error_message?: string | null; created_at: string; sources: AgentSource[] };
+export type AgentAttachment = { name: string; content: string; mime: string };
+export type AgentContext = { data_sources: string[]; skills: string[]; custom_prompt: string; attachments: AgentAttachment[] };
+export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
+export type RuntimeStrategy = { id: string; name: string; description: string; status: string; current_version: number; execution_mode: string; draft: { instruments: string[]; venues: string[]; timeframe: string; strategy_type: string; sentiment_sources: string[]; max_notional: number; leverage: number; max_daily_loss: number; max_drawdown: number }; latest_run?: RuntimeRun | null; created_at: string; updated_at: string };
+export type RuntimeRun = { id: string; strategy_id: string; strategy_version: number; account_id?: string | null; runtime_run_id: string; execution_mode: string; status: string; started_at?: string | null; stopped_at?: string | null; performance: Record<string, number>; error_code?: string | null; error_message?: string | null };
+export type TradingAccount = { id: string; name: string; venue: string; account_type: string; base_currency: string; status: string; permissions: Record<string, boolean>; created_at: string };
+export type TradingPosition = { id: string; account_id: string; strategy_id?: string | null; instrument: string; quantity: number; side: string; average_price: number; mark_price: number; unrealized_pnl: number; realized_pnl: number; leverage: number; captured_at: string };
+export type TradingOrder = { id: string; account_id: string; strategy_id?: string | null; client_order_id: string; sequence: number; state: string; instrument: string; side: string; quantity: number; filled_quantity: number; remaining_quantity: number; reduce_only: boolean; created_at: string };
+export type TradingPerformance = { account_id: string; balance: number; equity: number; available_margin: number; daily_pnl: number; drawdown: number; exposure: number; stale: boolean; captured_at: string };
+export type OptionInstrument = { instrument: string; underlying: string; option_type: string; strike: number; expiry: string; bid?: number | null; ask?: number | null; mark_price?: number | null; mark_iv?: number | null; volume_24h: number; open_interest: number; spread_pct?: number | null; greeks: { delta?: number; gamma?: number; theta?: number; vega?: number }; timestamp: string };
+export type LongGammaCandidate = OptionInstrument & { days_to_expiry: number; gamma_theta_ratio: number; research_score: number; rationale: string[]; execution_enabled: false };
+export type EarningsGammaCandidate = { symbol: string; name: string; earnings_date: string; sector: string; market_cap_category: string; research_score: number; rationale: string[]; news_snippet: string; execution_enabled: false; updated_at: string };
 
 async function requestStrict<T>(path: string, init: RequestInit = {}): Promise<T> {
   const response = await fetch(`${API_URL}${path}`, {
@@ -497,7 +519,7 @@ export function getAgentConversation(id: string) {
 }
 
 export function getAgentQuota() {
-  return requestStrict<{ plan: string; used: number; limit: number; remaining: number; credit_balance: number }>("/api/agent/quota");
+  return requestStrict<{ plan: string; used: number; limit: number | null; remaining: number | null; credit_balance: number }>("/api/agent/quota");
 }
 
 export function cancelAgentRun(runId: string) {
@@ -509,13 +531,14 @@ export async function streamAgentMessage(
   content: string,
   locale: Locale,
   signal: AbortSignal,
-  onEvent: (event: AgentStreamEvent) => void
+  onEvent: (event: AgentStreamEvent) => void,
+  context?: Partial<AgentContext>
 ) {
   const response = await fetch(`${API_URL}/api/agent/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ content, locale }),
+    body: JSON.stringify({ content, locale, data_sources: context?.data_sources || [], skills: context?.skills || [], custom_prompt: context?.custom_prompt || "", attachments: context?.attachments || [] }),
     signal
   });
   if (!response.ok || !response.body) throw new Error(await response.text() || `Agent request failed (${response.status})`);
@@ -539,11 +562,153 @@ export async function streamAgentMessage(
 }
 
 export function getNautilusStrategies(locale: Locale = defaultLocale) {
-  return Promise.resolve(fallbackNautilusForLocale(locale));
+  return api<{ strategies: RuntimeStrategy[] }>("/strategies", { fallback: { strategies: [] }, locale });
 }
 
-export function runNautilusBacktest() {
-  return Promise.resolve({ status: "queued", result: fallbackNautilus });
+export function getRuntimeStrategy(strategyId: string) {
+  return requestStrict<{ strategy: RuntimeStrategy }>(`/strategies/${encodeURIComponent(strategyId)}`);
+}
+
+export function createRuntimeStrategy(draft: object, conversationId?: string) {
+  return requestStrict<{ strategy: RuntimeStrategy }>("/strategies", { method: "POST", body: JSON.stringify({ draft, conversation_id: conversationId }), headers: { "Idempotency-Key": `web-strategy-${Date.now()}` } });
+}
+
+export function runNautilusBacktest(strategyId: string, engine: "mock" | "nautilus" = "mock") {
+  return requestStrict<{ backtest: { id: string; result: Record<string, unknown> } }>(`/strategies/${encodeURIComponent(strategyId)}/backtest`, { method: "POST", body: JSON.stringify({ engine }) });
+}
+
+export function previewStrategyActivation(strategyId: string, mode: "PAPER" | "SHADOW", accountId?: string) {
+  return requestStrict<{ intent: { id: string; strategy_version: number; execution_mode: string; expires_at: string; confirmation: string; payload: Record<string, unknown> } }>(`/strategies/${encodeURIComponent(strategyId)}/preview-activation`, { method: "POST", body: JSON.stringify({ mode, account_id: accountId }), headers: { "Idempotency-Key": `web-activation-${strategyId}-${mode}-${Date.now()}` } });
+}
+
+export function confirmStrategyActivation(strategyId: string, intentId: string, confirmation: string) {
+  return requestStrict<{ activation: Record<string, unknown>; run: RuntimeRun }>(`/strategies/${encodeURIComponent(strategyId)}/activate`, { method: "POST", body: JSON.stringify({ intent_id: intentId, confirmation }) });
+}
+
+export function controlStrategy(strategyId: string, action: "pause" | "resume" | "stop") {
+  return requestStrict<{ run: RuntimeRun }>(`/strategies/${encodeURIComponent(strategyId)}/${action}`, { method: "POST" });
+}
+
+export function getTradingRuntimeHealth() {
+  return requestStrict<TradingRuntimeHealth>("/trading/runtime/health");
+}
+
+export type TradingRuntimeHealth = {
+  status: string;
+  service: string;
+  adapter: RuntimeAdapterHealth;
+  adapters: RuntimeAdapterHealth[];
+  marketData: {
+    enabled: boolean;
+    providers: RuntimeMarketProviderStatus[];
+    quotes: number;
+  };
+  nautilus: {
+    available: boolean;
+    version: string | null;
+    messageBus: boolean;
+    error: string | null;
+    platform: string;
+    machine: string;
+    python: string;
+  };
+  nautilusInstalled: boolean;
+  modes: string[];
+  liveTrading: boolean;
+  withdrawal: boolean;
+  transfer: boolean;
+  killSwitch: boolean;
+  recoveredOrders: number;
+  runs: number;
+};
+
+export type RuntimeMarketProviderStatus = {
+  provider: string;
+  status: string;
+  lastSuccessAt: string | null;
+  failures: number;
+  lastError: string | null;
+  circuitOpen: boolean;
+  liveOrders: false;
+};
+
+export type RuntimeMarketQuote = {
+  asset: string;
+  symbol: string;
+  price: number;
+  provider: string;
+  timestamp: string;
+  stale: boolean;
+};
+
+export type RuntimeEvent = {
+  id: number;
+  event_type: string;
+  aggregate_id: string;
+  payload: Record<string, unknown>;
+  created_at: string;
+};
+
+export type RuntimeAdapterHealth = {
+  adapter: string;
+  status: string;
+  configured?: boolean;
+  live: boolean;
+  orders?: boolean;
+  withdrawal?: boolean;
+  transfer?: boolean;
+};
+
+export function getTradingAccounts() {
+  return requestStrict<{ accounts: TradingAccount[] }>("/trading/accounts");
+}
+
+export function getTradingRuntimeMarket(refresh = false, symbols: string[] = []) {
+  const params = new URLSearchParams({ refresh: String(refresh) });
+  symbols.forEach((symbol) => params.append("symbols", symbol));
+  return requestStrict<{ status: string; quotes: RuntimeMarketQuote[]; providers: RuntimeMarketProviderStatus[]; signals?: Record<string, unknown>[]; orders?: Record<string, unknown>[]; liveOrders: false }>(`/trading/runtime/market?${params.toString()}`);
+}
+
+export function getTradingRuntimeEvents(limit = 30) {
+  return requestStrict<{ events: RuntimeEvent[] }>(`/trading/runtime/events?limit=${limit}`);
+}
+
+export function getTradingPositions() {
+  return requestStrict<{ positions: TradingPosition[] }>("/trading/positions");
+}
+
+export function getTradingPerformance() {
+  return requestStrict<{ accounts: TradingPerformance[] }>("/trading/performance");
+}
+
+export function getTradingOrders() {
+  return requestStrict<{ orders: TradingOrder[] }>("/trading/orders");
+}
+
+export function syncTradingRuntime(accountId: string) {
+  return requestStrict<{ sync: { account_id: string; snapshots: number; orders: number; signals: number } }>("/trading/runtime/sync", {
+    method: "POST",
+    body: JSON.stringify({ account_id: accountId })
+  });
+}
+
+export function getOptionChain(currency: "BTC" | "ETH" = "BTC") {
+  return api<{ provider: string; status: string; currency: string; fetched_at?: string; source_url?: string; instruments: OptionInstrument[]; error?: string; live_trading: false }>(`/options/chain?currency=${currency}`, {
+    fallback: { provider: "deribit_public", status: "DEGRADED", currency, instruments: [], error: "Sign in and configure API access to load the option chain.", live_trading: false }
+  });
+}
+
+export function getLongGammaCandidates(currency: "BTC" | "ETH" = "BTC") {
+  return api<{ provider: string; status: string; currency: string; fetched_at?: string; source_url?: string; instrument_count: number; candidates: LongGammaCandidate[]; error?: string; live_trading: false }>(`/options/long-gamma?currency=${currency}`, {
+    fallback: { provider: "deribit_public", status: "DEGRADED", currency, instrument_count: 0, candidates: [], error: "Deribit public options data is currently unavailable.", live_trading: false }
+  });
+}
+
+export function getEarningsGamma(locale: Locale = defaultLocale) {
+  const language = locale === "zh" ? "zh" : "en";
+  return api<{ status: string; source: string; candidates: EarningsGammaCandidate[]; live_trading: false }>(`/options/earnings-gamma?language=${language}`, {
+    fallback: { status: "DEGRADED", source: "earnings_research", candidates: [], live_trading: false }
+  });
 }
 
 export function getDailyPushPreferences(locale: Locale = defaultLocale) {
