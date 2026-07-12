@@ -40,6 +40,8 @@ playwright-report/
 test-results/
 dist/
 build/
+!apps/site/build/
+!apps/site/build/**
 
 # OS and editor files
 .DS_Store
