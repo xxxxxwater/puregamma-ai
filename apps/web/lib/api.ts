@@ -534,7 +534,13 @@ export function getAgentConversation(id: string) {
 }
 
 export function getAgentQuota() {
-  return requestStrict<{ plan: string; used: number; limit: number | null; remaining: number | null; credit_balance: number }>("/api/agent/quota");
+  return requestStrict<{ plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number }>("/api/agent/quota");
+}
+
+export type AgentCapabilities = { plan: string; allowed_data_sources: string[]; agent_daily_runs: number; agent_concurrent_runs: number; queue_priority: number; credit_balance?: number };
+
+export function getAgentCapabilities() {
+  return requestStrict<{ capabilities: AgentCapabilities; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
 }
 
 export function cancelAgentRun(runId: string) {

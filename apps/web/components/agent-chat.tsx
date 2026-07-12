@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Bot, CircleStop, Database, FilePlus2, Loader2, MessageSquarePlus, Paperclip, RefreshCw, Send, Settings2, Sparkles, Wrench, X } from "lucide-react";
 import { ReportMarkdown } from "@/components/puregamma";
 import { type Locale, withLocale } from "@/i18n/routing";
-import { AgentAttachment, AgentConversation, AgentMessage, AgentSource, cancelAgentRun, createAgentConversation, getAgentConversation, getAgentConversations, getAgentQuota, getMe, streamAgentMessage } from "@/lib/api";
+import { AgentAttachment, AgentCapabilities, AgentConversation, AgentMessage, AgentSource, cancelAgentRun, createAgentConversation, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getMe, streamAgentMessage } from "@/lib/api";
 
 const DATA_SOURCES = ["market", "rss", "fintwit", "x-twitter", "bloomberg", "portfolio", "options"];
 const SKILLS = ["market_research", "news_research", "portfolio_review", "options_analysis", "source_check"];
@@ -23,6 +23,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [toolStatus, setToolStatus] = useState<string[]>([]);
   const [toolResults, setToolResults] = useState<Array<{ tool: string; data: Record<string, unknown> }>>([]);
   const [quota, setQuota] = useState<{ remaining: number | null; limit: number | null; credit_balance: number } | null>(null);
+  const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
   const [dataSources, setDataSources] = useState<string[]>(["market", "rss"]);
   const [skills, setSkills] = useState<string[]>(["market_research", "news_research"]);
   const [customPrompt, setCustomPrompt] = useState("");
@@ -48,10 +49,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
 
   useEffect(() => {
     let active = true;
-    Promise.all([getMe(), loadConversations(), getAgentQuota()])
-      .then(async ([, rows, usage]) => {
+    Promise.all([getMe(), loadConversations(), getAgentCapabilities()])
+      .then(async ([, rows, access]) => {
         if (!active) return;
-        setQuota(usage);
+        setQuota(access.quota);
+        setCapabilities(access.capabilities);
         const target = initialConversationId || rows[0]?.id;
         if (target) await openConversation(target);
       })
@@ -159,12 +161,13 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   };
 
   const toggle = (value: string, current: string[], update: (next: string[]) => void) => update(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
+  const estimatedCredits = skills.includes("deep_research") ? 15 : dataSources.some((item) => ["x-twitter", "bloomberg"].includes(item)) ? 5 : dataSources.includes("portfolio") || skills.includes("portfolio_review") ? 5 : dataSources.length ? 3 : 2;
 
   return (
     <div className="grid h-[calc(100dvh-7rem)] min-h-[620px] overflow-hidden border border-border-pg bg-bg-panel lg:grid-cols-[244px_minmax(0,1fr)] xl:grid-cols-[244px_minmax(0,1fr)_286px]">
       <aside className="hidden border-b border-border-pg bg-bg-app lg:block lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between border-b border-border-pg p-3">
-          <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? (quota.limit == null ? (zh ? "不限次数" : "Unlimited") : `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"}`) : "-"}</div></div>
+          <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"} · ${quota.credit_balance} Credits` : "-"}</div></div>
           <button type="button" onClick={createNew} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong" title={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
         </div>
         <div className="flex gap-2 overflow-x-auto p-2 lg:block lg:max-h-[calc(100vh-13rem)] lg:space-y-1 lg:overflow-y-auto">
@@ -187,30 +190,31 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div>
         </div>
         <div className="shrink-0 border-t border-border-pg bg-bg-app p-3 md:p-4">
-          <details className="mx-auto mb-3 max-w-3xl border border-border-pg bg-bg-panel xl:hidden"><summary className="flex cursor-pointer items-center gap-2 p-3 text-xs font-medium"><Settings2 className="h-4 w-4" />{zh ? "本轮上下文" : "Turn context"}<span className="ml-auto text-text-pg-dim">{dataSources.length + skills.length + attachments.length}</span></summary><div className="border-t border-border-pg p-3"><ContextControls locale={locale} dataSources={dataSources} skills={skills} customPrompt={customPrompt} attachments={attachments} onToggleSource={(value) => toggle(value, dataSources, setDataSources)} onToggleSkill={(value) => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={(name) => setAttachments((current) => current.filter((file) => file.name !== name))} /></div></details>
+          <details className="mx-auto mb-3 max-w-3xl border border-border-pg bg-bg-panel xl:hidden"><summary className="flex cursor-pointer items-center gap-2 p-3 text-xs font-medium"><Settings2 className="h-4 w-4" />{zh ? "本轮上下文" : "Turn context"}<span className="ml-auto text-text-pg-dim">{dataSources.length + skills.length + attachments.length}</span></summary><div className="border-t border-border-pg p-3"><ContextControls locale={locale} dataSources={dataSources} skills={skills} customPrompt={customPrompt} attachments={attachments} allowedSources={capabilities?.allowed_data_sources || []} onToggleSource={(value) => toggle(value, dataSources, setDataSources)} onToggleSkill={(value) => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={(name) => setAttachments((current) => current.filter((file) => file.name !== name))} /></div></details>
           <form onSubmit={send} className="mx-auto flex max-w-3xl items-end gap-2">
             <input ref={fileRef} type="file" multiple accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json" className="hidden" onChange={(event) => void addFiles(event.target.files)} />
             <button type="button" onClick={() => fileRef.current?.click()} className="grid h-14 w-11 shrink-0 place-items-center border border-border-pg hover:border-border-pg-strong" title={zh ? "添加文件" : "Add files"}><Paperclip className="h-4 w-4" /></button>
             <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={2} placeholder={zh ? "输入研究问题，Shift + Enter 换行" : "Ask a research question, Shift + Enter for a new line"} className="min-h-14 flex-1 resize-none border border-border-pg bg-bg-panel px-3 py-2 text-sm outline-none focus:border-border-pg-strong" />
             {busy ? <button type="button" onClick={stop} className="grid h-14 w-12 place-items-center border border-border-pg text-status-negative" title={zh ? "停止生成" : "Stop generation"}><CircleStop className="h-5 w-5" /></button> : <button type="submit" disabled={!input.trim()} className="grid h-14 w-12 place-items-center border border-border-pg-strong bg-pg-white text-pg-black disabled:opacity-40" title={zh ? "发送" : "Send"}><Send className="h-5 w-5" /></button>}
           </form>
+          <p className="mx-auto mt-2 max-w-3xl text-right text-[11px] text-text-pg-dim">{zh ? "预计消耗" : "Estimated cost"}: {estimatedCredits} Credits</p>
           {error ? <p className="mx-auto mt-2 max-w-3xl text-xs text-status-negative">{error}</p> : null}
         </div>
       </section>
       <aside className="hidden min-h-0 overflow-y-auto border-l border-border-pg bg-bg-app xl:block">
         <div className="sticky top-0 border-b border-border-pg bg-bg-app p-4"><div className="flex items-center gap-2 text-xs uppercase text-text-pg-dim"><Settings2 className="h-4 w-4" />{zh ? "本轮上下文" : "Turn context"}</div><p className="mt-2 text-xs leading-5 text-text-pg-muted">{zh ? "控制本轮检索范围与回答方式。" : "Control retrieval scope and response behavior for this turn."}</p></div>
-        <div className="p-4"><ContextControls locale={locale} dataSources={dataSources} skills={skills} customPrompt={customPrompt} attachments={attachments} onToggleSource={(value) => toggle(value, dataSources, setDataSources)} onToggleSkill={(value) => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={(name) => setAttachments((current) => current.filter((file) => file.name !== name))} /></div>
+        <div className="p-4"><ContextControls locale={locale} dataSources={dataSources} skills={skills} customPrompt={customPrompt} attachments={attachments} allowedSources={capabilities?.allowed_data_sources || []} onToggleSource={(value) => toggle(value, dataSources, setDataSources)} onToggleSkill={(value) => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={(name) => setAttachments((current) => current.filter((file) => file.name !== name))} /></div>
       </aside>
     </div>
   );
 }
 
-function ContextControls({ locale, dataSources, skills, customPrompt, attachments, onToggleSource, onToggleSkill, onPrompt, onRemoveFile }: { locale: Locale; dataSources: string[]; skills: string[]; customPrompt: string; attachments: AgentAttachment[]; onToggleSource: (value: string) => void; onToggleSkill: (value: string) => void; onPrompt: (value: string) => void; onRemoveFile: (name: string) => void }) {
+function ContextControls({ locale, dataSources, skills, customPrompt, attachments, allowedSources, onToggleSource, onToggleSkill, onPrompt, onRemoveFile }: { locale: Locale; dataSources: string[]; skills: string[]; customPrompt: string; attachments: AgentAttachment[]; allowedSources: string[]; onToggleSource: (value: string) => void; onToggleSkill: (value: string) => void; onPrompt: (value: string) => void; onRemoveFile: (name: string) => void }) {
   const zh = locale === "zh";
   const sourceLabels: Record<string, string> = { market: zh ? "实时行情" : "Live market", rss: "RSS", fintwit: "FinTwit", "x-twitter": "X / Twitter", bloomberg: "Bloomberg", portfolio: zh ? "账户数据" : "Portfolio", options: zh ? "期权" : "Options" };
   const skillLabels: Record<string, string> = { market_research: zh ? "市场研究" : "Market research", news_research: zh ? "新闻检索" : "News research", portfolio_review: zh ? "组合复核" : "Portfolio review", options_analysis: zh ? "期权分析" : "Options analysis", source_check: zh ? "来源核验" : "Source verification" };
   return <div className="space-y-6">
-    <section><div className="mb-2 flex items-center gap-2 text-xs font-semibold"><Database className="h-3.5 w-3.5" />{zh ? "数据" : "Data"}</div><div className="grid grid-cols-2 gap-2">{DATA_SOURCES.map((item) => <button key={item} type="button" onClick={() => onToggleSource(item)} className={`min-h-9 border px-2 text-left text-[11px] ${dataSources.includes(item) ? "border-border-pg-strong bg-bg-panel text-text-pg" : "border-border-pg text-text-pg-dim hover:text-text-pg-muted"}`}>{sourceLabels[item]}</button>)}</div></section>
+    <section><div className="mb-2 flex items-center gap-2 text-xs font-semibold"><Database className="h-3.5 w-3.5" />{zh ? "数据" : "Data"}</div><div className="grid grid-cols-2 gap-2">{DATA_SOURCES.map((item) => { const allowed = allowedSources.includes("all") || allowedSources.includes(item) || (item === "x-twitter" && allowedSources.includes("x")); return <button key={item} type="button" disabled={!allowed} onClick={() => onToggleSource(item)} title={!allowed ? (zh ? "当前套餐不可用" : "Upgrade required") : sourceLabels[item]} className={`min-h-9 border px-2 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-35 ${dataSources.includes(item) ? "border-border-pg-strong bg-bg-panel text-text-pg" : "border-border-pg text-text-pg-dim hover:text-text-pg-muted"}`}>{sourceLabels[item]}{!allowed ? " · Locked" : ""}</button>; })}</div></section>
     <section><div className="mb-2 flex items-center gap-2 text-xs font-semibold"><Sparkles className="h-3.5 w-3.5" />Skills</div><div className="space-y-1.5">{SKILLS.map((item) => <label key={item} className="flex cursor-pointer items-center gap-2 border border-border-pg px-2.5 py-2 text-xs"><input type="checkbox" checked={skills.includes(item)} onChange={() => onToggleSkill(item)} className="accent-white" /><span>{skillLabels[item]}</span></label>)}</div></section>
     <section><label className="mb-2 block text-xs font-semibold">Prompt</label><textarea value={customPrompt} onChange={(event) => onPrompt(event.target.value.slice(0, 2000))} rows={5} placeholder={zh ? "例如：使用简洁中文，先结论后证据，列出反方观点。" : "Example: concise answer, conclusion first, include counter-evidence."} className="w-full resize-y border border-border-pg bg-bg-panel p-2 text-xs leading-5 outline-none focus:border-border-pg-strong" /><div className="mt-1 text-right text-[10px] text-text-pg-dim">{customPrompt.length}/2000</div></section>
     <section><div className="mb-2 flex items-center gap-2 text-xs font-semibold"><FilePlus2 className="h-3.5 w-3.5" />{zh ? "文件" : "Files"}<span className="ml-auto font-normal text-text-pg-dim">{attachments.length}/5</span></div>{attachments.length ? <div className="space-y-1.5">{attachments.map((file) => <div key={file.name} className="flex items-center gap-2 border border-border-pg bg-bg-panel px-2 py-2 text-xs"><span className="min-w-0 flex-1 truncate">{file.name}</span><button type="button" onClick={() => onRemoveFile(file.name)} title={zh ? "移除" : "Remove"}><X className="h-3.5 w-3.5" /></button></div>)}</div> : <p className="text-[11px] leading-5 text-text-pg-dim">{zh ? "支持 TXT、MD、CSV、JSON，单个不超过 200KB。" : "TXT, MD, CSV, JSON; up to 200KB each."}</p>}</section>

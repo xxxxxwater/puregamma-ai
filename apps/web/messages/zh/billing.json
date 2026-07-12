@@ -5,7 +5,14 @@
   },
   "eyebrow": "访问控制",
   "title": "访问权限与订阅",
-  "subtitle": "管理套餐与订阅。当前为开发模式，所有功能无限制开放。",
+  "subtitle": "选择适合你的研究覆盖、监控频率与决策工作流。",
+  "valueTitle": "你购买的是更高效、更有纪律的研究流程",
+  "valueProps": [
+    { "title": "节省时间", "detail": "减少重复筛选、整理和跨平台核对。" },
+    { "title": "信息覆盖", "detail": "在一个工作流内覆盖资产、事件与组合。" },
+    { "title": "风险可见性", "detail": "持续识别集中度、数据过期与重大事件。" },
+    { "title": "决策纪律", "detail": "使用固定复盘、引用和 Playbook 约束决策。" }
+  ],
   "summary": {
     "currentPlan": "当前套餐",
     "subscription": "订阅",
@@ -23,7 +30,7 @@
   },
   "accountSources": {
     "google": "Google OAuth",
-    "email": "Email / Mock"
+    "email": "Email"
   },
   "cancelSubscription": "取消订阅",
   "reactivateSubscription": "恢复订阅",
@@ -33,10 +40,10 @@
   "paymentLinkMissing": "该套餐尚未配置 Stripe Payment Link。",
   "checkoutFailed": "无法创建结账会话。请先登录。",
   "plans": [
-    { "name": "Free", "price": "$0", "credits": "30", "research": "延迟共享每日简报", "data": "延迟市场数据", "notifications": "仅 Email", "strategy": "无策略实验室", "restrictions": ["无 Plaid", "无 iMessage", "无 X 情绪", "无链上扫描"] },
-    { "name": "Pro", "price": "$29.9", "credits": "1,000", "research": "每日市场与组合复盘", "data": "Plaid 手动同步", "notifications": "Telegram 与 Email", "strategy": "基础 Mock 回测", "restrictions": ["无高级 X 情绪", "默认无 iMessage"] },
-    { "name": "Max", "price": "$199", "credits": "10,000", "research": "每日 iMessage 简报与策略框架", "data": "组合净值 NAV、X KOL 扫描、链上扫描", "notifications": "Telegram、Slack、Email、iMessage", "strategy": "NautilusTrader 高级回测", "restrictions": ["仅供研究", "真实交易已禁用"] },
-    { "name": "Enterprise", "price": "Custom", "credits": "Custom", "research": "团队研究归档与审查轨迹", "data": "Bloomberg 适配器、自定义数据源", "notifications": "全部渠道与私有 Relay", "strategy": "私有策略实验室部署", "restrictions": ["自定义合同", "API 访问", "团队工作区", "私有化部署"] }
+    { "name": "Free", "price": "$0", "credits": "30", "tagline": "建立基础市场观察习惯。", "benefits": ["核心资产观察", "共享市场简报", "基础事件视图", "Email 投递"] },
+    { "name": "Pro", "price": "$29.9", "credits": "1,000", "tagline": "适合持续跟踪个人组合的主动投资者。", "benefits": ["20–50 项资产", "每日组合简报", "重要事件提醒", "限量深度研究", "Telegram / Email", "基础回测"] },
+    { "name": "Max", "price": "$199", "credits": "10,000", "tagline": "适合多组合与高频研究工作流。", "benefits": ["包含全部 Pro 权益", "多组合", "更高 Agent 额度", "iMessage", "高频监控", "高级回测", "私有 Playbook", "优先队列"] },
+    { "name": "Enterprise", "price": "Custom", "credits": "Custom", "tagline": "适合团队、定制数据与私有部署。", "benefits": ["团队工作区", "API 访问", "自定义数据源", "私有部署", "专属支持与合规配置"] }
   ],
   "featureLabels": {
     "monthlyCredits": "每月 Credits",
@@ -47,6 +54,7 @@
     "perMonth": " / 月"
   },
   "features": ["每月 Credits", "每日市场简报", "组合净值 NAV", "iMessage 推送", "X KOL 扫描", "链上扫描", "NautilusTrader 回测", "Bloomberg 适配器", "私有化部署"],
+  "noPerformancePromise": "订阅提供研究工具与工作流，不承诺投资收益或结果。",
   "usageTable": {
     "action": "操作",
     "delta": "变化",
