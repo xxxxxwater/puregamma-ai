@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import re
 import uuid
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 from sqlalchemy import func
@@ -21,6 +21,7 @@ from packages.data.subgraph_provider import SubgraphProvider
 from packages.data.x_twitter_provider import XTwitterProvider
 from packages.database.models import DataSource, DataSourceSyncRun, DefiMetric, FinTwitAccount, MarketQuoteRecord, NewsItem, NormalizedDocument, OnchainMetric, utcnow
 from apps.api.services.document_pipeline_service import run_document_pipeline
+from apps.api.services.entitlement_service import get_user_entitlement
 
 
 SOURCE_DEFINITIONS = (
@@ -288,9 +289,76 @@ def _source_count(db: Session, provider_id: str) -> int:
     return int(query.scalar() or 0)
 
 
-def serialize_source(row: DataSource) -> dict:
+def _latest_source_timestamp(db: Session, provider_id: str) -> datetime | None:
+    if provider_id in DOCUMENT_PROVIDER_IDS:
+        return db.query(func.max(NormalizedDocument.published_at)).filter(NormalizedDocument.provider == provider_id).scalar()
+    if provider_id == "binance":
+        return db.query(func.max(MarketQuoteRecord.source_timestamp)).filter(MarketQuoteRecord.provider == "binance").scalar()
+    model = {"defillama-free": DefiMetric, "evm-rpc": OnchainMetric, "the-graph": OnchainMetric}.get(provider_id)
+    if model is None:
+        return None
+    query = db.query(func.max(model.source_timestamp))
+    if provider_id in {"evm-rpc", "the-graph"}:
+        query = query.filter(OnchainMetric.provider == provider_id)
+    return query.scalar()
+
+
+def data_capability(db: Session, row: DataSource, user_id: str | None = None) -> dict:
     metadata = row.metadata_json or {}
     usage = metadata.get("usage") or {}
+    unavailable = {
+        DataSourceStatus.NEEDS_KEY.value,
+        DataSourceStatus.NEED_KEY.value,
+        DataSourceStatus.LICENSE_REQUIRED.value,
+        DataSourceStatus.NOT_LICENSED.value,
+    }
+    source_timestamp = _latest_source_timestamp(db, row.id)
+    if source_timestamp and source_timestamp.tzinfo is None:
+        source_timestamp = source_timestamp.replace(tzinfo=timezone.utc)
+    freshness_seconds = max(0, int((datetime.now(timezone.utc) - source_timestamp).total_seconds())) if source_timestamp else None
+    stale_after = 21_600 if row.category in {"news", "opinion", "licensed_news"} else 300 if row.category == "market" else 86_400
+    entitled = True
+    if user_id:
+        allowed = set(get_user_entitlement(db, user_id)["allowed_data_sources"])
+        aliases = {row.id, row.provider, row.category}
+        if row.id == "x-twitter":
+            aliases.add("x")
+        entitled = "all" in allowed or bool(aliases.intersection(allowed))
+    configured = row.status not in unavailable
+    stale = freshness_seconds is None or freshness_seconds > stale_after
+    failure_reason = redact_error(row.last_error)
+    if not row.enabled:
+        failure_reason = "provider_disabled"
+    elif not entitled:
+        failure_reason = "plan_required"
+    elif not configured:
+        failure_reason = row.status.lower()
+    elif stale and not failure_reason:
+        failure_reason = "data_stale" if source_timestamp else "no_successful_sync"
+    return {
+        "provider": row.id,
+        "configured": configured,
+        "enabled": row.enabled,
+        "entitled": entitled,
+        "status": row.status,
+        "last_success_at": row.last_success_at.isoformat() if row.last_success_at else None,
+        "source_timestamp": source_timestamp.isoformat() if source_timestamp else None,
+        "freshness_seconds": freshness_seconds,
+        "stale": stale,
+        "license_status": metadata.get("licenseStatus") or ("configuration-defined" if row.id == "rss" else "provider-policy"),
+        "redistribution_allowed": bool(metadata.get("redistributionAllowed", False)),
+        "failure_reason": failure_reason,
+        "is_mock": row.status in {DataSourceStatus.MOCK.value, DataSourceStatus.MOCK_DEMO.value},
+        "quota_limit": usage.get("quotaLimit"),
+        "quota_remaining": usage.get("quotaRemaining"),
+        "rate_limit_reset_at": usage.get("rateLimitResetAt"),
+    }
+
+
+def serialize_source(row: DataSource, db: Session | None = None, user_id: str | None = None) -> dict:
+    metadata = row.metadata_json or {}
+    usage = metadata.get("usage") or {}
+    capability = data_capability(db, row, user_id) if db else None
     return {
         "id": row.id,
         "source": row.name,
@@ -304,7 +372,15 @@ def serialize_source(row: DataSource) -> dict:
         "itemsIngested": row.item_count,
         "enabled": row.enabled,
         "primary": bool(metadata.get("primary")),
-        "configured": row.status not in {DataSourceStatus.NEEDS_KEY.value, DataSourceStatus.NEED_KEY.value, DataSourceStatus.LICENSE_REQUIRED.value, DataSourceStatus.NOT_LICENSED.value},
+        "configured": capability["configured"] if capability else row.status not in {DataSourceStatus.NEEDS_KEY.value, DataSourceStatus.NEED_KEY.value, DataSourceStatus.LICENSE_REQUIRED.value, DataSourceStatus.NOT_LICENSED.value},
+        "entitled": capability["entitled"] if capability else True,
+        "sourceTimestamp": capability["source_timestamp"] if capability else None,
+        "freshnessSeconds": capability["freshness_seconds"] if capability else None,
+        "stale": capability["stale"] if capability else row.last_success_at is None,
+        "failureReason": capability["failure_reason"] if capability else redact_error(row.last_error),
+        "redistributionAllowed": capability["redistribution_allowed"] if capability else bool(metadata.get("redistributionAllowed", False)),
+        "isMock": capability["is_mock"] if capability else row.status in {DataSourceStatus.MOCK.value, DataSourceStatus.MOCK_DEMO.value},
+        "capability": capability,
         "quotaLimit": usage.get("quotaLimit"),
         "quotaRemaining": usage.get("quotaRemaining"),
         "rateLimitResetAt": usage.get("rateLimitResetAt"),

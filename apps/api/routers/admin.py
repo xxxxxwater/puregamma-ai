@@ -52,7 +52,7 @@ def reports(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> 
 @router.get("/data-sources")
 def data_sources(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
     rows = db.query(DataSource).order_by(DataSource.category, DataSource.name).all()
-    return {"mockMode": False, "sources": [serialize_source(row) for row in rows]}
+    return {"mockMode": False, "sources": [serialize_source(row, db, user.id) for row in rows]}
 
 
 @router.patch("/data-sources/{provider_id}")
@@ -67,7 +67,7 @@ def control_data_source(provider_id: str, payload: DataSourceControlRequest, db:
         provider = provider_registry(db).get(provider_id)
         row.status = provider.health_check().status.value if provider else "ERROR"
     db.commit()
-    return {"source": serialize_source(row)}
+    return {"source": serialize_source(row, db, user.id)}
 
 
 @router.post("/data-sources/{provider_id}/config-check")
@@ -81,7 +81,7 @@ def check_data_source_config(provider_id: str, db: Session = Depends(get_db), us
     if health.status.value in {"ERROR", "DEGRADED", "NEEDS_KEY", "LICENSE_REQUIRED"}:
         row.last_error = health.message
     db.commit()
-    return {"source": serialize_source(row), "check": {"status": health.status.value, "message": health.message, "details": health.details}}
+    return {"source": serialize_source(row, db, user.id), "check": {"status": health.status.value, "message": health.message, "details": health.details}}
 
 
 @router.get("/data-sources/{provider_id}/preview")

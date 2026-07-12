@@ -65,11 +65,16 @@ export function DataSourceTable({ initialSources, locale }: { initialSources: Da
             <Metric label={zh ? "错误次数" : "Errors"} value={String(source.errorCount ?? 0)} />
             <Metric label={zh ? "账号数量" : "Accounts"} value={source.id === "fintwit" ? String(source.accountCount ?? 0) : "-"} />
             <Metric label={zh ? "配置状态" : "Configuration"} value={source.configured ? (zh ? "已配置" : "Configured") : (zh ? "需要处理" : "Action required")} />
+            <Metric label={zh ? "数据新鲜度" : "Freshness"} value={source.sourceTimestamp ? new Date(source.sourceTimestamp).toLocaleString(locale) : "-"} />
+            <Metric label={zh ? "套餐权限" : "Entitlement"} value={source.entitled ? (zh ? "可用" : "Allowed") : (zh ? "需要升级" : "Upgrade required")} />
+            <Metric label={zh ? "再分发" : "Redistribution"} value={source.redistributionAllowed ? (zh ? "允许" : "Allowed") : (zh ? "受限" : "Restricted")} />
           </dl>
           <div className="space-y-2 border-t border-border-pg px-4 py-3 text-xs text-text-pg-muted">
             <p className="flex gap-2"><KeyRound className="mt-0.5 h-3.5 w-3.5 shrink-0" /><span>{source.licenseStatus || "-"}</span></p>
             <p>{zh ? "保留策略" : "Retention"}: {source.retentionPolicy || "-"}</p>
             {source.error ? <p className="text-status-warning" title={source.error}>{source.error}</p> : null}
+            {source.failureReason && source.failureReason !== source.error ? <p className="text-status-warning">{source.failureReason}</p> : null}
+            {source.isMock ? <p className="font-semibold text-status-warning">MOCK / DEMO</p> : null}
           </div>
           <div className="flex items-center gap-2 border-t border-border-pg p-3">
             <IconButton title={zh ? "手动同步" : "Sync now"} disabled={isBusy || !source.enabled} onClick={() => act(source.id, "sync")} icon={busy === `${source.id}:sync` ? Loader2 : RefreshCw} spin={busy === `${source.id}:sync`} />

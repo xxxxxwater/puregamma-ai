@@ -10,15 +10,22 @@ from apps.api.services.market_intelligence_service import (
     generate_shared_market_intelligence,
     latest_or_create_intelligence,
 )
+from apps.api.services.data_source_service import data_capability
 from packages.data.cache import market_cache
 from packages.data.base import MarketQuote, asset_type_for, is_equity
 from packages.data.equity_providers.equity_provider import equity_source_label
 from packages.data.public_market_provider import PublicMarketDataProvider
 from packages.risk.scoring import risk_score_for_quote
-from packages.database.models import User
+from packages.database.models import DataSource, User
 
 
 router = APIRouter(prefix="/market", tags=["market"])
+
+
+@router.get("/data-capabilities")
+def data_capabilities(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    rows = db.query(DataSource).order_by(DataSource.category, DataSource.name).all()
+    return {"capabilities": [data_capability(db, row, user.id) for row in rows]}
 
 
 @router.get("/snapshot")

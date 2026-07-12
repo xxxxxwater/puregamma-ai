@@ -989,18 +989,10 @@ class AgentToolRegistry:
         )
 
     def get_data_source_status(self) -> ToolResult:
+        from apps.api.services.data_source_service import data_capability
+
         rows = self.db.query(DataSource).order_by(DataSource.name).all()
-        data = [
-            {
-                "id": row.id,
-                "name": row.name,
-                "status": row.status,
-                "lastSuccessAt": _iso(row.last_success_at),
-                "items": row.item_count,
-                "error": row.last_error,
-            }
-            for row in rows
-        ]
+        data = [{"name": row.name, "items": row.item_count, **data_capability(self.db, row, self.user_id)} for row in rows]
         return ToolResult(
             "get_data_source_status",
             data,

@@ -64,3 +64,18 @@ def test_high_cost_source_requires_entitlement_contract(db):
     from packages.database.models import DataSource
     assert serialize_source(db.get(DataSource, "x-twitter"))["requiredPlan"] == "Max"
     assert serialize_source(db.get(DataSource, "bloomberg"))["requiredPlan"] == "Max"
+
+
+def test_data_capability_enforces_plan_and_reports_missing_freshness(db, normal_user):
+    from apps.api.services.data_source_service import data_capability
+    from packages.database.models import DataSource
+
+    rss = data_capability(db, db.get(DataSource, "rss"), normal_user.id)
+    x_twitter = data_capability(db, db.get(DataSource, "x-twitter"), normal_user.id)
+
+    assert rss["entitled"] is True
+    assert rss["stale"] is True
+    assert rss["failure_reason"] in {"no_successful_sync", "provider_disabled"}
+    assert x_twitter["entitled"] is False
+    assert x_twitter["failure_reason"] == "plan_required"
+    assert x_twitter["source_timestamp"] is None
