@@ -492,7 +492,7 @@ export function getDataSourcePreview(providerId: string) {
 export type AgentConversation = { id: string; title: string; summary?: string | null; status: string; created_at: string; updated_at: string; archived_at?: string | null };
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
 export type AgentAttachment = { name: string; content: string; mime: string };
-export type AgentContext = { data_sources: string[]; skills: string[]; custom_prompt: string; attachments: AgentAttachment[] };
+export type AgentContext = { data_sources: string[]; skills: string[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type RuntimeStrategy = { id: string; name: string; description: string; status: string; current_version: number; execution_mode: string; draft: { instruments: string[]; venues: string[]; timeframe: string; strategy_type: string; sentiment_sources: string[]; max_notional: number; leverage: number; max_daily_loss: number; max_drawdown: number }; latest_run?: RuntimeRun | null; created_at: string; updated_at: string };
@@ -538,9 +538,10 @@ export function getAgentQuota() {
 }
 
 export type AgentCapabilities = { plan: string; allowed_data_sources: string[]; agent_daily_runs: number; agent_concurrent_runs: number; queue_priority: number; credit_balance?: number };
+export type AgentModelOption = { id: string; display_name: string; description: string; provider: string; available: boolean; reason?: "plan_required" | "unavailable" | null; credit_cost?: number | null };
 
 export function getAgentCapabilities() {
-  return requestStrict<{ capabilities: AgentCapabilities; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
+  return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
 }
 
 export function cancelAgentRun(runId: string) {
@@ -559,10 +560,18 @@ export async function streamAgentMessage(
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ content, locale, data_sources: context?.data_sources || [], skills: context?.skills || [], custom_prompt: context?.custom_prompt || "", attachments: context?.attachments || [] }),
+    body: JSON.stringify({ content, locale, data_sources: context?.data_sources || [], skills: context?.skills || [], custom_prompt: context?.custom_prompt || "", attachments: context?.attachments || [], model: context?.model || "default" }),
     signal
   });
-  if (!response.ok || !response.body) throw new Error(await response.text() || `Agent request failed (${response.status})`);
+  if (!response.ok || !response.body) {
+    const raw = await response.text();
+    let message = raw || `Agent request failed (${response.status})`;
+    try {
+      const parsed = JSON.parse(raw) as { detail?: { message?: string } | string };
+      message = typeof parsed.detail === "string" ? parsed.detail : parsed.detail?.message || message;
+    } catch { /* Keep the server response when it is not JSON. */ }
+    throw new Error(message);
+  }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
   let buffer = "";

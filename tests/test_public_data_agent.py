@@ -77,7 +77,7 @@ def test_evm_rpc_health_and_snapshot(monkeypatch):
 
 def test_agent_conversation_stream_persists_usage(api_client, db, normal_user, monkeypatch):
     monkeypatch.setattr(agent_service, "get_settings", lambda: Settings(enable_mock_agent=True, llm_provider="mock", agent_model="mock-model"))
-    monkeypatch.setattr(agent_service, "get_llm_provider", lambda: MockLLMProvider())
+    monkeypatch.setattr(agent_service, "get_agent_llm_provider", lambda selected_model=None: MockLLMProvider())
     db.add(MarketQuoteRecord(symbol="BTCUSDT", base_asset="BTC", quote_asset="USDT", asset_type="spot", provider="binance", price=Decimal("100000"), change_24h_pct=Decimal("1.5"), volume_24h_base=Decimal("10"), volume_24h_quote=Decimal("1000000"), source_timestamp=datetime.now(timezone.utc), fetched_at=datetime.now(timezone.utc), provenance_json={"sourceUrl": "https://api.binance.com/api/v3/ticker/24hr", "isMock": False}))
     db.commit()
     created = api_client.post("/api/agent/conversations", json={"title": "BTC research"}, headers=auth_headers(normal_user))

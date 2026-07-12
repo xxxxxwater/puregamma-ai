@@ -5,7 +5,7 @@ import { FormEvent, useEffect, useRef, useState } from "react";
 import { Bot, CircleStop, Database, FilePlus2, Loader2, MessageSquarePlus, Paperclip, RefreshCw, Send, Settings2, Sparkles, Wrench, X } from "lucide-react";
 import { ReportMarkdown } from "@/components/puregamma";
 import { type Locale, withLocale } from "@/i18n/routing";
-import { AgentAttachment, AgentCapabilities, AgentConversation, AgentMessage, AgentSource, cancelAgentRun, createAgentConversation, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getMe, streamAgentMessage } from "@/lib/api";
+import { AgentAttachment, AgentCapabilities, AgentConversation, AgentMessage, AgentModelOption, AgentSource, cancelAgentRun, createAgentConversation, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getMe, streamAgentMessage } from "@/lib/api";
 
 const DATA_SOURCES = ["market", "rss", "fintwit", "x-twitter", "bloomberg", "portfolio", "options"];
 const SKILLS = ["market_research", "news_research", "portfolio_review", "options_analysis", "source_check"];
@@ -24,6 +24,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [toolResults, setToolResults] = useState<Array<{ tool: string; data: Record<string, unknown> }>>([]);
   const [quota, setQuota] = useState<{ remaining: number | null; limit: number | null; credit_balance: number } | null>(null);
   const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
+  const [models, setModels] = useState<AgentModelOption[]>([]);
+  const [selectedModel, setSelectedModel] = useState("default");
   const [dataSources, setDataSources] = useState<string[]>(["market", "rss"]);
   const [skills, setSkills] = useState<string[]>(["market_research", "news_research"]);
   const [customPrompt, setCustomPrompt] = useState("");
@@ -54,6 +56,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         if (!active) return;
         setQuota(access.quota);
         setCapabilities(access.capabilities);
+        setModels(access.models);
         const target = initialConversationId || rows[0]?.id;
         if (target) await openConversation(target);
       })
@@ -98,7 +101,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     followRef.current = true;
     const id = await ensureConversation();
     const now = new Date().toISOString();
-    const context = { data_sources: dataSources, skills, custom_prompt: customPrompt, attachments };
+    const context = { data_sources: dataSources, skills, custom_prompt: customPrompt, attachments, model: selectedModel };
     setMessages((current) => [...current, { id: `local-${Date.now()}`, conversation_id: id, role: "user", content, status: "completed", input_tokens: 0, output_tokens: 0, created_at: now, context, sources: [] }]);
     const controller = new AbortController();
     controllerRef.current = controller;
@@ -108,7 +111,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         if (eventName === "run.started") {
           activeRunRef.current = String(data.runId || "");
           assistantId = String(data.messageId || `assistant-${Date.now()}`);
-          setMessages((current) => [...current, { id: assistantId, conversation_id: id, role: "assistant", content: "", status: "streaming", input_tokens: 0, output_tokens: 0, created_at: new Date().toISOString(), sources: [] }]);
+          setMessages((current) => [...current, { id: assistantId, conversation_id: id, role: "assistant", content: "", status: "streaming", model: String(data.model || selectedModel), input_tokens: 0, output_tokens: 0, created_at: new Date().toISOString(), sources: [] }]);
         } else if (eventName === "message.delta") {
           setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, content: `${message.content}${String(data.delta || "")}` } : message));
         } else if (eventName === "tool.started") {
@@ -120,7 +123,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           const source: AgentSource = { provider: String(data.provider), title: String(data.title), url: data.url ? String(data.url) : null, published_at: data.publishedAt ? String(data.publishedAt) : null, source_timestamp: data.sourceTimestamp ? String(data.sourceTimestamp) : null, fetched_at: String(data.fetchedAt), citation_index: Number(data.index) };
           setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, sources: [...message.sources, source] } : message));
         } else if (eventName === "message.completed") {
-          setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, status: "completed", input_tokens: Number(data.inputTokens || 0), output_tokens: Number(data.outputTokens || 0) } : message));
+          setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, status: "completed", model: String(data.model || message.model || ""), input_tokens: Number(data.inputTokens || 0), output_tokens: Number(data.outputTokens || 0) } : message));
         } else if (eventName === "run.failed") {
           setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, status: "failed", error_code: String(data.code), error_message: String(data.message) } : message));
           setError(String(data.message || (zh ? "Agent 运行失败" : "Agent run failed")));
@@ -161,7 +164,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   };
 
   const toggle = (value: string, current: string[], update: (next: string[]) => void) => update(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
-  const estimatedCredits = skills.includes("deep_research") ? 15 : dataSources.some((item) => ["x-twitter", "bloomberg"].includes(item)) ? 5 : dataSources.includes("portfolio") || skills.includes("portfolio_review") ? 5 : dataSources.length ? 3 : 2;
+  const selectedModelOption = models.find((model) => model.id === selectedModel);
+  const estimatedCredits = selectedModel !== "default" ? 20 : skills.includes("deep_research") ? 15 : dataSources.some((item) => ["x-twitter", "bloomberg"].includes(item)) ? 5 : dataSources.includes("portfolio") || skills.includes("portfolio_review") ? 5 : dataSources.length ? 3 : 2;
 
   return (
     <div className="grid h-[calc(100dvh-7rem)] min-h-[620px] overflow-hidden border border-border-pg bg-bg-panel lg:grid-cols-[244px_minmax(0,1fr)] xl:grid-cols-[244px_minmax(0,1fr)_286px]">
@@ -181,7 +185,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           {!loading && messages.length === 0 ? <div className="mx-auto grid min-h-[50vh] max-w-xl place-items-center text-center"><div><Bot className="mx-auto h-7 w-7 text-text-pg-muted" /><h1 className="mt-4 text-xl font-semibold">{zh ? "寻找未来一周的Beta、Alpha 与 Long Gamma AI" : "Find next week's Beta, Alpha & Long Gamma AI"}</h1><p className="mt-2 text-sm leading-6 text-text-pg-muted">{zh ? "开始对话" : "Start Chat"}</p></div></div> : null}
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[85%] border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "max-w-full border-l border-border-pg pl-4"}>
-              {message.role === "assistant" ? <ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5">{item}</span>)}{message.context.skills?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5">{item.replaceAll("_", " ")}</span>)}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5">{file.name}</span>)}</div> : null}</>}
+              {message.role === "assistant" ? <><div className="mb-2 text-[10px] uppercase tracking-wide text-text-pg-dim">{message.model === "gpt-5.6-luna" ? "GPT-5.6 Luna · OpenAI" : (message.model || (zh ? "默认模型" : "Default model"))}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5">{item}</span>)}{message.context.skills?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5">{item.replaceAll("_", " ")}</span>)}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5">{file.name}</span>)}</div> : null}</>}
               {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative"><p>{message.error_message}</p><button type="button" onClick={() => { setInput(messages.find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.status === "streaming" && message.sources.length ? <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] text-text-pg-dim"><span className="font-semibold">{zh ? "来源" : "Sources"}:</span>{message.sources.map((source) => <span key={`${message.id}-${source.citation_index}`} className="truncate border border-border-pg px-1.5 py-0.5 max-w-[160px]">[{source.citation_index}] {source.title}</span>)}</div> : null}
             </div>)}
@@ -190,6 +194,12 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div>
         </div>
         <div className="shrink-0 border-t border-border-pg bg-bg-app p-3 md:p-4">
+          <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-3">
+            <label htmlFor="agent-model" className="text-[11px] text-text-pg-muted"><span className="block">{zh ? "本轮模型" : "Model for this turn"}</span>{selectedModelOption?.id !== "default" ? <span className="mt-0.5 block text-[10px] text-text-pg-dim">{zh ? "高质量、较轻度使用的深度市场研究模型" : selectedModelOption?.description}</span> : null}</label>
+            <select id="agent-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={busy} className="border border-border-pg bg-bg-panel px-2 py-1 text-xs outline-none focus:border-border-pg-strong disabled:opacity-50">
+              {models.map((model) => <option key={model.id} value={model.id} disabled={!model.available}>{model.display_name}{model.id === "default" ? "" : model.available ? ` · ${model.credit_cost} Credits` : model.reason === "plan_required" ? (zh ? " · 需要 Max/Enterprise" : " · Max/Enterprise required") : (zh ? " · 当前不可用" : " · unavailable")}</option>)}
+            </select>
+          </div>
           <details className="mx-auto mb-3 max-w-3xl border border-border-pg bg-bg-panel xl:hidden"><summary className="flex cursor-pointer items-center gap-2 p-3 text-xs font-medium"><Settings2 className="h-4 w-4" />{zh ? "本轮上下文" : "Turn context"}<span className="ml-auto text-text-pg-dim">{dataSources.length + skills.length + attachments.length}</span></summary><div className="border-t border-border-pg p-3"><ContextControls locale={locale} dataSources={dataSources} skills={skills} customPrompt={customPrompt} attachments={attachments} allowedSources={capabilities?.allowed_data_sources || []} onToggleSource={(value) => toggle(value, dataSources, setDataSources)} onToggleSkill={(value) => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={(name) => setAttachments((current) => current.filter((file) => file.name !== name))} /></div></details>
           <form onSubmit={send} className="mx-auto flex max-w-3xl items-end gap-2">
             <input ref={fileRef} type="file" multiple accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json" className="hidden" onChange={(event) => void addFiles(event.target.files)} />

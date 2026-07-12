@@ -10,14 +10,12 @@ import subprocess
 import time
 from datetime import datetime, timedelta, timezone
 import re
+from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from pydantic import BaseModel
 
 from config import settings
-
-
-app = FastAPI(title="PureGamma AI iMessage Relay", version="0.1.0")
 
 
 class SendRequest(BaseModel):
@@ -52,6 +50,17 @@ def init_db() -> None:
         for name, ddl in (("attempt_count", "INTEGER NOT NULL DEFAULT 0"), ("last_attempt_at", "TEXT"), ("next_retry_at", "TEXT"), ("last_error", "TEXT")):
             if name not in columns:
                 conn.execute(f"ALTER TABLE deliveries ADD COLUMN {name} {ddl}")
+
+
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    if not settings.relay_secret:
+        raise RuntimeError("IMESSAGE_RELAY_SECRET is required")
+    init_db()
+    yield
+
+
+app = FastAPI(title="PureGamma AI iMessage Relay", version="0.1.0", lifespan=lifespan)
 
 
 def compute_hmac(secret: str, timestamp: str, body: bytes) -> str:
@@ -132,13 +141,6 @@ def send_via_messages_app(recipient: str, message: str) -> dict:
     if completed.returncode != 0:
         return {"ok": False, "status": "failed", "stderr": completed.stderr.strip()}
     return {"ok": True, "status": "sent", "stdout": completed.stdout.strip()}
-
-
-@app.on_event("startup")
-def startup() -> None:
-    if not settings.relay_secret:
-        raise RuntimeError("IMESSAGE_RELAY_SECRET is required")
-    init_db()
 
 
 @app.get("/health")

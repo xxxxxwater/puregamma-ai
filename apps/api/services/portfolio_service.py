@@ -8,6 +8,7 @@ from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
+from apps.api.services.entitlement_service import get_user_entitlement
 from packages.database.models import AccountSnapshot, ExchangeConnection, PortfolioAutopilotReview, PositionSnapshot, TradingAccount, User, UserPreference, utcnow
 
 
@@ -43,6 +44,10 @@ def _account(db: Session, user: User, venue: str, name: str, metadata: dict, tok
             account = candidate
             break
     if not account:
+        entitlement = get_user_entitlement(db, user.id)
+        account_count = db.query(TradingAccount).filter_by(user_id=user.id, account_type="READ_ONLY", status="ACTIVE").count()
+        if entitlement["portfolio_access"] != "standard" or account_count >= entitlement["max_portfolios"]:
+            raise PermissionError("PORTFOLIO_LIMIT_REACHED")
         account = TradingAccount(user_id=user.id, name=name, venue=venue, account_type="READ_ONLY", base_currency="USD", status="ACTIVE", permissions_json={"read_positions": True, "trade": False, "withdraw": False, "transfer": False})
         db.add(account)
         db.flush()

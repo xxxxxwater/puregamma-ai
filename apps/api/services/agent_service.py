@@ -15,7 +15,7 @@ from apps.api.services.credit_service import consume_credits, refund_credits
 from apps.api.services.entitlement_service import get_user_entitlement
 from packages.billing.credits import cost_for
 from packages.agents.chat.tools import AgentToolRegistry, ToolSource
-from packages.agents.llm.provider_factory import get_llm_provider
+from packages.agents.llm.provider_factory import get_agent_llm_provider
 from packages.agents.llm.schemas import ChatMessage
 from packages.database.models import AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentToolCall, UsageEvent, User, utcnow
 
@@ -30,6 +30,18 @@ class AgentLimitError(ValueError):
 
 
 class AgentDataSourceDeniedError(RuntimeError):
+    pass
+
+
+class AgentModelInvalidError(ValueError):
+    pass
+
+
+class AgentModelPlanError(PermissionError):
+    pass
+
+
+class AgentModelUnavailableError(RuntimeError):
     pass
 
 SYSTEM_PROMPT = """You are PureGamma, a digital-asset research assistant powered by DeepSeek and NautilusTrader.
@@ -105,10 +117,13 @@ def _sanitize_context(context: dict | None) -> dict:
         "skills": [value for value in context.get("skills", []) if value in ALLOWED_SKILLS],
         "custom_prompt": str(context.get("custom_prompt", ""))[:2_000],
         "attachments": attachments,
+        "model": str(context.get("model") or "default")[:120],
     }
 
 
 def _metering_action(context: dict) -> str:
+    if context.get("model", "default") != "default":
+        return "agent_luna_research"
     sources = set(context.get("data_sources", []))
     skills = set(context.get("skills", []))
     if "deep_research" in skills:
@@ -122,6 +137,38 @@ def _metering_action(context: dict) -> str:
     if "market" in sources or "market_research" in skills:
         return "agent_market_research"
     return "agent_chat_basic"
+
+
+def _resolve_agent_model(db: Session, user: User, selected_model: str | None) -> tuple[str, str]:
+    settings = get_settings()
+    selection = selected_model or "default"
+    if selection == "default":
+        model = settings.agent_model or settings.llm_model or settings.deepseek_model or "not-configured"
+        return selection, model
+    if selection != settings.openai_luna_model:
+        raise AgentModelInvalidError("AGENT_MODEL_INVALID")
+    plan = get_user_entitlement(db, user.id)["plan"]
+    if plan.lower() not in {item.lower() for item in settings.openai_luna_allowed_plans}:
+        raise AgentModelPlanError("AGENT_MODEL_PLAN_REQUIRED")
+    if not settings.openai_luna_enabled or not settings.openai_api_key:
+        raise AgentModelUnavailableError("AGENT_MODEL_UNAVAILABLE")
+    return selection, settings.openai_luna_model
+
+
+def agent_model_options(db: Session, user: User) -> list[dict]:
+    settings = get_settings()
+    plan = get_user_entitlement(db, user.id)["plan"]
+    plan_allowed = plan.lower() in {item.lower() for item in settings.openai_luna_allowed_plans}
+    configured = settings.openai_luna_enabled and bool(settings.openai_api_key)
+    reason = None
+    if not plan_allowed:
+        reason = "plan_required"
+    elif not configured:
+        reason = "unavailable"
+    return [
+        {"id": "default", "display_name": "Default model", "description": "Uses the existing Agent default configuration.", "provider": "default", "available": True, "reason": None, "credit_cost": None},
+        {"id": settings.openai_luna_model, "display_name": "GPT-5.6 Luna", "description": "High-quality deep market research for selective use.", "provider": "openai", "available": plan_allowed and configured, "reason": reason, "credit_cost": cost_for("agent_luna_research")},
+    ]
 
 
 def _entitled_context(db: Session, user: User, context: dict) -> dict:
@@ -140,17 +187,18 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
     content = content.strip()
     if not content or len(content) > 12_000:
         raise ValueError("Message must contain 1 to 12000 characters")
+    recover_stale_runs(db)
     if db.bind and db.bind.dialect.name == "postgresql":
         db.execute(text("SELECT pg_advisory_xact_lock(73002001)"))
     user = db.query(User).filter(User.id == user.id).with_for_update().one()
     assert_quota(db, user)
-    settings = get_settings()
     clean_context = _entitled_context(db, user, _sanitize_context(context))
+    selection, model = _resolve_agent_model(db, user, clean_context.get("model"))
+    clean_context["model"] = selection
     action = _metering_action(clean_context)
     credit_cost = cost_for(action)
     run_id = str(uuid.uuid4())
     consume_credits(db, user.id, action, credit_cost, {"run_id": run_id}, idempotency_key=f"agent-charge:{run_id}")
-    model = settings.agent_model or settings.llm_model or settings.deepseek_model or "not-configured"
     user_message = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="user", content=content, status="completed", context_json=clean_context)
     assistant = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="assistant", content="", status="pending", model=model)
     db.add_all([user_message, assistant])
@@ -199,7 +247,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
     run.status = "running"
     assistant.status = "streaming"
     db.commit()
-    yield _sse("run.started", {"runId": run.id, "messageId": assistant.id, "traceId": run.trace_id})
+    yield _sse("run.started", {"runId": run.id, "messageId": assistant.id, "traceId": run.trace_id, "model": run.model})
     started = time.perf_counter()
     try:
         registry = AgentToolRegistry(db, user.id, conversation.id)
@@ -244,7 +292,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         db.commit()
 
         settings = get_settings()
-        provider = get_llm_provider()
+        provider = get_agent_llm_provider(run_context.get("model"))
         if provider.provider_name == "mock" and not settings.enable_mock_agent:
             raise RuntimeError("MODEL_NOT_CONFIGURED: configure AGENT_PROVIDER and its server-side API key")
         from apps.api.services.portfolio_service import portfolio_context
@@ -287,6 +335,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             yield _sse("message.delta", {"messageId": assistant.id, "delta": delta})
         assistant.status = "completed"
         assistant.model = response_model
+        run.model = response_model
         assistant.input_tokens = prompt_tokens
         assistant.output_tokens = completion_tokens
         assistant.latency_ms = int((time.perf_counter() - started) * 1000)
@@ -298,7 +347,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             db.add(UsageEvent(user_id=user.id, event_type="agent.chat.run", quantity=1, input_tokens=prompt_tokens, output_tokens=completion_tokens, idempotency_key=f"agent-run:{run.id}", metadata_json={"model": response_model, "tools": run.tool_calls_count}))
             run.usage_recorded = True
         db.commit()
-        yield _sse("message.completed", {"messageId": assistant.id, "runId": run.id, "inputTokens": prompt_tokens, "outputTokens": completion_tokens})
+        yield _sse("message.completed", {"messageId": assistant.id, "runId": run.id, "model": response_model, "inputTokens": prompt_tokens, "outputTokens": completion_tokens})
     except GeneratorExit:
         run.status = "interrupted"
         assistant.status = "interrupted"
@@ -308,8 +357,9 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
     except Exception as exc:
         logger.exception("Agent run failed", extra={"run_id": run.id, "user_id": user.id})
         raw_message = str(exc)
-        code = "MODEL_NOT_CONFIGURED" if raw_message.startswith("MODEL_NOT_CONFIGURED") else "AGENT_RUN_FAILED"
-        message = "The Agent could not complete this run. Credits were refunded."
+        selected_luna = (user_message.context_json or {}).get("model", "default") != "default"
+        code = "MODEL_NOT_CONFIGURED" if raw_message.startswith("MODEL_NOT_CONFIGURED") else "AGENT_MODEL_UNAVAILABLE" if selected_luna else "AGENT_RUN_FAILED"
+        message = "The selected Agent model is currently unavailable. Credits were refunded." if selected_luna else "The Agent could not complete this run. Credits were refunded."
         run.status = "failed"
         run.error_message = message
         run.completed_at = utcnow()

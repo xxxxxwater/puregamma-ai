@@ -55,8 +55,11 @@ def get_subscription(db: Session, user_id: str) -> dict:
         raise ValueError("User not found")
     sub = current_subscription(db, user_id)
     settings = get_settings()
+    entitlement = get_user_entitlement(db, user_id)
     return {
         "plan": user.plan,
+        "subscribed_plan": entitlement["subscribed_plan"],
+        "effective_plan": entitlement["effective_plan"],
         "subscription_status": sub.status if sub else "inactive",
         "current_period_end": sub.current_period_end.isoformat() if sub and sub.current_period_end else None,
         "cancel_at_period_end": bool(sub.cancel_at_period_end) if sub else False,
@@ -64,7 +67,7 @@ def get_subscription(db: Session, user_id: str) -> dict:
         "credit_balance": user.credit_balance,
         "billing_mode": settings.billing_mode,
         "account": {"auth_provider": user.auth_provider, "avatar_url": user.avatar_url, "email": user.email},
-        "entitlement": get_user_entitlement(db, user_id),
+        "entitlement": entitlement,
         "checkout_mode": settings.billing_checkout_mode,
         "payment_links": {
             plan: bool(link)

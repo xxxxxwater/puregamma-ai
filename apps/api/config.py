@@ -62,6 +62,19 @@ class Settings:
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
     openai_base_url: str = os.getenv("OPENAI_BASE_URL", "")
     openai_model: str = os.getenv("OPENAI_MODEL", os.getenv("LLM_MODEL", ""))
+    openai_luna_enabled: bool = (
+        os.getenv("OPENAI_LUNA_ENABLED", "false").lower() == "true"
+    )
+    openai_luna_model: str = os.getenv("OPENAI_LUNA_MODEL", "gpt-5.6-luna")
+    openai_luna_allowed_plans: tuple[str, ...] = tuple(
+        _csv(os.getenv("OPENAI_LUNA_ALLOWED_PLANS", "Max,Enterprise"))
+    )
+    openai_luna_timeout_seconds: int = int(
+        os.getenv("OPENAI_LUNA_TIMEOUT_SECONDS", "90") or 90
+    )
+    openai_luna_reasoning_effort: str = os.getenv(
+        "OPENAI_LUNA_REASONING_EFFORT", "low"
+    )
     llm_model: str = os.getenv("LLM_MODEL", os.getenv("OPENAI_MODEL", ""))
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
@@ -158,6 +171,8 @@ class Settings:
     imessage_rate_limit_per_user_per_day: int = int(
         os.getenv("IMESSAGE_RATE_LIMIT_PER_USER_PER_DAY", "20") or 20
     )
+    imessage_verification_per_user_per_hour: int = int(os.getenv("IMESSAGE_VERIFICATION_PER_USER_PER_HOUR", "3") or 3)
+    imessage_verification_per_recipient_per_day: int = int(os.getenv("IMESSAGE_VERIFICATION_PER_RECIPIENT_PER_DAY", "5") or 5)
 
     market_data_mode: str = os.getenv("MARKET_DATA_MODE", "auto")
     market_snapshot_cache_ttl_seconds: int = int(
@@ -340,6 +355,15 @@ def validate_production_settings(settings: Settings) -> None:
             errors.append("STRIPE_SECRET_KEY is required when BILLING_MODE=stripe")
         if not settings.stripe_webhook_secret:
             errors.append("STRIPE_WEBHOOK_SECRET is required when BILLING_MODE=stripe")
+    if settings.openai_luna_enabled:
+        if not settings.openai_api_key:
+            errors.append("OPENAI_API_KEY is required when OPENAI_LUNA_ENABLED=true")
+        if not settings.openai_luna_model:
+            errors.append("OPENAI_LUNA_MODEL is required when OPENAI_LUNA_ENABLED=true")
+        if not settings.openai_luna_allowed_plans:
+            errors.append("OPENAI_LUNA_ALLOWED_PLANS must contain at least one plan")
+        if settings.openai_luna_timeout_seconds <= 0:
+            errors.append("OPENAI_LUNA_TIMEOUT_SECONDS must be positive")
     if settings.nautilus_runtime_secret in {"", "dev-runtime-secret"} or len(settings.nautilus_runtime_secret) < 24:
         errors.append("NAUTILUS_RUNTIME_SECRET must be a strong non-default value")
     if settings.portfolio_token_encryption_key == "" and any(

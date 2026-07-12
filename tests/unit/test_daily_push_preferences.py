@@ -1,6 +1,6 @@
 from datetime import datetime, timedelta, timezone
 
-from apps.api.services.daily_push_service import next_delivery
+from apps.api.services.daily_push_service import next_delivery, render_daily_brief_delivery
 from packages.database.models import DailyBriefPreference, NotificationDelivery, Report, utcnow
 from packages.workers import tasks
 from tests.conftest import auth_headers
@@ -54,3 +54,20 @@ def test_due_daily_push_reuses_report_and_is_idempotent(monkeypatch, db, pro_use
     assert second["due"] == 0
     assert db.query(Report).filter_by(user_id=user_id, report_type="daily_market_report").count() == 1
     assert db.query(NotificationDelivery).filter_by(user_id=user_id, channel="email").count() == 1
+
+
+def test_daily_push_content_controls_change_delivery_body(db, pro_user):
+    pro_user.preference.include_portfolio_in_ai = False
+    preference = DailyBriefPreference(user_id=pro_user.id, enabled=True, timezone="UTC", local_time="08:30", channel="email", locale="en", include_market=False, include_portfolio=False, include_signals=False, include_risk=True, include_sentiment=False, max_length=500)
+    db.add(preference)
+    db.commit()
+    report = tasks.create_daily_report(db, pro_user.id, "en")
+
+    message = render_daily_brief_delivery(db, preference, report)
+
+    assert "\nMarket\n" not in message
+    assert "\nPortfolio\n" not in message
+    assert "\nSignals\n" not in message
+    assert "\nRisk\n" in message
+    assert message.endswith("Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.")
+    assert len(message) <= 500

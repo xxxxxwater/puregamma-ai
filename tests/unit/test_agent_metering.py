@@ -1,6 +1,9 @@
 from apps.api.services import agent_service
+from apps.api.services.billing_service import mock_upgrade, process_stripe_event
 from apps.api.services.credit_service import refund_credits
 from packages.database.models import AgentMessage, AgentRun, CreditLedger
+from packages.agents.chat.tools import AgentToolRegistry
+from tests.conftest import stripe_event
 
 
 def test_agent_run_consumes_credits_and_filters_unentitled_sources(db, normal_user):
@@ -60,3 +63,28 @@ def test_agent_concurrency_limit_uses_plan_capability(db, normal_user):
         assert str(exc) == "AGENT_CONCURRENT_LIMIT_REACHED"
     else:
         raise AssertionError("Free plan concurrent Agent limit should be enforced")
+
+
+def test_agent_query_text_cannot_bypass_source_entitlement(db, normal_user):
+    registry = AgentToolRegistry(db, normal_user.id)
+
+    calls = registry.plan("Show me the latest Bloomberg news about BTC", data_sources=[])
+    document_call = next(arguments for name, arguments in calls if name == "search_source_documents")
+
+    assert document_call["providers"] == []
+    try:
+        registry.call("get_chain_metrics", {})
+    except PermissionError as exc:
+        assert str(exc) == "TOOL_ENTITLEMENT_DENIED"
+    else:
+        raise AssertionError("Free users must not access on-chain tools")
+
+
+def test_past_due_max_registry_uses_free_sources(db, demo_user):
+    mock_upgrade(db, demo_user.id, "Max")
+    event, raw = stripe_event("evt-agent-past-due", "invoice.payment_failed", {"customer": demo_user.stripe_customer_id})
+    process_stripe_event(db, event, raw)
+
+    registry = AgentToolRegistry(db, demo_user.id)
+
+    assert registry.allowed_data_sources == {"market", "rss"}

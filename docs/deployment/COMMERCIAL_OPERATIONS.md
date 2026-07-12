@@ -41,6 +41,7 @@ verification codes, or Relay secrets.
 - Production uses `BILLING_MODE=stripe`, `ENABLE_MOCK_AGENT=false`, and no
   market-data Mock fallback.
 - Paid capabilities are enforced by the API, not only hidden in the Web app.
+- Subscription recovery uses `subscribed_plan` for billing and `effective_plan` for every execution decision.
 - Daily reports and deliveries are idempotent per user/date/channel.
 - Failed Agent and notification runs use idempotent refunds.
 - iMessage requires Max/Enterprise entitlement, E.164 verification, and a

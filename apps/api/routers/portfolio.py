@@ -110,6 +110,8 @@ def exchange_plaid(payload: PlaidExchangeRequest, db: Session = Depends(get_db),
         account = connect_plaid(db, user, payload.public_token, payload.institution_name)
         sync_account(db, user, account)
         return portfolio_view(db, user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -122,6 +124,8 @@ def add_hyperliquid(payload: HyperliquidRequest, db: Session = Depends(get_db), 
         return portfolio_view(db, user)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -147,6 +151,8 @@ def ibkr_exchange(code: str, state: str, db: Session = Depends(get_db), user: Us
         account = connect_ibkr_token(db, user, response.json())
         sync_account(db, user, account)
         return portfolio_view(db, user)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

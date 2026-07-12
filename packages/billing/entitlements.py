@@ -4,35 +4,49 @@ from packages.billing.credits import HIGH_COST_ACTIONS
 from packages.billing.plans import get_plan
 
 
+TERMINATED_STATUSES = {"unpaid", "incomplete_expired", "deleted", "canceled", "inactive"}
+RESTRICTED_STATUSES = {"past_due", *TERMINATED_STATUSES}
+
+
 def entitlement_for_plan(plan_name: str, subscription_status: str | None = None) -> dict:
-    plan = get_plan(plan_name)
-    restricted = subscription_status in {"past_due", "unpaid", "incomplete_expired", "deleted", "canceled"}
+    subscribed = get_plan(plan_name)
+    restricted = subscription_status in RESTRICTED_STATUSES
+    effective = get_plan("Free") if restricted else subscribed
+    restricted_reason = None
+    if subscription_status == "past_due":
+        restricted_reason = "payment_failed"
+    elif restricted:
+        restricted_reason = "subscription_restricted"
     return {
-        "plan": plan.name,
-        "monthly_credits": plan.monthly_credits,
-        "agent_daily_runs": plan.agent_daily_runs,
-        "agent_concurrent_runs": plan.agent_concurrent_runs,
-        "max_portfolios": plan.max_portfolios,
-        "max_daily_reports": plan.max_daily_reports,
-        "max_alerts": plan.max_alerts_per_month,
-        "max_alerts_per_month": plan.max_alerts_per_month,
-        "allowed_data_sources": list(plan.allowed_data_sources),
-        "notification_channels": list(plan.notification_channels),
-        "backtest_tier": plan.backtest_tier,
-        "monitoring_tier": plan.monitoring_tier,
-        "queue_priority": plan.queue_priority,
-        "private_playbooks": plan.private_playbooks and not restricted,
-        "high_cost_tasks": plan.high_cost_enabled and not restricted,
-        "imessage": plan.imessage_enabled and not restricted,
-        "imessage_enabled": plan.imessage_enabled and not restricted,
-        "restricted_reason": ("payment_failed" if subscription_status == "past_due" else "subscription_restricted") if restricted else None,
+        "plan": effective.name,
+        "subscribed_plan": subscribed.name,
+        "effective_plan": effective.name,
+        "subscription_status": subscription_status,
+        "monthly_credits": effective.monthly_credits,
+        "agent_daily_runs": effective.agent_daily_runs,
+        "agent_concurrent_runs": effective.agent_concurrent_runs,
+        "max_portfolios": effective.max_portfolios,
+        "portfolio_access": "read_only" if restricted else "standard",
+        "max_daily_reports": effective.max_daily_reports,
+        "max_alerts": effective.max_alerts_per_month,
+        "max_alerts_per_month": effective.max_alerts_per_month,
+        "allowed_data_sources": list(effective.allowed_data_sources),
+        "notification_channels": list(effective.notification_channels),
+        "backtest_tier": effective.backtest_tier,
+        "monitoring_tier": effective.monitoring_tier,
+        "queue_priority": effective.queue_priority,
+        "private_playbooks": effective.private_playbooks,
+        "high_cost_tasks": effective.high_cost_enabled,
+        "imessage": effective.imessage_enabled,
+        "imessage_enabled": effective.imessage_enabled,
+        "restricted_reason": restricted_reason,
     }
 
 
 def can_run_action(plan_name: str, action: str, subscription_status: str | None = None) -> bool:
     entitlement = entitlement_for_plan(plan_name, subscription_status)
-    if subscription_status in {"past_due", "unpaid", "incomplete_expired", "deleted", "canceled"}:
-        return action not in HIGH_COST_ACTIONS and action == "email_alert"
+    if subscription_status == "past_due" and action == "daily_market_report":
+        return False
     channel_actions = {
         "email_alert": "email",
         "telegram_alert": "telegram",

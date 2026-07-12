@@ -57,7 +57,7 @@ PLANS: dict[str, Plan] = {
         max_alerts_per_month=1000,
         allowed_data_sources=("market", "rss", "fintwit", "portfolio", "options", "x", "x-twitter", "onchain", "coinglass", "glassnode"),
         notification_channels=("telegram", "slack", "email", "imessage"),
-        backtest_tier="advanced", monitoring_tier="high_frequency", queue_priority=10, private_playbooks=True, imessage_enabled=True,
+        backtest_tier="advanced", monitoring_tier="high_frequency", queue_priority=0, private_playbooks=True, imessage_enabled=True,
         high_cost_enabled=True,
     ),
     "Enterprise": Plan(
@@ -69,7 +69,7 @@ PLANS: dict[str, Plan] = {
         max_alerts_per_month=10000,
         allowed_data_sources=("all",),
         notification_channels=("telegram", "slack", "email", "imessage"),
-        backtest_tier="advanced", monitoring_tier="custom", queue_priority=20, private_playbooks=True, imessage_enabled=True,
+        backtest_tier="advanced", monitoring_tier="custom", queue_priority=0, private_playbooks=True, imessage_enabled=True,
         high_cost_enabled=True,
     ),
 }

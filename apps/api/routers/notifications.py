@@ -8,7 +8,7 @@ from apps.api.dependencies import get_current_user, get_db
 from apps.api.i18n import resolve_locale
 from apps.api.services.notification_service import send_notification, serialize_delivery
 from apps.api.services.daily_push_service import delivery_history, get_or_create_preference, serialize_preference, update_preference
-from apps.api.services.imessage_verification_service import confirm_verification, request_verification
+from apps.api.services.imessage_verification_service import VerificationRateLimitError, confirm_verification, request_verification
 from packages.database.models import User, utcnow
 
 
@@ -54,6 +54,8 @@ def request_imessage_verification(payload: IMessageVerifyRequest, db: Session = 
         raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail={"code": str(exc)}) from exc
+    except VerificationRateLimitError as exc:
+        raise HTTPException(status_code=429, detail={"code": str(exc)}, headers={"Retry-After": "3600"}) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail={"code": str(exc)}) from exc
 

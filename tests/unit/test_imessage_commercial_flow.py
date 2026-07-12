@@ -1,6 +1,8 @@
 from datetime import timedelta
 
 from apps.api.services.billing_service import mock_upgrade
+from apps.api.config import Settings
+from apps.api.services import imessage_verification_service
 from apps.api.services.notification_service import send_notification
 from packages.database.models import NotificationDelivery, utcnow
 from packages.notifications.base import NotificationResult
@@ -41,3 +43,17 @@ def test_retryable_notification_can_retry_same_idempotency_key(monkeypatch, db, 
     assert second.attempt_count == 2
     assert max_user.credit_balance == before - 3
     assert db.query(NotificationDelivery).filter_by(idempotency_key="retry-imessage").count() == 1
+
+
+def test_imessage_verification_request_is_rate_limited(api_client, db, demo_user, monkeypatch):
+    mock_upgrade(db, demo_user.id, "Max")
+    settings = Settings(imessage_verification_per_user_per_hour=1, imessage_verification_per_recipient_per_day=1)
+    monkeypatch.setattr(imessage_verification_service, "get_settings", lambda: settings)
+    headers = auth_headers(demo_user)
+
+    first = api_client.post("/notifications/imessage/verify/request", json={"recipient": "+15555550100"}, headers=headers)
+    second = api_client.post("/notifications/imessage/verify/request", json={"recipient": "+15555550101"}, headers=headers)
+
+    assert first.status_code == 200
+    assert second.status_code == 429
+    assert second.json()["detail"]["code"] == "IMESSAGE_VERIFICATION_RATE_LIMITED"

@@ -6,7 +6,9 @@ from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 from sqlalchemy.orm import Session
 
 from apps.api.services.entitlement_service import get_user_entitlement
-from packages.database.models import DailyBriefPreference, NotificationDelivery, User, UserPreference
+from apps.api.services.daily_brief_service import gather_context
+from packages.database.models import DailyBriefPreference, NormalizedDocument, NotificationDelivery, Report, Signal, User, UserPreference
+from packages.reports.templates import disclaimer_for
 
 
 CHANNELS = {"email", "telegram", "imessage"}
@@ -85,3 +87,46 @@ def delivery_history(db: Session, user_id: str, channel: str | None = None) -> l
     if channel:
         query = query.filter(NotificationDelivery.channel == channel)
     return query.order_by(NotificationDelivery.created_at.desc()).limit(100).all()
+
+
+def render_daily_brief_delivery(db: Session, preference: DailyBriefPreference, report: Report) -> str:
+    context = gather_context(db, preference.user_id, preference.locale)
+    zh = preference.locale == "zh"
+    lines = ["PureGamma AI 每日简报" if zh else "PureGamma AI Daily Brief"]
+    if preference.include_market:
+        lines.extend(["", "市场" if zh else "Market", f"{context['market_regime']} · {context['market_data_as_of']}"])
+        if context["quotes"]:
+            lines.append(" · ".join(f"{item['symbol']} ${item['price']:,.2f}" for item in context["quotes"][:5]))
+    if preference.include_portfolio:
+        portfolio = context["portfolio"]
+        lines.extend(["", "组合" if zh else "Portfolio"])
+        if portfolio["connected"]:
+            lines.append((f"NAV ${portfolio['total_nav']:,.2f} · 当日 ${portfolio['daily_change']:,.2f}" if zh else f"NAV ${portfolio['total_nav']:,.2f} · daily ${portfolio['daily_change']:,.2f}"))
+            lines.append(" · ".join(f"{item['symbol']} {item['weight']:.1%}" for item in portfolio["top_holdings"][:5]))
+        else:
+            lines.append("尚未连接真实组合账户。" if zh else "No real portfolio account is connected.")
+    if preference.include_signals:
+        signals = db.query(Signal).order_by(Signal.created_at.desc()).limit(3).all()
+        lines.extend(["", "信号" if zh else "Signals"])
+        lines.extend(f"{row.asset} {row.direction} · {row.thesis[:120]}" for row in signals) if signals else lines.append("暂无新信号。" if zh else "No new signals.")
+    if preference.include_risk:
+        portfolio = context["portfolio"]
+        notes = []
+        if portfolio["concentration_hhi"] is not None:
+            notes.append(("集中度" if zh else "Concentration") + f" HHI {portfolio['concentration_hhi']:.3f}")
+        if context["market_stale"]:
+            notes.append("市场数据已过期" if zh else "Market data is stale")
+        if portfolio["stale"]:
+            notes.append("组合数据已过期" if zh else "Portfolio data is stale")
+        lines.extend(["", "风险" if zh else "Risk", " · ".join(notes) if notes else ("未发现新增数据完整性警告。" if zh else "No new data-integrity warning.")])
+    if preference.include_sentiment:
+        entitlement = get_user_entitlement(db, preference.user_id)
+        allowed = set(entitlement["allowed_data_sources"])
+        providers = [provider for provider in ("rss", "fintwit", "x-twitter", "bloomberg") if "all" in allowed or provider in allowed or (provider == "x-twitter" and "x" in allowed)]
+        documents = db.query(NormalizedDocument).filter(NormalizedDocument.provider.in_(providers)).order_by(NormalizedDocument.published_at.desc(), NormalizedDocument.created_at.desc()).limit(3).all()
+        lines.extend(["", "来源观点" if zh else "Source sentiment"])
+        lines.extend(f"{row.source_name}: {(row.sentiment or {}).get('label', 'neutral')} · {row.title[:100]}" for row in documents) if documents else lines.append("当前没有可追溯的情绪来源。" if zh else "No traceable sentiment sources are available.")
+    disclaimer = disclaimer_for(preference.locale)
+    body = "\n".join(lines).rstrip()
+    available = max(0, preference.max_length - len(disclaimer) - 2)
+    return f"{body[:available].rstrip()}\n\n{disclaimer}"

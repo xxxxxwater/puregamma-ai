@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from apps.api.services.portfolio_service import autopilot_view, connect_hyperliquid, disconnect_account, portfolio_view, run_autopilot_review, sync_account, update_autopilot
+from apps.api.services.billing_service import mock_upgrade
 
 
 class _Response:
@@ -15,6 +16,7 @@ class _Response:
 
 
 def test_hyperliquid_read_only_connection_builds_real_nav(db, demo_user, monkeypatch):
+    mock_upgrade(db, demo_user.id, "Max")
     monkeypatch.setattr("apps.api.services.portfolio_service.requests.post", lambda *args, **kwargs: _Response())
     account = connect_hyperliquid(db, demo_user, "0x" + "1" * 40)
     sync_account(db, demo_user, account)
@@ -36,6 +38,7 @@ def test_portfolio_autopilot_is_persisted_as_research_only(db, demo_user):
 
 
 def test_multi_account_nav_history_uses_latest_value_for_every_account(db, demo_user, monkeypatch):
+    mock_upgrade(db, demo_user.id, "Max")
     monkeypatch.setattr("apps.api.services.portfolio_service.requests.post", lambda *args, **kwargs: _Response())
     first = connect_hyperliquid(db, demo_user, "0x" + "1" * 40)
     second = connect_hyperliquid(db, demo_user, "0x" + "2" * 40)
@@ -49,6 +52,7 @@ def test_multi_account_nav_history_uses_latest_value_for_every_account(db, demo_
 
 
 def test_autopilot_review_persists_concentration_and_disconnects(db, demo_user, monkeypatch):
+    mock_upgrade(db, demo_user.id, "Max")
     monkeypatch.setattr("apps.api.services.portfolio_service.requests.post", lambda *args, **kwargs: _Response())
     account = connect_hyperliquid(db, demo_user, "0x" + "3" * 40)
     sync_account(db, demo_user, account)

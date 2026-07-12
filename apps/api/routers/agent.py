@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
-from apps.api.services.agent_service import AgentLimitError, create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from apps.api.services.agent_service import AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
 from apps.api.services.credit_service import InsufficientCreditsError, refund_credits
 from apps.api.services.entitlement_service import get_user_entitlement
 from packages.database.models import AgentConversation, AgentMessage, AgentRun, User, utcnow
@@ -31,6 +31,7 @@ class MessageRequest(BaseModel):
     skills: list[str] = Field(default_factory=list)
     custom_prompt: str = ""
     attachments: list[dict] = Field(default_factory=list)
+    model: str | None = None
 
 
 @router.get("/quota")
@@ -41,7 +42,7 @@ def get_quota(db: Session = Depends(get_db), user: User = Depends(get_current_us
 @router.get("/capabilities")
 def capabilities(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     entitlement = get_user_entitlement(db, user.id)
-    return {"capabilities": entitlement, "quota": quota_state(db, user)}
+    return {"capabilities": entitlement, "quota": quota_state(db, user), "models": agent_model_options(db, user)}
 
 
 @router.get("/conversations")
@@ -104,11 +105,17 @@ def messages(conversation_id: str, db: Session = Depends(get_db), user: User = D
 def send_message(conversation_id: str, payload: MessageRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> StreamingResponse:
     try:
         row = owned_conversation(db, user, conversation_id)
-        run = start_run(db, user, row, payload.content, context={"data_sources": payload.data_sources, "skills": payload.skills, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments})
+        run = start_run(db, user, row, payload.content, context={"data_sources": payload.data_sources, "skills": payload.skills, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model})
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AgentLimitError as exc:
         raise HTTPException(status_code=429, detail={"code": str(exc)}) from exc
+    except AgentModelInvalidError as exc:
+        raise HTTPException(status_code=400, detail={"code": str(exc), "message": "The selected Agent model is invalid."}) from exc
+    except AgentModelPlanError as exc:
+        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "GPT-5.6 Luna requires an eligible plan."}) from exc
+    except AgentModelUnavailableError as exc:
+        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "GPT-5.6 Luna is currently unavailable."}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except InsufficientCreditsError as exc:
@@ -125,12 +132,18 @@ def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(g
     if not previous:
         raise HTTPException(status_code=400, detail="Original user message not found")
     conversation = owned_conversation(db, user, assistant.conversation_id)
-    supplied = bool(payload.data_sources or payload.skills or payload.custom_prompt or payload.attachments)
-    context = {"data_sources": payload.data_sources, "skills": payload.skills, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments} if supplied else (previous.context_json or {})
+    supplied = bool(payload.data_sources or payload.skills or payload.custom_prompt or payload.attachments or payload.model)
+    context = {"data_sources": payload.data_sources, "skills": payload.skills, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model} if supplied else (previous.context_json or {})
     try:
         run = start_run(db, user, conversation, previous.content, context=context)
     except AgentLimitError as exc:
         raise HTTPException(status_code=429, detail={"code": str(exc)}) from exc
+    except AgentModelInvalidError as exc:
+        raise HTTPException(status_code=400, detail={"code": str(exc), "message": "The selected Agent model is invalid."}) from exc
+    except AgentModelPlanError as exc:
+        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "GPT-5.6 Luna requires an eligible plan."}) from exc
+    except AgentModelUnavailableError as exc:
+        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "GPT-5.6 Luna is currently unavailable."}) from exc
     except InsufficientCreditsError as exc:
         raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_CREDITS"}) from exc
     return StreamingResponse(stream_run(db, user, run.id, payload.locale), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})

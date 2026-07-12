@@ -52,9 +52,15 @@ class AgentToolRegistry:
     """Fixed tool allowlist. Trading writes delegate to the audited control plane."""
 
     def __init__(self, db: Session, user_id: str, conversation_id: str | None = None):
+        from apps.api.services.entitlement_service import get_user_entitlement
+
         self.db = db
         self.user_id = user_id
         self.conversation_id = conversation_id
+        entitlement = get_user_entitlement(db, user_id)
+        self.allowed_data_sources = set(entitlement["allowed_data_sources"])
+        if "all" in self.allowed_data_sources:
+            self.allowed_data_sources = {"market", "rss", "fintwit", "x", "x-twitter", "bloomberg", "portfolio", "options", "onchain", "defillama"}
         self.tools: dict[str, Callable[..., ToolResult]] = {
             "get_market_quote": self.get_market_quote,
             "get_market_history": self.get_market_history,
@@ -94,6 +100,19 @@ class AgentToolRegistry:
     def call(self, name: str, arguments: dict[str, Any]) -> ToolResult:
         if name not in self.tools:
             raise ValueError(f"Tool is not allowlisted: {name}")
+        required_source = {
+            "get_market_quote": "market",
+            "get_market_history": "market",
+            "get_defi_protocol_metrics": "onchain",
+            "get_chain_metrics": "onchain",
+            "get_onchain_snapshot": "onchain",
+            "get_account_snapshot": "portfolio",
+            "get_position_snapshot": "portfolio",
+            "get_open_orders": "portfolio",
+            "get_options_context": "options",
+        }.get(name)
+        if required_source and required_source not in self.allowed_data_sources:
+            raise PermissionError("TOOL_ENTITLEMENT_DENIED")
         return self.tools[name](**arguments)
 
     def plan(self, query: str, skills: list[str] | None = None, data_sources: list[str] | None = None) -> list[tuple[str, dict[str, Any]]]:
@@ -166,11 +185,7 @@ class AgentToolRegistry:
             word in lowered
             for word in ("news", "headline", "rss", "bloomberg", "新闻", "消息", "来源")
         ):
-            providers = [
-                provider
-                for provider in ("rss", "fintwit", "x-twitter", "bloomberg")
-                if provider in selected_sources or provider.split("-")[0] in lowered
-            ]
+            providers = [provider for provider in ("rss", "fintwit", "x-twitter", "bloomberg") if provider in selected_sources and self._provider_allowed(provider)]
             calls.append(
                 (
                     "search_source_documents",
@@ -812,14 +827,15 @@ class AgentToolRegistry:
         authors: list[str] | None = None,
         hours: int = 72,
     ) -> ToolResult:
+        allowed_providers = [provider for provider in ("rss", "fintwit", "x-twitter", "bloomberg") if self._provider_allowed(provider)]
+        requested_providers = [provider for provider in (providers or allowed_providers) if provider in allowed_providers]
         cutoff = datetime.now(timezone.utc) - timedelta(hours=min(max(hours, 1), 720))
         q = self.db.query(NormalizedDocument).filter(
-            NormalizedDocument.created_at >= cutoff
+            NormalizedDocument.created_at >= cutoff,
+            NormalizedDocument.provider.in_(requested_providers),
         )
         if not get_settings().allow_nonredistributable_llm_input:
             q = q.filter(NormalizedDocument.redistribution_allowed.is_(True))
-        if providers:
-            q = q.filter(NormalizedDocument.provider.in_(providers[:10]))
         rows = (
             q.order_by(
                 NormalizedDocument.published_at.desc(),
@@ -896,6 +912,9 @@ class AgentToolRegistry:
             else "Connected sources do not contain enough matching evidence"
         )
         return ToolResult("search_source_documents", data, summary, sources)
+
+    def _provider_allowed(self, provider: str) -> bool:
+        return provider in self.allowed_data_sources or (provider == "x-twitter" and "x" in self.allowed_data_sources)
 
     def get_defi_protocol_metrics(self, query: str = "") -> ToolResult:
         rows = (

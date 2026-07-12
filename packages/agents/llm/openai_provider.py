@@ -13,9 +13,11 @@ from packages.agents.llm.schemas import ChatMessage, LLMResponse, LLMStreamChunk
 class OpenAIProvider(LLMProvider):
     provider_name = "openai"
 
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, *, model: str | None = None, timeout_seconds: float | None = None, reasoning_effort: str | None = None):
         self.settings = settings
-        self.model = settings.openai_model or settings.llm_model or "gpt-4o-mini"
+        self.model = model or settings.openai_model or settings.llm_model or "gpt-4o-mini"
+        self.timeout_seconds = timeout_seconds or 60
+        self.reasoning_effort = reasoning_effort
         self.configured = bool(settings.openai_api_key)
         self.last_error = None if self.configured else "OPENAI_API_KEY is not configured"
 
@@ -32,8 +34,10 @@ class OpenAIProvider(LLMProvider):
         prompt = "\n".join(message.content for message in messages)
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=self.settings.openai_api_key, base_url=self.settings.openai_base_url or None, timeout=60)
+            client = OpenAI(api_key=self.settings.openai_api_key, base_url=self.settings.openai_base_url or None, timeout=self.timeout_seconds)
             kwargs = {}
+            if self.reasoning_effort:
+                kwargs["reasoning_effort"] = self.reasoning_effort
             if response_format == "json_object":
                 kwargs["response_format"] = {"type": "json_object"}
             response = client.chat.completions.create(
@@ -58,7 +62,7 @@ class OpenAIProvider(LLMProvider):
         prompt_tokens = max(1, len(prompt.split()))
         try:
             from openai import OpenAI
-            client = OpenAI(api_key=self.settings.openai_api_key, base_url=self.settings.openai_base_url or None, timeout=self.settings.agent_request_timeout_ms / 1000)
+            client = OpenAI(api_key=self.settings.openai_api_key, base_url=self.settings.openai_base_url or None, timeout=self.timeout_seconds)
             stream = client.chat.completions.create(
                 model=self.model,
                 messages=[{"role": message.role, "content": message.content} for message in messages],
@@ -66,6 +70,7 @@ class OpenAIProvider(LLMProvider):
                 max_tokens=self.settings.agent_max_output_tokens,
                 stream=True,
                 stream_options={"include_usage": True},
+                **(dict(reasoning_effort=self.reasoning_effort) if self.reasoning_effort else {}),
             )
             for chunk in stream:
                 usage = getattr(chunk, "usage", None)

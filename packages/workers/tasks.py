@@ -12,7 +12,7 @@ from apps.api.services.signal_service import scan_signals
 from apps.api.services.runtime_sync_service import sync_runtime_account
 from apps.api.services.portfolio_service import run_autopilot_review, sync_account
 from apps.api.services.data_source_service import sync_all_providers, sync_provider
-from apps.api.services.daily_push_service import next_delivery
+from apps.api.services.daily_push_service import next_delivery, render_daily_brief_delivery
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.config import get_settings
 from packages.database.models import (
@@ -83,7 +83,7 @@ def dispatch_due_daily_briefs() -> dict:
                     skipped += 1
                     continue
                 report = create_daily_report(db, user.id, preference.locale)
-                message = report.content_markdown[: preference.max_length]
+                message = render_daily_brief_delivery(db, preference, report)
                 delivery = send_notification(db, user.id, preference.channel, message, {"idempotency_key": f"daily-brief:{user.id}:{preference.channel}:{scheduled_for.isoformat()}", "locale": preference.locale, "report_id": report.id})
                 if delivery.status == "sent":
                     sent += 1

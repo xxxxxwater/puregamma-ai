@@ -28,10 +28,11 @@ CREDIT_COSTS: dict[str, int] = {
     "agent_portfolio_analysis": 5,
     "agent_advanced_data": 5,
     "agent_deep_research": 15,
+    "agent_luna_research": 20,
 }
 
 
-HIGH_COST_ACTIONS = {"x_sentiment_scan", "onchain_scan", "backtest", "playbook_generation", "portfolio_daily_brief", "daily_combined_imessage", "deepseek_report_generation", "deepseek_playbook_generation", "strategy_generation", "strategy_activation", "runtime_reconciliation", "manual_order_preview"}
+HIGH_COST_ACTIONS = {"x_sentiment_scan", "onchain_scan", "backtest", "playbook_generation", "portfolio_daily_brief", "daily_combined_imessage", "deepseek_report_generation", "deepseek_playbook_generation", "strategy_generation", "strategy_activation", "runtime_reconciliation", "manual_order_preview", "agent_luna_research"}
 
 
 def cost_for(action: str) -> int:
