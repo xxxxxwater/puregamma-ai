@@ -12,9 +12,12 @@ from apps.api.services.signal_service import scan_signals
 from apps.api.services.runtime_sync_service import sync_runtime_account
 from apps.api.services.portfolio_service import run_autopilot_review, sync_account
 from apps.api.services.data_source_service import sync_all_providers, sync_provider
+from apps.api.services.daily_push_service import next_delivery
+from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.config import get_settings
 from packages.database.models import (
     AccountSnapshot,
+    DailyBriefPreference,
     PortfolioAutopilotReview,
     RawDocument,
     ReconciliationRecord,
@@ -30,6 +33,44 @@ from packages.workers.celery_app import celery_app
 
 
 logger = logging.getLogger(__name__)
+
+
+@celery_app.task(name="puregamma.dispatch_due_daily_briefs")
+def dispatch_due_daily_briefs() -> dict:
+    db = SessionLocal()
+    sent = skipped = failed = 0
+    try:
+        query = db.query(DailyBriefPreference).filter(DailyBriefPreference.enabled.is_(True), DailyBriefPreference.next_delivery_at <= utcnow()).order_by(DailyBriefPreference.next_delivery_at).limit(100)
+        if db.bind and db.bind.dialect.name == "postgresql":
+            query = query.with_for_update(skip_locked=True)
+        rows = query.all()
+        for preference in rows:
+            user = db.get(User, preference.user_id)
+            scheduled_for = preference.next_delivery_at
+            try:
+                entitlement = get_user_entitlement(db, user.id)
+                if preference.channel not in entitlement["notification_channels"]:
+                    preference.enabled = False
+                    preference.next_delivery_at = None
+                    db.commit()
+                    skipped += 1
+                    continue
+                report = create_daily_report(db, user.id, preference.locale)
+                message = report.content_markdown[: preference.max_length]
+                delivery = send_notification(db, user.id, preference.channel, message, {"idempotency_key": f"daily-brief:{user.id}:{preference.channel}:{scheduled_for.isoformat()}", "locale": preference.locale, "report_id": report.id})
+                if delivery.status == "sent":
+                    sent += 1
+                else:
+                    skipped += 1
+                preference.next_delivery_at = next_delivery(preference.timezone, preference.local_time, utcnow() + timedelta(minutes=1))
+                db.commit()
+            except Exception:
+                db.rollback()
+                failed += 1
+                logger.exception("due_daily_brief_failed user_id=%s", preference.user_id)
+        return {"due": len(rows), "sent": sent, "skipped": skipped, "failed": failed}
+    finally:
+        db.close()
 
 
 @celery_app.task(name="puregamma.sync_portfolio_autopilot_accounts")
@@ -118,7 +159,7 @@ def send_daily_reports_to_channels() -> int:
     db = SessionLocal()
     sent = 0
     try:
-        from apps.api.services.report_service import create_daily_report, serialize_report
+        from apps.api.services.report_service import create_daily_report
         users = db.query(User).all()
         for user in users:
             pref = user.preference

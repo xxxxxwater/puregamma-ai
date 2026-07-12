@@ -45,6 +45,8 @@ POST_BASELINE_COLUMNS = {
     ("reports", "error_message"),
 }
 
+POST_BASELINE_TABLES = {"daily_brief_preferences"}
+
 
 def _schema_gaps(*, ignore_columns: set[tuple[str, str]] | None = None) -> list[str]:
     inspector = inspect(engine)
@@ -52,6 +54,8 @@ def _schema_gaps(*, ignore_columns: set[tuple[str, str]] | None = None) -> list[
     ignore_columns = ignore_columns or set()
     gaps: list[str] = []
     for table in Base.metadata.sorted_tables:
+        if table.name in POST_BASELINE_TABLES and table.name not in existing_tables:
+            continue
         if table.name not in existing_tables:
             gaps.append(f"missing table {table.name}")
             continue

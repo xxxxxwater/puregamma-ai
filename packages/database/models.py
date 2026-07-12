@@ -82,6 +82,27 @@ class UserPreference(Base):
     user = relationship("User", back_populates="preference")
 
 
+class DailyBriefPreference(Base, TimestampMixin):
+    __tablename__ = "daily_brief_preferences"
+
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), primary_key=True)
+    enabled = Column(Boolean, nullable=False, default=False, index=True)
+    timezone = Column(String, nullable=False, default="UTC")
+    local_time = Column(String, nullable=False, default="08:30")
+    channel = Column(String, nullable=False, default="email", index=True)
+    locale = Column(String, nullable=False, default="en")
+    include_portfolio = Column(Boolean, nullable=False, default=True)
+    include_market = Column(Boolean, nullable=False, default=True)
+    include_signals = Column(Boolean, nullable=False, default=True)
+    include_risk = Column(Boolean, nullable=False, default=True)
+    include_sentiment = Column(Boolean, nullable=False, default=False)
+    quiet_hours = Column(JSON, default=dict, nullable=False)
+    max_length = Column(Integer, nullable=False, default=3000)
+    next_delivery_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    recipient = Column(String, nullable=True)
+    recipient_verified_at = Column(DateTime(timezone=True), nullable=True)
+
+
 class Subscription(Base, TimestampMixin):
     __tablename__ = "subscriptions"
 

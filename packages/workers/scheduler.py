@@ -35,9 +35,11 @@ def build_scheduler() -> BlockingScheduler:
         id="market_regime_summary",
     )
     scheduler.add_job(
-        tasks.send_daily_reports_to_channels,
-        CronTrigger(hour=0, minute=20),
-        id="send_daily_reports",
+        tasks.dispatch_due_daily_briefs,
+        IntervalTrigger(minutes=1),
+        id="dispatch_due_daily_briefs",
+        max_instances=1,
+        coalesce=True,
     )
     scheduler.add_job(
         tasks.check_subscription_status,

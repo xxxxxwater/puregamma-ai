@@ -377,6 +377,9 @@ export const fallbackDailyPush = {
   ]
 };
 
+export type DailyPushPreference = { enabled: boolean; timezone: string; local_time: string; channel: "email" | "telegram" | "imessage"; locale: string; include_portfolio: boolean; include_market: boolean; include_signals: boolean; include_risk: boolean; include_sentiment: boolean; quiet_hours: Record<string, unknown>; max_length: number; next_delivery_at: string | null; recipient: string | null; recipient_verified_at: string | null };
+export type DeliveryRecord = { id: string; channel: string; status: string; created_at: string; sent_at: string | null; provider_response: { reason?: string } };
+
 export function fallbackDailyPushForLocale(locale: Locale) {
   if (locale === "en") return fallbackDailyPush;
   return {
@@ -724,15 +727,16 @@ export function getEarningsGamma(locale: Locale = defaultLocale) {
 }
 
 export function getDailyPushPreferences(locale: Locale = defaultLocale) {
-  return Promise.resolve(fallbackDailyPushForLocale(locale));
+  return requestStrict<{ preference: DailyPushPreference; history: DeliveryRecord[] }>("/notifications/preferences/daily-brief", { headers: { "X-PG-Locale": locale } });
 }
 
-export function updateDailyPushPreferences() {
-  return Promise.resolve({ status: "saved" });
+export function updateDailyPushPreferences(preference: Partial<DailyPushPreference>) {
+  return requestStrict<{ preference: DailyPushPreference }>("/notifications/preferences/daily-brief", { method: "PUT", body: JSON.stringify(preference) });
 }
 
-export function sendDailyPushTest() {
-  return Promise.resolve({ status: "entitlement_denied", message: "iMessage delivery is available on Max and Enterprise plans." });
+export function sendDailyPushTest(channel: DailyPushPreference["channel"], locale: Locale = defaultLocale) {
+  const message = locale === "zh" ? "PureGamma AI 每日简报测试。使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" : "PureGamma AI daily brief test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.";
+  return requestStrict<{ delivery: DeliveryRecord }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, message, locale, metadata: { idempotency_key: `daily-push-test-${Date.now()}` } }) });
 }
 
 export function getBillingSubscription(locale: Locale = defaultLocale) {
