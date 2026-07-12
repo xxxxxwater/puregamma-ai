@@ -37,7 +37,7 @@ def build_scheduler() -> BlockingScheduler:
     scheduler.add_job(
         tasks.dispatch_due_daily_briefs,
         IntervalTrigger(minutes=1),
-        id="dispatch_due_daily_briefs",
+        id="send_daily_reports",
         max_instances=1,
         coalesce=True,
     )

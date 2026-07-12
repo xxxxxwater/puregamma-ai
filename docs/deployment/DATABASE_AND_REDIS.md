@@ -25,14 +25,29 @@ Implemented tables:
 
 ## Startup Behavior
 
-`apps/api/dependencies.py` calls `ensure_bootstrap()` on startup. It runs:
+The API image runs `python -m scripts.db_migrate upgrade` before Uvicorn starts.
+Application startup also performs an idempotent `upgrade head` check before seeding
+reference data.
 
-- `init_db()`, which calls `Base.metadata.create_all`.
-- `seed_all()`, which seeds plans, assets, and demo user data.
+- Empty databases are created by Alembic revision `0001_baseline`.
+- Existing pre-Alembic databases are stamped only when every current ORM table and
+  column is already present. Partial schemas fail closed.
+- Production seeds plans, assets, and data-source definitions only. Demo users and
+  mock accounts are never created in production.
 
 ## Production Requirement
 
-Add a migration tool such as Alembic before production schema changes. `create_all` is acceptable for local MVP work but not enough for controlled production migrations.
+Before rollout:
+
+```bash
+python -m scripts.db_migrate check
+python -m scripts.db_migrate upgrade
+python -m scripts.db_migrate current
+```
+
+Create every future schema change with a new Alembic revision. Do not edit the
+baseline after it has been deployed and do not restore the former runtime
+`create_all`/opportunistic `ALTER TABLE` behavior.
 
 ## Backups
 

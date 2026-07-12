@@ -20,6 +20,11 @@ services:
     command: redis-server --appendonly yes --maxmemory 768mb --maxmemory-policy allkeys-lru
     volumes:
       - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   nautilus-runtime:
     build:
@@ -29,6 +34,7 @@ services:
     env_file: .env
     environment:
       APP_ENV: production
+      NAUTILUS_RUNTIME_SECRET: ${NAUTILUS_RUNTIME_SECRET:?NAUTILUS_RUNTIME_SECRET is required}
       NAUTILUS_EXECUTION_MODE: paper
       NAUTILUS_LIVE_TRADING_ENABLED: "false"
       NAUTILUS_ALLOW_LIVE_ORDER: "false"
@@ -38,6 +44,11 @@ services:
     expose: ["8090"]
     volumes:
       - nautilus_state:/runtime/state
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
 
   api:
     build:
@@ -50,15 +61,29 @@ services:
       SITE_URL: https://${APP_DOMAIN}
       CORS_ORIGINS: https://${APP_DOMAIN}
       SESSION_COOKIE_DOMAIN: .${APP_DOMAIN}
+      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      BILLING_MODE: ${BILLING_MODE:-stripe}
+      STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
+      STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
+      STRIPE_SUCCESS_URL: https://${APP_DOMAIN}/billing/success
+      STRIPE_CANCEL_URL: https://${APP_DOMAIN}/billing/cancel
+      GOOGLE_OAUTH_REDIRECT_URI: ${GOOGLE_OAUTH_REDIRECT_URI:?GOOGLE_OAUTH_REDIRECT_URI is required}
+      NAUTILUS_RUNTIME_SECRET: ${NAUTILUS_RUNTIME_SECRET:?NAUTILUS_RUNTIME_SECRET is required}
       INITIAL_LAUNCH_MODE: "true"
       AUTH_ALLOW_DEMO_FALLBACK: "false"
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: redis://redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
     expose: ["8000"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
     depends_on:
       postgres: { condition: service_healthy }
-      redis: { condition: service_started }
+      redis: { condition: service_healthy }
+      nautilus-runtime: { condition: service_healthy }
 
   worker:
     build:
@@ -69,10 +94,12 @@ services:
     command: ["sh", "-c", "celery -A packages.workers.celery_app.celery_app worker --loglevel=INFO --concurrency=$${WORKER_CONCURRENCY:-2}"]
     environment:
       APP_ENV: production
+      NAUTILUS_RUNTIME_SECRET: ${NAUTILUS_RUNTIME_SECRET:?NAUTILUS_RUNTIME_SECRET is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: redis://redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
-    depends_on: [api]
+    depends_on:
+      api: { condition: service_healthy }
 
   scheduler:
     build:
@@ -83,10 +110,12 @@ services:
     command: ["python", "-m", "packages.workers.scheduler"]
     environment:
       APP_ENV: production
+      NAUTILUS_RUNTIME_SECRET: ${NAUTILUS_RUNTIME_SECRET:?NAUTILUS_RUNTIME_SECRET is required}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: redis://redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
-    depends_on: [api]
+    depends_on:
+      api: { condition: service_healthy }
 
   web:
     build:
@@ -103,7 +132,8 @@ services:
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-pg_session}
       REQUIRE_AUTH: "true"
     expose: ["3000"]
-    depends_on: [api]
+    depends_on:
+      api: { condition: service_healthy }
 
   caddy:
     image: caddy:2-alpine

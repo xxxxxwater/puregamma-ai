@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import threading
 import time
+import logging
+import uuid
 from collections import defaultdict, deque
 from contextlib import asynccontextmanager
 
@@ -18,6 +20,7 @@ from apps.api.routers import admin, agent, assets, auth, backtest, billing, goog
 
 settings = get_settings()
 validate_production_settings(settings)
+logger = logging.getLogger("puregamma.api")
 
 
 @asynccontextmanager
@@ -64,6 +67,20 @@ async def rate_limit(request: Request, call_next):
     return await call_next(request)
 
 
+@app.middleware("http")
+async def request_trace(request: Request, call_next):
+    request_id = request.headers.get("x-request-id", "")[:128] or str(uuid.uuid4())
+    started = time.perf_counter()
+    try:
+        response = await call_next(request)
+    except Exception:
+        logger.exception("request_failed", extra={"request_id": request_id, "method": request.method, "path": request.url.path})
+        raise
+    response.headers["X-Request-ID"] = request_id
+    logger.info("request_completed", extra={"request_id": request_id, "method": request.method, "path": request.url.path, "status_code": response.status_code, "duration_ms": int((time.perf_counter() - started) * 1000)})
+    return response
+
+
 @app.get("/health")
 def health() -> dict:
     from packages.database.session import SessionLocal
@@ -77,10 +94,18 @@ def health() -> dict:
         database_status = "error"
     finally:
         db.close()
+    redis_status = "unknown"
+    try:
+        from redis import Redis
+        Redis.from_url(settings.redis_url, socket_connect_timeout=1, socket_timeout=1).ping()
+        redis_status = "ok"
+    except Exception:
+        redis_status = "error"
     return {
-        "status": "ok" if database_status == "ok" else "degraded",
+        "status": "ok" if database_status == "ok" and (redis_status == "ok" or settings.app_environment.lower() != "production") else "degraded",
         "service": "puregamma-api",
         "database": database_status,
+        "redis": redis_status,
     }
 
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from packages.data.base import MarketQuote
 from packages.reports.templates import disclaimer_for
-from packages.risk.scoring import portfolio_risk_summary, risk_score_for_quote
+from packages.risk.scoring import portfolio_risk_summary
 
 
 def render_daily_report(market_regime: str, quotes: list[MarketQuote], signals: list[dict], language: str = "en") -> str:

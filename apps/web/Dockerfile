@@ -1,7 +1,8 @@
 FROM node:20-bookworm-slim AS build
 WORKDIR /app
-COPY apps/web/package*.json ./
-RUN npm ci
+COPY apps/web/package.json apps/web/pnpm-lock.yaml apps/web/pnpm-workspace.yaml ./
+RUN corepack enable && corepack prepare pnpm@10.28.2 --activate \
+    && pnpm install --frozen-lockfile
 COPY apps/web ./
 ARG NEXT_PUBLIC_API_URL
 ARG NEXT_PUBLIC_SITE_URL

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
-from apps.api.services.daily_brief_service import gather_context, generate_daily_brief
+from apps.api.services.daily_brief_service import generate_daily_brief
 from packages.reports.daily_market_report import render_daily_report
 
 

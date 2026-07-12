@@ -53,7 +53,7 @@ def generate_daily_brief(db: Session, user_id: str, language: str) -> str:
         generated = get_llm_provider().complete(prompt, task_type="daily_market_report", locale=language, user_id=user_id, db=db)
     except Exception:
         return _local_brief(context, language, disclaimer)
-    title = "PureGamma 组合每日简报" if language == "zh" else "PureGamma Daily Crypto Brief | Portfolio"
+    title = "PureGamma 每日加密市场简报 | 组合" if language == "zh" else "PureGamma Daily Crypto Brief | Portfolio"
     if title not in generated:
         generated = f"{title}\n\n{generated.lstrip()}"
     if disclaimer not in generated:
@@ -66,7 +66,7 @@ def _local_brief(context: dict, language: str, disclaimer: str) -> str:
     quotes = context["quotes"]
     holdings = portfolio["top_holdings"]
     if language == "zh":
-        lines = ["PureGamma 组合每日简报", "", "市场事实", f"市场状态：{context['market_regime']}。数据时间：{context['market_data_as_of']}。"]
+        lines = ["PureGamma 每日加密市场简报 | 组合", "", "市场事实", f"市场状态：{context['market_regime']}。数据时间：{context['market_data_as_of']}。"]
         if quotes:
             lines.append("主要市场：" + "；".join(f"{item['symbol']} ${item['price']:,.2f}" for item in quotes[:5]) + "。")
         lines.extend(["", "组合事实"])

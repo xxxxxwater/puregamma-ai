@@ -27,7 +27,7 @@
 - Google identity is stored directly on `users.google_user_id`; there is no provider identity table, verified-email timestamp, last-login timestamp, PKCE, nonce validation, revocable browser session, or logout endpoint.
 - Browser access tokens are stored in localStorage.
 - Existing agents generate reports but have no conversation/message/run tables, controlled tools, SSE stream, citations, cancellation, regeneration, or product usage events.
-- There is no formal migration runner. Startup currently uses `create_all` plus compatibility `ALTER TABLE` statements.
+- Alembic is now the formal migration runner. The production API upgrades to the reviewed migration head before serving traffic.
 
 ## Repeated or dangerous mock behavior
 

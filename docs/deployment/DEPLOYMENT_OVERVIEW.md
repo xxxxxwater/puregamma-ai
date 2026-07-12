@@ -42,7 +42,7 @@ flowchart TD
 
 ## Current Limitations
 
-- No migration framework is present; `Base.metadata.create_all` creates tables at startup. Add Alembic before production schema evolution.
+- Alembic manages production schema evolution; the API container upgrades to the migration head before startup.
 - Portfolio NAV, Plaid, exchange sync, wallet sync, Bloomberg import, and real NautilusTrader runtime are not production-ready.
 - Several data provider adapters are placeholders and need provider-specific implementation and monitoring.
 - Admin endpoints depend on user `role=admin`; role assignment requires a controlled operational process.

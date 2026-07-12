@@ -48,6 +48,8 @@ Portfolio NAV needs new tables before production:
 - `connector_credentials`: encrypted Plaid/exchange token material.
 - `wallet_addresses`: public wallet addresses by user and chain.
 
-## Migration Gap
+## Schema Migrations
 
-The app currently uses `Base.metadata.create_all`. Add Alembic before production schema changes.
+Alembic owns production schema evolution. Add a reviewed revision under
+`packages/database/alembic/versions` for every ORM schema change and run
+`python -m scripts.db_migrate check` before release.
