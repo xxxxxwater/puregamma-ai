@@ -158,6 +158,7 @@ def catalog_from_db(
         "data_freshness": "healthy" if healthy else "degraded",
         "degraded_sources": degraded_sources,
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "bar_construction": "synthetic_ohlc_from_point_quotes",
     }
 
 
@@ -207,4 +208,5 @@ def mock_catalog(symbols: list[str] | None = None, bar_count: int = 720) -> dict
         "data_freshness": "mock",
         "degraded_sources": [],
         "generated_at": datetime.now(timezone.utc).isoformat(),
+        "bar_construction": "synthetic_fixture",
     }

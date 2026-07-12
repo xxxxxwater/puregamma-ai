@@ -47,7 +47,7 @@ async def stripe_webhook(
     try:
         if settings.billing_mode == "stripe":
             if not settings.stripe_webhook_secret:
-                raise HTTPException(status_code=500, detail="STRIPE_WEBHOOK_SECRET is required")
+                raise HTTPException(status_code=503, detail="Stripe webhook is not configured")
             validate_stripe_signature_timestamp(stripe_signature, settings.stripe_webhook_tolerance_seconds)
             try:
                 import stripe

@@ -35,10 +35,27 @@ class Settings:
         ),
     )
     session_cookie_name: str = os.getenv("SESSION_COOKIE_NAME", "pg_session")
+    session_cookie_domain: str | None = os.getenv("SESSION_COOKIE_DOMAIN") or None
     session_max_age_seconds: int = int(
         os.getenv("SESSION_MAX_AGE_SECONDS", "604800") or 604800
     )
     app_environment: str = os.getenv("APP_ENV", "development")
+    site_url: str = os.getenv("SITE_URL", "http://localhost:3000").rstrip("/")
+    initial_launch_mode: bool = (
+        os.getenv("INITIAL_LAUNCH_MODE", "false").lower() == "true"
+    )
+    credit_usage_enforced: bool = (
+        os.getenv("CREDIT_USAGE_ENFORCED", "true").lower() == "true"
+    )
+    entitlements_enforced: bool = (
+        os.getenv("ENTITLEMENTS_ENFORCED", "true").lower() == "true"
+    )
+    api_rate_limit_per_minute: int = int(
+        os.getenv("API_RATE_LIMIT_PER_MINUTE", "120") or 120
+    )
+    expensive_rate_limit_per_minute: int = int(
+        os.getenv("EXPENSIVE_RATE_LIMIT_PER_MINUTE", "20") or 20
+    )
 
     llm_provider: str = os.getenv("LLM_PROVIDER", "mock")
     openai_api_key: str = os.getenv("OPENAI_API_KEY", "")
@@ -66,6 +83,9 @@ class Settings:
         os.getenv("AGENT_MAX_CONTEXT_CHARS", "24000") or 24000
     )
     enable_mock_agent: bool = os.getenv("ENABLE_MOCK_AGENT", "false").lower() == "true"
+    allow_nonredistributable_llm_input: bool = (
+        os.getenv("ALLOW_NONREDISTRIBUTABLE_LLM_INPUT", "false").lower() == "true"
+    )
 
     billing_mode: str = os.getenv("BILLING_MODE", "mock")
     billing_checkout_mode: str = os.getenv("BILLING_CHECKOUT_MODE", "session")
@@ -268,7 +288,9 @@ class Settings:
         os.getenv("NAUTILUS_ALLOW_TRANSFER", "false").lower() == "true"
     )
 
-    cors_origins: tuple[str, ...] = ("http://localhost:3000", "http://127.0.0.1:3000")
+    cors_origins: tuple[str, ...] = tuple(
+        _csv(os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"))
+    )
 
     @property
     def rpc_urls(self) -> dict[str, str]:
@@ -300,3 +322,36 @@ class Settings:
 @lru_cache
 def get_settings() -> Settings:
     return Settings()
+
+
+def validate_production_settings(settings: Settings) -> None:
+    if settings.app_environment.lower() != "production":
+        return
+    errors: list[str] = []
+    if settings.jwt_secret in {"", "change-me", "dev-only-change-me"} or len(settings.jwt_secret) < 32:
+        errors.append("SESSION_SECRET/JWT_SECRET must be a strong value of at least 32 characters")
+    if settings.auth_allow_demo_fallback:
+        errors.append("AUTH_ALLOW_DEMO_FALLBACK must be false")
+    if not settings.session_cookie_domain:
+        errors.append("SESSION_COOKIE_DOMAIN is required in production")
+    if settings.billing_mode == "stripe":
+        if not settings.stripe_secret_key:
+            errors.append("STRIPE_SECRET_KEY is required when BILLING_MODE=stripe")
+        if not settings.stripe_webhook_secret:
+            errors.append("STRIPE_WEBHOOK_SECRET is required when BILLING_MODE=stripe")
+    if settings.nautilus_runtime_secret in {"", "dev-runtime-secret"} or len(settings.nautilus_runtime_secret) < 24:
+        errors.append("NAUTILUS_RUNTIME_SECRET must be a strong non-default value")
+    if settings.portfolio_token_encryption_key == "" and any(
+        (settings.plaid_client_id, settings.ibkr_client_id)
+    ):
+        errors.append("PORTFOLIO_TOKEN_ENCRYPTION_KEY is required for portfolio OAuth providers")
+    for name, url in {
+        "SITE_URL": settings.site_url,
+        "STRIPE_SUCCESS_URL": settings.stripe_success_url,
+        "STRIPE_CANCEL_URL": settings.stripe_cancel_url,
+        "GOOGLE_REDIRECT_URI": settings.google_oauth_redirect_uri,
+    }.items():
+        if not url.startswith("https://"):
+            errors.append(f"{name} must use https in production")
+    if errors:
+        raise RuntimeError("Invalid production configuration: " + "; ".join(errors))

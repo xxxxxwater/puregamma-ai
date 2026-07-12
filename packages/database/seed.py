@@ -66,11 +66,17 @@ def seed_paper_account(db: Session, user: User) -> TradingAccount:
 
 
 def seed_all(db: Session) -> User:
-    seed_plans(db)
-    seed_assets(db)
+    seed_reference_data(db)
     user = seed_demo_user(db)
     seed_paper_account(db, user)
     db.commit()
-    from apps.api.services.data_source_service import seed_data_sources
-    seed_data_sources(db)
     return user
+
+
+def seed_reference_data(db: Session) -> None:
+    seed_plans(db)
+    seed_assets(db)
+    db.commit()
+    from apps.api.services.data_source_service import seed_data_sources
+
+    seed_data_sources(db)

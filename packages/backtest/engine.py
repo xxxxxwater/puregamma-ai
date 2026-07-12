@@ -18,6 +18,46 @@ from packages.nautilus.guards import assert_live_trading_disabled, live_trading_
 from packages.nautilus.result_parser import standardize_backtest_result
 
 
+def _strategy_metrics(close_prices: list[float], params: dict) -> dict:
+    """Deterministic, no-lookahead momentum simulation used for research metrics.
+
+    The position for bar N is computed only from closes available at N-1. This is
+    intentionally labeled as a simulation and must not be described as native
+    Nautilus order execution.
+    """
+    if len(close_prices) < 3:
+        return calculate_metrics([])
+    fast = max(2, int(params.get("fast_window", 12)))
+    slow = max(fast + 1, int(params.get("slow_window", 24)))
+    fee_bps = max(0.0, float(params.get("fee_bps", 10.0)))
+    positions: list[float] = []
+    strategy_returns: list[float] = []
+    previous_position = 0.0
+    trades = 0
+    turnover = 0.0
+    for index in range(1, len(close_prices)):
+        history = close_prices[:index]
+        if len(history) < slow:
+            position = 0.0
+        else:
+            fast_average = sum(history[-fast:]) / fast
+            slow_average = sum(history[-slow:]) / slow
+            position = 1.0 if fast_average > slow_average else 0.0
+        change = abs(position - previous_position)
+        if change:
+            trades += 1
+            turnover += change
+        asset_return = close_prices[index] / close_prices[index - 1] - 1
+        strategy_returns.append(previous_position * asset_return - change * fee_bps / 10_000)
+        positions.append(previous_position)
+        previous_position = position
+    metrics = calculate_metrics(strategy_returns)
+    metrics["trade_count"] = trades
+    metrics["turnover"] = round(turnover, 4)
+    metrics["exposure_time"] = round(sum(positions) / len(positions), 4) if positions else 0.0
+    return metrics
+
+
 def _nautilus_available() -> bool:
     try:
         import nautilus_trader  # noqa: F401
@@ -185,24 +225,20 @@ class BacktestEngine:
                 for values in catalog["bars"].values()
                 for value in values
             ]
-            returns = [
-                close_prices[index] / close_prices[index - 1] - 1
-                for index in range(1, len(close_prices))
-                if close_prices[index - 1] != 0
-            ]
-            metrics = calculate_metrics(returns)
+            metrics = _strategy_metrics(close_prices, params)
             return {
                 "strategy_name": strategy_name,
                 "asset": asset,
                 "params": params,
                 "metrics": metrics,
-                "mode": "nautilus",
-                "engine": "nautilus_trader",
+                "mode": "simulation",
+                "engine": "nautilus_data_replay_with_puregamma_signal_simulation",
                 "nautilus_version": getattr(nautilus_trader, "__version__", "unknown"),
                 "data_freshness": catalog.get("data_freshness", "unknown"),
                 "bar_count": catalog["bar_count"],
                 "native_events_processed": replay.bars_processed,
                 "native_iterations": engine.iteration,
+                "execution_model": "no-lookahead moving-average simulation; no native orders or fills",
                 "is_live": False,
                 "paper_trading": False,
                 "live_trading": live_trading_status(),
@@ -253,7 +289,7 @@ class BacktestEngine:
                 for i in range(1, len(close_prices))
             ]
 
-        metrics = calculate_metrics(returns)
+        metrics = _strategy_metrics(close_prices, params) if close_prices else calculate_metrics(returns)
 
         is_mock_catalog = catalog.get("data_freshness", "mock") == "mock"
         return {
@@ -271,6 +307,7 @@ class BacktestEngine:
             if is_mock_catalog
             else "research_simulation",
             "live_trading": live_trading_status(),
+            "execution_model": "no-lookahead moving-average simulation with configured fee_bps",
             "disclaimer": "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content. Simulation results use PureGamma data catalog.",
         }
 

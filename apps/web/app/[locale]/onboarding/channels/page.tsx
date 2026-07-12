@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Bell, Info, Mail, MessageCircle, type LucideIcon } from "lucide-react";
 import { Badge } from "@/components/puregamma";
 import { normalizeLocale, withLocale, type Locale } from "@/i18n/routing";
-import { mockLogin } from "@/lib/api";
+import { saveOnboarding } from "@/lib/api";
 import { getMessageNamespace, t } from "@/lib/translations";
 
 const channelIcons: Record<string, LucideIcon> = {
@@ -35,17 +35,24 @@ export default function LocalizedOnboardingChannelsPage({ params }: { params: { 
     const activeChannels = Object.entries(channels).filter(([, enabled]) => enabled).map(([key]) => key);
 
     try {
-      const result = await mockLogin("demo@puregamma.ai", "Demo User", "user");
-      localStorage.setItem("pg_user_id", result.user.id);
+      const result = await saveOnboarding({
+        preferred_assets: assets,
+        preferred_style: style,
+        notification_channels: activeChannels,
+        email_recipient: recipients.email || "",
+        telegram_chat_id: recipients.telegram || "",
+        imessage_recipient: recipients.imessage || "",
+      });
       localStorage.setItem("pg_user", JSON.stringify(result.user));
       localStorage.setItem("pg_onboarding_done", "true");
       localStorage.setItem("pg_onboarding_assets", JSON.stringify(assets));
       localStorage.setItem("pg_onboarding_style", style);
       localStorage.setItem("pg_onboarding_channels", JSON.stringify(activeChannels));
-    } catch {
-      // The demo onboarding flow should continue when the mock API is unavailable.
-    } finally {
       router.push(withLocale(locale, "/dashboard"));
+    } catch {
+      const returnTo = encodeURIComponent(withLocale(locale, "/onboarding/channels"));
+      router.push(`${withLocale(locale, "/login")}?returnTo=${returnTo}`);
+    } finally {
       setBusy(false);
     }
   };

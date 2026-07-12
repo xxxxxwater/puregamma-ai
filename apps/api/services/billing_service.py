@@ -704,3 +704,33 @@ def process_stripe_event(db: Session, event: dict, raw_payload: bytes) -> dict:
 
 def parse_event_payload(raw_payload: bytes) -> dict:
     return json.loads(raw_payload.decode("utf-8"))
+
+
+def reconcile_stripe_subscriptions(db: Session) -> dict:
+    """Refresh local subscription state from Stripe as a webhook-loss safety net."""
+    settings = get_settings()
+    if settings.billing_mode != "stripe":
+        return {"mode": "mock", "updated": 0, "errors": 0}
+    stripe = StripeService(settings)._client()
+    collection = stripe.Subscription.list(status="all", limit=100)
+    iterator = (
+        collection.auto_paging_iter()
+        if hasattr(collection, "auto_paging_iter")
+        else _obj_list(collection)
+    )
+    updated = 0
+    errors = 0
+    for subscription in iterator:
+        try:
+            _handle_subscription_upsert(db, dict(subscription))
+            db.commit()
+            updated += 1
+        except (ManualReviewRequired, ValueError) as exc:
+            db.rollback()
+            errors += 1
+            logger.warning(
+                "stripe_subscription_reconciliation_skipped subscription_id=%s error=%s",
+                _obj_get(subscription, "id"),
+                str(exc)[:240],
+            )
+    return {"mode": "stripe", "updated": updated, "errors": errors}

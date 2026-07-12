@@ -31,6 +31,7 @@
   "cancelAtPeriodEnd": "将在 {date} 取消",
   "subscriptionCanceled": "订阅取消已排期。",
   "paymentLinkMissing": "该套餐尚未配置 Stripe Payment Link。",
+  "checkoutFailed": "无法创建结账会话。请先登录。",
   "plans": [
     { "name": "Free", "price": "$0", "credits": "30", "research": "延迟共享每日简报", "data": "延迟市场数据", "notifications": "仅 Email", "strategy": "无策略实验室", "restrictions": ["无 Plaid", "无 iMessage", "无 X 情绪", "无链上扫描"] },
     { "name": "Pro", "price": "$29.9", "credits": "1,000", "research": "每日市场与组合复盘", "data": "Plaid 手动同步", "notifications": "Telegram 与 Email", "strategy": "基础 Mock 回测", "restrictions": ["无高级 X 情绪", "默认无 iMessage"] },

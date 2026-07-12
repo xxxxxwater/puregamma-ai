@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from packages.database.models import User
-from packages.database.seed import seed_all
+from packages.database.seed import seed_all, seed_reference_data
 from packages.database.session import SessionLocal, init_db
 
 
@@ -61,7 +61,10 @@ def ensure_bootstrap() -> None:
     init_db()
     db = SessionLocal()
     try:
-        seed_all(db)
+        if get_settings().app_environment.lower() == "production":
+            seed_reference_data(db)
+        else:
+            seed_all(db)
     finally:
         db.close()
 
@@ -110,12 +113,16 @@ def set_session_cookie(response: Response, user: User) -> str:
         secure=settings.app_environment == "production",
         samesite="lax",
         path="/",
+        domain=settings.session_cookie_domain,
     )
     return token
 
 
 def clear_session_cookie(response: Response) -> None:
-    response.delete_cookie(get_settings().session_cookie_name, path="/")
+    settings = get_settings()
+    response.delete_cookie(
+        settings.session_cookie_name, path="/", domain=settings.session_cookie_domain
+    )
 
 
 def require_admin(user: User) -> None:

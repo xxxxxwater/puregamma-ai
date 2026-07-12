@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import Image from "next/image";
 import { Bell, Chrome, Loader2 } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { googleLogin } from "@/lib/api";
@@ -31,7 +32,7 @@ export default function LoginPage() {
       <div className="w-full max-w-md space-y-8">
         <div className="text-center">
           <Link href={withLocale(locale, "/")} className="inline-flex items-center gap-2 font-semibold text-text-pg">
-            <img src="/logo.png" alt="PureGamma" className="mx-auto h-8 w-8" />
+            <Image src="/logo.png" alt="PureGamma" width={32} height={32} className="mx-auto" />
             PureGamma AI
           </Link>
           <h1 className="mt-6 text-2xl font-semibold">{zh ? "欢迎回来" : "Welcome back"}</h1>

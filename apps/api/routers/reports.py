@@ -7,6 +7,8 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.i18n import resolve_locale
 from apps.api.services.credit_service import InsufficientCreditsError
+from apps.api.services.cost_control_service import DailyLimitExceededError
+from apps.api.services.entitlement_service import EntitlementDeniedError
 from apps.api.services.report_service import create_daily_report, create_event_report, serialize_report
 from packages.database.models import Report, User
 
@@ -30,7 +32,7 @@ def daily_report(
     language = resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
     try:
         return {"report": serialize_report(create_daily_report(db, user.id, language))}
-    except InsufficientCreditsError as exc:
+    except (InsufficientCreditsError, DailyLimitExceededError, EntitlementDeniedError) as exc:
         raise HTTPException(status_code=402, detail=str(exc)) from exc
 
 
@@ -46,7 +48,7 @@ def event_report(
     language = resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
     try:
         return {"report": serialize_report(create_event_report(db, user.id, payload.asset, payload.event, language))}
-    except InsufficientCreditsError as exc:
+    except (InsufficientCreditsError, EntitlementDeniedError) as exc:
         raise HTTPException(status_code=402, detail=str(exc)) from exc
 
 

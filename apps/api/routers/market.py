@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
-from apps.api.dependencies import get_db
+from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.market_intelligence_service import (
     DEFAULT_ASSETS,
     generate_shared_market_intelligence,
@@ -15,6 +15,7 @@ from packages.data.base import MarketQuote, asset_type_for, is_equity
 from packages.data.equity_providers.equity_provider import equity_source_label
 from packages.data.public_market_provider import PublicMarketDataProvider
 from packages.risk.scoring import risk_score_for_quote
+from packages.database.models import User
 
 
 router = APIRouter(prefix="/market", tags=["market"])
@@ -100,7 +101,9 @@ def intelligence(db: Session = Depends(get_db)) -> dict:
 
 
 @router.post("/intelligence")
-def regenerate_intelligence(db: Session = Depends(get_db)) -> dict:
+def regenerate_intelligence(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict:
     item = generate_shared_market_intelligence(db)
     return {
         "id": item.id,

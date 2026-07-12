@@ -176,7 +176,7 @@ def test_circuit_open_and_forced_recovery():
 
 
 def test_agent_retrieval_returns_source_citations(db, normal_user):
-    item = ProviderDocument(external_id="agent-1", source_name="Research RSS", source_type="rss_news", title="SOL network upgrade supports market activity", summary="SOL technology update", url="https://research.example/sol", published_at=datetime.now(timezone.utc), symbols=["SOL"], topics=["technology"], sentiment={"score": 0.25, "label": "positive"}, credibility_score=0.8)
+    item = ProviderDocument(external_id="agent-1", source_name="Research RSS", source_type="rss_news", title="SOL network upgrade supports market activity", summary="SOL technology update", url="https://research.example/sol", published_at=datetime.now(timezone.utc), symbols=["SOL"], topics=["technology"], sentiment={"score": 0.25, "label": "positive"}, credibility_score=0.8, redistribution_allowed=True)
     persist_documents(db, "rss", [item])
     db.commit()
     result = AgentToolRegistry(db, normal_user.id).search_source_documents(query="SOL upgrade", symbols=["SOL"], hours=24)

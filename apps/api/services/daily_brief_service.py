@@ -127,6 +127,9 @@ def generate_daily_brief(db: Session, user_id: str, language: str) -> str:
     except Exception:
         return _fallback_brief(context, language, disclaimer)
 
+    title = "PureGamma 每日加密市场简报" if language == "zh" else "PureGamma Daily Crypto Brief"
+    if title not in generated:
+        generated = f"{title}\n\n{generated.lstrip()}"
     if disclaimer not in generated:
         generated = f"{generated.rstrip()}\n\n{disclaimer}"
     word_count = len(generated.replace("\n", " ").split())
@@ -148,9 +151,9 @@ def generate_daily_brief(db: Session, user_id: str, language: str) -> str:
 
 def _fallback_brief(context: str, language: str, disclaimer: str) -> str:
     if language == "zh":
-        header = "今日市场概况"
+        header = "PureGamma 每日加密市场简报\n\n今日市场概况"
     else:
-        header = "Today's market overview"
+        header = "PureGamma Daily Crypto Brief\n\nToday's market overview"
     lines = [header, ""]
     for line in context.split("\n")[:15]:
         if line.strip():

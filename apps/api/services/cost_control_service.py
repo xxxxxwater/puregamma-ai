@@ -31,4 +31,20 @@ def cached_daily_report(db: Session, user_id: str, language: str = "en") -> Repo
 
 
 def assert_daily_report_limit(db: Session, user_id: str) -> None:
-    pass
+    user = db.get(User, user_id)
+    if not user:
+        raise ValueError(f"User not found: {user_id}")
+    limit = get_plan(user.plan).max_daily_reports
+    used = (
+        db.query(Report)
+        .filter(
+            Report.user_id == user_id,
+            Report.report_type == "daily_market_report",
+            Report.created_at >= day_start(),
+        )
+        .count()
+    )
+    if used >= limit:
+        raise DailyLimitExceededError(
+            f"Daily report limit reached for plan {get_plan(user.plan).name}"
+        )

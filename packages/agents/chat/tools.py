@@ -8,6 +8,7 @@ from typing import Any, Callable
 
 from sqlalchemy.orm import Session
 
+from apps.api.config import get_settings
 from packages.database.models import (
     AccountSnapshot,
     DataSource,
@@ -815,6 +816,8 @@ class AgentToolRegistry:
         q = self.db.query(NormalizedDocument).filter(
             NormalizedDocument.created_at >= cutoff
         )
+        if not get_settings().allow_nonredistributable_llm_input:
+            q = q.filter(NormalizedDocument.redistribution_allowed.is_(True))
         if providers:
             q = q.filter(NormalizedDocument.provider.in_(providers[:10]))
         rows = (

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import logging
 from datetime import timedelta
 
 from apps.api.services.market_intelligence_service import (
@@ -28,6 +29,9 @@ from packages.trading.runtime_client import NautilusRuntimeClient
 from packages.workers.celery_app import celery_app
 
 
+logger = logging.getLogger(__name__)
+
+
 @celery_app.task(name="puregamma.sync_portfolio_autopilot_accounts")
 def sync_portfolio_autopilot_accounts() -> dict:
     db = SessionLocal()
@@ -47,6 +51,7 @@ def sync_portfolio_autopilot_accounts() -> dict:
                     synced += 1
                 except Exception:
                     db.rollback()
+                    logger.exception("portfolio_autopilot_account_sync_failed user_id=%s account_id=%s", preference.user_id, account.id)
                     errors += 1
             cadence = config.get("cadence", "daily")
             last_review = db.query(PortfolioAutopilotReview).filter_by(user_id=preference.user_id).order_by(PortfolioAutopilotReview.created_at.desc()).first()
@@ -60,6 +65,7 @@ def sync_portfolio_autopilot_accounts() -> dict:
                         send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"]})
                 except Exception:
                     db.rollback()
+                    logger.exception("portfolio_autopilot_review_failed user_id=%s", preference.user_id)
                     errors += 1
         return {"synced": synced, "errors": errors}
     finally:
@@ -92,6 +98,7 @@ def generate_personalized_daily_reports() -> list[str]:
                 ids.append(create_daily_report(db, user.id, language).id)
             except Exception:
                 db.rollback()
+                logger.exception("daily_report_generation_failed user_id=%s", user.id)
         return ids
     finally:
         db.close()
@@ -123,11 +130,13 @@ def send_daily_reports_to_channels() -> int:
                 db.commit()
             except Exception:
                 db.rollback()
+                logger.exception("daily_delivery_report_generation_failed user_id=%s", user.id)
                 try:
                     report = create_daily_report(db, user.id, language)
                     db.commit()
                 except Exception:
                     db.rollback()
+                    logger.exception("daily_delivery_report_retry_failed user_id=%s", user.id)
                     continue
             brief_text = report.content_markdown
             if not brief_text:
@@ -144,7 +153,7 @@ def send_daily_reports_to_channels() -> int:
                         channel,
                         brief_text,
                         {
-                            "idempotency_key": f"daily-{user.id}-{channel}-{language}",
+                            "idempotency_key": f"daily-{user.id}-{channel}-{language}-{utcnow().date().isoformat()}",
                             "locale": language,
                             "report_id": report.id,
                         },
@@ -152,6 +161,7 @@ def send_daily_reports_to_channels() -> int:
                     sent += 1 if delivery.status == "sent" else 0
                 except Exception:
                     db.rollback()
+                    logger.exception("daily_notification_failed user_id=%s channel=%s", user.id, channel)
         return sent
     finally:
         db.close()
@@ -170,8 +180,14 @@ def refresh_earnings_gamma_candidates() -> dict:
 
 
 @celery_app.task(name="puregamma.check_subscription_status")
-def check_subscription_status() -> str:
-    return "subscription_status_check_delegated_to_stripe_webhooks"
+def check_subscription_status() -> dict:
+    from apps.api.services.billing_service import reconcile_stripe_subscriptions
+
+    db = SessionLocal()
+    try:
+        return reconcile_stripe_subscriptions(db)
+    finally:
+        db.close()
 
 
 @celery_app.task(name="puregamma.sync_data_provider")

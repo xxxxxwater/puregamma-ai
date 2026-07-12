@@ -20,6 +20,8 @@ htmlcov/
 # Node.js / Next.js
 node_modules/
 .next/
+.next-playwright-*/
+.next-playwright/
 .next-build/
 out/
 coverage/

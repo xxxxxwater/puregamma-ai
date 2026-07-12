@@ -6,6 +6,7 @@ from dataclasses import dataclass
 
 @dataclass(frozen=True)
 class RuntimeSettings:
+    app_environment: str = os.getenv("APP_ENV", "development")
     runtime_secret: str = os.getenv("NAUTILUS_RUNTIME_SECRET", "dev-runtime-secret")
     state_db: str = os.getenv("NAUTILUS_RUNTIME_STATE_DB", "./nautilus_runtime.sqlite3")
     execution_mode: str = os.getenv("NAUTILUS_EXECUTION_MODE", "paper").upper()
@@ -48,4 +49,9 @@ class RuntimeSettings:
 
 
 def get_settings() -> RuntimeSettings:
-    return RuntimeSettings()
+    settings = RuntimeSettings()
+    if settings.app_environment.lower() == "production" and (
+        settings.runtime_secret == "dev-runtime-secret" or len(settings.runtime_secret) < 24
+    ):
+        raise RuntimeError("NAUTILUS_RUNTIME_SECRET must be a strong non-default value")
+    return settings

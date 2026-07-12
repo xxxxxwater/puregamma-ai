@@ -3,14 +3,14 @@ import { expect, test } from "@playwright/test";
 test.describe("localized routes", () => {
   test("/en landing renders English", async ({ page }) => {
     await page.goto("/en");
-    await expect(page.getByRole("heading", { name: "Verifiable market intelligence for digital asset portfolios." })).toBeVisible();
-    await expect(page.getByText("Institutional Digital Asset Research").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Decide where to take Beta, where Alpha may exist, Long Gamma NAV 1 > 50." })).toBeVisible();
+    await expect(page.getByText("AI SECONDARY-MARKET DECISION SUPPORT").first()).toBeVisible();
   });
 
   test("/zh landing renders Chinese", async ({ page }) => {
     await page.goto("/zh");
-    await expect(page.getByRole("heading", { name: "面向数字资产组合的可验证市场情报系统。" })).toBeVisible();
-    await expect(page.getByText("机构级数字资产研究").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "判断何时承担 Beta、哪里可能存在 Alpha，Long Gamma NAV 1 > 50。" })).toBeVisible();
+    await expect(page.getByText("面向二级市场的 AI 决策支持").first()).toBeVisible();
   });
 
   test("/en/onboarding/assets renders English onboarding", async ({ page }) => {
@@ -74,13 +74,14 @@ test.describe("localized routes", () => {
 
   test("portfolio partial data warning localized", async ({ page }) => {
     await page.goto("/zh/portfolio");
-    await expect(page.getByText("数据不完整。当前 NAV 仅基于已同步的数据源估算。").first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "组合净值 NAV" })).toBeVisible();
+    await expect(page.getByText("至少同步两次后显示真实净值曲线")).toBeVisible();
   });
 
   test("Nautilus warning localized", async ({ page }) => {
     await page.goto("/zh/nautilus");
-    await expect(page.getByText("真实交易默认禁用。", { exact: true }).first()).toBeVisible();
-    await expect(page.getByText("当前 MVP 仅支持研究、回测和模拟交易。")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "策略运行控制台" })).toBeVisible();
+    await expect(page.getByText("LIVE DISABLED")).toBeVisible();
   });
 
   test("disclaimers localized", async ({ page }) => {
@@ -90,8 +91,8 @@ test.describe("localized routes", () => {
 
   test("metadata localized", async ({ page }) => {
     await page.goto("/zh");
-    await expect(page).toHaveTitle("PureGamma AI - 机构级数字资产研究系统");
+    await expect(page).toHaveTitle("PureGamma AI - Beta、Alpha 与 Long Gamma AI 决策助手");
     const description = await page.locator("meta[name='description']").getAttribute("content");
-    expect(description).toContain("组合感知投研系统");
+    expect(description).toContain("二级市场 AI 决策支持");
   });
 });

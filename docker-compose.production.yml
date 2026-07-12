@@ -28,6 +28,7 @@ services:
     restart: unless-stopped
     env_file: .env
     environment:
+      APP_ENV: production
       NAUTILUS_EXECUTION_MODE: paper
       NAUTILUS_LIVE_TRADING_ENABLED: "false"
       NAUTILUS_ALLOW_LIVE_ORDER: "false"
@@ -46,6 +47,10 @@ services:
     env_file: .env
     environment:
       APP_ENV: production
+      SITE_URL: https://${APP_DOMAIN}
+      CORS_ORIGINS: https://${APP_DOMAIN}
+      SESSION_COOKIE_DOMAIN: .${APP_DOMAIN}
+      INITIAL_LAUNCH_MODE: "true"
       AUTH_ALLOW_DEMO_FALLBACK: "false"
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: redis://redis:6379/0
@@ -91,7 +96,12 @@ services:
         NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
         NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN}
         NEXT_PUBLIC_INITIAL_LAUNCH_MODE: "true"
+        REQUIRE_AUTH: "true"
+        SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-pg_session}
     restart: unless-stopped
+    environment:
+      SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-pg_session}
+      REQUIRE_AUTH: "true"
     expose: ["3000"]
     depends_on: [api]
 

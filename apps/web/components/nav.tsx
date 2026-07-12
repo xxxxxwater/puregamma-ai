@@ -1,6 +1,7 @@
 "use client";
 
 import Link from "next/link";
+import Image from "next/image";
 import { useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
 import { Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, CreditCard, Gauge, LayoutDashboard, UserRound, type LucideIcon } from "lucide-react";
@@ -31,6 +32,7 @@ type StoredUser = {
   avatar_url?: string | null;
   auth_provider?: string;
   plan?: string;
+  credit_balance?: number;
 };
 
 const groups: NavGroup[] = [
@@ -83,7 +85,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border-pg bg-bg-panel p-4 lg:block">
       <Link href={withLocale(locale, "/")} className="flex items-center gap-2 font-semibold text-text-pg">
-        <img src="/logo.png" alt="PureGamma" className="h-5 w-5" />PureGamma AI
+        <Image src="/logo.png" alt="PureGamma" width={20} height={20} />PureGamma AI
       </Link>
       <div className="mt-2 text-xs leading-5 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
       <div className="mt-4">
@@ -123,12 +125,12 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
     <header className="sticky top-0 z-20 border-b border-border-pg bg-bg-app/95 backdrop-blur">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 py-3">
         <Link href={withLocale(locale, "/")} className="flex items-center gap-2 font-semibold text-text-pg lg:hidden">
-          <img src="/logo.png" alt="PureGamma" className="h-5 w-5" />
+          <Image src="/logo.png" alt="PureGamma" width={20} height={20} />
           PureGamma AI
         </Link>
         <div className="hidden items-center gap-2 text-xs md:flex">
-          <PlanBadge plan="Free" />
-          <Badge tone="neutral">{t(locale, "common.topbar.credits")}</Badge>
+          <PlanBadge plan={storedUser?.plan || "Free"} />
+          <Badge tone="neutral">{storedUser ? `${storedUser.credit_balance ?? 0} credits` : t(locale, "common.topbar.credits")}</Badge>
           <LanguageSwitcher compact />
           <AppearanceControls locale={locale} />
           {storedUser ? (

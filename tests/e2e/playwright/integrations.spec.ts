@@ -9,7 +9,8 @@ test.describe("/integrations", () => {
     await expect(page.getByText("Never provide withdrawal permissions or private keys.").first()).toBeVisible();
     await expect(page.getByRole("heading", { name: "Plaid Brokerage" })).toBeVisible();
     await expect(page.getByRole("heading", { name: "Binance Read-only" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Ethereum Wallet" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Telegram" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "iMessage" })).toBeVisible();
     await expect(page.getByRole("button", { name: "Connect" }).first()).toBeVisible();
   });
 });

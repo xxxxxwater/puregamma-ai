@@ -1,18 +1,21 @@
 import { defineConfig, devices } from "@playwright/test";
 
+const port = process.env.PLAYWRIGHT_PORT || "3000";
+
 export default defineConfig({
   testDir: "../../tests/e2e/playwright",
   timeout: 30_000,
   expect: { timeout: 10_000 },
-  fullyParallel: true,
+  fullyParallel: false,
+  workers: process.env.CI ? 2 : 3,
   reporter: [["list"], ["html", { open: "never", outputFolder: "../../playwright-report" }]],
   use: {
-    baseURL: process.env.PLAYWRIGHT_BASE_URL || "http://127.0.0.1:3000",
+    baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${port}`,
     trace: "retain-on-failure",
   },
   webServer: {
-    command: "node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3000",
-    url: "http://127.0.0.1:3000",
+    command: `NEXT_DIST_DIR=.next-playwright NEXT_PUBLIC_INITIAL_LAUNCH_MODE=false REQUIRE_AUTH=false node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`,
+    url: `http://127.0.0.1:${port}`,
     reuseExistingServer: true,
     timeout: 120_000,
   },

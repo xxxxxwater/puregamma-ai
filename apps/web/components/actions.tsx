@@ -48,6 +48,10 @@ export function BillingButton({
               return;
             }
             const data = await createBillingCheckout(plan, checkoutMode, locale);
+            if (!data || !data.checkout_url) {
+              alert(t(locale, "billing.checkoutFailed"));
+              return;
+            }
             window.location.href = data.checkout_url;
           } finally {
             setBusy(false);
@@ -55,7 +59,7 @@ export function BillingButton({
         }}
       >
         <CreditCard className="h-4 w-4" aria-hidden />
-        {t(locale, "common.actions.upgradeTo", { plan })}
+        {plan === "Enterprise" ? t(locale, "common.actions.contactSales") : t(locale, "common.actions.upgradeTo", { plan })}
       </Button>
       {disabled && !isMock && disabledMessage ? <p className="text-xs text-status-warning">{disabledMessage}</p> : null}
     </div>

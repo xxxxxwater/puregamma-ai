@@ -5,9 +5,9 @@ test.describe("/dashboard", () => {
     await page.goto("/dashboard");
 
     await expect(page.getByRole("heading", { name: "PureGamma Intelligence Console" })).toBeVisible();
-    await expect(page.getByRole("heading", { name: "Risk-on momentum" })).toBeVisible();
     await expect(page.getByText("Credit Balance")).toBeVisible();
     await expect(page.getByText("Free plan")).toBeVisible();
-    await expect(page.locator("main").getByText(/Mock Mode|Live Mode/).first()).toBeVisible();
+    await expect(page.getByText("Live assets")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Latest Daily Brief" })).toBeVisible();
   });
 });

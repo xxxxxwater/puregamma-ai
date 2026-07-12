@@ -17,6 +17,7 @@ from packages.database.models import AgentConversation, AgentMessage, AgentMessa
 
 ALLOWED_DATA_SOURCES = {"market", "rss", "fintwit", "x-twitter", "bloomberg", "portfolio", "options"}
 ALLOWED_SKILLS = {"market_research", "news_research", "portfolio_review", "options_analysis", "source_check"}
+AGENT_DAILY_LIMITS = {"Free": 5, "Pro": 50, "Max": 200, "Enterprise": 1000}
 
 SYSTEM_PROMPT = """You are PureGamma, a digital-asset research assistant powered by DeepSeek and NautilusTrader.
 
@@ -50,7 +51,9 @@ Use only the evidence supplied below and cite it with [n]. End every investment-
 
 
 def assert_quota(db: Session, user: User) -> None:
-    pass
+    state = quota_state(db, user)
+    if state["remaining"] <= 0:
+        raise ValueError(f"Daily Agent run limit reached for plan {state['plan']}")
 
 
 def create_conversation(db: Session, user: User, title: str | None = None) -> AgentConversation:
@@ -281,10 +284,18 @@ def serialize_conversation(row: AgentConversation) -> dict:
 
 
 def quota_state(db: Session, user: User) -> dict:
+    start = datetime.combine(datetime.now(timezone.utc).date(), datetime.min.time(), tzinfo=timezone.utc)
+    used = (
+        db.query(AgentRun)
+        .filter(AgentRun.user_id == user.id, AgentRun.started_at >= start)
+        .count()
+    )
+    plan = user.plan if user.plan in AGENT_DAILY_LIMITS else "Free"
+    limit = AGENT_DAILY_LIMITS[plan]
     return {
-        "plan": user.plan,
-        "used": 0,
-        "limit": None,
-        "remaining": None,
+        "plan": plan,
+        "used": used,
+        "limit": limit,
+        "remaining": max(0, limit - used),
         "credit_balance": user.credit_balance,
     }

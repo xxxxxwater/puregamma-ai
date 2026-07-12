@@ -5,6 +5,13 @@ import { t } from "@/lib/translations";
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
 type FetchOptions<T> = RequestInit & { fallback: T; locale?: Locale };
+export type CheckoutResponse = {
+  checkout_url: string;
+  mode?: string;
+  checkout_mode?: "session" | "payment_link";
+  checkout_intent_id?: string;
+  client_reference_id?: string;
+};
 
 export async function api<T>(path: string, options: FetchOptions<T>): Promise<T> {
   try {
@@ -16,7 +23,8 @@ export async function api<T>(path: string, options: FetchOptions<T>): Promise<T>
         ...(options.headers || {})
       },
       credentials: "include",
-      cache: "no-store"
+      cache: "no-store",
+      signal: options.signal || AbortSignal.timeout(8_000)
     });
     if (!response.ok) return options.fallback;
     return response.json() as Promise<T>;
@@ -103,8 +111,11 @@ export const DEFAULT_ONBOARDING: OnboardingState = {
   completed: false,
 };
 
-export async function saveOnboarding(userId: string, state: Partial<OnboardingState>) {
-  return post<{ ok: boolean }>("/auth/onboarding", { user_id: userId, ...state }, { ok: true });
+export async function saveOnboarding(state: Partial<OnboardingState> & Record<string, unknown>) {
+  return requestStrict<{ ok: boolean; user: AuthResponse["user"] }>("/auth/onboarding", {
+    method: "POST",
+    body: JSON.stringify(state)
+  });
 }
 
 export type MarketAsset = {
@@ -163,6 +174,7 @@ export const fallbackSubscription: SubscriptionState = {
   cancel_at_period_end: false,
   cancel_at: null,
   credit_balance: 30,
+  billing_mode: "stripe",
   account: { auth_provider: "mock", avatar_url: null, email: "demo@puregamma.ai" },
   entitlement: { notification_channels: ["email"], high_cost_tasks: false, imessage: false },
   checkout_mode: "session",
@@ -732,11 +744,11 @@ export function getBillingCredits(locale: Locale = defaultLocale) {
 }
 
 export function createCheckoutSession(plan_name: string, locale: Locale = defaultLocale) {
-  return post("/billing/create-checkout-session", { plan_name, locale }, { checkout_url: `/${locale}/billing`, mode: "mock" }, locale);
+  return post<CheckoutResponse | null>("/billing/create-checkout-session", { plan_name, locale }, null, locale);
 }
 
 export function createPaymentLinkCheckout(plan_name: string, locale: Locale = defaultLocale) {
-  return post("/billing/create-payment-link-checkout", { plan_name, locale }, { checkout_url: `/${locale}/billing`, checkout_mode: "payment_link", checkout_intent_id: "mock" }, locale);
+  return post<CheckoutResponse | null>("/billing/create-payment-link-checkout", { plan_name, locale }, null, locale);
 }
 
 export function createBillingCheckout(plan_name: string, checkoutMode: "session" | "payment_link", locale: Locale = defaultLocale) {

@@ -57,6 +57,7 @@
     "upgrade": "Upgrade",
     "manageSubscription": "Manage Subscription",
     "upgradeTo": "Upgrade to {plan}",
+    "contactSales": "Contact Sales",
     "generatePlaybook": "Generate playbook",
     "sendTestPush": "Send test push",
     "runMockBacktest": "Run mock backtest"

@@ -12,6 +12,7 @@ from apps.api.services.credit_service import (
     consume_credits,
     refund_credits,
 )
+from apps.api.services.entitlement_service import EntitlementDeniedError, assert_action_allowed
 from packages.billing.credits import cost_for
 from packages.database.models import NotificationDelivery, User, UserPreference, utcnow
 from packages.notifications.email import EmailProvider
@@ -185,8 +186,21 @@ class NotificationDispatcher:
                     {"reason": "message_too_long"},
                     locale=locale,
                 )
+            if self._imessage_count_today(db, user_id) >= self.settings.imessage_rate_limit_per_user_per_day:
+                return self._create_delivery(
+                    db,
+                    user_id,
+                    channel,
+                    recipient,
+                    message,
+                    idempotency_key,
+                    "skipped",
+                    {"reason": "daily_rate_limit"},
+                    locale=locale,
+                )
         action = CHANNEL_ACTION[channel]
         try:
+            assert_action_allowed(db, user_id, action)
             consume_credits(
                 db,
                 user_id,
@@ -195,7 +209,7 @@ class NotificationDispatcher:
                 {"channel": channel, "idempotency_key": idempotency_key},
             )
             db.commit()
-        except InsufficientCreditsError:
+        except (InsufficientCreditsError, EntitlementDeniedError) as exc:
             db.rollback()
             return self._create_delivery(
                 db,
@@ -205,7 +219,11 @@ class NotificationDispatcher:
                 message,
                 idempotency_key,
                 "skipped",
-                {"reason": "insufficient_credits"},
+                {
+                    "reason": "insufficient_credits"
+                    if isinstance(exc, InsufficientCreditsError)
+                    else "entitlement_denied"
+                },
                 locale=locale,
             )
         provider = self._provider(channel)

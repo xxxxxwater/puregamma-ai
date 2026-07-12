@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from sqlalchemy.orm import Session
 
+from apps.api.config import get_settings
 from packages.database.models import CreditLedger, User
 
 
@@ -28,7 +29,14 @@ def consume_credits(db: Session, user_id: str, action: str, amount: int, metadat
     user = db.query(User).filter(User.id == user_id).with_for_update().one_or_none()
     if not user:
         raise ValueError(f"User not found: {user_id}")
-    return _ledger(db, user, action, 0, {**(metadata or {}), "credits_bypassed": amount})
+    if not get_settings().credit_usage_enforced:
+        return _ledger(db, user, action, 0, {**(metadata or {}), "credits_bypassed": amount})
+    if user.credit_balance < amount:
+        raise InsufficientCreditsError(
+            f"Insufficient credits: required {amount}, available {user.credit_balance}"
+        )
+    user.credit_balance -= amount
+    return _ledger(db, user, action, -amount, metadata)
 
 
 def refund_credits(db: Session, user_id: str, action: str, amount: int, metadata: dict | None = None) -> CreditLedger:
@@ -37,7 +45,10 @@ def refund_credits(db: Session, user_id: str, action: str, amount: int, metadata
     user = db.query(User).filter(User.id == user_id).with_for_update().one_or_none()
     if not user:
         raise ValueError(f"User not found: {user_id}")
-    return _ledger(db, user, f"{action}_refund", 0, {**(metadata or {}), "credits_bypassed": amount})
+    if not get_settings().credit_usage_enforced:
+        return _ledger(db, user, f"{action}_refund", 0, {**(metadata or {}), "credits_bypassed": amount})
+    user.credit_balance += amount
+    return _ledger(db, user, f"{action}_refund", amount, metadata)
 
 
 def grant_credits(db: Session, user_id: str, action: str, amount: int, metadata: dict | None = None) -> CreditLedger:

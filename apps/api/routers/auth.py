@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import (
@@ -26,6 +26,15 @@ class MockLoginRequest(BaseModel):
 
 class LocalePreferenceRequest(BaseModel):
     locale: str
+
+
+class OnboardingRequest(BaseModel):
+    preferred_assets: list[str] = Field(default_factory=list)
+    preferred_style: str = "risk-controlled"
+    notification_channels: list[str] = Field(default_factory=lambda: ["email"])
+    email_recipient: str = ""
+    telegram_chat_id: str = ""
+    imessage_recipient: str = ""
 
 
 def serialize_user(user: User) -> dict:
@@ -139,3 +148,33 @@ def save_locale(
     db.commit()
     db.refresh(user)
     return {"locale": locale, "user": serialize_user(user)}
+
+
+@router.post("/auth/onboarding")
+def save_onboarding(
+    payload: OnboardingRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    allowed_assets = {"BTC", "ETH", "SOL", "HYPE", "MSTR", "STRC"}
+    assets = [item.upper() for item in payload.preferred_assets if item.upper() in allowed_assets]
+    allowed_channels = set(get_user_channels(user.plan))
+    channels = [item for item in payload.notification_channels if item in allowed_channels]
+    preference = user.preference
+    if not preference:
+        preference = UserPreference(user_id=user.id)
+        db.add(preference)
+    preference.preferred_assets = assets or ["BTC", "ETH", "SOL"]
+    preference.preferred_style = payload.preferred_style[:80]
+    preference.notification_channels = channels or ["email"]
+    preference.email_recipient = (payload.email_recipient or user.email)[:320]
+    preference.telegram_chat_id = payload.telegram_chat_id[:160] or None
+    preference.imessage_recipient = payload.imessage_recipient[:40] or None
+    db.commit()
+    return {"ok": True, "user": serialize_user(user)}
+
+
+def get_user_channels(plan_name: str) -> list[str]:
+    from packages.billing.entitlements import entitlement_for_plan
+
+    return entitlement_for_plan(plan_name)["notification_channels"]

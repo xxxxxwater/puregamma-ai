@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { Badge, PGResearchCard } from "@/components/puregamma";
 import { localizedMetadata } from "@/lib/metadata";
@@ -19,7 +20,7 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
     <div className="space-y-16 py-4">
       <section className="border border-border-pg bg-bg-panel p-6 md:p-10">
         <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-pg pb-5 text-sm">
-          <div className="flex items-center gap-2 font-semibold"><img src="/logo.png" alt="PureGamma" className="h-6 w-6" />PureGamma AI</div>
+          <div className="flex items-center gap-2 font-semibold"><Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI</div>
           <div className="flex flex-wrap items-center gap-3">
             <Link href={withLocale(locale, "/login")} className="inline-flex items-center border border-border-pg px-4 py-2 text-sm font-semibold hover:border-border-pg-strong">{locale === "zh" ? "登录" : "Login"}</Link>
             <Link href={withLocale(locale, "/login")} className="inline-flex items-center border border-border-pg-strong bg-pg-white px-4 py-2 text-sm font-semibold text-pg-black">{locale === "zh" ? "注册" : "Sign Up"}</Link>

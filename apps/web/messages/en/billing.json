@@ -31,6 +31,7 @@
   "cancelAtPeriodEnd": "Cancels on {date}",
   "subscriptionCanceled": "Subscription cancellation scheduled.",
   "paymentLinkMissing": "Stripe Payment Link is not configured for this plan.",
+  "checkoutFailed": "Unable to create checkout session. Please sign in first.",
   "plans": [
     { "name": "Free", "price": "$0", "credits": "30", "research": "Delayed shared daily brief", "data": "Delayed market data", "notifications": "Email only", "strategy": "No strategy lab", "restrictions": ["no Plaid", "no iMessage", "no X sentiment", "no on-chain scan"] },
     { "name": "Pro", "price": "$29.9", "credits": "1,000", "research": "Daily market and portfolio review", "data": "Plaid manual sync", "notifications": "Telegram and Email", "strategy": "Basic mock backtest", "restrictions": ["no advanced X sentiment", "no iMessage by default"] },

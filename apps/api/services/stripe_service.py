@@ -89,7 +89,7 @@ class StripeService:
         stripe = self._client()
         portal = stripe.billing_portal.Session.create(
             customer=user.stripe_customer_id,
-            return_url="http://localhost:3000/billing",
+            return_url=f"{self.settings.site_url}/billing",
         )
         return {"portal_url": portal["url"], "mode": "stripe"}
 
