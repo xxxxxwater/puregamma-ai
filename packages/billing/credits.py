@@ -22,6 +22,12 @@ CREDIT_COSTS: dict[str, int] = {
     "strategy_activation": 5,
     "runtime_reconciliation": 2,
     "manual_order_preview": 1,
+    "agent_chat_basic": 2,
+    "agent_market_research": 3,
+    "agent_news_research": 3,
+    "agent_portfolio_analysis": 5,
+    "agent_advanced_data": 5,
+    "agent_deep_research": 15,
 }
 
 

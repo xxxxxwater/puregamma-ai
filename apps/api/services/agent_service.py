@@ -1,23 +1,36 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Generator
 
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
+from apps.api.services.credit_service import consume_credits, refund_credits
+from apps.api.services.entitlement_service import get_user_entitlement
+from packages.billing.credits import cost_for
 from packages.agents.chat.tools import AgentToolRegistry, ToolSource
 from packages.agents.llm.provider_factory import get_llm_provider
 from packages.agents.llm.schemas import ChatMessage
 from packages.database.models import AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentToolCall, UsageEvent, User, utcnow
 
 
-ALLOWED_DATA_SOURCES = {"market", "rss", "fintwit", "x-twitter", "bloomberg", "portfolio", "options"}
-ALLOWED_SKILLS = {"market_research", "news_research", "portfolio_review", "options_analysis", "source_check"}
-AGENT_DAILY_LIMITS = {"Free": 5, "Pro": 50, "Max": 200, "Enterprise": 1000}
+ALLOWED_DATA_SOURCES = {"market", "rss", "fintwit", "x", "x-twitter", "bloomberg", "portfolio", "options"}
+ALLOWED_SKILLS = {"market_research", "news_research", "portfolio_review", "options_analysis", "source_check", "deep_research"}
+logger = logging.getLogger(__name__)
+
+
+class AgentLimitError(ValueError):
+    pass
+
+
+class AgentDataSourceDeniedError(RuntimeError):
+    pass
 
 SYSTEM_PROMPT = """You are PureGamma, a digital-asset research assistant powered by DeepSeek and NautilusTrader.
 
@@ -53,7 +66,13 @@ Use only the evidence supplied below and cite it with [n]. End every investment-
 def assert_quota(db: Session, user: User) -> None:
     state = quota_state(db, user)
     if state["remaining"] <= 0:
-        raise ValueError(f"Daily Agent run limit reached for plan {state['plan']}")
+        raise AgentLimitError("AGENT_DAILY_LIMIT_REACHED")
+    running = db.query(AgentRun).filter(AgentRun.user_id == user.id, AgentRun.status.in_(["pending", "running"])).count()
+    if running >= state["concurrent_limit"]:
+        raise AgentLimitError("AGENT_CONCURRENT_LIMIT_REACHED")
+    global_running = db.query(AgentRun).filter(AgentRun.status.in_(["pending", "running"])).count()
+    if global_running >= get_settings().agent_global_concurrent_runs:
+        raise AgentLimitError("AGENT_GLOBAL_CAPACITY_REACHED")
 
 
 def create_conversation(db: Session, user: User, title: str | None = None) -> AgentConversation:
@@ -89,18 +108,55 @@ def _sanitize_context(context: dict | None) -> dict:
     }
 
 
+def _metering_action(context: dict) -> str:
+    sources = set(context.get("data_sources", []))
+    skills = set(context.get("skills", []))
+    if "deep_research" in skills:
+        return "agent_deep_research"
+    if sources.intersection({"x", "x-twitter", "bloomberg", "onchain"}):
+        return "agent_advanced_data"
+    if "portfolio" in sources or "portfolio_review" in skills:
+        return "agent_portfolio_analysis"
+    if sources.intersection({"rss", "fintwit"}) or "news_research" in skills:
+        return "agent_news_research"
+    if "market" in sources or "market_research" in skills:
+        return "agent_market_research"
+    return "agent_chat_basic"
+
+
+def _entitled_context(db: Session, user: User, context: dict) -> dict:
+    entitlement = get_user_entitlement(db, user.id)
+    allowed = set(entitlement["allowed_data_sources"])
+    requested = context.get("data_sources", [])
+    if "all" in allowed:
+        permitted = requested
+    else:
+        permitted = [source for source in requested if source in allowed]
+    denied = [source for source in requested if source not in permitted]
+    return {**context, "data_sources": permitted, "denied_data_sources": [{"provider": source, "reason": "plan_required"} for source in denied]}
+
+
 def start_run(db: Session, user: User, conversation: AgentConversation, content: str, context: dict | None = None) -> AgentRun:
     content = content.strip()
     if not content or len(content) > 12_000:
         raise ValueError("Message must contain 1 to 12000 characters")
+    if db.bind and db.bind.dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(73002001)"))
+    user = db.query(User).filter(User.id == user.id).with_for_update().one()
     assert_quota(db, user)
     settings = get_settings()
+    clean_context = _entitled_context(db, user, _sanitize_context(context))
+    action = _metering_action(clean_context)
+    credit_cost = cost_for(action)
+    run_id = str(uuid.uuid4())
+    consume_credits(db, user.id, action, credit_cost, {"run_id": run_id}, idempotency_key=f"agent-charge:{run_id}")
     model = settings.agent_model or settings.llm_model or settings.deepseek_model or "not-configured"
-    user_message = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="user", content=content, status="completed", context_json=_sanitize_context(context))
+    user_message = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="user", content=content, status="completed", context_json=clean_context)
     assistant = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="assistant", content="", status="pending", model=model)
     db.add_all([user_message, assistant])
     db.flush()
-    run = AgentRun(conversation_id=conversation.id, user_message_id=user_message.id, assistant_message_id=assistant.id, user_id=user.id, model=model, status="pending", trace_id=str(uuid.uuid4()))
+    entitlement = get_user_entitlement(db, user.id)
+    run = AgentRun(id=run_id, conversation_id=conversation.id, user_message_id=user_message.id, assistant_message_id=assistant.id, user_id=user.id, model=model, status="pending", trace_id=str(uuid.uuid4()), credit_cost=credit_cost, queue_priority=entitlement["queue_priority"])
     db.add(run)
     if conversation.title == "New research":
         conversation.title = content.replace("\n", " ")[:80]
@@ -244,8 +300,10 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         db.commit()
         raise
     except Exception as exc:
-        message = str(exc)[:1000]
-        code = "MODEL_NOT_CONFIGURED" if message.startswith("MODEL_NOT_CONFIGURED") else "AGENT_RUN_FAILED"
+        logger.exception("Agent run failed", extra={"run_id": run.id, "user_id": user.id})
+        raw_message = str(exc)
+        code = "MODEL_NOT_CONFIGURED" if raw_message.startswith("MODEL_NOT_CONFIGURED") else "AGENT_RUN_FAILED"
+        message = "The Agent could not complete this run. Credits were refunded."
         run.status = "failed"
         run.error_message = message
         run.completed_at = utcnow()
@@ -253,6 +311,9 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         assistant.error_code = code
         assistant.error_message = message
         assistant.latency_ms = int((time.perf_counter() - started) * 1000)
+        if run.credit_cost and not run.credit_refunded:
+            refund_credits(db, user.id, _metering_action(user_message.context_json or {}), run.credit_cost, {"run_id": run.id, "reason": code}, idempotency_key=f"agent-refund:{run.id}")
+            run.credit_refunded = True
         db.commit()
         yield _sse("run.failed", {"runId": run.id, "messageId": assistant.id, "code": code, "message": message})
 
@@ -290,12 +351,15 @@ def quota_state(db: Session, user: User) -> dict:
         .filter(AgentRun.user_id == user.id, AgentRun.started_at >= start)
         .count()
     )
-    plan = user.plan if user.plan in AGENT_DAILY_LIMITS else "Free"
-    limit = AGENT_DAILY_LIMITS[plan]
+    entitlement = get_user_entitlement(db, user.id)
+    plan = entitlement["plan"]
+    limit = entitlement["agent_daily_runs"]
     return {
         "plan": plan,
         "used": used,
         "limit": limit,
         "remaining": max(0, limit - used),
+        "concurrent_limit": entitlement["agent_concurrent_runs"],
+        "running": db.query(AgentRun).filter(AgentRun.user_id == user.id, AgentRun.status.in_(["pending", "running"])).count(),
         "credit_balance": user.credit_balance,
     }

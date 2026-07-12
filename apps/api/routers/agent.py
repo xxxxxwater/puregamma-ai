@@ -6,7 +6,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
-from apps.api.services.agent_service import create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from apps.api.services.agent_service import AgentLimitError, create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from apps.api.services.credit_service import InsufficientCreditsError, refund_credits
+from apps.api.services.entitlement_service import get_user_entitlement
 from packages.database.models import AgentConversation, AgentMessage, AgentRun, User, utcnow
 
 
@@ -34,6 +36,12 @@ class MessageRequest(BaseModel):
 @router.get("/quota")
 def get_quota(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     return quota_state(db, user)
+
+
+@router.get("/capabilities")
+def capabilities(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    entitlement = get_user_entitlement(db, user.id)
+    return {"capabilities": entitlement, "quota": quota_state(db, user)}
 
 
 @router.get("/conversations")
@@ -99,8 +107,12 @@ def send_message(conversation_id: str, payload: MessageRequest, db: Session = De
         run = start_run(db, user, row, payload.content, context={"data_sources": payload.data_sources, "skills": payload.skills, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments})
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AgentLimitError as exc:
+        raise HTTPException(status_code=429, detail={"code": str(exc)}) from exc
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except InsufficientCreditsError as exc:
+        raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_CREDITS"}) from exc
     return StreamingResponse(stream_run(db, user, run.id, payload.locale), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
@@ -113,7 +125,14 @@ def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(g
     if not previous:
         raise HTTPException(status_code=400, detail="Original user message not found")
     conversation = owned_conversation(db, user, assistant.conversation_id)
-    run = start_run(db, user, conversation, previous.content)
+    supplied = bool(payload.data_sources or payload.skills or payload.custom_prompt or payload.attachments)
+    context = {"data_sources": payload.data_sources, "skills": payload.skills, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments} if supplied else (previous.context_json or {})
+    try:
+        run = start_run(db, user, conversation, previous.content, context=context)
+    except AgentLimitError as exc:
+        raise HTTPException(status_code=429, detail={"code": str(exc)}) from exc
+    except InsufficientCreditsError as exc:
+        raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_CREDITS"}) from exc
     return StreamingResponse(stream_run(db, user, run.id, payload.locale), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
@@ -123,6 +142,10 @@ def cancel_run(run_id: str, db: Session = Depends(get_db), user: User = Depends(
     if not row:
         raise HTTPException(status_code=404, detail="Run not found")
     if row.status in {"pending", "running"}:
+        was_pending = row.status == "pending"
         row.status = "canceled"
+        if was_pending and row.credit_cost and not row.credit_refunded:
+            refund_credits(db, user.id, "agent_run", row.credit_cost, {"run_id": row.id, "reason": "user_cancelled_before_start"}, idempotency_key=f"agent-refund:{row.id}")
+            row.credit_refunded = True
         db.commit()
     return {"id": row.id, "status": row.status}

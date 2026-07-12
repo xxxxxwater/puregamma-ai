@@ -25,7 +25,7 @@ def seed_plans(db: Session) -> None:
         row.monthly_price = plan.monthly_price
         row.monthly_credits = plan.monthly_credits
         row.max_daily_reports = plan.max_daily_reports
-        row.max_alerts = plan.max_alerts
+        row.max_alerts = plan.max_alerts_per_month
         row.allowed_data_sources = list(plan.allowed_data_sources)
         row.stripe_price_id = price_ids.get(plan.name)
         row.is_active = True

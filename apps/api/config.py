@@ -50,6 +50,7 @@ class Settings:
     entitlements_enforced: bool = (
         os.getenv("ENTITLEMENTS_ENFORCED", "true").lower() == "true"
     )
+    agent_global_concurrent_runs: int = int(os.getenv("AGENT_GLOBAL_CONCURRENT_RUNS", "20") or 20)
     api_rate_limit_per_minute: int = int(
         os.getenv("API_RATE_LIMIT_PER_MINUTE", "120") or 120
     )

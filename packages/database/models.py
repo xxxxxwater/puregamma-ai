@@ -120,6 +120,7 @@ class CreditLedger(Base):
     credits_delta = Column(Integer, nullable=False)
     balance_after = Column(Integer, nullable=False)
     metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    idempotency_key = Column(String, nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
@@ -593,6 +594,9 @@ class AgentRun(Base):
     trace_id = Column(String, nullable=False, index=True)
     error_message = Column(Text, nullable=True)
     usage_recorded = Column(Boolean, nullable=False, default=False)
+    credit_cost = Column(Integer, nullable=False, default=0)
+    credit_refunded = Column(Boolean, nullable=False, default=False)
+    queue_priority = Column(Integer, nullable=False, default=0)
 
 
 class AgentToolCall(Base):

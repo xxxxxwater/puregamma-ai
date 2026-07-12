@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services import billing_service
 from packages.database.models import User
+from apps.api.services.entitlement_service import get_user_entitlement
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -24,6 +25,11 @@ def subscription(db: Session = Depends(get_db), user: User = Depends(get_current
 @router.get("/credits")
 def credits(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     return billing_service.get_credits(db, user.id)
+
+
+@router.get("/capabilities")
+def capabilities(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    return {"capabilities": get_user_entitlement(db, user.id)}
 
 
 @router.post("/create-checkout-session")

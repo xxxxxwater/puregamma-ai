@@ -171,7 +171,7 @@ def _sync_plan_from_stripe_price(db: Session, price: Any) -> SubscriptionPlan | 
             monthly_price=plan_defaults.monthly_price,
             monthly_credits=plan_defaults.monthly_credits,
             max_daily_reports=plan_defaults.max_daily_reports,
-            max_alerts=plan_defaults.max_alerts,
+            max_alerts=plan_defaults.max_alerts_per_month,
             allowed_data_sources=list(plan_defaults.allowed_data_sources),
         )
         db.add(row)

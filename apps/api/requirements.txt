@@ -16,3 +16,4 @@ feedparser==6.0.12
 openai==2.45.0
 cryptography==49.0.0
 requests==2.32.5
+alembic==1.16.5
