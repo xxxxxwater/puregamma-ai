@@ -43,9 +43,14 @@ POST_BASELINE_COLUMNS = {
     ("reports", "status"),
     ("reports", "idempotency_key"),
     ("reports", "error_message"),
+    ("user_preferences", "imessage_recipient_verified_at"),
+    ("notification_deliveries", "attempt_count"),
+    ("notification_deliveries", "last_attempt_at"),
+    ("notification_deliveries", "next_retry_at"),
+    ("notification_deliveries", "last_error"),
 }
 
-POST_BASELINE_TABLES = {"daily_brief_preferences"}
+POST_BASELINE_TABLES = {"daily_brief_preferences", "imessage_verification_challenges"}
 
 
 def _schema_gaps(*, ignore_columns: set[tuple[str, str]] | None = None) -> list[str]:

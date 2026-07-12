@@ -91,3 +91,24 @@ def test_imessage_relay_rejects_timestamp_replay(tmp_path, monkeypatch):
         response = client.post("/send", content=body, headers={"X-PG-Timestamp": timestamp, "X-PG-Signature": signature})
 
     assert response.status_code == 401
+
+
+def test_imessage_relay_retries_failed_delivery_after_backoff(tmp_path, monkeypatch):
+    relay = load_relay_module()
+    monkeypatch.setattr(relay, "settings", SimpleNamespace(relay_secret="secret", db_path=str(tmp_path / "relay.sqlite3"), max_message_length=3000, replay_tolerance_seconds=300, applescript_path="/tmp/send.applescript"))
+    outcomes = iter([{"ok": False, "status": "timeout"}, {"ok": True, "status": "sent"}])
+    monkeypatch.setattr(relay, "send_via_messages_app", lambda recipient, message: next(outcomes))
+    body = json.dumps({"recipient": "+15555550100", "message": "hello", "idempotency_key": "relay-retry"}, separators=(",", ":")).encode()
+    timestamp = str(int(time.time()))
+    signature = relay.compute_hmac("secret", timestamp, body)
+    headers = {"X-PG-Timestamp": timestamp, "X-PG-Signature": signature, "X-PG-Idempotency-Key": "relay-retry"}
+
+    with TestClient(relay.app) as client:
+        first = client.post("/send", content=body, headers=headers)
+        with relay.sqlite3.connect(relay.settings.db_path) as conn:
+            conn.execute("UPDATE deliveries SET next_retry_at = ? WHERE idempotency_key = ?", ((relay.datetime.now(relay.timezone.utc) - relay.timedelta(seconds=1)).isoformat(), "relay-retry"))
+        second = client.post("/send", content=body, headers=headers)
+
+    assert first.json()["status"] == "failed_retryable"
+    assert second.json()["status"] == "sent"
+    assert second.json()["attempt_count"] == 2

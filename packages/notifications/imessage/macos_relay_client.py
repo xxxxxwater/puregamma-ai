@@ -16,6 +16,17 @@ def sign_payload(secret: str, timestamp: str, body: bytes) -> str:
 
 
 class MacOSIMessageRelayClient(IMessageProvider):
+    def _status(self, key: str) -> dict | None:
+        settings = get_settings()
+        timestamp = str(int(time.time()))
+        signature = sign_payload(settings.imessage_relay_secret, timestamp, b"")
+        request = urllib.request.Request(f"{settings.imessage_relay_url.rstrip('/')}/deliveries/{key}", headers={"X-PG-Timestamp": timestamp, "X-PG-Signature": signature, "X-PG-Idempotency-Key": key})
+        try:
+            with urllib.request.urlopen(request, timeout=4) as response:
+                return json.loads(response.read().decode() or "{}")
+        except Exception:
+            return None
+
     def send_message(self, recipient: str, message: str, idempotency_key: str) -> NotificationResult:
         settings = get_settings()
         if not settings.imessage_relay_secret:
@@ -39,9 +50,12 @@ class MacOSIMessageRelayClient(IMessageProvider):
             try:
                 with urllib.request.urlopen(request, timeout=8) as response:
                     data = json.loads(response.read().decode() or "{}")
-                    return NotificationResult(response.status < 300, self.channel, data)
+                    return NotificationResult(response.status < 300 and data.get("status") == "sent", self.channel, data)
             except Exception as exc:  # pragma: no cover - network failure path is environment-dependent.
-                last_error = str(exc)
+                status = self._status(idempotency_key)
+                if status and status.get("status") == "sent":
+                    return NotificationResult(True, self.channel, status)
+                last_error = exc.__class__.__name__
                 if attempt < 2:
                     time.sleep(0.1 * (2**attempt))
-        return NotificationResult(False, self.channel, {"error": last_error or "relay_failed"})
+        return NotificationResult(False, self.channel, {"status": "failed_retryable", "error": last_error or "relay_failed"})

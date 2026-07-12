@@ -25,6 +25,7 @@ from packages.database.models import (
     TradingAccount,
     User,
     UserPreference,
+    NotificationDelivery,
     utcnow,
 )
 from packages.database.session import SessionLocal
@@ -33,6 +34,32 @@ from packages.workers.celery_app import celery_app
 
 
 logger = logging.getLogger(__name__)
+
+
+@celery_app.task(name="puregamma.retry_notification_deliveries")
+def retry_notification_deliveries() -> dict:
+    db = SessionLocal()
+    retried = sent = failed = 0
+    try:
+        query = db.query(NotificationDelivery).filter(NotificationDelivery.status == "failed_retryable", NotificationDelivery.next_retry_at <= utcnow()).order_by(NotificationDelivery.next_retry_at).limit(100)
+        if db.bind and db.bind.dialect.name == "postgresql":
+            query = query.with_for_update(skip_locked=True)
+        rows = query.all()
+        for row in rows:
+            try:
+                retried += 1
+                result = send_notification(db, row.user_id, row.channel, str((row.payload or {}).get("message", "")), {"idempotency_key": row.idempotency_key, "locale": row.locale})
+                if result.status == "sent":
+                    sent += 1
+                elif result.status == "failed_permanent":
+                    failed += 1
+            except Exception:
+                db.rollback()
+                failed += 1
+                logger.exception("notification_retry_failed delivery_id=%s", row.id)
+        return {"retried": retried, "sent": sent, "failed": failed}
+    finally:
+        db.close()
 
 
 @celery_app.task(name="puregamma.dispatch_due_daily_briefs")

@@ -739,6 +739,14 @@ export function sendDailyPushTest(channel: DailyPushPreference["channel"], local
   return requestStrict<{ delivery: DeliveryRecord }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, message, locale, metadata: { idempotency_key: `daily-push-test-${Date.now()}` } }) });
 }
 
+export function requestIMessageVerification(recipient: string) {
+  return requestStrict<{ challenge_id: string; expires_at: string; recipient: string; development_code?: string }>("/notifications/imessage/verify/request", { method: "POST", body: JSON.stringify({ recipient }) });
+}
+
+export function confirmIMessageVerification(challenge_id: string, code: string) {
+  return requestStrict<{ recipient: string; recipient_verified_at: string }>("/notifications/imessage/verify/confirm", { method: "POST", body: JSON.stringify({ challenge_id, code }) });
+}
+
 export function getBillingSubscription(locale: Locale = defaultLocale) {
   return api<SubscriptionState>(`/billing/subscription?locale=${locale}`, { fallback: fallbackSubscription, locale });
 }

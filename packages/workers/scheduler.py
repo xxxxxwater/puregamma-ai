@@ -42,6 +42,13 @@ def build_scheduler() -> BlockingScheduler:
         coalesce=True,
     )
     scheduler.add_job(
+        tasks.retry_notification_deliveries,
+        IntervalTrigger(minutes=1),
+        id="retry_notification_deliveries",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
         tasks.check_subscription_status,
         CronTrigger(hour=1, minute=0),
         id="subscription_status_check",

@@ -73,6 +73,7 @@ class UserPreference(Base):
     subscription_cancel_at_period_end = Column(Boolean, nullable=False, default=False)
     subscription_cancel_at = Column(DateTime(timezone=True), nullable=True)
     imessage_recipient = Column(String, nullable=True)
+    imessage_recipient_verified_at = Column(DateTime(timezone=True), nullable=True)
     telegram_chat_id = Column(String, nullable=True)
     slack_webhook_url = Column(String, nullable=True)
     email_recipient = Column(String, nullable=True)
@@ -295,8 +296,25 @@ class NotificationDelivery(Base):
     provider_response = Column(JSON, default=dict, nullable=False)
     idempotency_key = Column(String, nullable=False)
     retry_count = Column(Integer, nullable=False, default=0)
+    attempt_count = Column(Integer, nullable=False, default=0)
+    last_attempt_at = Column(DateTime(timezone=True), nullable=True)
+    next_retry_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    last_error = Column(String, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
     sent_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class IMessageVerificationChallenge(Base):
+    __tablename__ = "imessage_verification_challenges"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    recipient = Column(String, nullable=False)
+    code_hash = Column(String, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    attempts = Column(Integer, nullable=False, default=0)
+    verified_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
 class BacktestRun(Base):

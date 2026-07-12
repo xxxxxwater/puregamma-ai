@@ -8,7 +8,8 @@ from apps.api.dependencies import get_current_user, get_db
 from apps.api.i18n import resolve_locale
 from apps.api.services.notification_service import send_notification, serialize_delivery
 from apps.api.services.daily_push_service import delivery_history, get_or_create_preference, serialize_preference, update_preference
-from packages.database.models import User
+from apps.api.services.imessage_verification_service import confirm_verification, request_verification
+from packages.database.models import User, utcnow
 
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -34,6 +35,42 @@ class DailyBriefPreferenceRequest(BaseModel):
     include_sentiment: bool | None = None
     quiet_hours: dict | None = None
     max_length: int | None = None
+
+
+class IMessageVerifyRequest(BaseModel):
+    recipient: str
+
+
+class IMessageVerifyConfirm(BaseModel):
+    challenge_id: str
+    code: str
+
+
+@router.post("/imessage/verify/request")
+def request_imessage_verification(payload: IMessageVerifyRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        return request_verification(db, user, payload.recipient)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"code": str(exc)}) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=502, detail={"code": str(exc)}) from exc
+
+
+@router.post("/imessage/verify/confirm")
+def confirm_imessage_verification(payload: IMessageVerifyConfirm, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        return confirm_verification(db, user, payload.challenge_id, payload.code)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"code": str(exc)}) from exc
+
+
+@router.post("/imessage/test")
+def test_imessage(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    message = "PureGamma AI iMessage test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+    delivery = send_notification(db, user.id, "imessage", message, {"idempotency_key": f"imessage-test:{user.id}:{utcnow().isoformat()}", "locale": getattr(user.preference, "locale", "en")})
+    return {"delivery": serialize_delivery(delivery)}
 
 
 @router.get("/preferences/daily-brief")
