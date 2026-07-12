@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
 from sqlalchemy import JSON
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -77,6 +77,7 @@ class UserPreference(Base):
     slack_webhook_url = Column(String, nullable=True)
     email_recipient = Column(String, nullable=True)
     portfolio_autopilot_json = Column(JSON, default=dict, nullable=False)
+    include_portfolio_in_ai = Column(Boolean, nullable=False, default=True)
 
     user = relationship("User", back_populates="preference")
 
@@ -237,6 +238,10 @@ class Report(Base):
     content_markdown = Column(Text, nullable=False)
     assets = Column(JSON, default=list, nullable=False)
     source_intelligence_id = Column(String, ForeignKey("shared_market_intelligence.id"), nullable=True)
+    report_date = Column(Date, nullable=True, index=True)
+    status = Column(String, nullable=False, default="completed", index=True)
+    idempotency_key = Column(String, nullable=True, unique=True, index=True)
+    error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 

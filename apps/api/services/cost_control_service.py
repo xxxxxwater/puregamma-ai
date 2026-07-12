@@ -4,7 +4,7 @@ from datetime import datetime, time, timezone
 
 from sqlalchemy.orm import Session
 
-from packages.billing.plans import get_plan
+from apps.api.services.entitlement_service import get_user_entitlement
 from packages.database.models import Report, User
 
 
@@ -34,7 +34,8 @@ def assert_daily_report_limit(db: Session, user_id: str) -> None:
     user = db.get(User, user_id)
     if not user:
         raise ValueError(f"User not found: {user_id}")
-    limit = get_plan(user.plan).max_daily_reports
+    entitlement = get_user_entitlement(db, user_id)
+    limit = entitlement["max_daily_reports"]
     used = (
         db.query(Report)
         .filter(
@@ -46,5 +47,5 @@ def assert_daily_report_limit(db: Session, user_id: str) -> None:
     )
     if used >= limit:
         raise DailyLimitExceededError(
-            f"Daily report limit reached for plan {get_plan(user.plan).name}"
+            f"Daily report limit reached for plan {entitlement['plan']}"
         )

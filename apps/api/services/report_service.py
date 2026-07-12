@@ -1,14 +1,15 @@
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
+from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.services.cost_control_service import assert_daily_report_limit, cached_daily_report
-from apps.api.services.credit_service import consume_credits
+from apps.api.services.credit_service import consume_credits, refund_credits
 from apps.api.services.daily_brief_service import generate_daily_brief
 from apps.api.services.entitlement_service import assert_action_allowed
 from apps.api.services.market_intelligence_service import latest_or_create_intelligence
-from apps.api.services.signal_service import scan_signals, serialize_signal
-from packages.agents.report_writer_agent import ReportWriterAgent
 from packages.billing.credits import cost_for
 from packages.database.models import Report
 from packages.reports.event_report import render_event_report
@@ -17,13 +18,23 @@ from packages.strategies.registry import generate_playbooks
 
 
 def create_daily_report(db: Session, user_id: str, language: str = "en") -> Report:
-    cached = cached_daily_report(db, user_id, language)
+    report_date = datetime.now(timezone.utc).date()
+    idempotency_key = f"daily-report:{user_id}:{language}:{report_date.isoformat()}"
+    if db.bind and db.bind.dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(73002002)"))
+    cached = db.query(Report).filter_by(idempotency_key=idempotency_key).one_or_none() or cached_daily_report(db, user_id, language)
     if cached:
         return cached
     assert_daily_report_limit(db, user_id)
     assert_action_allowed(db, user_id, "daily_market_report")
-    consume_credits(db, user_id, "daily_market_report", cost_for("daily_market_report"))
-    content = generate_daily_brief(db, user_id, language)
+    cost = cost_for("daily_market_report")
+    consume_credits(db, user_id, "daily_market_report", cost, {"report_date": report_date.isoformat()}, idempotency_key=f"report-charge:{idempotency_key}")
+    try:
+        content = generate_daily_brief(db, user_id, language)
+    except Exception:
+        refund_credits(db, user_id, "daily_market_report", cost, {"report_date": report_date.isoformat(), "reason": "generation_failed"}, idempotency_key=f"report-refund:{idempotency_key}")
+        db.commit()
+        raise
     intelligence = latest_or_create_intelligence(db)
     report = Report(
         user_id=user_id,
@@ -33,6 +44,9 @@ def create_daily_report(db: Session, user_id: str, language: str = "en") -> Repo
         content_markdown=content,
         assets=intelligence.assets,
         source_intelligence_id=intelligence.id,
+        report_date=report_date,
+        status="completed",
+        idempotency_key=idempotency_key,
     )
     db.add(report)
     db.commit()
@@ -99,5 +113,8 @@ def serialize_report(report: Report) -> dict:
         "content_markdown": report.content_markdown,
         "assets": report.assets,
         "source_intelligence_id": report.source_intelligence_id,
+        "report_date": report.report_date.isoformat() if report.report_date else None,
+        "status": report.status,
+        "error_message": report.error_message,
         "created_at": report.created_at.isoformat(),
     }

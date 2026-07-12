@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.portfolio_service import autopilot_view, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_link_token, portfolio_view, run_autopilot_review, sync_account, update_autopilot
-from packages.database.models import TradingAccount, User
+from packages.database.models import TradingAccount, User, UserPreference
 
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -55,9 +55,24 @@ class AutopilotRequest(BaseModel):
     delivery: str | None = None
 
 
+class PortfolioPrivacyRequest(BaseModel):
+    include_portfolio_in_ai: bool
+
+
 @router.get("")
 def get_portfolio(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     return portfolio_view(db, user)
+
+
+@router.put("/ai-context")
+def update_ai_context(payload: PortfolioPrivacyRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    preference = db.query(UserPreference).filter_by(user_id=user.id).one_or_none()
+    if not preference:
+        preference = UserPreference(user_id=user.id)
+        db.add(preference)
+    preference.include_portfolio_in_ai = payload.include_portfolio_in_ai
+    db.commit()
+    return {"include_portfolio_in_ai": preference.include_portfolio_in_ai}
 
 
 @router.get("/autopilot")

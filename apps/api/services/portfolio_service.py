@@ -271,6 +271,48 @@ def portfolio_view(db: Session, user: User) -> dict:
     return {"connected": bool(latest), "stale": any(_snapshot_is_stale(account, next(row for row in latest if row.account_id == account.id)) for account in accounts if any(row.account_id == account.id for row in latest)), "data_as_of": data_as_of.isoformat() if data_as_of else None, "nav": sum(row.equity for row in latest), "available_cash": sum(row.available_margin for row in latest), "nav_history": timeline, "connections": connections, "providers": {"plaid": True, "ibkr": True, "hyperliquid": True}}
 
 
+def portfolio_context(db: Session, user_id: str, *, detailed: bool = False) -> dict:
+    accounts = db.query(TradingAccount).filter_by(user_id=user_id, account_type="READ_ONLY", status="ACTIVE").all()
+    latest_snapshots: list[AccountSnapshot] = []
+    positions: dict[str, float] = {}
+    missing: list[str] = []
+    stale = False
+    for account in accounts:
+        snapshot = db.query(AccountSnapshot).filter_by(user_id=user_id, account_id=account.id).order_by(AccountSnapshot.captured_at.desc()).first()
+        if not snapshot:
+            missing.append(f"{account.name}: no synchronized account snapshot")
+            continue
+        latest_snapshots.append(snapshot)
+        stale = stale or _snapshot_is_stale(account, snapshot)
+        rows = db.query(PositionSnapshot).filter(PositionSnapshot.user_id == user_id, PositionSnapshot.account_id == account.id, PositionSnapshot.captured_at >= snapshot.captured_at - timedelta(minutes=1), PositionSnapshot.captured_at <= snapshot.captured_at + timedelta(minutes=1)).all()
+        for row in rows:
+            value = abs(float((row.raw_event_reference or {}).get("value") or row.quantity * row.mark_price))
+            positions[row.instrument.upper()] = positions.get(row.instrument.upper(), 0.0) + value
+    nav = sum(float(row.equity) for row in latest_snapshots)
+    ranked = sorted(positions.items(), key=lambda item: item[1], reverse=True)
+    holdings = [{"symbol": symbol, "value": round(value, 2), "weight": round(value / nav, 6) if nav > 0 else 0.0} for symbol, value in ranked[: (20 if detailed else 8)]]
+    concentration = sum(item["weight"] ** 2 for item in holdings)
+    crypto = sum(item["value"] for item in holdings if item["symbol"] not in {"MSTR", "IBIT", "STRC", "STRD", "STRK", "STRF"})
+    equity = sum(item["value"] for item in holdings if item["symbol"] in {"MSTR", "IBIT", "STRC", "STRD", "STRK", "STRF"})
+    duplicate_exposure = [item["symbol"] for item in holdings if item["symbol"] in {"BTC", "MSTR", "IBIT"}]
+    data_as_of = min((row.captured_at for row in latest_snapshots), default=None)
+    if not accounts:
+        missing.append("No real portfolio account is connected")
+    return {
+        "connected": bool(latest_snapshots),
+        "portfolio_ids": [account.id for account in accounts],
+        "data_as_of": data_as_of.astimezone(timezone.utc).isoformat() if data_as_of else None,
+        "total_nav": round(nav, 2) if latest_snapshots else None,
+        "daily_change": round(sum(float(row.daily_pnl) for row in latest_snapshots), 2) if latest_snapshots else None,
+        "top_holdings": holdings,
+        "concentration_hhi": round(concentration, 6) if holdings else None,
+        "asset_class_exposure": {"crypto": round(crypto, 2), "equity": round(equity, 2)} if holdings else {},
+        "duplicate_exposure": duplicate_exposure,
+        "stale": stale,
+        "missing_data": missing,
+    }
+
+
 DEFAULT_AUTOPILOT = {"enabled": False, "cadence": "daily", "auto_sync": True, "risk_alerts": True, "long_gamma_watch": True, "delivery": "in_app"}
 
 

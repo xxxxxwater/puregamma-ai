@@ -38,12 +38,18 @@ POST_BASELINE_COLUMNS = {
     ("agent_runs", "credit_cost"),
     ("agent_runs", "credit_refunded"),
     ("agent_runs", "queue_priority"),
+    ("user_preferences", "include_portfolio_in_ai"),
+    ("reports", "report_date"),
+    ("reports", "status"),
+    ("reports", "idempotency_key"),
+    ("reports", "error_message"),
 }
 
 
-def _baseline_schema_gaps() -> list[str]:
+def _schema_gaps(*, ignore_columns: set[tuple[str, str]] | None = None) -> list[str]:
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
+    ignore_columns = ignore_columns or set()
     gaps: list[str] = []
     for table in Base.metadata.sorted_tables:
         if table.name not in existing_tables:
@@ -51,11 +57,15 @@ def _baseline_schema_gaps() -> list[str]:
             continue
         existing_columns = {column["name"] for column in inspector.get_columns(table.name)}
         for column in table.columns:
-            if (table.name, column.name) in POST_BASELINE_COLUMNS:
+            if (table.name, column.name) in ignore_columns:
                 continue
             if column.name not in existing_columns:
                 gaps.append(f"missing column {table.name}.{column.name}")
     return gaps
+
+
+def _baseline_schema_gaps() -> list[str]:
+    return _schema_gaps(ignore_columns=POST_BASELINE_COLUMNS)
 
 
 def upgrade_database(*, allow_stamp_existing: bool = True) -> None:

@@ -1,165 +1,97 @@
 from __future__ import annotations
 
+import json
 from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
 from apps.api.services.market_intelligence_service import latest_or_create_intelligence
-from apps.api.services.signal_service import scan_signals, serialize_signal
+from apps.api.services.portfolio_service import portfolio_context
 from packages.agents.llm.provider_factory import get_llm_provider
-from packages.agents.research_agent import ResearchAgent
-from packages.database.models import AgentConversation, AgentMessage
+from packages.database.models import AgentConversation, AgentMessage, MarketSnapshot, UserPreference
 from packages.reports.templates import disclaimer_for
 
 
-def _recent_conversation_topics(db: Session, user_id: str, language: str) -> str:
+def _recent_conversation_topics(db: Session, user_id: str) -> list[str]:
     since = datetime.now(timezone.utc) - timedelta(days=1)
-    conversations = (
-        db.query(AgentConversation)
-        .filter(
-            AgentConversation.user_id == user_id,
-            AgentConversation.status == "active",
-            AgentConversation.updated_at >= since,
-        )
-        .order_by(AgentConversation.updated_at.desc())
-        .limit(5)
-        .all()
-    )
-    if not conversations:
-        return ""
-    topics = []
+    conversations = db.query(AgentConversation).filter(AgentConversation.user_id == user_id, AgentConversation.status == "active", AgentConversation.updated_at >= since).order_by(AgentConversation.updated_at.desc()).limit(5).all()
+    topics: list[str] = []
     for conversation in conversations:
-        user_messages = (
-            db.query(AgentMessage)
-            .filter(
-                AgentMessage.conversation_id == conversation.id,
-                AgentMessage.role == "user",
-                AgentMessage.status == "completed",
-            )
-            .order_by(AgentMessage.created_at.desc())
-            .limit(3)
-            .all()
-        )
-        for msg in user_messages:
-            snippet = msg.content[:120].replace("\n", " ")
-            if snippet:
-                topics.append(snippet)
-    if not topics:
-        return ""
-    if language == "zh":
-        return "用户近期关注话题: " + "; ".join(topics[:8])
-    return "Recent user interests: " + "; ".join(topics[:8])
+        messages = db.query(AgentMessage).filter(AgentMessage.conversation_id == conversation.id, AgentMessage.role == "user", AgentMessage.status == "completed").order_by(AgentMessage.created_at.desc()).limit(3).all()
+        topics.extend(message.content[:120].replace("\n", " ") for message in messages if message.content.strip())
+    return topics[:8]
 
 
-def _format_quote_line(quote, language: str) -> str:
-    sym = quote.symbol
-    price = f"${quote.price:,.2f}"
-    if language == "zh":
-        return f"{sym} {price} | 情绪 {quote.sentiment_score:.2f} | 资金费率 {quote.funding_rate:.3%}"
-    return f"{sym} {price} | sentiment {quote.sentiment_score:.2f} | funding {quote.funding_rate:.3%}"
-
-
-def gather_context(db: Session, user_id: str, language: str) -> str:
+def gather_context(db: Session, user_id: str, language: str) -> dict:
     intelligence = latest_or_create_intelligence(db)
-    signals = [serialize_signal(s) for s in scan_signals(db, intelligence.assets)]
-    research = ResearchAgent().research(intelligence.assets)
-
-    lines = []
-    if language == "zh":
-        lines.append(f"市场状态: {research['market_regime']}")
-        lines.append(f"风险概述: {research['risk_summary']}")
-        lines.append("行情:")
-    else:
-        lines.append(f"Market regime: {research['market_regime']}")
-        lines.append(f"Risk summary: {research['risk_summary']}")
-        lines.append("Quotes:")
-    for quote in research["quotes"]:
-        lines.append(f"  {_format_quote_line(quote, language)}")
-
-    if signals:
-        label = "重点信号" if language == "zh" else "Key signals"
-        lines.append(f"{label}:")
-        for sig in signals[:5]:
-            lines.append(f"  {sig['asset']} {sig['direction']}: {sig['thesis'][:100]}")
-
-    topics = _recent_conversation_topics(db, user_id, language)
-    if topics:
-        lines.append(topics)
-
-    context = "\n".join(lines)
-    return context
+    snapshots = db.query(MarketSnapshot).filter(MarketSnapshot.id.in_(intelligence.source_snapshot_ids or [])).all()
+    preference = db.query(UserPreference).filter_by(user_id=user_id).one_or_none()
+    portfolio = portfolio_context(db, user_id)
+    return {
+        "language": language,
+        "shared_intelligence_id": intelligence.id,
+        "market_regime": intelligence.market_regime,
+        "market_summary": intelligence.summary_markdown,
+        "market_data_as_of": max((row.timestamp for row in snapshots), default=intelligence.created_at).astimezone(timezone.utc).isoformat(),
+        "market_stale": datetime.now(timezone.utc) - intelligence.created_at.astimezone(timezone.utc) > timedelta(hours=8),
+        "quotes": [{"symbol": row.asset_id, "price": row.price, "funding_rate": row.funding_rate, "open_interest": row.open_interest, "source_timestamp": row.timestamp.astimezone(timezone.utc).isoformat()} for row in snapshots],
+        "portfolio": portfolio,
+        "portfolio_shared_with_llm": bool(preference.include_portfolio_in_ai) if preference else True,
+        "recent_topics": _recent_conversation_topics(db, user_id),
+    }
 
 
 def generate_daily_brief(db: Session, user_id: str, language: str) -> str:
     context = gather_context(db, user_id, language)
     disclaimer = disclaimer_for(language)
-
-    if language == "zh":
-        prompt = (
-            f"用中文撰写一份200字以内的每日简报。直接输出内容，不要用 # 标题。\n\n"
-            f"=== 数据上下文 ===\n{context}\n\n"
-            f"=== 要求 ===\n"
-            f"- 总字数严格控制在200字以内\n"
-            f"- 以市场概况+关键信号+关联用户关注的结构组织\n"
-            f"- 不要使用 markdown 的 # 或 ## 标题符号\n"
-            f"- 语气专业直接"
-        )
-    else:
-        prompt = (
-            f"Write a concise daily brief under 200 words. Output directly, no # headings.\n\n"
-            f"=== Context ===\n{context}\n\n"
-            f"=== Requirements ===\n"
-            f"- Strictly under 200 words\n"
-            f"- Structure: market overview + key signals + user relevance\n"
-            f"- No markdown # or ## headings\n"
-            f"- Professional direct tone"
-        )
-
+    if not context["portfolio_shared_with_llm"]:
+        return _local_brief(context, language, disclaimer)
+    prompt = (
+        "Write a concise portfolio-first daily research brief in Chinese. " if language == "zh" else "Write a concise portfolio-first daily research brief in English. "
+    ) + "Distinguish market facts, portfolio facts, and inference. Include portfolio relevance, concentration risk, watch conditions, invalidation conditions, source timestamps, stale or missing-data warnings. Never invent values. No trade execution advice.\n\n" + json.dumps(context, ensure_ascii=False, default=str)
     try:
-        provider = get_llm_provider()
-        generated = provider.complete(
-            prompt,
-            task_type="daily_market_report",
-            locale=language,
-            user_id=user_id,
-            db=db,
-        )
+        generated = get_llm_provider().complete(prompt, task_type="daily_market_report", locale=language, user_id=user_id, db=db)
     except Exception:
-        return _fallback_brief(context, language, disclaimer)
-
-    title = "PureGamma 每日加密市场简报" if language == "zh" else "PureGamma Daily Crypto Brief"
+        return _local_brief(context, language, disclaimer)
+    title = "PureGamma 组合每日简报" if language == "zh" else "PureGamma Daily Crypto Brief | Portfolio"
     if title not in generated:
         generated = f"{title}\n\n{generated.lstrip()}"
     if disclaimer not in generated:
         generated = f"{generated.rstrip()}\n\n{disclaimer}"
-    word_count = len(generated.replace("\n", " ").split())
-    if word_count > 300:
-        lines_out = generated.strip().split("\n")
-        trimmed = []
-        total = 0
-        for line in lines_out:
-            words = len(line.split())
-            if total + words > 250:
-                break
-            trimmed.append(line)
-            total += words
-        generated = "\n".join(trimmed).rstrip()
-        if disclaimer not in generated:
-            generated = f"{generated}\n\n{disclaimer}"
     return generated
 
 
-def _fallback_brief(context: str, language: str, disclaimer: str) -> str:
+def _local_brief(context: dict, language: str, disclaimer: str) -> str:
+    portfolio = context["portfolio"]
+    quotes = context["quotes"]
+    holdings = portfolio["top_holdings"]
     if language == "zh":
-        header = "PureGamma 每日加密市场简报\n\n今日市场概况"
+        lines = ["PureGamma 组合每日简报", "", "市场事实", f"市场状态：{context['market_regime']}。数据时间：{context['market_data_as_of']}。"]
+        if quotes:
+            lines.append("主要市场：" + "；".join(f"{item['symbol']} ${item['price']:,.2f}" for item in quotes[:5]) + "。")
+        lines.extend(["", "组合事实"])
+        if portfolio["connected"]:
+            lines.append(f"组合净值：${portfolio['total_nav']:,.2f}；当日变化：${portfolio['daily_change']:,.2f}。")
+            lines.append("主要持仓：" + "；".join(f"{item['symbol']} {item['weight']:.1%}" for item in holdings[:5]) + "。")
+            lines.append(f"集中度 HHI：{portfolio['concentration_hhi']:.3f}。")
+        else:
+            lines.append("尚未连接真实组合账户，本期仅提供市场简报，不展示估算持仓或 NAV。")
+        lines.extend(["", "模型推断与观察条件", "重点观察主要持仓相关事件、波动与集中度变化；若数据过期或持仓同步失败，应暂停使用本期判断。"])
+        if context["market_stale"] or portfolio["stale"] or portfolio["missing_data"]:
+            lines.append("数据提示：" + "；".join((["市场情报已过期"] if context["market_stale"] else []) + (["组合数据已过期"] if portfolio["stale"] else []) + portfolio["missing_data"]) + "。")
     else:
-        header = "PureGamma Daily Crypto Brief\n\nToday's market overview"
-    lines = [header, ""]
-    for line in context.split("\n")[:15]:
-        if line.strip():
-            lines.append(line.strip())
-    brief = "\n".join(lines)
-    word_count = len(brief.split())
-    if word_count > 200:
-        brief = "\n".join(lines[:10])
-    return f"{brief.rstrip()}\n\n{disclaimer}"
+        lines = ["PureGamma Daily Crypto Brief | Portfolio", "", "Market facts", f"Market regime: {context['market_regime']}. Data as of {context['market_data_as_of']}."]
+        if quotes:
+            lines.append("Key markets: " + "; ".join(f"{item['symbol']} ${item['price']:,.2f}" for item in quotes[:5]) + ".")
+        lines.extend(["", "Portfolio facts"])
+        if portfolio["connected"]:
+            lines.append(f"NAV: ${portfolio['total_nav']:,.2f}; daily change: ${portfolio['daily_change']:,.2f}.")
+            lines.append("Top holdings: " + "; ".join(f"{item['symbol']} {item['weight']:.1%}" for item in holdings[:5]) + ".")
+            lines.append(f"Concentration HHI: {portfolio['concentration_hhi']:.3f}.")
+        else:
+            lines.append("No real portfolio account is connected. This is a market brief only; no estimated holdings or NAV are shown.")
+        lines.extend(["", "Inference and watch conditions", "Monitor events, volatility, and concentration changes tied to major holdings. Invalidate this review if market or portfolio data becomes stale or synchronization fails."])
+        warnings = (["Market intelligence is stale"] if context["market_stale"] else []) + (["Portfolio data is stale"] if portfolio["stale"] else []) + portfolio["missing_data"]
+        if warnings:
+            lines.append("Data notes: " + "; ".join(warnings) + ".")
+    return "\n".join(lines).rstrip() + f"\n\n{disclaimer}"
