@@ -11,7 +11,7 @@ def test_free_entitlement_defaults_to_low_cost_email_only(demo_user, db):
 
     assert entitlement["plan"] == "Free"
     assert entitlement["monthly_credits"] == 150
-    assert entitlement["notification_channels"] == ["email"]
+    assert entitlement["notification_channels"] == ["email", "push"]
     assert entitlement["imessage"] is False
     assert entitlement["high_cost_tasks"] is False
 
@@ -54,7 +54,7 @@ def test_payment_failed_restricts_high_cost_and_imessage(db, demo_user):
     assert entitlement["monitoring_tier"] == "basic"
     assert entitlement["max_portfolios"] == 0
     assert entitlement["portfolio_access"] == "read_only"
-    assert entitlement["notification_channels"] == ["email"]
+    assert entitlement["notification_channels"] == ["email", "push"]
     assert can_run_action("Max", "daily_market_report", "past_due") is False
 
 

@@ -59,6 +59,7 @@ POST_BASELINE_TABLES = {
     "credit_refund_events",
     "credit_budget_policies",
     "credit_reward_grants",
+    "push_devices",
 }
 
 

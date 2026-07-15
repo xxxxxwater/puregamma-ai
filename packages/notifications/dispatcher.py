@@ -16,7 +16,8 @@ from apps.api.services.credit_service import (
 )
 from apps.api.services.entitlement_service import EntitlementDeniedError, assert_action_allowed
 from packages.billing.budgets import AutomationBudgetExceeded
-from packages.database.models import NotificationDelivery, User, UserPreference, utcnow
+from packages.database.models import NotificationDelivery, PushDevice, User, UserPreference, utcnow
+from packages.notifications.apns import APNsProvider
 from packages.notifications.email import EmailProvider
 from packages.notifications.imessage.macos_relay_client import MacOSIMessageRelayClient
 from packages.notifications.imessage.mock_provider import MockIMessageProvider
@@ -30,6 +31,7 @@ CHANNEL_ACTION = {
     "slack": "slack_alert",
     "email": "email_alert",
     "imessage": "imessage_alert",
+    "push": "push_alert",
 }
 
 
@@ -53,8 +55,10 @@ class NotificationDispatcher:
         raise ValueError(f"Unsupported channel: {channel}")
 
     def _recipient(
-        self, pref: UserPreference | None, channel: str, metadata: dict
+        self, user_id: str, pref: UserPreference | None, channel: str, metadata: dict
     ) -> str | None:
+        if channel == "push":
+            return user_id
         if not pref:
             return None
         return {
@@ -154,7 +158,7 @@ class NotificationDispatcher:
         locale = normalize_locale(
             metadata.get("locale") or getattr(pref, "locale", None)
         )
-        recipient = self._recipient(pref, channel, metadata)
+        recipient = self._recipient(user_id, pref, channel, metadata)
         if not recipient:
             return self._create_delivery(
                 db,
@@ -177,6 +181,7 @@ class NotificationDispatcher:
                 "email": bool(self.settings.smtp_host),
                 "imessage": self.settings.imessage_provider == "macos_relay"
                 and bool(self.settings.imessage_relay_secret),
+                "push": self.settings.apns_enabled,
             }.get(channel, False)
             if not configured:
                 return self._create_delivery(
@@ -271,7 +276,11 @@ class NotificationDispatcher:
                 },
                 locale=locale,
             )
-        provider = self._provider(channel)
+        if channel == "push":
+            devices = db.query(PushDevice).filter_by(user_id=user_id, enabled=True).all()
+            provider = APNsProvider(db, devices)
+        else:
+            provider = self._provider(channel)
         try:
             result = provider.send(recipient, message, idempotency_key)
         except Exception:
@@ -280,7 +289,7 @@ class NotificationDispatcher:
                 db.commit()
             raise
         permanent = result.response.get("status") in {"unsupported_os", "invalid_recipient", "message_too_long", "missing_applescript"}
-        status = "sent" if result.ok else ("failed_permanent" if permanent else "failed_retryable") if channel == "imessage" else "failed"
+        status = "sent" if result.ok else ("failed_permanent" if permanent else "failed_retryable") if channel in {"imessage", "push"} else "failed"
         if not result.ok:
             refund_task(
                 db, user_id, reservation, "NOTIFICATION_PROVIDER_FAILURE",

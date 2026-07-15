@@ -34,6 +34,22 @@ class Settings:
             "GOOGLE_OAUTH_REDIRECT_URI", "http://localhost:3000/zh/auth/google/callback"
         ),
     )
+    mobile_google_oauth_redirect_uri: str = os.getenv(
+        "MOBILE_GOOGLE_OAUTH_REDIRECT_URI",
+        "http://127.0.0.1:8000/auth/mobile/google/callback",
+    )
+    mobile_oauth_redirect_uris: tuple[str, ...] = tuple(
+        _csv(os.getenv("MOBILE_OAUTH_REDIRECT_URIS", "puregamma://oauth/callback"))
+    )
+    apple_client_id: str = os.getenv("APPLE_CLIENT_ID", "ai.puregamma.ios")
+    apple_team_id: str = os.getenv("APPLE_TEAM_ID", "")
+    apple_key_id: str = os.getenv("APPLE_KEY_ID", "")
+    apple_private_key: str = os.getenv("APPLE_PRIVATE_KEY", "").replace("\\n", "\n")
+    apns_enabled: bool = os.getenv("APNS_ENABLED", "false").lower() == "true"
+    apns_team_id: str = os.getenv("APNS_TEAM_ID", "")
+    apns_key_id: str = os.getenv("APNS_KEY_ID", "")
+    apns_bundle_id: str = os.getenv("APNS_BUNDLE_ID", "ai.puregamma.ios")
+    apns_private_key: str = os.getenv("APNS_PRIVATE_KEY", "").replace("\\n", "\n")
     session_cookie_name: str = os.getenv("SESSION_COOKIE_NAME", "pg_session")
     session_cookie_domain: str | None = os.getenv("SESSION_COOKIE_DOMAIN") or None
     encryption_master_key: str = os.getenv("ENCRYPTION_MASTER_KEY", "")
@@ -164,6 +180,13 @@ class Settings:
     ibkr_client_id: str = os.getenv("IBKR_CLIENT_ID", "")
     ibkr_client_secret: str = os.getenv("IBKR_CLIENT_SECRET", "")
     ibkr_redirect_uri: str = os.getenv("IBKR_REDIRECT_URI", "http://localhost:3000/portfolio")
+    mobile_ibkr_oauth_redirect_uri: str = os.getenv(
+        "MOBILE_IBKR_OAUTH_REDIRECT_URI",
+        "http://127.0.0.1:8000/portfolio/ibkr/mobile/callback",
+    )
+    mobile_portfolio_redirect_uris: tuple[str, ...] = tuple(
+        _csv(os.getenv("MOBILE_PORTFOLIO_REDIRECT_URIS", "puregamma://oauth/ibkr"))
+    )
     hyperliquid_api_url: str = os.getenv("HYPERLIQUID_API_URL", "https://api.hyperliquid.xyz")
 
     imessage_provider: str = os.getenv("IMESSAGE_PROVIDER", "mock")
@@ -365,6 +388,8 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("SESSION_SECRET must be a strong value of at least 32 characters")
     if settings.auth_allow_demo_fallback:
         errors.append("AUTH_ALLOW_DEMO_FALLBACK must be false")
+    if not all((settings.apple_client_id, settings.apple_team_id, settings.apple_key_id, settings.apple_private_key)):
+        errors.append("APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID and APPLE_PRIVATE_KEY are required")
     if settings.billing_mode != "stripe":
         errors.append("BILLING_MODE must be stripe in production")
     if settings.llm_provider.lower() not in {"openai", "deepseek"}:
@@ -410,6 +435,10 @@ def validate_production_settings(settings: Settings) -> None:
             errors.append("OPENAI_LUNA_ALLOWED_PLANS must contain at least one plan")
         if settings.openai_luna_timeout_seconds <= 0:
             errors.append("OPENAI_LUNA_TIMEOUT_SECONDS must be positive")
+    if settings.apns_enabled and not all(
+        (settings.apns_team_id, settings.apns_key_id, settings.apns_bundle_id, settings.apns_private_key)
+    ):
+        errors.append("APNS team, key, bundle identifier, and private key are required when APNS_ENABLED=true")
     if settings.nautilus_runtime_secret in {"", "dev-runtime-secret"} or len(settings.nautilus_runtime_secret) < 24:
         errors.append("NAUTILUS_RUNTIME_SECRET must be a strong non-default value")
     if settings.portfolio_token_encryption_key == "" and any(
@@ -421,6 +450,8 @@ def validate_production_settings(settings: Settings) -> None:
         "STRIPE_SUCCESS_URL": settings.stripe_success_url,
         "STRIPE_CANCEL_URL": settings.stripe_cancel_url,
         "GOOGLE_REDIRECT_URI": settings.google_oauth_redirect_uri,
+        "MOBILE_GOOGLE_OAUTH_REDIRECT_URI": settings.mobile_google_oauth_redirect_uri,
+        "MOBILE_IBKR_OAUTH_REDIRECT_URI": settings.mobile_ibkr_oauth_redirect_uri,
     }.items():
         if not url.startswith("https://"):
             errors.append(f"{name} must use https in production")

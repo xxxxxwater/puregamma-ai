@@ -1,0 +1,9 @@
+PRODUCT_BUNDLE_IDENTIFIER = ai.puregamma.ios
+PUREGAMMA_DEVELOPMENT_TEAM =
+DEVELOPMENT_TEAM = $(PUREGAMMA_DEVELOPMENT_TEAM)
+PUREGAMMA_PRIVACY_URL = https:/$()/puregamma.ai/privacy
+PUREGAMMA_TERMS_URL = https:/$()/puregamma.ai/terms
+PUREGAMMA_SUPPORT_URL = mailto:hello@puregamma.ai
+
+// Keep personal signing values outside version control.
+#include? "Local.xcconfig"

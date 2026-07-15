@@ -1,0 +1,5 @@
+#include "Shared.xcconfig"
+
+PUREGAMMA_ENVIRONMENT = development
+PUREGAMMA_API_BASE_URL = http:/$()/127.0.0.1:8000
+PUREGAMMA_APNS_ENVIRONMENT = development

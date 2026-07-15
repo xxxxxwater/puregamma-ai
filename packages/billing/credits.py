@@ -17,6 +17,7 @@ CREDIT_COSTS: dict[str, int] = {
     "slack_alert": 1,
     "email_alert": 1,
     "imessage_alert": 2,
+    "push_alert": 1,
     "strategy_generation": 5,
     "strategy_modification": 2,
     "strategy_activation": 5,

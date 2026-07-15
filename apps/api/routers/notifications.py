@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
@@ -9,7 +9,9 @@ from apps.api.i18n import resolve_locale
 from apps.api.services.notification_service import send_notification, serialize_delivery
 from apps.api.services.daily_push_service import delivery_history, get_or_create_preference, serialize_preference, update_preference
 from apps.api.services.imessage_verification_service import VerificationRateLimitError, confirm_verification, request_verification
-from packages.database.models import User, utcnow
+from apps.api.services.push_device_service import register_device, serialize_device, unregister_device
+from apps.api.config import get_settings
+from packages.database.models import PushDevice, User, utcnow
 
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -44,6 +46,37 @@ class IMessageVerifyRequest(BaseModel):
 class IMessageVerifyConfirm(BaseModel):
     challenge_id: str
     code: str
+
+
+class PushDeviceRequest(BaseModel):
+    token: str = Field(min_length=64, max_length=256)
+    environment: str = "production"
+    locale: str = "en"
+    timezone: str = "UTC"
+
+
+@router.get("/devices")
+def push_devices(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    rows = db.query(PushDevice).filter_by(user_id=user.id, enabled=True).order_by(PushDevice.last_seen_at.desc()).all()
+    return {"devices": [serialize_device(row) for row in rows], "delivery_available": get_settings().apns_enabled}
+
+
+@router.post("/devices")
+def put_push_device(payload: PushDeviceRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        row = register_device(db, user, token=payload.token, environment=payload.environment, locale=payload.locale, timezone_name=payload.timezone)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"code": str(exc)}) from exc
+    return {"device": serialize_device(row), "delivery_available": get_settings().apns_enabled}
+
+
+@router.post("/devices/unregister")
+def remove_push_device(payload: PushDeviceRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        removed = unregister_device(db, user, payload.token)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"code": str(exc)}) from exc
+    return {"ok": True, "removed": removed}
 
 
 @router.post("/imessage/verify/request")

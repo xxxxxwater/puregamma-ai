@@ -56,8 +56,45 @@ class UserIdentity(Base, TimestampMixin):
     provider_subject = Column(String, nullable=False)
     provider_email = Column(String, nullable=True, index=True)
     provider_email_verified = Column(Boolean, nullable=False, default=False)
+    credential_ciphertext = Column(JSON, nullable=True)
 
     user = relationship("User", back_populates="identities")
+
+
+class MobileOAuthSession(Base):
+    """Short-lived, single-use bridge between Google and a native PKCE client."""
+
+    __tablename__ = "mobile_oauth_sessions"
+
+    id = Column(String, primary_key=True, default=new_id)
+    provider = Column(String, nullable=False, default="google", index=True)
+    state = Column(String, nullable=False, unique=True, index=True)
+    client_state = Column(String, nullable=False)
+    client_nonce = Column(String, nullable=False)
+    provider_nonce = Column(String, nullable=False)
+    provider_code_verifier = Column(String, nullable=False)
+    code_challenge = Column(String, nullable=False)
+    redirect_uri = Column(String, nullable=False)
+    exchange_code_hash = Column(String, nullable=True, unique=True, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class PushDevice(Base, TimestampMixin):
+    __tablename__ = "push_devices"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token_hash = Column(String, nullable=False, unique=True, index=True)
+    token_ciphertext = Column(JSON, nullable=False)
+    platform = Column(String, nullable=False, default="ios")
+    environment = Column(String, nullable=False, default="production", index=True)
+    locale = Column(String, nullable=False, default="en")
+    timezone = Column(String, nullable=False, default="UTC")
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    last_seen_at = Column(DateTime(timezone=True), nullable=False, default=utcnow)
 
 
 class UserPreference(Base):

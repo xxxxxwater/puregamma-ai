@@ -11,7 +11,7 @@ python-dotenv==1.2.1
 pydantic==2.13.4
 PyYAML==6.0.3
 pytest==8.4.2
-httpx==0.28.1
+httpx[http2]==0.28.1
 feedparser==6.0.12
 openai==2.45.0
 cryptography==49.0.0

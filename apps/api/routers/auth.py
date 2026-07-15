@@ -1,7 +1,12 @@
 from __future__ import annotations
 
+import logging
+import secrets
+
+import httpx
 from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import (
@@ -12,10 +17,11 @@ from apps.api.dependencies import (
 )
 from apps.api.i18n import normalize_locale
 from apps.api.config import get_settings
-from packages.database.models import User, UserPreference
+from packages.database.models import Base, User, UserIdentity, UserPreference
 
 
 router = APIRouter(tags=["auth"])
+logger = logging.getLogger("puregamma.auth")
 
 
 class MockLoginRequest(BaseModel):
@@ -26,6 +32,10 @@ class MockLoginRequest(BaseModel):
 
 class LocalePreferenceRequest(BaseModel):
     locale: str
+
+
+class DeleteAccountRequest(BaseModel):
+    confirmation: str = Field(min_length=3, max_length=320)
 
 
 class OnboardingRequest(BaseModel):
@@ -119,6 +129,72 @@ def logout(
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     clear_session_cookie(response)
+    return {"ok": True}
+
+
+def _user_scope(table, user_id: str, seen: frozenset[str] = frozenset()):
+    """Build a deletion predicate for rows owned directly or transitively by a user."""
+    if table.name in seen:
+        return None
+    if "user_id" in table.c:
+        return table.c.user_id == user_id
+    predicates = []
+    next_seen = seen | {table.name}
+    for foreign_key in table.foreign_keys:
+        parent = foreign_key.column.table
+        parent_scope = _user_scope(parent, user_id, next_seen)
+        if parent_scope is not None:
+            predicates.append(foreign_key.parent.in_(select(foreign_key.column).where(parent_scope)))
+    return or_(*predicates) if predicates else None
+
+
+def _delete_external_account(user: User, db: Session) -> None:
+    settings = get_settings()
+    for identity in db.query(UserIdentity).filter_by(user_id=user.id, provider="apple").all():
+        try:
+            from apps.api.routers.apple_auth import revoke_apple_identity
+
+            revoke_apple_identity(identity, settings)
+        except (ValueError, RuntimeError, httpx.HTTPError) as exc:
+            logger.warning("apple_identity_revoke_failed", extra={"user_id": user.id, "error": type(exc).__name__})
+            raise HTTPException(status_code=503, detail={"code": "ACCOUNT_PROVIDER_REVOCATION_FAILED"}) from exc
+    if user.stripe_customer_id and settings.billing_mode == "stripe":
+        try:
+            import stripe
+
+            stripe.api_key = settings.stripe_secret_key
+            stripe.api_version = settings.stripe_api_version
+            stripe.Customer.delete(user.stripe_customer_id)
+        except Exception as exc:
+            logger.warning("stripe_customer_delete_failed", extra={"user_id": user.id, "error": type(exc).__name__})
+            raise HTTPException(status_code=503, detail={"code": "ACCOUNT_BILLING_CLEANUP_FAILED"}) from exc
+
+
+def _purge_user(db: Session, user_id: str) -> None:
+    for table in reversed(Base.metadata.sorted_tables):
+        if table.name == User.__tablename__:
+            continue
+        predicate = _user_scope(table, user_id)
+        if predicate is not None:
+            db.execute(table.delete().where(predicate))
+    db.execute(User.__table__.delete().where(User.id == user_id))
+
+
+@router.delete("/me")
+def delete_account(
+    payload: DeleteAccountRequest,
+    response: Response,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    if not secrets.compare_digest(payload.confirmation.strip().lower(), user.email.lower()):
+        raise HTTPException(status_code=400, detail={"code": "ACCOUNT_DELETE_CONFIRMATION_MISMATCH"})
+    _delete_external_account(user, db)
+    user_id = user.id
+    _purge_user(db, user_id)
+    db.commit()
+    clear_session_cookie(response)
+    logger.info("account_deleted", extra={"user_id": user_id})
     return {"ok": True}
 
 

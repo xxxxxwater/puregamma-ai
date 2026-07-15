@@ -1,0 +1,15 @@
+{
+  "originHash" : "019163059fcd4b6958ce8773a38322d9fa799d6ce82e3e12d60f5b2118df6d24",
+  "pins" : [
+    {
+      "identity" : "plaid-link-ios",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/plaid/plaid-link-ios.git",
+      "state" : {
+        "revision" : "b6e5dd92d0c85f3d67ff8c3a0afba9df2ab4feb1",
+        "version" : "7.0.3"
+      }
+    }
+  ],
+  "version" : 3
+}

@@ -83,6 +83,45 @@ def _challenge(verifier: str) -> str:
     return base64.urlsafe_b64encode(hashlib.sha256(verifier.encode()).digest()).rstrip(b"=").decode()
 
 
+def upsert_google_user(db: Session, payload: dict) -> User:
+    """Create/link a verified Google identity for both web and native flows."""
+    if not _email_verified(payload.get("email_verified")):
+        raise ValueError("Google email is not verified")
+    email = payload.get("email")
+    google_user_id = payload.get("sub")
+    if not email or not google_user_id:
+        raise ValueError("Google token missing email or subject")
+    identity = db.query(UserIdentity).filter_by(provider="google", provider_subject=google_user_id).one_or_none()
+    user = db.get(User, identity.user_id) if identity else None
+    linked_existing_email = False
+    if not user:
+        user = db.query(User).filter(User.email == email).one_or_none()
+        linked_existing_email = user is not None
+    if not user:
+        user = User(email=email, name=payload.get("name") or email.split("@")[0], role="user", plan="Free", credit_balance=150, google_user_id=google_user_id, avatar_url=payload.get("picture"), auth_provider="google", email_verified_at=datetime.now(timezone.utc), last_login_at=datetime.now(timezone.utc))
+        db.add(user)
+        db.flush()
+        db.add(UserPreference(user_id=user.id, email_recipient=email, notification_channels=["email"]))
+    else:
+        if _should_update_name(user, payload.get("name")):
+            user.name = payload.get("name")
+        user.google_user_id = google_user_id
+        user.avatar_url = payload.get("picture") or user.avatar_url
+        user.auth_provider = "google"
+        user.email_verified_at = user.email_verified_at or datetime.now(timezone.utc)
+        user.last_login_at = datetime.now(timezone.utc)
+        if not user.preference:
+            db.add(UserPreference(user_id=user.id, email_recipient=email, notification_channels=["email"]))
+    if not identity:
+        db.add(UserIdentity(user_id=user.id, provider="google", provider_subject=google_user_id, provider_email=email, provider_email_verified=True))
+        db.flush()
+        db.add(UsageEvent(user_id=user.id, event_type="auth.google.link", quantity=1, idempotency_key=f"google-link:{google_user_id}", metadata_json={"linked_existing_email": linked_existing_email}))
+    else:
+        identity.provider_email = email
+        identity.provider_email_verified = True
+    return user
+
+
 @router.get("/auth/google/authorize")
 def google_authorize(response: Response, return_to: str | None = None) -> dict:
     client_id, _, redirect_uri = _configured_google_settings()
@@ -136,53 +175,10 @@ def google_callback(code: str, state: str, request: Request, response: Response,
     except Exception as exc:
         raise HTTPException(status_code=400, detail=f"Google OAuth verification failed: {exc}") from exc
 
-    if not _email_verified(payload.get("email_verified")):
-        raise HTTPException(status_code=400, detail="Google email is not verified")
-    email = payload.get("email")
-    google_user_id = payload.get("sub")
-    if not email or not google_user_id:
-        raise HTTPException(status_code=400, detail="Google token missing email or subject")
-
-    identity = db.query(UserIdentity).filter_by(provider="google", provider_subject=google_user_id).one_or_none()
-    user = db.get(User, identity.user_id) if identity else None
-    linked_existing_email = False
-    if not user:
-        user = db.query(User).filter(User.email == email).one_or_none()
-        linked_existing_email = user is not None
-    if not user:
-        user = User(
-            email=email,
-            name=payload.get("name") or email.split("@")[0],
-            role="user",
-            plan="Free",
-            credit_balance=150,
-            google_user_id=google_user_id,
-            avatar_url=payload.get("picture"),
-            auth_provider="google",
-            email_verified_at=datetime.now(timezone.utc),
-            last_login_at=datetime.now(timezone.utc),
-        )
-        db.add(user)
-        db.flush()
-        db.add(UserPreference(user_id=user.id, email_recipient=email, notification_channels=["email"]))
-    else:
-        if _should_update_name(user, payload.get("name")):
-            user.name = payload.get("name")
-        user.google_user_id = google_user_id
-        user.avatar_url = payload.get("picture") or user.avatar_url
-        user.auth_provider = "google"
-        user.email_verified_at = user.email_verified_at or datetime.now(timezone.utc)
-        user.last_login_at = datetime.now(timezone.utc)
-        if not user.preference:
-            db.add(UserPreference(user_id=user.id, email_recipient=email, notification_channels=["email"]))
-    if not identity:
-        identity = UserIdentity(user_id=user.id, provider="google", provider_subject=google_user_id, provider_email=email, provider_email_verified=True)
-        db.add(identity)
-        db.flush()
-        db.add(UsageEvent(user_id=user.id, event_type="auth.google.link", quantity=1, idempotency_key=f"google-link:{google_user_id}", metadata_json={"linked_existing_email": linked_existing_email}))
-    else:
-        identity.provider_email = email
-        identity.provider_email_verified = True
+    try:
+        user = upsert_google_user(db, payload)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     db.refresh(user)

@@ -11,7 +11,7 @@ from packages.database.models import DailyBriefPreference, NormalizedDocument, N
 from packages.reports.templates import disclaimer_for
 
 
-CHANNELS = {"email", "telegram", "imessage"}
+CHANNELS = {"email", "telegram", "imessage", "push"}
 
 
 def next_delivery(timezone_name: str, local_time: str, now: datetime | None = None) -> datetime:
@@ -36,7 +36,7 @@ def _recipient(user: User, channel: str) -> str | None:
     preference: UserPreference | None = user.preference
     if not preference:
         return None
-    return {"email": preference.email_recipient or user.email, "telegram": preference.telegram_chat_id, "imessage": preference.imessage_recipient}.get(channel)
+    return {"email": preference.email_recipient or user.email, "telegram": preference.telegram_chat_id, "imessage": preference.imessage_recipient, "push": user.id}.get(channel)
 
 
 def get_or_create_preference(db: Session, user: User) -> DailyBriefPreference:

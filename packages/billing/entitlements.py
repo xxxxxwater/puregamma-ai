@@ -56,6 +56,7 @@ def can_run_action(plan_name: str, action: str, subscription_status: str | None 
         "telegram_alert": "telegram",
         "slack_alert": "slack",
         "imessage_alert": "imessage",
+        "push_alert": "push",
     }
     channel = channel_actions.get(action)
     if channel:
