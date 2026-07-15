@@ -3,11 +3,14 @@ from fastapi.testclient import TestClient
 from apps.api.main import app
 
 
-def test_health_exposes_dependencies_and_request_id():
+def test_liveness_and_readiness_expose_request_and_dependency_state():
     with TestClient(app) as client:
-        response = client.get("/health", headers={"X-Request-ID": "test-request-id"})
+        health = client.get("/health", headers={"X-Request-ID": "test-request-id"})
+        readiness = client.get("/ready")
 
-    assert response.status_code == 200
-    assert response.headers["X-Request-ID"] == "test-request-id"
-    assert response.json()["database"] == "ok"
-    assert response.json()["redis"] in {"ok", "error"}
+    assert health.status_code == 200
+    assert health.headers["X-Request-ID"] == "test-request-id"
+    assert health.json() == {"status": "ok", "service": "puregamma-api"}
+    assert readiness.status_code == 200
+    assert readiness.json()["database"] == "ok"
+    assert readiness.json()["redis"] in {"ok", "error"}

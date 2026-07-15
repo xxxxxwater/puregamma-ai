@@ -1,23 +1,31 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import uuid
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
+from apps.api.config import get_settings
 from apps.api.services.cost_control_service import assert_daily_report_limit, cached_daily_report
-from apps.api.services.credit_service import consume_credits, refund_credits
+from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
 from apps.api.services.daily_brief_service import generate_daily_brief
 from apps.api.services.entitlement_service import assert_action_allowed
 from apps.api.services.market_intelligence_service import latest_or_create_intelligence
-from packages.billing.credits import cost_for
-from packages.database.models import Report
+from apps.api.services.portfolio_service import portfolio_context
+from packages.database.models import CreditReservationRecord, LLMCallLog, Report
 from packages.reports.event_report import render_event_report
 from packages.reports.playbook_report import render_playbook_report
 from packages.strategies.registry import generate_playbooks
 
 
-def create_daily_report(db: Session, user_id: str, language: str = "en") -> Report:
+def create_daily_report(
+    db: Session,
+    user_id: str,
+    language: str = "en",
+    *,
+    automation_key: str | None = None,
+) -> Report:
     report_date = datetime.now(timezone.utc).date()
     idempotency_key = f"daily-report:{user_id}:{language}:{report_date.isoformat()}"
     if db.bind and db.bind.dialect.name == "postgresql":
@@ -27,12 +35,30 @@ def create_daily_report(db: Session, user_id: str, language: str = "en") -> Repo
         return cached
     assert_daily_report_limit(db, user_id)
     assert_action_allowed(db, user_id, "daily_market_report")
-    cost = cost_for("daily_market_report")
-    consume_credits(db, user_id, "daily_market_report", cost, {"report_date": report_date.isoformat()}, idempotency_key=f"report-charge:{idempotency_key}")
+    billing_task = "portfolio_daily_brief" if portfolio_context(db, user_id).get("connected") else "daily_market_report"
+    quote = quote_task(task_type=billing_task, requested_model="default")
+    reservation = reserve_task(
+        db,
+        user_id,
+        quote,
+        f"report-charge:{idempotency_key}",
+        {"report_date": report_date.isoformat(), **({"automation_key": automation_key} if automation_key else {})},
+    )
+    # Make the reservation durable before provider execution, then serialize
+    # concurrent generation for the same daily report on that reservation row.
+    db.commit()
+    db.query(CreditReservationRecord).filter_by(
+        user_id=user_id,
+        idempotency_key=reservation.idempotency_key,
+    ).with_for_update().one()
+    cached = db.query(Report).filter_by(idempotency_key=idempotency_key).one_or_none()
+    if cached:
+        return cached
+    generation_started_at = datetime.now(timezone.utc)
     try:
         content = generate_daily_brief(db, user_id, language)
     except Exception:
-        refund_credits(db, user_id, "daily_market_report", cost, {"report_date": report_date.isoformat(), "reason": "generation_failed"}, idempotency_key=f"report-refund:{idempotency_key}")
+        refund_task(db, user_id, reservation, "REPORT_GENERATION_FAILED", metadata={"report_date": report_date.isoformat()})
         db.commit()
         raise
     intelligence = latest_or_create_intelligence(db)
@@ -49,13 +75,33 @@ def create_daily_report(db: Session, user_id: str, language: str = "en") -> Repo
         idempotency_key=idempotency_key,
     )
     db.add(report)
+    usage = (
+        db.query(LLMCallLog)
+        .filter(
+            LLMCallLog.user_id == user_id,
+            LLMCallLog.task_type == "daily_market_report",
+            LLMCallLog.status == "success",
+            LLMCallLog.created_at >= generation_started_at,
+        )
+        .order_by(LLMCallLog.created_at.desc())
+        .first()
+    )
+    actual_quote = quote_task(
+        task_type=billing_task,
+        requested_model="default",
+        resolved_model=usage.model if usage else "default",
+        input_tokens=usage.prompt_tokens if usage else 0,
+        output_tokens=usage.completion_tokens if usage else 0,
+    )
+    settle_task(db, user_id, reservation, actual_quote.credits, metadata={"report_id": report.id, "usage_log_id": usage.id if usage else None})
     db.commit()
     db.refresh(report)
     return report
 
 
 def create_event_report(db: Session, user_id: str, asset: str, event: str, language: str = "en") -> Report:
-    consume_credits(db, user_id, "event_report", cost_for("event_report"))
+    quote = quote_task(task_type="event_report", requested_model="default")
+    reservation = reserve_task(db, user_id, quote, f"event-report-charge:{user_id}:{uuid.uuid4()}")
     report = Report(
         user_id=user_id,
         title=f"PureGamma 事件报告：{asset}" if language == "zh" else f"PureGamma Event Report: {asset}",
@@ -65,6 +111,7 @@ def create_event_report(db: Session, user_id: str, asset: str, event: str, langu
         assets=[asset],
     )
     db.add(report)
+    settle_task(db, user_id, reservation, quote.credits, metadata={"report_id": report.id})
     db.commit()
     db.refresh(report)
     return report
@@ -72,7 +119,10 @@ def create_event_report(db: Session, user_id: str, asset: str, event: str, langu
 
 def create_playbook_report(db: Session, user_id: str, language: str = "en") -> Report:
     assert_action_allowed(db, user_id, "playbook_generation")
-    consume_credits(db, user_id, "playbook_generation", cost_for("playbook_generation"))
+    quote = quote_task(task_type="playbook_generation", requested_model="default")
+    reservation = reserve_task(db, user_id, quote, f"playbook-report-charge:{user_id}:{uuid.uuid4()}")
+    db.commit()
+    generation_started_at = datetime.now(timezone.utc)
     playbooks = generate_playbooks()
     content = render_playbook_report(playbooks, language)
     try:
@@ -87,8 +137,11 @@ def create_playbook_report(db: Session, user_id: str, language: str = "en") -> R
         disclaimer = "使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" if language == "zh" else "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
         if generated.lstrip().startswith("#"):
             content = generated if disclaimer in generated else f"{generated.rstrip()}\n\n{disclaimer}"
-    except Exception:
-        pass
+    except Exception as exc:
+        if get_settings().app_environment.lower() == "production":
+            refund_task(db, user_id, reservation, "PLAYBOOK_MODEL_FAILED")
+            db.commit()
+            raise RuntimeError("PLAYBOOK_MODEL_UNAVAILABLE") from exc
     report = Report(
         user_id=user_id,
         title="PureGamma 策略框架" if language == "zh" else "PureGamma Strategy Playbooks",
@@ -98,6 +151,25 @@ def create_playbook_report(db: Session, user_id: str, language: str = "en") -> R
         assets=[item["asset"] for item in playbooks],
     )
     db.add(report)
+    usage = (
+        db.query(LLMCallLog)
+        .filter(
+            LLMCallLog.user_id == user_id,
+            LLMCallLog.task_type == "deepseek_playbook_generation",
+            LLMCallLog.status == "success",
+            LLMCallLog.created_at >= generation_started_at,
+        )
+        .order_by(LLMCallLog.created_at.desc())
+        .first()
+    )
+    actual_quote = quote_task(
+        task_type="playbook_generation",
+        requested_model="default",
+        resolved_model=usage.model if usage else "default",
+        input_tokens=usage.prompt_tokens if usage else 0,
+        output_tokens=usage.completion_tokens if usage else 0,
+    )
+    settle_task(db, user_id, reservation, actual_quote.credits, metadata={"report_id": report.id, "usage_log_id": usage.id if usage else None})
     db.commit()
     db.refresh(report)
     return report

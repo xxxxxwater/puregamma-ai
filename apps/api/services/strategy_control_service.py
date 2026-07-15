@@ -7,9 +7,8 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from apps.api.services.backtest_service import run_backtest
-from apps.api.services.credit_service import consume_credits
+from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
 from apps.api.services.entitlement_service import get_user_entitlement
-from packages.billing.credits import cost_for
 from packages.database.models import (
     AgentConversation,
     NormalizedDocument,
@@ -186,12 +185,13 @@ def create_strategy(
     draft.created_by = user_id
     draft.version = 1
     payload = draft.model_dump(mode="json")
-    consume_credits(
+    quote = quote_task(task_type="strategy_generation")
+    reservation = reserve_task(
         db,
         user_id,
-        "strategy_generation",
-        cost_for("strategy_generation"),
-        {"idempotency_key": key},
+        quote,
+        f"strategy-charge:{key}",
+        {"strategy_idempotency_key": key},
     )
     strategy = TradingStrategy(
         user_id=user_id,
@@ -226,6 +226,7 @@ def create_strategy(
         request={"draft": payload},
         result={"strategy_id": strategy.id, "version": 1},
     )
+    settle_task(db, user_id, reservation, quote.credits, metadata={"strategy_id": strategy.id})
     db.commit()
     db.refresh(strategy)
     return strategy
@@ -258,12 +259,13 @@ def modify_strategy(
         raise StrategyControlError("; ".join(checked["errors"]))
     draft = StrategyDraft.model_validate(checked["draft"])
     payload = draft.model_dump(mode="json")
-    consume_credits(
+    quote = quote_task(task_type="strategy_modification")
+    reservation = reserve_task(
         db,
         user_id,
-        "strategy_modification",
-        cost_for("strategy_modification"),
-        {"idempotency_key": key},
+        quote,
+        f"strategy-charge:{key}",
+        {"strategy_id": strategy.id, "strategy_idempotency_key": key},
     )
     strategy.current_version = draft.version
     strategy.name = draft.name
@@ -295,6 +297,7 @@ def modify_strategy(
         request=changes,
         result={"version": draft.version},
     )
+    settle_task(db, user_id, reservation, quote.credits, metadata={"strategy_id": strategy.id, "version": draft.version})
     db.commit()
     db.refresh(strategy)
     return strategy
@@ -438,13 +441,17 @@ def activate_strategy(
         raise StrategyControlError(
             f"Account does not allow {intent.execution_mode} execution"
         )
-    consume_credits(
+    quote = quote_task(task_type="strategy_activation", async_execution=True)
+    reservation = reserve_task(
         db,
         user_id,
-        "strategy_activation",
-        cost_for("strategy_activation"),
+        quote,
+        f"strategy-activation-charge:{intent.id}",
         {"intent_id": intent.id},
     )
+    # Persist the reservation before the external runtime command so a process
+    # failure can be reconciled and refunded instead of losing billing state.
+    db.commit()
     activation = StrategyActivation(
         user_id=user_id,
         conversation_id=intent.conversation_id,
@@ -482,9 +489,13 @@ def activate_strategy(
         ack = client.command("activate", f"activation:{activation.id}", payload)
     except RuntimeUnavailable:
         db.rollback()
+        refund_task(db, user_id, reservation, "STRATEGY_RUNTIME_UNAVAILABLE", metadata={"intent_id": intent.id})
+        db.commit()
         raise
     if ack.get("status") in {"REJECTED", "ERROR"}:
         db.rollback()
+        refund_task(db, user_id, reservation, "STRATEGY_RUNTIME_REJECTED", metadata={"intent_id": intent.id})
+        db.commit()
         raise StrategyControlError(ack.get("error", "Runtime rejected activation"))
     intent.approval_status = "APPROVED"
     intent.approved_at = utcnow()
@@ -510,6 +521,7 @@ def activate_strategy(
         request={"intent_id": intent.id, "version": version.version},
         result=ack,
     )
+    settle_task(db, user_id, reservation, quote.credits, metadata={"activation_id": activation.id, "run_id": run.id})
     db.commit()
     db.refresh(activation)
     db.refresh(run)

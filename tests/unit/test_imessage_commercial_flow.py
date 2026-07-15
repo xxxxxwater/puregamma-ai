@@ -41,7 +41,7 @@ def test_retryable_notification_can_retry_same_idempotency_key(monkeypatch, db, 
     assert second.id == first.id
     assert second.status == "sent"
     assert second.attempt_count == 2
-    assert max_user.credit_balance == before - 3
+    assert max_user.credit_balance == before - 2
     assert db.query(NotificationDelivery).filter_by(idempotency_key="retry-imessage").count() == 1
 
 

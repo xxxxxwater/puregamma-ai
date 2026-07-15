@@ -77,7 +77,7 @@ def mock_login(
             name=payload.name,
             role="user",
             plan="Free",
-            credit_balance=30,
+            credit_balance=150,
             auth_provider="mock",
         )
         db.add(user)
@@ -101,13 +101,8 @@ def mock_login(
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     db.refresh(user)
-    token = set_session_cookie(response, user)
-    return {
-        "user": serialize_user(user),
-        "access_token": token,
-        "token_type": "bearer",
-        "auth_header": {"Authorization": f"Bearer {token}"},
-    }
+    set_session_cookie(response, user)
+    return {"user": serialize_user(user)}
 
 
 @router.get("/me")

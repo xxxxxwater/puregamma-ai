@@ -14,6 +14,7 @@ from apps.api.services.portfolio_service import run_autopilot_review, sync_accou
 from apps.api.services.data_source_service import sync_all_providers, sync_provider
 from apps.api.services.daily_push_service import next_delivery, render_daily_brief_delivery
 from apps.api.services.entitlement_service import get_user_entitlement
+from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
 from apps.api.config import get_settings
 from packages.database.models import (
     AccountSnapshot,
@@ -29,11 +30,29 @@ from packages.database.models import (
     utcnow,
 )
 from packages.database.session import SessionLocal
+from packages.billing.budgets import AutomationBudgetExceeded, pause_automation_budget
 from packages.trading.runtime_client import NautilusRuntimeClient
 from packages.workers.celery_app import celery_app
 
 
 logger = logging.getLogger(__name__)
+
+
+def _persist_budget_pause(db, user_id: str, automation_key: str, exc: Exception) -> None:
+    db.rollback()
+    pause_automation_budget(db, user_id, automation_key, str(exc))
+    db.commit()
+
+
+@celery_app.task(name="puregamma.recover_stale_credit_reservations")
+def recover_stale_credit_reservations() -> dict:
+    from apps.api.services.credit_service import recover_stale_reservations
+
+    db = SessionLocal()
+    try:
+        return {"refunded": recover_stale_reservations(db)}
+    finally:
+        db.close()
 
 
 @celery_app.task(name="puregamma.retry_notification_deliveries")
@@ -48,11 +67,28 @@ def retry_notification_deliveries() -> dict:
         for row in rows:
             try:
                 retried += 1
-                result = send_notification(db, row.user_id, row.channel, str((row.payload or {}).get("message", "")), {"idempotency_key": row.idempotency_key, "locale": row.locale})
+                payload = row.payload or {}
+                result = send_notification(
+                    db,
+                    row.user_id,
+                    row.channel,
+                    str(payload.get("message", "")),
+                    {
+                        "idempotency_key": row.idempotency_key,
+                        "locale": row.locale,
+                        **({"automation_key": payload["automation_key"]} if payload.get("automation_key") else {}),
+                        **({"report_id": payload["report_id"]} if payload.get("report_id") else {}),
+                    },
+                )
                 if result.status == "sent":
                     sent += 1
                 elif result.status == "failed_permanent":
                     failed += 1
+            except AutomationBudgetExceeded as exc:
+                automation_key = str((row.payload or {}).get("automation_key") or "notification_delivery")
+                _persist_budget_pause(db, row.user_id, automation_key, exc)
+                failed += 1
+                logger.warning("notification_retry_budget_paused user_id=%s", row.user_id)
             except Exception:
                 db.rollback()
                 failed += 1
@@ -82,15 +118,25 @@ def dispatch_due_daily_briefs() -> dict:
                     db.commit()
                     skipped += 1
                     continue
-                report = create_daily_report(db, user.id, preference.locale)
+                report = create_daily_report(db, user.id, preference.locale, automation_key="daily_brief")
                 message = render_daily_brief_delivery(db, preference, report)
-                delivery = send_notification(db, user.id, preference.channel, message, {"idempotency_key": f"daily-brief:{user.id}:{preference.channel}:{scheduled_for.isoformat()}", "locale": preference.locale, "report_id": report.id})
+                delivery = send_notification(db, user.id, preference.channel, message, {"idempotency_key": f"daily-brief:{user.id}:{preference.channel}:{scheduled_for.isoformat()}", "locale": preference.locale, "report_id": report.id, "automation_key": "daily_brief_delivery"})
                 if delivery.status == "sent":
                     sent += 1
                 else:
                     skipped += 1
                 preference.next_delivery_at = next_delivery(preference.timezone, preference.local_time, utcnow() + timedelta(minutes=1))
                 db.commit()
+            except AutomationBudgetExceeded as exc:
+                user_id = preference.user_id
+                _persist_budget_pause(db, user_id, "daily_brief", exc)
+                row = db.get(DailyBriefPreference, user_id)
+                if row:
+                    row.enabled = False
+                    row.next_delivery_at = None
+                    db.commit()
+                skipped += 1
+                logger.warning("due_daily_brief_budget_paused user_id=%s", user_id)
             except Exception:
                 db.rollback()
                 failed += 1
@@ -125,14 +171,39 @@ def sync_portfolio_autopilot_accounts() -> dict:
             last_review = db.query(PortfolioAutopilotReview).filter_by(user_id=preference.user_id).order_by(PortfolioAutopilotReview.created_at.desc()).first()
             interval = timedelta(days=7 if cadence == "weekly" else 1)
             if accounts and (not last_review or utcnow() - last_review.created_at >= interval):
+                reservation = None
                 try:
+                    quote = quote_task(task_type="portfolio_monitor", async_execution=True)
+                    reservation = reserve_task(
+                        db,
+                        user.id,
+                        quote,
+                        f"portfolio-monitor:{user.id}:{utcnow().date().isoformat()}",
+                        {"automation_key": "portfolio_monitor", "cadence": cadence},
+                    )
+                    db.commit()
                     review = run_autopilot_review(db, user)
                     delivery = config.get("delivery", "in_app")
                     if delivery in {"telegram", "imessage"}:
                         findings = "; ".join(item["title"] for item in review["findings"][:5])
-                        send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"]})
+                        send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"], "automation_key": "portfolio_monitor_delivery"})
+                    settle_task(db, user.id, reservation, quote.credits, metadata={"reviewed_at": review["last_review"]})
+                    db.commit()
+                except AutomationBudgetExceeded as exc:
+                    _persist_budget_pause(db, user.id, "portfolio_monitor", exc)
+                    current = db.get(UserPreference, preference.user_id)
+                    if current:
+                        paused_config = dict(current.portfolio_autopilot_json or {})
+                        paused_config["enabled"] = False
+                        paused_config["pause_reason"] = str(exc)
+                        current.portfolio_autopilot_json = paused_config
+                        db.commit()
+                    logger.warning("portfolio_autopilot_budget_paused user_id=%s", preference.user_id)
                 except Exception:
                     db.rollback()
+                    if reservation:
+                        refund_task(db, user.id, reservation, "PORTFOLIO_MONITOR_FAILED")
+                        db.commit()
                     logger.exception("portfolio_autopilot_review_failed user_id=%s", preference.user_id)
                     errors += 1
         return {"synced": synced, "errors": errors}
@@ -163,7 +234,10 @@ def generate_personalized_daily_reports() -> list[str]:
                     if user.preference
                     else "en"
                 )
-                ids.append(create_daily_report(db, user.id, language).id)
+                ids.append(create_daily_report(db, user.id, language, automation_key="daily_report").id)
+            except AutomationBudgetExceeded as exc:
+                _persist_budget_pause(db, user.id, "daily_report", exc)
+                logger.warning("daily_report_budget_paused user_id=%s", user.id)
             except Exception:
                 db.rollback()
                 logger.exception("daily_report_generation_failed user_id=%s", user.id)
@@ -194,13 +268,17 @@ def send_daily_reports_to_channels() -> int:
                 continue
             language = getattr(pref, "locale", "en")
             try:
-                report = create_daily_report(db, user.id, language)
+                report = create_daily_report(db, user.id, language, automation_key="daily_report_delivery")
                 db.commit()
+            except AutomationBudgetExceeded as exc:
+                _persist_budget_pause(db, user.id, "daily_report_delivery", exc)
+                logger.warning("daily_delivery_budget_paused user_id=%s", user.id)
+                continue
             except Exception:
                 db.rollback()
                 logger.exception("daily_delivery_report_generation_failed user_id=%s", user.id)
                 try:
-                    report = create_daily_report(db, user.id, language)
+                    report = create_daily_report(db, user.id, language, automation_key="daily_report_delivery")
                     db.commit()
                 except Exception:
                     db.rollback()
@@ -224,6 +302,7 @@ def send_daily_reports_to_channels() -> int:
                             "idempotency_key": f"daily-{user.id}-{channel}-{language}-{utcnow().date().isoformat()}",
                             "locale": language,
                             "report_id": report.id,
+                            "automation_key": "daily_report_delivery",
                         },
                     )
                     sent += 1 if delivery.status == "sent" else 0

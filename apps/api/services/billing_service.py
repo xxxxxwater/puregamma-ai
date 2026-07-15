@@ -29,6 +29,38 @@ class ManualReviewRequired(Exception):
         self.intent = intent
 
 
+def _grant_plan_monthly_credits(
+    db: Session,
+    user: User,
+    plan_name: str,
+    *,
+    source: str,
+    idempotency_key: str,
+    metadata: dict | None = None,
+) -> CreditLedger:
+    """Grant a billing period once while enforcing the plan carryover cap."""
+    locked = db.query(User).filter(User.id == user.id).with_for_update().one()
+    plan = get_plan(plan_name)
+    amount = plan.monthly_credits
+    if plan.carryover_cap:
+        amount = min(amount, max(0, plan.carryover_cap - locked.credit_balance))
+    return grant_credits(
+        db,
+        locked.id,
+        "monthly_credit_grant",
+        amount,
+        {
+            **(metadata or {}),
+            "source": source,
+            "plan": plan.name,
+            "configured_grant": plan.monthly_credits,
+            "carryover_cap": plan.carryover_cap,
+            "granted_credits": amount,
+        },
+        idempotency_key=idempotency_key,
+    )
+
+
 def dt_from_ts(value: Any) -> datetime | None:
     if value is None:
         return None
@@ -311,7 +343,14 @@ def resolve_checkout_intent(db: Session, intent_id: str, user_id: str, plan_name
         .first()
     )
     if not existing:
-        grant_credits(db, user.id, "monthly_credit_grant", plan.monthly_credits, {"source": "admin_manual_resolve", "manual_resolve_intent_id": intent.id, "admin_id": admin_id, "plan": plan.name})
+        _grant_plan_monthly_credits(
+            db,
+            user,
+            plan.name,
+            source="admin_manual_resolve",
+            idempotency_key=f"monthly-grant:manual:{intent.id}",
+            metadata={"manual_resolve_intent_id": intent.id, "admin_id": admin_id},
+        )
     intent.user_id = user.id
     intent.plan_name = plan.name
     intent.status = "completed"
@@ -406,7 +445,13 @@ def mock_upgrade(db: Session, user_id: str, plan_name: str) -> dict:
         plan_name=plan.name,
         status="active",
     )
-    grant_credits(db, user.id, "monthly_credit_grant", plan.monthly_credits, {"source": "mock_upgrade", "plan": plan.name})
+    _grant_plan_monthly_credits(
+        db,
+        user,
+        plan.name,
+        source="mock_upgrade",
+        idempotency_key=f"monthly-grant:mock:{user.id}:{plan.name}",
+    )
     db.commit()
     return get_subscription(db, user_id)
 
@@ -532,7 +577,17 @@ def _handle_checkout_completed(db: Session, obj: dict) -> None:
         else None
     )
     if not existing:
-        grant_credits(db, user.id, "monthly_credit_grant", plan.monthly_credits, {"source": "checkout.session.completed", "plan": plan.name, "subscription_id": subscription_id})
+        checkout_reference = obj.get("id") or subscription_id
+        if not checkout_reference:
+            raise ManualReviewRequired("Checkout credit grant is missing an idempotency reference.")
+        _grant_plan_monthly_credits(
+            db,
+            user,
+            plan.name,
+            source="checkout.session.completed",
+            idempotency_key=f"monthly-grant:checkout:{checkout_reference}",
+            metadata={"subscription_id": subscription_id},
+        )
 
 
 def _handle_subscription_upsert(db: Session, obj: dict) -> None:
@@ -592,7 +647,16 @@ def _handle_invoice_paid(db: Session, obj: dict) -> None:
         price_id = lines[0].get("price", {}).get("id")
     plan_name = plan_for_price_id_or_none(price_id) or (sub.plan_name if sub else user.plan)
     plan = get_plan(plan_name)
-    grant_credits(db, user.id, "monthly_credit_grant", plan.monthly_credits, {"source": "invoice.paid", "invoice_id": invoice_id, "plan": plan.name})
+    if not invoice_id:
+        raise ManualReviewRequired("Invoice credit grant is missing an invoice id.")
+    _grant_plan_monthly_credits(
+        db,
+        user,
+        plan.name,
+        source="invoice.paid",
+        idempotency_key=f"monthly-grant:invoice:{invoice_id}",
+        metadata={"invoice_id": invoice_id},
+    )
 
 
 def _handle_invoice_payment_failed(db: Session, obj: dict) -> None:

@@ -9,11 +9,13 @@ from apps.api.config import get_settings
 from apps.api.i18n import normalize_locale
 from apps.api.services.credit_service import (
     InsufficientCreditsError,
-    consume_credits,
-    refund_credits,
+    quote_task,
+    refund_task,
+    reserve_task,
+    settle_task,
 )
 from apps.api.services.entitlement_service import EntitlementDeniedError, assert_action_allowed
-from packages.billing.credits import cost_for
+from packages.billing.budgets import AutomationBudgetExceeded
 from packages.database.models import NotificationDelivery, User, UserPreference, utcnow
 from packages.notifications.email import EmailProvider
 from packages.notifications.imessage.macos_relay_client import MacOSIMessageRelayClient
@@ -43,11 +45,11 @@ class NotificationDispatcher:
         if channel == "email":
             return EmailProvider()
         if channel == "imessage":
-            return (
-                MacOSIMessageRelayClient()
-                if self.settings.imessage_provider == "macos_relay"
-                else MockIMessageProvider()
-            )
+            if self.settings.imessage_provider == "macos_relay":
+                return MacOSIMessageRelayClient()
+            if self.settings.app_environment.lower() != "production" and self.settings.imessage_provider == "mock":
+                return MockIMessageProvider()
+            raise RuntimeError("IMESSAGE_PROVIDER_UNAVAILABLE")
         raise ValueError(f"Unsupported channel: {channel}")
 
     def _recipient(
@@ -132,7 +134,15 @@ class NotificationDispatcher:
             .filter(NotificationDelivery.idempotency_key == idempotency_key)
             .one_or_none()
         )
-        if existing and existing.status in {"sent", "skipped", "failed", "failed_permanent"}:
+        if existing and existing.status in {
+            "sent",
+            "skipped",
+            "skipped_entitlement",
+            "skipped_insufficient_credits",
+            "skipped_budget",
+            "failed",
+            "failed_permanent",
+        }:
             return existing
         if existing and existing.status == "failed_retryable" and existing.next_retry_at:
             retry_at = existing.next_retry_at
@@ -213,19 +223,37 @@ class NotificationDispatcher:
                 )
         action = CHANNEL_ACTION[channel]
         attempt = (existing.attempt_count if existing else 0) + 1
+        quote = quote_task(task_type=action, notification_channel=channel)
+        reservation = None
         try:
             assert_action_allowed(db, user_id, action)
-            consume_credits(
+            reservation = reserve_task(
                 db,
                 user_id,
-                action,
-                cost_for(action),
-                {"channel": channel, "idempotency_key": idempotency_key},
-                idempotency_key=f"notification-charge:{idempotency_key}:{attempt}",
+                quote,
+                f"notification-charge:{idempotency_key}:{attempt}",
+                {"channel": channel, "idempotency_key": idempotency_key, **({"automation_key": metadata["automation_key"]} if metadata.get("automation_key") else {})},
             )
             db.commit()
-        except (InsufficientCreditsError, EntitlementDeniedError) as exc:
+        except (InsufficientCreditsError, EntitlementDeniedError, AutomationBudgetExceeded) as exc:
             db.rollback()
+            if isinstance(exc, AutomationBudgetExceeded) and metadata.get("automation_key"):
+                from packages.billing.budgets import pause_automation_budget
+
+                pause_automation_budget(
+                    db,
+                    user_id,
+                    str(metadata["automation_key"]),
+                    str(exc),
+                )
+                db.commit()
+            skip_status = (
+                "skipped_insufficient_credits"
+                if isinstance(exc, InsufficientCreditsError)
+                else "skipped_budget"
+                if isinstance(exc, AutomationBudgetExceeded)
+                else "skipped_entitlement"
+            )
             return self._create_delivery(
                 db,
                 user_id,
@@ -233,30 +261,39 @@ class NotificationDispatcher:
                 recipient,
                 message,
                 idempotency_key,
-                "skipped",
+                skip_status,
                 {
                     "reason": "insufficient_credits"
                     if isinstance(exc, InsufficientCreditsError)
+                    else "automation_budget_exceeded"
+                    if isinstance(exc, AutomationBudgetExceeded)
                     else "entitlement_denied"
                 },
                 locale=locale,
             )
         provider = self._provider(channel)
-        result = provider.send(recipient, message, idempotency_key)
+        try:
+            result = provider.send(recipient, message, idempotency_key)
+        except Exception:
+            if reservation:
+                refund_task(db, user_id, reservation, "NOTIFICATION_PROVIDER_EXCEPTION", metadata={"channel": channel})
+                db.commit()
+            raise
         permanent = result.response.get("status") in {"unsupported_os", "invalid_recipient", "message_too_long", "missing_applescript"}
         status = "sent" if result.ok else ("failed_permanent" if permanent else "failed_retryable") if channel == "imessage" else "failed"
         if not result.ok:
-            refund_credits(
+            refund_task(
+                db, user_id, reservation, "NOTIFICATION_PROVIDER_FAILURE",
+                metadata={"channel": channel, "idempotency_key": idempotency_key},
+            )
+            db.commit()
+        else:
+            settle_task(
                 db,
                 user_id,
-                action,
-                cost_for(action),
-                {
-                    "channel": channel,
-                    "idempotency_key": idempotency_key,
-                    "reason": "provider_failure",
-                },
-                idempotency_key=f"notification-refund:{idempotency_key}:{attempt}",
+                reservation,
+                quote.credits,
+                metadata={"channel": channel, "idempotency_key": idempotency_key},
             )
             db.commit()
         retry_delays = (1, 5, 30)
@@ -276,6 +313,11 @@ class NotificationDispatcher:
             db.refresh(existing)
             return existing
         delivery = self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, status, result.response, locale=locale)
+        delivery.payload = {
+            "message": message,
+            **({"automation_key": metadata["automation_key"]} if metadata.get("automation_key") else {}),
+            **({"report_id": metadata["report_id"]} if metadata.get("report_id") else {}),
+        }
         delivery.attempt_count = attempt
         delivery.last_attempt_at = utcnow()
         delivery.next_retry_at = next_retry_at

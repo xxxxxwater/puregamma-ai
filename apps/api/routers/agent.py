@@ -7,8 +7,9 @@ from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.agent_service import AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
-from apps.api.services.credit_service import InsufficientCreditsError, refund_credits
+from apps.api.services.credit_service import InsufficientCreditsError, refund_task
 from apps.api.services.entitlement_service import get_user_entitlement
+from packages.billing.metering import CreditReservation
 from packages.database.models import AgentConversation, AgentMessage, AgentRun, User, utcnow
 
 
@@ -158,7 +159,13 @@ def cancel_run(run_id: str, db: Session = Depends(get_db), user: User = Depends(
         was_pending = row.status == "pending"
         row.status = "canceled"
         if was_pending and row.credit_cost and not row.credit_refunded:
-            refund_credits(db, user.id, "agent_run", row.credit_cost, {"run_id": row.id, "reason": "user_cancelled_before_start"}, idempotency_key=f"agent-refund:{row.id}")
+            refund_task(
+                db,
+                user.id,
+                CreditReservation(f"agent-charge:{row.id}", row.credit_cost),
+                "user_cancelled_before_start",
+                metadata={"run_id": row.id},
+            )
             row.credit_refunded = True
         db.commit()
     return {"id": row.id, "status": row.status}

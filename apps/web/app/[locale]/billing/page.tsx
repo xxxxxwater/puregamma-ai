@@ -2,8 +2,8 @@ import type { Metadata } from "next";
 import { Check } from "lucide-react";
 import { BillingButton, PortalButton, SubscriptionLifecycleButton } from "@/components/actions";
 import { CreditUsageChart } from "@/components/charts";
-import { Badge, CreditCostBadge, EmptyState, PageHeader, PlanBadge, ResearchCard, StatusDot } from "@/components/puregamma";
-import { getBillingCredits, getBillingSubscription } from "@/lib/api";
+import { Badge, CreditCostBadge, EmptyState, ErrorState, PageHeader, PlanBadge, ResearchCard, StatusDot } from "@/components/puregamma";
+import { getBillingBudget, getBillingCredits, getBillingRewards, getBillingSubscription } from "@/lib/api";
 import { formatDateTime } from "@/lib/formatters";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace, t } from "@/lib/translations";
@@ -17,7 +17,12 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
 export default async function BillingPage({ params }: { params: { locale: Locale } }) {
   const locale = params.locale;
   const copy = getMessageNamespace(locale, "billing");
-  const [subscription, credits] = await Promise.all([getBillingSubscription(locale), getBillingCredits(locale)]);
+  const [subscription, credits, budget, rewards] = await Promise.all([
+    getBillingSubscription(locale),
+    getBillingCredits(locale),
+    getBillingBudget(locale),
+    getBillingRewards(locale)
+  ]);
   const usageChart = credits.usage_history.slice(0, 8).map((item, index) => ({ date: String(index + 1), value: Math.abs(item.credits_delta) }));
 
   return (
@@ -29,6 +34,7 @@ export default async function BillingPage({ params }: { params: { locale: Locale
         sectionNumber="07"
         actions={<PortalButton />}
       />
+      {subscription.unavailable || budget.unavailable || rewards.unavailable ? <ErrorState title={locale === "zh" ? "计费数据暂不可用" : "Billing data unavailable"} description={locale === "zh" ? "请稍后重试；页面不会以演示余额、预算或奖励记录代替真实结果。" : "Retry shortly; demo balances, budgets, and rewards will not replace real results."} /> : null}
       <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
         <ResearchCard>
           <div className="grid gap-4 md:grid-cols-5">
@@ -54,6 +60,28 @@ export default async function BillingPage({ params }: { params: { locale: Locale
         <ResearchCard>
           <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{copy.summary.creditUsage}</h2><CreditCostBadge locale={locale} cost={credits.credit_balance} /></div>
           {usageChart.length ? <CreditUsageChart data={usageChart} /> : <EmptyState title={locale === "zh" ? "暂无使用记录" : "No usage yet"} description={locale === "zh" ? "研究任务产生 Credit 记录后将在此显示。" : "Credit activity will appear after you run research tasks."} />}
+        </ResearchCard>
+      </div>
+      <div className="grid gap-4 xl:grid-cols-2">
+        <ResearchCard>
+          <div className="mb-3 flex items-center justify-between gap-3">
+            <h2 className="font-semibold">{locale === "zh" ? "自动化 Credits 预算" : "Automation credit budgets"}</h2>
+            <Badge tone="neutral">{locale === "zh" ? "不足时自动暂停" : "Hard stop when exhausted"}</Badge>
+          </div>
+          {budget.budgets.length ? (
+            <div className="overflow-x-auto">
+              <table className="w-full min-w-[580px] text-sm">
+                <thead className="text-left text-xs uppercase tracking-[0.1em] text-text-pg-muted"><tr><th className="py-2">{locale === "zh" ? "自动化" : "Automation"}</th><th>{locale === "zh" ? "本月" : "This month"}</th><th>{locale === "zh" ? "下次预计" : "Next estimate"}</th><th>{locale === "zh" ? "状态" : "Status"}</th></tr></thead>
+                <tbody>{budget.budgets.map((item) => <tr key={item.automation_key} className="border-t border-border-pg"><td className="py-3">{item.automation_key}</td><td>{item.monthly_used} / {item.monthly_limit}</td><td>{item.next_estimated_credits ?? "—"} Credits</td><td><Badge tone={item.paused || !item.enabled ? "amber" : "emerald"}><StatusDot tone={item.paused || !item.enabled ? "amber" : "emerald"} />{item.paused ? (locale === "zh" ? "已暂停" : "Paused") : item.enabled ? (locale === "zh" ? "运行中" : "Active") : (locale === "zh" ? "已关闭" : "Disabled")}</Badge></td></tr>)}</tbody>
+              </table>
+            </div>
+          ) : <EmptyState title={locale === "zh" ? "暂无自动化预算" : "No automation budgets yet"} description={locale === "zh" ? "开启日报、组合监控或推送后会自动建立预算。" : "A budget is created when you enable briefs, monitoring, or delivery."} />}
+        </ResearchCard>
+        <ResearchCard>
+          <h2 className="mb-3 font-semibold">{locale === "zh" ? "奖励记录" : "Reward history"}</h2>
+          {rewards.rewards.length ? (
+            <div className="space-y-2">{rewards.rewards.slice(0, 8).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-t border-border-pg py-2 text-sm"><div><div>{item.reward_type}</div><div className="text-xs text-text-pg-muted">{item.source} · {formatDateTime(locale, item.created_at)}</div></div><span className="text-status-positive">+{item.credits}</span></div>)}</div>
+          ) : <EmptyState title={locale === "zh" ? "暂无奖励" : "No rewards yet"} description={locale === "zh" ? "邀请、完善组合和反馈奖励会在此显示。" : "Invite, portfolio onboarding, and feedback rewards appear here."} />}
         </ResearchCard>
       </div>
       <ResearchCard className="p-0">

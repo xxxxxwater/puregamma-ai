@@ -12,7 +12,7 @@ from tests.conftest import stripe_event
 def test_credit_consume(db, demo_user):
     consume_credits(db, demo_user.id, "daily_market_report", 10)
     db.commit()
-    assert demo_user.credit_balance == 20
+    assert demo_user.credit_balance == 140
 
 
 def test_insufficient_credits(db, demo_user):
@@ -23,13 +23,13 @@ def test_insufficient_credits(db, demo_user):
 def test_monthly_credit_grant(db, demo_user):
     grant_credits(db, demo_user.id, "monthly_credit_grant", 1000)
     db.commit()
-    assert demo_user.credit_balance == 1030
+    assert demo_user.credit_balance == 1150
 
 
 def test_mock_upgrade(db, demo_user):
     result = mock_upgrade(db, demo_user.id, "Pro")
     assert result["plan"] == "Pro"
-    assert result["credit_balance"] == 1030
+    assert result["credit_balance"] == 3150
 
 
 def test_stripe_checkout_session_creation_mock(db, demo_user):
@@ -103,7 +103,7 @@ def test_admin_resolve_checkout_intent_grants_credits_once(db, demo_user):
     )
 
     assert demo_user.plan == "Pro"
-    assert after_once == 1030
+    assert after_once == 3150
     assert demo_user.credit_balance == after_once
     assert len(grants) == 1
 
@@ -118,7 +118,7 @@ def test_stripe_webhook_checkout_completed(db, demo_user):
     db.refresh(demo_user)
     assert result["processed"] is True
     assert demo_user.plan == "Pro"
-    assert demo_user.credit_balance == 1030
+    assert demo_user.credit_balance == 3150
     assert demo_user.stripe_customer_id == "cus_test"
 
 
@@ -133,7 +133,7 @@ def test_stripe_webhook_invoice_paid(db, demo_user):
     )
     process_stripe_event(db, event, raw)
     db.refresh(demo_user)
-    assert demo_user.credit_balance == before + 1000
+    assert demo_user.credit_balance == min(before + 3000, 6000)
 
 
 def test_stripe_webhook_duplicated_event_should_not_double_grant_credits(db, demo_user):

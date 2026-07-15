@@ -3,15 +3,17 @@ from __future__ import annotations
 import hashlib
 import hmac
 import time
+import uuid
 from urllib.parse import urlencode
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
+from apps.api.services.credit_service import InsufficientCreditsError, quote_task, refund_task, reserve_task, settle_task
 from apps.api.services.portfolio_service import autopilot_view, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_link_token, portfolio_view, run_autopilot_review, sync_account, update_autopilot
 from packages.database.models import TradingAccount, User, UserPreference
 
@@ -89,11 +91,41 @@ def put_autopilot(payload: AutopilotRequest, db: Session = Depends(get_db), user
 
 
 @router.post("/autopilot/run")
-def run_review(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+def run_review(
+    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    quote = quote_task(task_type="portfolio_monitor", async_execution=True)
+    reservation = None
     try:
-        return run_autopilot_review(db, user)
+        reservation = reserve_task(
+            db,
+            user.id,
+            quote,
+            f"portfolio-review:{user.id}:{idempotency_key or uuid.uuid4()}",
+            {"source": "user_initiated"},
+        )
+        db.commit()
+        result = run_autopilot_review(db, user)
+        settle_task(db, user.id, reservation, quote.credits, metadata={"reviewed_at": result["last_review"]})
+        db.commit()
+        return result
+    except InsufficientCreditsError as exc:
+        db.rollback()
+        raise HTTPException(status_code=402, detail=str(exc)) from exc
     except ValueError as exc:
+        db.rollback()
+        if reservation:
+            refund_task(db, user.id, reservation, "PORTFOLIO_REVIEW_REJECTED")
+            db.commit()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except Exception:
+        db.rollback()
+        if reservation:
+            refund_task(db, user.id, reservation, "PORTFOLIO_REVIEW_FAILED")
+            db.commit()
+        raise
 
 
 @router.post("/plaid/link-token")

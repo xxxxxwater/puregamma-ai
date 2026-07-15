@@ -4,6 +4,7 @@ import os
 import sys
 from dataclasses import dataclass
 from functools import lru_cache
+from urllib.parse import urlparse
 
 from dotenv import load_dotenv
 
@@ -20,9 +21,8 @@ def _csv(value: str) -> list[str]:
 class Settings:
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./puregamma.db")
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
-    jwt_secret: str = os.getenv(
-        "SESSION_SECRET", os.getenv("JWT_SECRET", "dev-only-change-me")
-    )
+    jwt_secret: str = os.getenv("JWT_SECRET", "dev-only-change-me")
+    session_secret: str = os.getenv("SESSION_SECRET", "")
     auth_allow_demo_fallback: bool = (
         os.getenv("AUTH_ALLOW_DEMO_FALLBACK", "false").lower() == "true"
     )
@@ -36,6 +36,8 @@ class Settings:
     )
     session_cookie_name: str = os.getenv("SESSION_COOKIE_NAME", "pg_session")
     session_cookie_domain: str | None = os.getenv("SESSION_COOKIE_DOMAIN") or None
+    encryption_master_key: str = os.getenv("ENCRYPTION_MASTER_KEY", "")
+    internal_runtime_secret: str = os.getenv("INTERNAL_RUNTIME_SECRET", "")
     session_max_age_seconds: int = int(
         os.getenv("SESSION_MAX_AGE_SECONDS", "604800") or 604800
     )
@@ -44,6 +46,11 @@ class Settings:
     initial_launch_mode: bool = (
         os.getenv("INITIAL_LAUNCH_MODE", "false").lower() == "true"
     )
+    # Hidden compatibility surfaces. These never enable public navigation or LIVE trading.
+    hidden_portfolio_ai_enabled: bool = os.getenv("HIDDEN_PORTFOLIO_AI_ENABLED", "false").lower() == "true"
+    hidden_risk_copilot_enabled: bool = os.getenv("HIDDEN_RISK_COPILOT_ENABLED", "false").lower() == "true"
+    hidden_realtime_analytics_enabled: bool = os.getenv("HIDDEN_REALTIME_ANALYTICS_ENABLED", "false").lower() == "true"
+    hidden_trading_mcp_enabled: bool = os.getenv("HIDDEN_TRADING_MCP_ENABLED", "false").lower() == "true"
     credit_usage_enforced: bool = (
         os.getenv("CREDIT_USAGE_ENFORCED", "true").lower() == "true"
     )
@@ -344,12 +351,51 @@ def validate_production_settings(settings: Settings) -> None:
     if settings.app_environment.lower() != "production":
         return
     errors: list[str] = []
+    if not settings.database_url or settings.database_url.startswith("sqlite"):
+        errors.append("DATABASE_URL must point to PostgreSQL in production")
+    if not settings.redis_url:
+        errors.append("REDIS_URL is required in production")
+    if not settings.encryption_master_key or len(settings.encryption_master_key) < 32:
+        errors.append("ENCRYPTION_MASTER_KEY must be at least 32 characters")
+    if not settings.internal_runtime_secret or len(settings.internal_runtime_secret) < 32:
+        errors.append("INTERNAL_RUNTIME_SECRET must be at least 32 characters")
     if settings.jwt_secret in {"", "change-me", "dev-only-change-me"} or len(settings.jwt_secret) < 32:
         errors.append("SESSION_SECRET/JWT_SECRET must be a strong value of at least 32 characters")
+    if not settings.session_secret or len(settings.session_secret) < 32:
+        errors.append("SESSION_SECRET must be a strong value of at least 32 characters")
     if settings.auth_allow_demo_fallback:
         errors.append("AUTH_ALLOW_DEMO_FALLBACK must be false")
+    if settings.billing_mode != "stripe":
+        errors.append("BILLING_MODE must be stripe in production")
+    if settings.llm_provider.lower() not in {"openai", "deepseek"}:
+        errors.append("LLM_PROVIDER must be openai or deepseek in production")
+    elif settings.llm_provider.lower() == "openai" and (
+        not settings.openai_api_key or not settings.openai_model
+    ):
+        errors.append("OPENAI_API_KEY and OPENAI_MODEL are required for the production OpenAI provider")
+    elif settings.llm_provider.lower() == "deepseek" and not settings.deepseek_api_key:
+        errors.append("DEEPSEEK_API_KEY is required for the production DeepSeek provider")
+    if settings.enable_mock_agent or settings.enable_mock_market_data or settings.enable_mock_data_sources:
+        errors.append("Mock Agent, market data, and data-source providers must be disabled in production")
+    if settings.imessage_provider == "mock":
+        errors.append("IMESSAGE_PROVIDER cannot be mock in production; use disabled or macos_relay")
+    if settings.nautilus_execution_mode.lower() not in {"paper", "shadow"}:
+        errors.append("NAUTILUS_EXECUTION_MODE must remain paper or shadow")
+    if settings.nautilus_live_trading_enabled or settings.nautilus_allow_live_order:
+        errors.append("LIVE trading must remain disabled in the production baseline")
+    if settings.nautilus_allow_withdrawal or settings.nautilus_allow_transfer:
+        errors.append("Withdrawal and transfer must remain disabled")
     if not settings.session_cookie_domain:
         errors.append("SESSION_COOKIE_DOMAIN is required in production")
+    else:
+        site_host = (urlparse(settings.site_url).hostname or "").lower()
+        cookie_domain = settings.session_cookie_domain.lstrip(".").lower()
+        if site_host and not (
+            site_host == cookie_domain or site_host.endswith(f".{cookie_domain}")
+        ):
+            errors.append("SESSION_COOKIE_DOMAIN must be a parent of SITE_URL")
+    if settings.site_url.rstrip("/") not in settings.cors_origins:
+        errors.append("CORS_ORIGINS must include the exact SITE_URL origin")
     if settings.billing_mode == "stripe":
         if not settings.stripe_secret_key:
             errors.append("STRIPE_SECRET_KEY is required when BILLING_MODE=stripe")

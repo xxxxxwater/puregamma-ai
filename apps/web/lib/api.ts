@@ -4,6 +4,26 @@ import { t } from "@/lib/translations";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+async function forwardedSessionHeaders(): Promise<Record<string, string>> {
+  if (typeof window !== "undefined") return {};
+  const { cookies } = await import("next/headers");
+  const value = cookies().toString();
+  return value ? { Cookie: value } : {};
+}
+
+function neutralizeFallback(value: unknown): unknown {
+  if (Array.isArray(value)) return [];
+  if (value && typeof value === "object") {
+    return Object.fromEntries(
+      Object.entries(value as Record<string, unknown>).map(([key, item]) => [key, neutralizeFallback(item)])
+    );
+  }
+  if (typeof value === "number") return 0;
+  if (typeof value === "boolean") return false;
+  if (typeof value === "string") return "";
+  return null;
+}
+
 type FetchOptions<T> = RequestInit & { fallback: T; locale?: Locale };
 export type CheckoutResponse = {
   checkout_url: string;
@@ -14,22 +34,37 @@ export type CheckoutResponse = {
 };
 
 export async function api<T>(path: string, options: FetchOptions<T>): Promise<T> {
+  const production = process.env.NODE_ENV === "production";
+  const allowMockFallback = !production && process.env.NEXT_PUBLIC_ALLOW_MOCK_FALLBACK === "true";
+  const unavailable = (status = 0, errorCode = "API_UNAVAILABLE") => {
+    const fallback = options.fallback as unknown;
+    if (fallback && typeof fallback === "object" && !Array.isArray(fallback)) {
+      return { ...(neutralizeFallback(fallback) as Record<string, unknown>), unavailable: true, error_code: errorCode, http_status: status } as T;
+    }
+    return fallback as T;
+  };
   try {
+    const sessionHeaders = await forwardedSessionHeaders();
     const response = await fetch(`${API_URL}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
         "X-PG-Locale": options.locale || defaultLocale,
+        ...sessionHeaders,
         ...(options.headers || {})
       },
       credentials: "include",
       cache: "no-store",
       signal: options.signal || AbortSignal.timeout(8_000)
     });
-    if (!response.ok) return options.fallback;
+    if (!response.ok) {
+      let errorCode = `HTTP_${response.status}`;
+      try { const body = await response.clone().json() as { code?: string; error_code?: string }; errorCode = body.error_code || body.code || errorCode; } catch { /* non-JSON error */ }
+      return allowMockFallback ? options.fallback : unavailable(response.status, errorCode);
+    }
     return response.json() as Promise<T>;
   } catch {
-    return options.fallback;
+    return allowMockFallback ? options.fallback : unavailable(0, "NETWORK_ERROR");
   }
 }
 
@@ -49,7 +84,7 @@ export type AuthResponse = {
 
 export async function mockLogin(email = "demo@puregamma.ai", name = "Demo User", role = "user") {
   return post<AuthResponse>("/auth/mock-login", { email, name, role }, {
-    user: { id: "demo", email, name, role, plan: "Free", credit_balance: 30, auth_provider: "mock" },
+    user: { id: "demo", email, name, role, plan: "Free", credit_balance: 150, auth_provider: "mock" },
     auth_header: { "X-User-Id": "demo" }
   });
 }
@@ -156,6 +191,9 @@ export type SubscriptionState = {
   checkout_mode: "session" | "payment_link";
   payment_links: Record<string, boolean>;
   primary_payment_link_configured: boolean;
+  unavailable?: boolean;
+  error_code?: string;
+  http_status?: number;
 };
 export type DataSourceRow = { id: string; source: string; type: string; provider: string; status: string; requiredPlan: string; lastSync: string | null; lastSuccess?: string | null; error: string; itemsIngested: number; enabled: boolean; primary?: boolean; configured?: boolean; entitled?: boolean; sourceTimestamp?: string | null; freshnessSeconds?: number | null; stale?: boolean; failureReason?: string | null; redistributionAllowed?: boolean; isMock?: boolean; quotaLimit?: number | null; quotaRemaining?: number | null; rateLimitResetAt?: string | null; requestCount?: number; errorCount?: number; circuitOpenUntil?: string | null; retentionPolicy?: string; licenseStatus?: string; accountCount?: number };
 export type DataSourcePreview = { raw: Array<{ id: string; externalId: string; url?: string | null; publishedAt?: string | null; fetchedAt: string; licenseStatus: string; retentionPolicy: string; processingStatus: string }>; normalized: Array<{ id: string; provider: string; sourceType: string; sourceName: string; title: string; summary: string; url?: string | null; author?: string | null; publishedAt?: string | null; symbols: string[]; topics: string[]; sentiment: { label?: string; score?: number }; credibilityScore: number; finalScore: number; licenseStatus: string; retentionPolicy: string }> };
@@ -168,53 +206,32 @@ export const fallbackMarket: MarketSnapshotResponse = {
 };
 
 export const fallbackSubscription: SubscriptionState = {
-  plan: "Free",
-  subscription_status: "inactive",
+  plan: "",
+  subscription_status: "unavailable",
   current_period_end: null,
   cancel_at_period_end: false,
   cancel_at: null,
-  credit_balance: 30,
-  billing_mode: "stripe",
-  account: { auth_provider: "mock", avatar_url: null, email: "demo@puregamma.ai" },
-  entitlement: { notification_channels: ["email"], high_cost_tasks: false, imessage: false },
+  credit_balance: 0,
+  billing_mode: "unavailable",
+  account: { auth_provider: "", avatar_url: null, email: "" },
+  entitlement: { notification_channels: [], high_cost_tasks: false, imessage: false },
   checkout_mode: "session",
   payment_links: { Pro: false, Max: false, Enterprise: false },
-  primary_payment_link_configured: true
+  primary_payment_link_configured: false,
+  unavailable: true
 };
 
 export const fallbackReport = {
-  mockMode: true,
-  reports: [
-    {
-      id: "fallback-report",
-      title: "PureGamma Daily Crypto Brief",
-      report_type: "daily_market_report",
-      source_intelligence_id: "mock-shared-intel",
-      content_markdown:
-        "# PureGamma Daily Crypto Brief\n\n## Market Regime\nRisk-on momentum with contained leverage.\n\n## Key Signals\n- BTC leadership remains the cleanest expression of crypto beta.\n- SOL and HYPE show high beta follow-through, but funding risk is rising.\n\n## Risk\nModerate risk; favor liquid assets and explicit invalidation levels.\n\n## Disclaimer\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
-      assets: ["BTC", "ETH", "SOL", "HYPE", "MSTR", "STRC"],
-      created_at: new Date().toISOString(),
-      language: "en" as Locale
-    }
-  ] satisfies ReportRow[]
+  unavailable: true,
+  mockMode: false,
+  reports: [] as ReportRow[]
 };
 
 export function fallbackReportForLocale(locale: Locale) {
-  const title = t(locale, "reports.mock.title");
   return {
-    mockMode: true,
-    reports: [
-      {
-        id: `fallback-report-${locale}`,
-        title,
-        report_type: "daily_market_report",
-        source_intelligence_id: "mock-shared-intel",
-        content_markdown: t(locale, "reports.mock.content"),
-        assets: ["BTC", "ETH", "SOL", "HYPE", "MSTR", "STRC"],
-        created_at: new Date().toISOString(),
-        language: locale
-      }
-    ] satisfies ReportRow[]
+    unavailable: true,
+    mockMode: false,
+    reports: [] as ReportRow[]
   };
 }
 
@@ -402,7 +419,7 @@ export function getMarketSnapshot(locale: Locale = defaultLocale) {
 }
 
 export function getReports(locale: Locale = defaultLocale) {
-  return api<ReturnType<typeof fallbackReportForLocale>>(`/reports?locale=${locale}`, { fallback: { mockMode: false, reports: [] }, locale });
+  return api<ReturnType<typeof fallbackReportForLocale>>(`/reports?locale=${locale}`, { fallback: fallbackReportForLocale(locale), locale });
 }
 
 export function getReport(id: string, locale: Locale = defaultLocale) {
@@ -437,36 +454,43 @@ export function updatePortfolioAutopilot(config: Partial<PortfolioAutopilot["con
 export function runPortfolioAutopilot() { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot/run", { method: "POST" }); }
 
 export function getPortfolioPositions() {
-  return Promise.resolve({ positions: [], status: "NOT_CONNECTED" });
+  return requestStrict<{ positions: PositionRow[]; status: string }>("/portfolio/positions");
 }
 
 export function syncPortfolio() {
-  return Promise.resolve({ status: "NOT_CONNECTED" });
+  return Promise.reject(new Error("Select a connected portfolio account to synchronize"));
 }
 
-export function getIntegrations(locale: Locale = defaultLocale) {
-  if (locale === "en") return Promise.resolve(fallbackIntegrations);
-  return Promise.resolve({
-    mockMode: true,
-    integrations: [
-      { name: "Plaid 券商", description: "仅同步持仓与投资交易数据。", status: "过期警告", plan: "Pro", cost: 3, lastSync: "2 小时前", failureReason: "Demo 券商需要手动刷新。" },
-      { name: "Binance 只读", description: "通过只读 API Key 同步 CEX 余额。", status: "健康", plan: "Max", cost: 5, lastSync: "8 分钟前" },
-      { name: "Telegram", description: "研究简报与账户风险通知。", status: "需要 Key", plan: "Pro", cost: 1, lastSync: "未配置" },
-      { name: "iMessage", description: "用于每日简报推送的自托管 Mac Relay。", status: "需要 Max", plan: "Max", cost: 3, lastSync: "Mock" }
-    ] satisfies IntegrationRow[]
+export async function getIntegrations(locale: Locale = defaultLocale) {
+  const portfolio = await api<PortfolioSnapshot & { unavailable?: boolean }>("/portfolio", {
+    fallback: { connected: false, stale: false, data_as_of: null, nav: 0, available_cash: 0, nav_history: [], connections: [], providers: { plaid: false, ibkr: false, hyperliquid: false }, unavailable: true },
+    locale
   });
+  return {
+    mockMode: false,
+    unavailable: portfolio.unavailable,
+    integrations: (portfolio.connections || []).map((connection) => ({
+      name: connection.name,
+      description: `${connection.provider.toUpperCase()} read-only portfolio connection`,
+      status: connection.status,
+      plan: "",
+      cost: 0,
+      lastSync: connection.last_sync || (locale === "zh" ? "尚未同步" : "not synchronized"),
+      failureReason: connection.error || undefined
+    })) satisfies IntegrationRow[]
+  };
 }
 
 export function connectPlaid() {
-  return Promise.resolve({ status: "NOT_CONFIGURED" });
+  return Promise.reject(new Error("Use the authenticated Plaid Link flow"));
 }
 
 export function syncExchange() {
-  return Promise.resolve({ status: "queued" });
+  return Promise.reject(new Error("Select a connected exchange account to synchronize"));
 }
 
 export function addWallet() {
-  return Promise.resolve({ status: "NOT_CONFIGURED" });
+  return Promise.reject(new Error("Select a supported wallet connector"));
 }
 
 export function getDataSources(locale: Locale = defaultLocale) {
@@ -493,7 +517,7 @@ export type AgentConversation = { id: string; title: string; summary?: string | 
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
 export type AgentAttachment = { name: string; content: string; mime: string };
 export type AgentContext = { data_sources: string[]; skills: string[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string };
-export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
+export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type RuntimeStrategy = { id: string; name: string; description: string; status: string; current_version: number; execution_mode: string; draft: { instruments: string[]; venues: string[]; timeframe: string; strategy_type: string; sentiment_sources: string[]; max_notional: number; leverage: number; max_daily_loss: number; max_drawdown: number }; latest_run?: RuntimeRun | null; created_at: string; updated_at: string };
 export type RuntimeRun = { id: string; strategy_id: string; strategy_version: number; account_id?: string | null; runtime_run_id: string; execution_mode: string; status: string; started_at?: string | null; stopped_at?: string | null; performance: Record<string, number>; error_code?: string | null; error_message?: string | null };
@@ -506,11 +530,12 @@ export type LongGammaCandidate = OptionInstrument & { days_to_expiry: number; ga
 export type EarningsGammaCandidate = { symbol: string; name: string; earnings_date: string; sector: string; market_cap_category: string; research_score: number; rationale: string[]; news_snippet: string; execution_enabled: false; updated_at: string };
 
 async function requestStrict<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const sessionHeaders = await forwardedSessionHeaders();
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
     cache: "no-store",
-    headers: { "Content-Type": "application/json", ...(init.headers || {}) }
+    headers: { "Content-Type": "application/json", ...sessionHeaders, ...(init.headers || {}) }
   });
   if (!response.ok) {
     const detail = await response.text();
@@ -767,7 +792,43 @@ export function getBillingSubscription(locale: Locale = defaultLocale) {
 }
 
 export function getBillingCredits(locale: Locale = defaultLocale) {
-  return api<{ credit_balance: number; usage_history: { id: string; action: string; credits_delta: number; balance_after: number; created_at: string }[] }>(`/billing/credits?locale=${locale}`, { fallback: { credit_balance: 30, usage_history: [] }, locale });
+  return api<{ credit_balance: number; usage_history: { id: string; action: string; credits_delta: number; balance_after: number; created_at: string }[] }>(`/billing/credits?locale=${locale}`, { fallback: { credit_balance: 0, usage_history: [] }, locale });
+}
+
+export type CreditBudget = {
+  automation_key: string;
+  daily_limit: number;
+  monthly_limit: number;
+  per_run_limit: number;
+  daily_used: number;
+  monthly_used: number;
+  next_estimated_credits: number | null;
+  alert_threshold_pct: number;
+  enabled: boolean;
+  paused: boolean;
+  pause_reason?: string | null;
+};
+
+export type CreditReward = {
+  id: string;
+  reward_type: string;
+  credits: number;
+  source: string;
+  metadata: Record<string, unknown>;
+  created_at: string;
+};
+
+export function getBillingBudget(locale: Locale = defaultLocale) {
+  return api<{ budgets: CreditBudget[]; unavailable?: boolean }>("/billing/budget", { fallback: { budgets: [], unavailable: true }, locale });
+}
+
+export function getBillingRewards(locale: Locale = defaultLocale) {
+  return api<{ rewards: CreditReward[]; unavailable?: boolean }>("/billing/rewards", { fallback: { rewards: [], unavailable: true }, locale });
+}
+
+export type CreditQuoteResponse = { estimated_min: number; estimated_max: number; reservation_amount: number; pricing_version: string; unavailable?: boolean };
+export function getCreditQuote(payload: { task_type: string; requested_model: string; resolved_model?: string; input_tokens?: number; attachment_bytes?: number; tool_calls?: string[]; selected_data_sources?: string[] }, locale: Locale = defaultLocale) {
+  return api<CreditQuoteResponse>("/billing/quote", { method: "POST", body: JSON.stringify(payload), fallback: { estimated_min: 0, estimated_max: 0, reservation_amount: 0, pricing_version: "unavailable", unavailable: true }, locale });
 }
 
 export function createCheckoutSession(plan_name: string, locale: Locale = defaultLocale) {
@@ -783,7 +844,7 @@ export function createBillingCheckout(plan_name: string, checkoutMode: "session"
 }
 
 export function createPortalSession(locale: Locale = defaultLocale) {
-  return post("/billing/create-portal-session", { locale }, { portal_url: `/${locale}/billing`, mode: "mock" }, locale);
+  return post("/billing/create-portal-session", { locale }, { portal_url: "", mode: "unavailable" }, locale);
 }
 
 export function cancelSubscription(locale: Locale = defaultLocale) {

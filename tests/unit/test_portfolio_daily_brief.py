@@ -41,5 +41,5 @@ def test_daily_report_is_idempotent_for_user_date_and_language(db, pro_user):
 
     db.refresh(pro_user)
     assert first.id == second.id
-    assert pro_user.credit_balance == initial_balance - 10
+    assert pro_user.credit_balance == initial_balance - 8
     assert db.query(CreditLedger).filter(CreditLedger.idempotency_key.like("report-charge:%")).count() == 1

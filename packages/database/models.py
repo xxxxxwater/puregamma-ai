@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, event
 from sqlalchemy import JSON
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -32,7 +32,7 @@ class User(Base, TimestampMixin):
     name = Column(String, nullable=False, default="PureGamma User")
     role = Column(String, nullable=False, default="user")
     plan = Column(String, nullable=False, default="Free")
-    credit_balance = Column(Integer, nullable=False, default=30)
+    credit_balance = Column(Integer, nullable=False, default=150)
     stripe_customer_id = Column(String, nullable=True, index=True)
     google_user_id = Column(String, nullable=True, unique=True, index=True)
     avatar_url = Column(String, nullable=True)
@@ -145,6 +145,103 @@ class CreditLedger(Base):
     metadata_json = Column("metadata", JSON, default=dict, nullable=False)
     idempotency_key = Column(String, nullable=True, unique=True, index=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+def _prevent_credit_ledger_mutation(*_args, **_kwargs) -> None:
+    raise RuntimeError("CreditLedger is append-only")
+
+
+event.listen(CreditLedger, "before_update", _prevent_credit_ledger_mutation)
+event.listen(CreditLedger, "before_delete", _prevent_credit_ledger_mutation)
+
+
+class CreditReservationRecord(Base, TimestampMixin):
+    __tablename__ = "credit_reservations"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    idempotency_key = Column(String, nullable=False, unique=True, index=True)
+    task_type = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, default="RESERVED", index=True)
+    reserved_credits = Column(Integer, nullable=False)
+    settled_credits = Column(Integer, nullable=True)
+    quote_json = Column(JSON, default=dict, nullable=False)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    ledger_entry_id = Column(String, ForeignKey("credit_ledger.id"), nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class CreditSettlementRecord(Base):
+    __tablename__ = "credit_settlements"
+
+    id = Column(String, primary_key=True, default=new_id)
+    reservation_id = Column(
+        String,
+        ForeignKey("credit_reservations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    idempotency_key = Column(String, nullable=False, unique=True, index=True)
+    requested_actual_credits = Column(Integer, nullable=False)
+    settled_credits = Column(Integer, nullable=False)
+    adjustment = Column(Integer, nullable=False)
+    status = Column(String, nullable=False, default="SETTLED")
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class CreditRefundEvent(Base):
+    __tablename__ = "credit_refund_events"
+
+    id = Column(String, primary_key=True, default=new_id)
+    reservation_id = Column(
+        String,
+        ForeignKey("credit_reservations.id", ondelete="CASCADE"),
+        nullable=False,
+        unique=True,
+        index=True,
+    )
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    idempotency_key = Column(String, nullable=False, unique=True, index=True)
+    credits = Column(Integer, nullable=False)
+    reason = Column(String, nullable=False)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class CreditBudgetPolicy(Base, TimestampMixin):
+    __tablename__ = "credit_budget_policies"
+    __table_args__ = (
+        UniqueConstraint("user_id", "automation_key", name="uq_credit_budget_user_automation"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    automation_key = Column(String, nullable=False, index=True)
+    daily_limit = Column(Integer, nullable=False)
+    monthly_limit = Column(Integer, nullable=False)
+    per_run_limit = Column(Integer, nullable=False)
+    alert_threshold_pct = Column(Integer, nullable=False, default=80)
+    enabled = Column(Boolean, nullable=False, default=True)
+    paused = Column(Boolean, nullable=False, default=False)
+    pause_reason = Column(String, nullable=True)
+
+
+class CreditRewardGrant(Base):
+    __tablename__ = "credit_reward_grants"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    reward_type = Column(String, nullable=False, index=True)
+    credits = Column(Integer, nullable=False)
+    source = Column(String, nullable=False)
+    idempotency_key = Column(String, nullable=False, unique=True, index=True)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    granted_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    ledger_entry_id = Column(String, ForeignKey("credit_ledger.id"), nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
 
 class StripeWebhookEvent(Base):
@@ -322,6 +419,7 @@ class BacktestRun(Base):
 
     id = Column(String, primary_key=True, default=new_id)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    idempotency_key = Column(String, nullable=True, unique=True, index=True)
     strategy_name = Column(String, nullable=False)
     asset = Column(String, nullable=False)
     params_json = Column(JSON, default=dict, nullable=False)

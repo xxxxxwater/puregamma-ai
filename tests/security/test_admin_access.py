@@ -30,3 +30,37 @@ def test_admin_can_read_users_webhooks_and_deliveries(api_client, admin_user):
     assert "users" in users.json()
     assert "billing_intents" in billing_intents.json()
     assert "active_provider" in llm_status.json()
+
+
+def test_manual_reward_grant_requires_admin_and_is_idempotent(api_client, db, normal_user, admin_user):
+    payload = {
+        "user_id": normal_user.id,
+        "reward_type": "manual_admin_grant",
+        "credits": 25,
+        "idempotency_key": "admin-grant-security-test",
+        "source": "support_adjustment",
+        "metadata": {"ticket": "PG-100"},
+    }
+    denied = api_client.post(
+        "/admin/billing/rewards/grant",
+        json=payload,
+        headers=auth_headers(normal_user),
+    )
+    first = api_client.post(
+        "/admin/billing/rewards/grant",
+        json=payload,
+        headers=auth_headers(admin_user),
+    )
+    second = api_client.post(
+        "/admin/billing/rewards/grant",
+        json=payload,
+        headers=auth_headers(admin_user),
+    )
+    db.refresh(normal_user)
+
+    assert denied.status_code == 403
+    assert first.status_code == 200
+    assert second.status_code == 200
+    assert first.json()["grant"]["id"] == second.json()["grant"]["id"]
+    assert normal_user.credit_balance == 55
+    assert first.json()["grant"]["granted_by_user_id"] == admin_user.id

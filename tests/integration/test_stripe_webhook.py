@@ -23,7 +23,7 @@ def test_checkout_session_completed_creates_subscription_and_grants_credits(db, 
     assert result["processed"] is True
     assert demo_user.plan == "Pro"
     assert demo_user.stripe_customer_id == "cus_checkout"
-    assert demo_user.credit_balance == 1030
+    assert demo_user.credit_balance == 3150
 
 
 def test_invoice_paid_replay_does_not_double_grant(db, demo_user):

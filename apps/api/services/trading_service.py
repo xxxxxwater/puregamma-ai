@@ -6,9 +6,8 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
-from apps.api.services.credit_service import consume_credits
+from apps.api.services.credit_service import quote_task, reserve_task, settle_task
 from apps.api.services.entitlement_service import get_user_entitlement
-from packages.billing.credits import cost_for
 from packages.database.models import (
     AccountSnapshot,
     OrderIntent,
@@ -163,12 +162,13 @@ def preview_order(
     )
     if existing:
         return existing, ""
-    consume_credits(
+    quote = quote_task(task_type="manual_order_preview")
+    reservation = reserve_task(
         db,
         user_id,
-        "manual_order_preview",
-        cost_for("manual_order_preview"),
-        {"idempotency_key": order.idempotency_key},
+        quote,
+        f"manual-order-preview:{user_id}:{order.idempotency_key}",
+        {"order_idempotency_key": order.idempotency_key},
     )
     token = f"CONFIRM ORDER {order.instrument} {order.direction.upper()} {order.quantity} {secrets.token_urlsafe(18)}"
     row = OrderIntent(
@@ -208,6 +208,7 @@ def preview_order(
             idempotency_key=f"audit:{order.idempotency_key}",
         )
     )
+    settle_task(db, user_id, reservation, quote.credits, metadata={"order_intent_id": row.id})
     db.commit()
     db.refresh(row)
     return row, token
@@ -425,13 +426,8 @@ def reconcile_account(
     if not entitlement["high_cost_tasks"]:
         raise TradingServiceError("Reconciliation requires an active paid entitlement")
     account = owned_account(db, user_id, account_id)
-    consume_credits(
-        db,
-        user_id,
-        "runtime_reconciliation",
-        cost_for("runtime_reconciliation"),
-        {"account_id": account.id},
-    )
+    # Reconciliation is a platform safety task. It must run even when the user
+    # has no remaining Credits and therefore never consumes the user balance.
     ack = (runtime or NautilusRuntimeClient()).command(
         "reconcile",
         f"reconcile:{account.id}:{int(utcnow().timestamp() // 60)}",

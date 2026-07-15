@@ -29,7 +29,7 @@ def test_duplicate_idempotency_key_does_not_double_send_or_charge(db, demo_user)
 
     assert first.id == second.id
     assert db.query(NotificationDelivery).filter(NotificationDelivery.idempotency_key == "dup-imessage").count() == 1
-    assert demo_user.credit_balance == before - 3
+    assert demo_user.credit_balance == before - 2
 
 
 def test_pro_default_cannot_send_imessage(db, demo_user):
@@ -37,7 +37,7 @@ def test_pro_default_cannot_send_imessage(db, demo_user):
 
     delivery = send_notification(db, demo_user.id, "imessage", "blocked", {"idempotency_key": "pro-imessage-blocked"})
 
-    assert delivery.status == "skipped"
+    assert delivery.status == "skipped_entitlement"
     assert delivery.provider_response["reason"] == "entitlement_denied"
 
 
@@ -51,11 +51,11 @@ def test_max_can_send_imessage(db, demo_user):
 
 
 def test_insufficient_credits_skips_notification(db, user_factory):
-    user = user_factory("poor-max@puregamma.ai", plan="Max", credit_balance=2)
+    user = user_factory("poor-max@puregamma.ai", plan="Max", credit_balance=1)
 
     delivery = send_notification(db, user.id, "imessage", "too expensive", {"idempotency_key": "poor-imsg"})
 
-    assert delivery.status == "skipped"
+    assert delivery.status == "skipped_insufficient_credits"
     assert delivery.provider_response["reason"] == "insufficient_credits"
 
 
@@ -93,7 +93,24 @@ def test_delivery_status_values_are_persisted(db, demo_user):
     assert delivery.status in {"pending", "sent", "failed", "skipped"}
 
 
-def test_distinct_skip_status_contract():
-    import pytest
+def test_distinct_skip_status_contract(db, user_factory):
+    free_user = user_factory("free-skip@puregamma.ai", plan="Free", credit_balance=150)
+    poor_max = user_factory("poor-skip@puregamma.ai", plan="Max", credit_balance=1)
 
-    pytest.xfail("NotificationDelivery currently stores skipped plus reason; requested skipped_entitlement/skipped_insufficient_credits statuses are not distinct yet.")
+    entitlement = send_notification(
+        db,
+        free_user.id,
+        "imessage",
+        "not entitled",
+        {"idempotency_key": "status-entitlement"},
+    )
+    insufficient = send_notification(
+        db,
+        poor_max.id,
+        "imessage",
+        "not funded",
+        {"idempotency_key": "status-insufficient"},
+    )
+
+    assert entitlement.status == "skipped_entitlement"
+    assert insufficient.status == "skipped_insufficient_credits"

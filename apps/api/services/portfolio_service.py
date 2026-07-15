@@ -119,6 +119,18 @@ def sync_account(db: Session, user: User, account: TradingAccount) -> None:
             _sync_ibkr(db, account)
         else:
             raise ValueError("Unsupported portfolio provider")
+        from packages.billing.rewards import grant_reward
+
+        grant_reward(
+            db,
+            user.id,
+            "onboarding_portfolio_grant",
+            200,
+            idempotency_key=f"portfolio-onboarding:{user.id}",
+            source="first_successful_portfolio_sync",
+            metadata={"account_id": account.id, "provider": account.venue},
+        )
+        db.commit()
     except Exception as exc:
         db.rollback()
         connection = _connection(db, account)

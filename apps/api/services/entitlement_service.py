@@ -32,7 +32,7 @@ def get_user_entitlement(db: Session, user_id: str) -> dict:
     subscription = latest_subscription(db, user_id)
     status = subscription.status if subscription else None
     plan_name = subscription.plan_name if subscription and subscription.plan_name else user.plan
-    if get_settings().billing_mode == "stripe" and plan_name not in {"Free", "Enterprise"} and status not in {"active", "trialing"}:
+    if get_settings().billing_mode == "stripe" and plan_name not in {"Free", "Invite Preview", "Enterprise"} and status not in {"active", "trialing"}:
         status = status or "inactive"
     return entitlement_for_plan(plan_name, status)
 

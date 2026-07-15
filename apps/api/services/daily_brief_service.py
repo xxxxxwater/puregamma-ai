@@ -5,6 +5,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from apps.api.config import get_settings
 from apps.api.services.market_intelligence_service import latest_or_create_intelligence
 from apps.api.services.portfolio_service import portfolio_context
 from packages.agents.llm.provider_factory import get_llm_provider
@@ -51,7 +52,9 @@ def generate_daily_brief(db: Session, user_id: str, language: str) -> str:
     ) + "Distinguish market facts, portfolio facts, and inference. Include portfolio relevance, concentration risk, watch conditions, invalidation conditions, source timestamps, stale or missing-data warnings. Never invent values. No trade execution advice.\n\n" + json.dumps(context, ensure_ascii=False, default=str)
     try:
         generated = get_llm_provider().complete(prompt, task_type="daily_market_report", locale=language, user_id=user_id, db=db)
-    except Exception:
+    except Exception as exc:
+        if get_settings().app_environment.lower() == "production":
+            raise RuntimeError("DAILY_BRIEF_MODEL_UNAVAILABLE") from exc
         return _local_brief(context, language, disclaimer)
     title = "PureGamma 每日加密市场简报 | 组合" if language == "zh" else "PureGamma Daily Crypto Brief | Portfolio"
     if title not in generated:

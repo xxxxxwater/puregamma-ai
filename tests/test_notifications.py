@@ -34,7 +34,7 @@ def test_imessage_mock_send(db, demo_user):
 
 def test_imessage_entitlement_denied_for_free(db, demo_user):
     delivery = send_notification(db, demo_user.id, "imessage", "blocked. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"idempotency_key": "imsg-free"})
-    assert delivery.status == "skipped"
+    assert delivery.status == "skipped_entitlement"
     assert delivery.provider_response["reason"] == "entitlement_denied"
 
 
@@ -44,7 +44,7 @@ def test_imessage_credit_consumption(db, demo_user):
     delivery = send_notification(db, demo_user.id, "imessage", "credit test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"idempotency_key": "imsg-credit"})
     db.refresh(demo_user)
     assert delivery.status == "sent"
-    assert demo_user.credit_balance == before - 3
+    assert demo_user.credit_balance == before - 2
 
 
 def test_imessage_idempotency(db, demo_user):
@@ -54,7 +54,7 @@ def test_imessage_idempotency(db, demo_user):
     second = send_notification(db, demo_user.id, "imessage", "same message. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"idempotency_key": "imsg-dupe"})
     db.refresh(demo_user)
     assert first.id == second.id
-    assert demo_user.credit_balance == before - 3
+    assert demo_user.credit_balance == before - 2
 
 
 def test_failed_notification_refunds_credits(monkeypatch, db, demo_user):

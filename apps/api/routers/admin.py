@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db, require_admin
@@ -23,6 +23,15 @@ class ResolveIntentRequest(BaseModel):
     plan_name: str
 
 
+class AdminRewardGrantRequest(BaseModel):
+    user_id: str
+    reward_type: str = "manual_admin_grant"
+    credits: int = Field(ge=1, le=5000)
+    idempotency_key: str = Field(min_length=8, max_length=200)
+    source: str = Field(default="admin_console", min_length=1, max_length=120)
+    metadata: dict = Field(default_factory=dict)
+
+
 class DataSourceControlRequest(BaseModel):
     enabled: bool
 
@@ -42,6 +51,43 @@ def admin_user(user: User = Depends(get_current_user)) -> User:
 @router.get("/users")
 def users(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
     return {"users": [serialize_user(row) for row in db.query(User).order_by(User.created_at.desc()).all()]}
+
+
+@router.post("/billing/rewards/grant")
+def grant_billing_reward(
+    payload: AdminRewardGrantRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.billing.rewards import grant_reward
+
+    try:
+        row = grant_reward(
+            db,
+            payload.user_id,
+            payload.reward_type,
+            payload.credits,
+            idempotency_key=payload.idempotency_key,
+            source=payload.source,
+            metadata=payload.metadata,
+            granted_by_user_id=user.id,
+        )
+        db.commit()
+        return {
+            "grant": {
+                "id": row.id,
+                "user_id": row.user_id,
+                "reward_type": row.reward_type,
+                "credits": row.credits,
+                "source": row.source,
+                "idempotency_key": row.idempotency_key,
+                "granted_by_user_id": row.granted_by_user_id,
+                "created_at": row.created_at.isoformat(),
+            }
+        }
+    except (ValueError, LookupError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/reports")

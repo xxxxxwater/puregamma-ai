@@ -11,9 +11,14 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
-from apps.api.services.credit_service import consume_credits, refund_credits
+from apps.api.services.credit_service import (
+    quote_task,
+    refund_task,
+    reserve_task,
+    settle_task,
+)
+from packages.billing.metering import CreditReservation, CreditSettlement
 from apps.api.services.entitlement_service import get_user_entitlement
-from packages.billing.credits import cost_for
 from packages.agents.chat.tools import AgentToolRegistry, ToolSource
 from packages.agents.llm.provider_factory import get_agent_llm_provider
 from packages.agents.llm.schemas import ChatMessage
@@ -123,7 +128,11 @@ def _sanitize_context(context: dict | None) -> dict:
 
 def _metering_action(context: dict) -> str:
     if context.get("model", "default") != "default":
-        return "agent_luna_research"
+        return (
+            "luna_deep_research"
+            if "deep_research" in set(context.get("skills", []))
+            else "agent_luna_research"
+        )
     sources = set(context.get("data_sources", []))
     skills = set(context.get("skills", []))
     if "deep_research" in skills:
@@ -167,7 +176,7 @@ def agent_model_options(db: Session, user: User) -> list[dict]:
         reason = "unavailable"
     return [
         {"id": "default", "display_name": "Default model", "description": "Uses the existing Agent default configuration.", "provider": "default", "available": True, "reason": None, "credit_cost": None},
-        {"id": settings.openai_luna_model, "display_name": "GPT-5.6 Luna", "description": "High-quality deep market research for selective use.", "provider": "openai", "available": plan_allowed and configured, "reason": reason, "credit_cost": cost_for("agent_luna_research")},
+        {"id": settings.openai_luna_model, "display_name": "GPT-5.6 Luna", "description": "High-quality deep market research for selective use.", "provider": "openai", "available": plan_allowed and configured, "reason": reason, "credit_cost": None},
     ]
 
 
@@ -196,9 +205,19 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
     selection, model = _resolve_agent_model(db, user, clean_context.get("model"))
     clean_context["model"] = selection
     action = _metering_action(clean_context)
-    credit_cost = cost_for(action)
+    quote = quote_task(task_type=action, requested_model=selection, resolved_model=model,
+                       input_tokens=max(1, len(content) // 4), selected_data_sources=clean_context.get("data_sources", []),
+                       attachment_bytes=sum(len(item.get("content", "").encode()) for item in clean_context.get("attachments", [])),
+                       tool_calls=clean_context.get("tools", []))
+    credit_cost = quote.credits
     run_id = str(uuid.uuid4())
-    consume_credits(db, user.id, action, credit_cost, {"run_id": run_id}, idempotency_key=f"agent-charge:{run_id}")
+    reserve_task(
+        db,
+        user.id,
+        quote,
+        f"agent-charge:{run_id}",
+        {"run_id": run_id},
+    )
     user_message = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="user", content=content, status="completed", context_json=clean_context)
     assistant = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="assistant", content="", status="pending", model=model)
     db.add_all([user_message, assistant])
@@ -220,6 +239,81 @@ def _sse(event: str, data: dict) -> str:
 
 def _source_key(source: ToolSource) -> tuple:
     return (source.provider, source.title, source.url, source.source_timestamp)
+
+
+def _agent_reservation(run: AgentRun) -> CreditReservation:
+    return CreditReservation(f"agent-charge:{run.id}", int(run.credit_cost or 0))
+
+
+def _settle_agent_run(
+    db: Session,
+    user: User,
+    run: AgentRun,
+    user_message: AgentMessage,
+    *,
+    response_model: str,
+    prompt_tokens: int,
+    completion_tokens: int,
+    reason: str,
+) -> CreditSettlement:
+    run_context = user_message.context_json or {}
+    actual_tools = [
+        row[0]
+        for row in db.query(AgentToolCall.tool_name)
+        .filter(AgentToolCall.run_id == run.id, AgentToolCall.status == "completed")
+        .all()
+    ]
+    actual_quote = quote_task(
+        task_type=_metering_action(run_context),
+        requested_model=run_context.get("model", "default"),
+        resolved_model=response_model,
+        input_tokens=max(prompt_tokens, max(1, len(user_message.content) // 4)),
+        output_tokens=max(0, completion_tokens),
+        attachment_bytes=sum(
+            len(str(item.get("content", "")).encode())
+            for item in run_context.get("attachments", [])
+        ),
+        tool_calls=actual_tools,
+        selected_data_sources=run_context.get("data_sources", []),
+    )
+    settlement = settle_task(
+        db,
+        user.id,
+        _agent_reservation(run),
+        actual_quote.credits,
+        metadata={
+            "run_id": run.id,
+            "reason": reason,
+            "actual_quote": actual_quote.__dict__,
+        },
+    )
+    run.credit_cost = settlement.actual
+    return settlement
+
+
+def _refund_agent_run(
+    db: Session,
+    user_id: str,
+    run: AgentRun,
+    *,
+    reason: str,
+) -> None:
+    if not run.credit_cost or run.credit_refunded:
+        return
+    try:
+        refund_task(
+            db,
+            user_id,
+            _agent_reservation(run),
+            reason,
+            metadata={"run_id": run.id},
+        )
+        run.credit_refunded = True
+    except ValueError as exc:
+        # A concurrent finalizer may already have settled the persisted
+        # reservation. That terminal state is authoritative.
+        if "terminal" not in str(exc) and "Settled reservation" not in str(exc):
+            raise
 
 
 def _context_messages(db: Session, conversation: AgentConversation, current_user_message_id: str) -> list[ChatMessage]:
@@ -258,6 +352,18 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         for tool_name, arguments in registry.plan(user_message.content, skills=run_context.get("skills", []), data_sources=run_context.get("data_sources", [])):
             db.refresh(run)
             if run.status == "canceled":
+                _settle_agent_run(
+                    db,
+                    user,
+                    run,
+                    user_message,
+                    response_model=run.model,
+                    prompt_tokens=max(1, len(user_message.content) // 4),
+                    completion_tokens=0,
+                    reason="user_cancelled_during_tools",
+                )
+                run.completed_at = utcnow()
+                db.commit()
                 yield _sse("run.canceled", {"runId": run.id})
                 return
             call = AgentToolCall(run_id=run.id, tool_name=tool_name, arguments_json=arguments, status="running")
@@ -320,6 +426,19 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 assistant.status = "interrupted"
                 assistant.content = content
                 assistant.latency_ms = int((time.perf_counter() - started) * 1000)
+                run.input_tokens = max(prompt_tokens, max(1, len(user_message.content) // 4))
+                run.output_tokens = max(completion_tokens, len(content) // 4)
+                run.completed_at = utcnow()
+                _settle_agent_run(
+                    db,
+                    user,
+                    run,
+                    user_message,
+                    response_model=response_model,
+                    prompt_tokens=run.input_tokens,
+                    completion_tokens=run.output_tokens,
+                    reason="user_cancelled_during_model",
+                )
                 db.commit()
                 yield _sse("run.canceled", {"runId": run.id})
                 return
@@ -343,15 +462,48 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         run.completed_at = utcnow()
         run.input_tokens = prompt_tokens
         run.output_tokens = completion_tokens
+        settlement = _settle_agent_run(
+            db,
+            user,
+            run,
+            user_message,
+            response_model=response_model,
+            prompt_tokens=prompt_tokens,
+            completion_tokens=completion_tokens,
+            reason="completed",
+        )
         if not run.usage_recorded:
             db.add(UsageEvent(user_id=user.id, event_type="agent.chat.run", quantity=1, input_tokens=prompt_tokens, output_tokens=completion_tokens, idempotency_key=f"agent-run:{run.id}", metadata_json={"model": response_model, "tools": run.tool_calls_count}))
             run.usage_recorded = True
         db.commit()
-        yield _sse("message.completed", {"messageId": assistant.id, "runId": run.id, "model": response_model, "inputTokens": prompt_tokens, "outputTokens": completion_tokens})
+        yield _sse(
+            "message.completed",
+            {
+                "messageId": assistant.id,
+                "runId": run.id,
+                "model": response_model,
+                "inputTokens": prompt_tokens,
+                "outputTokens": completion_tokens,
+                "creditsUsed": settlement.actual,
+                "creditBalance": user.credit_balance,
+            },
+        )
     except GeneratorExit:
         run.status = "interrupted"
         assistant.status = "interrupted"
         run.completed_at = utcnow()
+        run.input_tokens = max(run.input_tokens or 0, max(1, len(user_message.content) // 4))
+        run.output_tokens = max(run.output_tokens or 0, len(assistant.content or "") // 4)
+        _settle_agent_run(
+            db,
+            user,
+            run,
+            user_message,
+            response_model=run.model,
+            prompt_tokens=run.input_tokens,
+            completion_tokens=run.output_tokens,
+            reason="client_disconnected",
+        )
         db.commit()
         raise
     except Exception as exc:
@@ -367,9 +519,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         assistant.error_code = code
         assistant.error_message = message
         assistant.latency_ms = int((time.perf_counter() - started) * 1000)
-        if run.credit_cost and not run.credit_refunded:
-            refund_credits(db, user.id, _metering_action(user_message.context_json or {}), run.credit_cost, {"run_id": run.id, "reason": code}, idempotency_key=f"agent-refund:{run.id}")
-            run.credit_refunded = True
+        _refund_agent_run(db, user.id, run, reason=code)
         db.commit()
         yield _sse("run.failed", {"runId": run.id, "messageId": assistant.id, "code": code, "message": message})
 
@@ -383,6 +533,7 @@ def recover_stale_runs(db: Session) -> int:
         assistant = db.get(AgentMessage, run.assistant_message_id)
         if assistant:
             assistant.status = "interrupted"
+        _refund_agent_run(db, run.user_id, run, reason="STALE_RUN_RECOVERY")
     db.commit()
     return len(rows)
 
@@ -393,7 +544,26 @@ def serialize_source(row: AgentMessageSource) -> dict:
 
 def serialize_message(db: Session, row: AgentMessage) -> dict:
     sources = db.query(AgentMessageSource).filter_by(message_id=row.id).order_by(AgentMessageSource.citation_index).all()
-    return {"id": row.id, "conversation_id": row.conversation_id, "role": row.role, "content": row.content, "status": row.status, "model": row.model, "input_tokens": row.input_tokens, "output_tokens": row.output_tokens, "error_code": row.error_code, "error_message": row.error_message, "created_at": row.created_at.isoformat(), "context": row.context_json or {}, "sources": [serialize_source(source) for source in sources]}
+    run = None
+    if row.role == "assistant":
+        run = db.query(AgentRun).filter_by(assistant_message_id=row.id).one_or_none()
+    return {
+        "id": row.id,
+        "conversation_id": row.conversation_id,
+        "role": row.role,
+        "content": row.content,
+        "status": row.status,
+        "model": row.model,
+        "input_tokens": row.input_tokens,
+        "output_tokens": row.output_tokens,
+        "credits_used": 0 if run and run.credit_refunded else (run.credit_cost if run else None),
+        "credits_refunded": bool(run.credit_refunded) if run else False,
+        "error_code": row.error_code,
+        "error_message": row.error_message,
+        "created_at": row.created_at.isoformat(),
+        "context": row.context_json or {},
+        "sources": [serialize_source(source) for source in sources],
+    }
 
 
 def serialize_conversation(row: AgentConversation) -> dict:

@@ -40,7 +40,7 @@ def seed_assets(db: Session) -> None:
 def seed_demo_user(db: Session) -> User:
     user = db.query(User).filter(User.email == "demo@puregamma.ai").one_or_none()
     if not user:
-        user = User(email="demo@puregamma.ai", name="Demo User", role="admin", plan="Free", credit_balance=30)
+        user = User(email="demo@puregamma.ai", name="Demo User", role="admin", plan="Free", credit_balance=150)
         db.add(user)
         db.flush()
     if not user.preference:

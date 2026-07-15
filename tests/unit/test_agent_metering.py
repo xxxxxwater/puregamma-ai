@@ -19,14 +19,14 @@ def test_agent_run_consumes_credits_and_filters_unentitled_sources(db, normal_us
 
     db.refresh(normal_user)
     user_message = db.get(AgentMessage, run.user_message_id)
-    assert run.credit_cost == 3
-    assert normal_user.credit_balance == 27
+    assert run.credit_cost == 4
+    assert normal_user.credit_balance == 26
     assert user_message.context_json["data_sources"] == ["rss"]
     assert user_message.context_json["denied_data_sources"] == [
         {"provider": "x-twitter", "reason": "plan_required"}
     ]
     ledger = db.query(CreditLedger).filter_by(idempotency_key=f"agent-charge:{run.id}").one()
-    assert ledger.credits_delta == -3
+    assert ledger.credits_delta == -4
 
 
 def test_agent_refund_is_idempotent(db, normal_user):

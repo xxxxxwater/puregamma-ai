@@ -8,6 +8,10 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - pgdata:/var/lib/postgresql/data
+    networks: [data]
+    mem_limit: 768m
+    cpus: 0.60
+    pids_limit: 256
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U puregamma -d puregamma"]
       interval: 10s
@@ -17,9 +21,13 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 768mb --maxmemory-policy allkeys-lru
+    command: redis-server --appendonly yes --maxmemory 384mb --maxmemory-policy allkeys-lru
     volumes:
       - redisdata:/data
+    networks: [data]
+    mem_limit: 512m
+    cpus: 0.30
+    pids_limit: 128
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 10s
@@ -31,7 +39,6 @@ services:
       context: .
       dockerfile: services/nautilus-runtime/Dockerfile
     restart: unless-stopped
-    env_file: .env
     environment:
       APP_ENV: production
       NAUTILUS_RUNTIME_SECRET: ${NAUTILUS_RUNTIME_SECRET:?NAUTILUS_RUNTIME_SECRET is required}
@@ -44,6 +51,11 @@ services:
     expose: ["8090"]
     volumes:
       - nautilus_state:/runtime/state
+    networks: [runtime, egress]
+    mem_limit: 512m
+    cpus: 0.35
+    pids_limit: 192
+    security_opt: ["no-new-privileges:true"]
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8090/health', timeout=3)"]
       interval: 15s
@@ -58,11 +70,27 @@ services:
     env_file: .env
     environment:
       APP_ENV: production
-      SITE_URL: https://${APP_DOMAIN}
-      CORS_ORIGINS: https://${APP_DOMAIN}
-      SESSION_COOKIE_DOMAIN: .${APP_DOMAIN}
+      SITE_URL: https://${APP_DOMAIN:?APP_DOMAIN is required}
+      CORS_ORIGINS: ${CORS_ORIGINS:?CORS_ORIGINS is required, for example https://app.puregamma.ai}
+      SESSION_COOKIE_DOMAIN: ${SESSION_COOKIE_DOMAIN:?SESSION_COOKIE_DOMAIN is required, for example .puregamma.ai}
       JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      SESSION_SECRET: ${SESSION_SECRET:?SESSION_SECRET is required}
+      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:?ENCRYPTION_MASTER_KEY is required}
+      INTERNAL_RUNTIME_SECRET: ${INTERNAL_RUNTIME_SECRET:?INTERNAL_RUNTIME_SECRET is required}
       BILLING_MODE: ${BILLING_MODE:-stripe}
+      LLM_PROVIDER: ${LLM_PROVIDER:?LLM_PROVIDER is required and must be openai or deepseek}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_LUNA_ENABLED: ${OPENAI_LUNA_ENABLED:-false}
+      OPENAI_LUNA_MODEL: ${OPENAI_LUNA_MODEL:-gpt-5.6-luna}
+      OPENAI_LUNA_ALLOWED_PLANS: ${OPENAI_LUNA_ALLOWED_PLANS:-Max,Enterprise}
+      OPENAI_LUNA_TIMEOUT_SECONDS: ${OPENAI_LUNA_TIMEOUT_SECONDS:-90}
+      ENABLE_MOCK_AGENT: "false"
+      ENABLE_MOCK_MARKET_DATA: "false"
+      ENABLE_MOCK_DATA_SOURCES: "false"
+      IMESSAGE_PROVIDER: ${IMESSAGE_PROVIDER:?IMESSAGE_PROVIDER is required; use disabled or macos_relay}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_SUCCESS_URL: https://${APP_DOMAIN}/billing/success
@@ -75,8 +103,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
     expose: ["8000"]
+    networks: [edge, data, runtime]
+    mem_limit: 640m
+    cpus: 0.65
+    pids_limit: 256
+    security_opt: ["no-new-privileges:true"]
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=3)"]
       interval: 15s
       timeout: 5s
       retries: 10
@@ -95,9 +128,25 @@ services:
     environment:
       APP_ENV: production
       NAUTILUS_RUNTIME_SECRET: ${NAUTILUS_RUNTIME_SECRET:?NAUTILUS_RUNTIME_SECRET is required}
+      INTERNAL_RUNTIME_SECRET: ${INTERNAL_RUNTIME_SECRET:?INTERNAL_RUNTIME_SECRET is required}
+      ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:?ENCRYPTION_MASTER_KEY is required}
+      LLM_PROVIDER: ${LLM_PROVIDER:?LLM_PROVIDER is required and must be openai or deepseek}
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      OPENAI_MODEL: ${OPENAI_MODEL:-}
+      OPENAI_LUNA_ENABLED: ${OPENAI_LUNA_ENABLED:-false}
+      OPENAI_LUNA_MODEL: ${OPENAI_LUNA_MODEL:-gpt-5.6-luna}
+      OPENAI_LUNA_ALLOWED_PLANS: ${OPENAI_LUNA_ALLOWED_PLANS:-Max,Enterprise}
+      OPENAI_LUNA_TIMEOUT_SECONDS: ${OPENAI_LUNA_TIMEOUT_SECONDS:-90}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: redis://redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
+    networks: [data, runtime, egress]
+    mem_limit: 768m
+    cpus: 0.70
+    pids_limit: 256
+    security_opt: ["no-new-privileges:true"]
     depends_on:
       api: { condition: service_healthy }
 
@@ -110,10 +159,20 @@ services:
     command: ["python", "-m", "packages.workers.scheduler"]
     environment:
       APP_ENV: production
-      NAUTILUS_RUNTIME_SECRET: ${NAUTILUS_RUNTIME_SECRET:?NAUTILUS_RUNTIME_SECRET is required}
-      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: redis://redis:6379/0
-      NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
+      DATA_SYNC_WORKER_ENABLED: ${DATA_SYNC_WORKER_ENABLED:-true}
+      BLOOMBERG_MODE: ${BLOOMBERG_MODE:-disabled}
+      RSS_SYNC_INTERVAL: ${RSS_SYNC_INTERVAL:-10}
+      FINTWIT_SYNC_INTERVAL: ${FINTWIT_SYNC_INTERVAL:-15}
+      X_SYNC_INTERVAL: ${X_SYNC_INTERVAL:-15}
+      NAUTILUS_RUNTIME_SYNC_INTERVAL_SECONDS: ${NAUTILUS_RUNTIME_SYNC_INTERVAL_SECONDS:-15}
+      NAUTILUS_RECONCILE_INTERVAL_MINUTES: ${NAUTILUS_RECONCILE_INTERVAL_MINUTES:-5}
+      NAUTILUS_MARKET_REFRESH_INTERVAL_SECONDS: ${NAUTILUS_MARKET_REFRESH_INTERVAL_SECONDS:-15}
+    networks: [data]
+    mem_limit: 192m
+    cpus: 0.20
+    pids_limit: 96
+    security_opt: ["no-new-privileges:true"]
     depends_on:
       api: { condition: service_healthy }
 
@@ -122,16 +181,25 @@ services:
       context: .
       dockerfile: apps/web/Dockerfile
       args:
-        NEXT_PUBLIC_API_URL: https://${API_DOMAIN}
-        NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN}
+        NEXT_PUBLIC_API_URL: https://${API_DOMAIN:?API_DOMAIN is required}
+        NEXT_PUBLIC_SITE_URL: https://${APP_DOMAIN:?APP_DOMAIN is required}
         NEXT_PUBLIC_INITIAL_LAUNCH_MODE: "true"
-        REQUIRE_AUTH: "true"
-        SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-pg_session}
+        NEXT_PUBLIC_ALLOW_MOCK_FALLBACK: "false"
     restart: unless-stopped
     environment:
       SESSION_COOKIE_NAME: ${SESSION_COOKIE_NAME:-pg_session}
       REQUIRE_AUTH: "true"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/health').then(r => process.exit(r.ok ? 0 : 1)).catch(() => process.exit(1))"]
+      interval: 15s
+      timeout: 15s
+      retries: 10
     expose: ["3000"]
+    networks: [edge]
+    mem_limit: 384m
+    cpus: 0.35
+    pids_limit: 192
+    security_opt: ["no-new-privileges:true"]
     depends_on:
       api: { condition: service_healthy }
 
@@ -140,13 +208,20 @@ services:
     restart: unless-stopped
     ports: ["80:80", "443:443"]
     environment:
-      APP_DOMAIN: ${APP_DOMAIN}
-      API_DOMAIN: ${API_DOMAIN}
+      APP_DOMAIN: ${APP_DOMAIN:?APP_DOMAIN is required}
+      API_DOMAIN: ${API_DOMAIN:?API_DOMAIN is required}
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
       - caddy_data:/data
       - caddy_config:/config
-    depends_on: [web, api]
+    networks: [edge]
+    mem_limit: 128m
+    cpus: 0.10
+    pids_limit: 128
+    security_opt: ["no-new-privileges:true"]
+    depends_on:
+      web: { condition: service_healthy }
+      api: { condition: service_healthy }
 
 volumes:
   pgdata:
@@ -154,3 +229,15 @@ volumes:
   nautilus_state:
   caddy_data:
   caddy_config:
+
+networks:
+  edge:
+    driver: bridge
+  data:
+    driver: bridge
+    internal: true
+  runtime:
+    driver: bridge
+    internal: true
+  egress:
+    driver: bridge

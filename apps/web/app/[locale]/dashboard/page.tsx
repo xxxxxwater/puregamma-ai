@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { BookOpen, CreditCard, Database } from "lucide-react";
 import { getDashboard } from "@/lib/api";
-import { ActionLink, Badge, EmptyState, MetricCard, PageHeader, ResearchCard, RiskBadge } from "@/components/puregamma";
+import { ActionLink, Badge, EmptyState, ErrorState, MetricCard, PageHeader, ResearchCard, RiskBadge } from "@/components/puregamma";
 import { Markdown } from "@/components/markdown";
 import { formatCurrency, formatDateTime } from "@/lib/formatters";
 import { localizedMetadata } from "@/lib/metadata";
@@ -29,8 +29,10 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
         actions={<ActionLink href={withLocale(locale, "/reports")}>{t(locale, "common.actions.openResearchLibrary")}</ActionLink>}
       />
 
+      {subscription.unavailable ? <ErrorState title={locale === "zh" ? "账户与计费数据暂不可用" : "Account and billing data unavailable"} description={locale === "zh" ? "请稍后重试；页面不会展示模拟余额。" : "Retry shortly; this page will not substitute a simulated balance."} /> : null}
+
       <div className="grid gap-3 md:grid-cols-3">
-        <MetricCard label={copy.metrics.creditBalance} value={String(subscription.credit_balance)} detail={`${subscription.plan} plan`} tone="cyan" icon={<CreditCard className="h-4 w-4" />} />
+        <MetricCard label={copy.metrics.creditBalance} value={subscription.unavailable ? "--" : String(subscription.credit_balance)} detail={subscription.unavailable ? (locale === "zh" ? "数据不可用" : "Unavailable") : `${subscription.plan} plan`} tone="cyan" icon={<CreditCard className="h-4 w-4" />} />
         <MetricCard label={locale === "zh" ? "研究简报" : "Research briefs"} value={String(reports.reports.length)} detail={locale === "zh" ? "附来源的简短研究" : "Concise sourced research"} tone="emerald" icon={<BookOpen className="h-4 w-4" />} />
         <MetricCard label={locale === "zh" ? "实时资产" : "Live assets"} value={String(market.live_assets || 0)} detail={(market.source_summary || []).join(" / ") || (locale === "zh" ? "数据源暂不可用" : "Sources unavailable")} tone="amber" icon={<Database className="h-4 w-4" />} />
       </div>

@@ -4,5 +4,8 @@ WORKDIR /app
 COPY apps/api/requirements.txt /app/apps/api/requirements.txt
 RUN pip install --no-cache-dir -r /app/apps/api/requirements.txt
 COPY . /app
+RUN useradd --create-home --uid 10001 puregamma \
+    && chown -R puregamma:puregamma /app
+USER puregamma
 EXPOSE 8000
 CMD ["sh", "-c", "python -m scripts.db_migrate upgrade && exec uvicorn apps.api.main:app --host 0.0.0.0 --port 8000"]

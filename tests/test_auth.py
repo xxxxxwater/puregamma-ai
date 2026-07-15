@@ -16,9 +16,11 @@ def request_with_cookies(cookies: str = "") -> Request:
 
 
 def test_mock_login_does_not_allow_admin_escalation(db):
-    result = mock_login(MockLoginRequest(email="attacker@example.com", name="Attacker"), Response(), db)
+    response = Response()
+    result = mock_login(MockLoginRequest(email="attacker@example.com", name="Attacker"), response, db)
     assert result["user"]["role"] == "user"
-    assert result["auth_header"]["Authorization"].startswith("Bearer ")
+    assert "access_token" not in result
+    assert "httponly" in response.headers["set-cookie"].lower()
 
 
 def test_bearer_token_authenticates_user(db, demo_user):
@@ -63,7 +65,8 @@ def test_google_oauth_callback_registers_verified_user(api_client, db, monkeypat
 
     assert callback.status_code == 200
     assert callback.json()["user"]["auth_provider"] == "google"
-    assert callback.json()["auth_header"]["Authorization"].startswith("Bearer ")
+    assert "access_token" not in callback.json()
+    assert "httponly" in callback.headers["set-cookie"].lower()
     assert user.google_user_id == "google-sub-1"
     assert user.avatar_url == "https://example.com/avatar.png"
     assert db.query(UserIdentity).filter_by(provider="google", provider_subject="google-sub-1").count() == 1

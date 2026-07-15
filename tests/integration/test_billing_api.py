@@ -14,7 +14,7 @@ def test_billing_subscription_and_credits_api(api_client, demo_user: User):
     assert subscription.status_code == 200
     assert subscription.json()["plan"] == "Free"
     assert credits.status_code == 200
-    assert credits.json()["credit_balance"] == 30
+    assert credits.json()["credit_balance"] == 150
 
 
 def test_checkout_session_rejects_unsupported_plan(api_client, demo_user: User):
@@ -30,7 +30,7 @@ def test_mock_upgrade_grants_plan_credits_once_per_call(api_client, db, demo_use
     db.refresh(demo_user)
     assert response.status_code == 200
     assert response.json()["plan"] == "Pro"
-    assert demo_user.credit_balance == 1030
+    assert demo_user.credit_balance == 3150
 
 
 def test_user_cannot_read_other_users_billing(api_client, normal_user: User, max_user: User):

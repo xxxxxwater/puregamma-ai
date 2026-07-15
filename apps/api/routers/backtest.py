@@ -18,8 +18,9 @@ class BacktestRequest(BaseModel):
     strategy_name: str = "BTC momentum breakout"
     asset: str = "BTC"
     params: dict = {}
-    engine: str = "mock"
+    engine: str = "nautilus"
     strategy_id: str | None = None
+    idempotency_key: str | None = None
 
 
 def serialize_run(row: BacktestRun) -> dict:
@@ -38,7 +39,7 @@ def serialize_run(row: BacktestRun) -> dict:
 @router.post("")
 def create(payload: BacktestRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     try:
-        return {"backtest": serialize_run(run_backtest(db, user.id, payload.strategy_name, payload.asset, payload.params, engine=payload.engine, strategy_id=payload.strategy_id))}
+        return {"backtest": serialize_run(run_backtest(db, user.id, payload.strategy_name, payload.asset, payload.params, engine=payload.engine, strategy_id=payload.strategy_id, idempotency_key=payload.idempotency_key))}
     except (InsufficientCreditsError, EntitlementDeniedError) as exc:
         raise HTTPException(status_code=402, detail=str(exc)) from exc
     except ValueError as exc:

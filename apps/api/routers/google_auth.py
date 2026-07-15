@@ -155,7 +155,7 @@ def google_callback(code: str, state: str, request: Request, response: Response,
             name=payload.get("name") or email.split("@")[0],
             role="user",
             plan="Free",
-            credit_balance=30,
+            credit_balance=150,
             google_user_id=google_user_id,
             avatar_url=payload.get("picture"),
             auth_provider="google",
@@ -186,5 +186,5 @@ def google_callback(code: str, state: str, request: Request, response: Response,
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     db.refresh(user)
-    token = set_session_cookie(response, user)
-    return {"user": serialize_user(user), "access_token": token, "token_type": "bearer", "auth_header": {"Authorization": f"Bearer {token}"}, "redirect_to": return_to}
+    set_session_cookie(response, user)
+    return {"user": serialize_user(user), "redirect_to": return_to}

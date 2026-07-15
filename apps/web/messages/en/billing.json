@@ -40,9 +40,9 @@
   "paymentLinkMissing": "Stripe Payment Link is not configured for this plan.",
   "checkoutFailed": "Unable to create checkout session. Please sign in first.",
   "plans": [
-    { "name": "Free", "price": "$0", "credits": "30", "tagline": "Build a basic market review habit.", "benefits": ["Core asset watchlist", "Shared market brief", "Basic event view", "Email delivery"] },
-    { "name": "Pro", "price": "$29.9", "credits": "1,000", "tagline": "For active investors following a personal portfolio.", "benefits": ["20–50 assets", "Daily portfolio brief", "Important event alerts", "Limited deep research", "Telegram / Email", "Basic backtesting"] },
-    { "name": "Max", "price": "$199", "credits": "10,000", "tagline": "For multi-portfolio and high-frequency research workflows.", "benefits": ["Everything in Pro", "Multiple portfolios", "Higher Agent allowance", "iMessage", "High-frequency monitoring", "Advanced backtesting", "Private Playbooks"] },
+    { "name": "Free", "price": "$0", "credits": "150", "tagline": "Build a basic market review habit.", "benefits": ["Core asset watchlist", "Shared market brief", "Basic event view", "Email delivery"] },
+    { "name": "Pro", "price": "$29.9", "credits": "3,000", "tagline": "For active investors following a personal portfolio.", "benefits": ["20–50 assets", "Daily portfolio brief", "Important event alerts", "Limited deep research", "Telegram / Email", "Basic backtesting"] },
+    { "name": "Max", "price": "$199", "credits": "15,000", "tagline": "For multi-portfolio and high-frequency research workflows.", "benefits": ["Everything in Pro", "Multiple portfolios", "Higher Agent allowance", "iMessage", "High-frequency monitoring", "Advanced backtesting", "Private Playbooks"] },
     { "name": "Enterprise", "price": "Custom", "credits": "Custom", "tagline": "For teams, custom data, and private deployment.", "benefits": ["Team workspace", "API access", "Custom data sources", "Private deployment", "Dedicated support and compliance configuration"] }
   ],
   "featureLabels": {

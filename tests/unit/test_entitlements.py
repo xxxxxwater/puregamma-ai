@@ -10,7 +10,7 @@ def test_free_entitlement_defaults_to_low_cost_email_only(demo_user, db):
     entitlement = get_user_entitlement(db, demo_user.id)
 
     assert entitlement["plan"] == "Free"
-    assert entitlement["monthly_credits"] == 30
+    assert entitlement["monthly_credits"] == 150
     assert entitlement["notification_channels"] == ["email"]
     assert entitlement["imessage"] is False
     assert entitlement["high_cost_tasks"] is False
@@ -74,8 +74,20 @@ def test_unknown_plan_falls_back_to_free_entitlements():
     entitlement = entitlement_for_plan("ForgedMax")
 
     assert entitlement["plan"] == "Free"
-    assert entitlement["monthly_credits"] == 30
+    assert entitlement["monthly_credits"] == 150
     assert can_run_action("ForgedMax", "imessage_alert") is False
+
+
+def test_plan_credit_and_carryover_policy_matches_commercial_baseline():
+    free = entitlement_for_plan("Free")
+    invite = entitlement_for_plan("Invite Preview")
+    pro = entitlement_for_plan("Pro")
+    max_plan = entitlement_for_plan("Max")
+
+    assert (free["monthly_credits"], free["daily_bonus"], free["monthly_bonus_cap"]) == (150, 10, 300)
+    assert (invite["monthly_credits"], invite["daily_bonus"], invite["welcome_grant"]) == (300, 20, 1000)
+    assert pro["carryover_cap"] == 6000
+    assert max_plan["carryover_cap"] == 30000
 
 
 def test_terminated_subscription_uses_complete_free_baseline():

@@ -18,15 +18,18 @@ from apps.api.services.trading_service import (
     TradingServiceError,
     confirm_order,
     preview_order,
+    reconcile_account,
 )
 from packages.agents.chat.tools import AgentToolRegistry
 from packages.database.models import (
+    CreditReservationRecord,
     OrderJournal,
     SignalEvent,
     StrategyRun,
     TradingAccount,
     TradingAuditLog,
 )
+from packages.trading.runtime_client import RuntimeUnavailable
 from packages.trading.policies.safety import (
     LiveExecutionDenied,
     assert_execution_mode_allowed,
@@ -74,6 +77,11 @@ class FakeRuntime:
                 },
             }
         return {"status": "RECONCILED", "command_id": "cmd-other"}
+
+
+class UnavailableRuntime:
+    def command(self, command_type, idempotency_key, payload):
+        raise RuntimeUnavailable("test runtime unavailable")
 
 
 def test_native_nautilus_bridge_initializes_and_publishes(monkeypatch):
@@ -294,6 +302,45 @@ def test_strategy_preview_requires_separate_exact_confirmation(db, max_user):
         .count()
         == 1
     )
+
+
+def test_strategy_activation_runtime_failure_refunds_persisted_reservation(db, max_user):
+    account = paper_account(db, max_user)
+    strategy = create_strategy(
+        db, max_user.id, draft("Refund activation"), idempotency_key="create-refund-strategy"
+    )
+    intent, phrase = preview_activation(
+        db,
+        max_user.id,
+        strategy.id,
+        mode="PAPER",
+        account_id=account.id,
+        conversation_id=None,
+        idempotency_key="preview-refund-strategy",
+    )
+    balance_before = max_user.credit_balance
+
+    with pytest.raises(RuntimeUnavailable):
+        activate_strategy(
+            db, max_user.id, strategy.id, intent.id, phrase, runtime=UnavailableRuntime()
+        )
+    db.refresh(max_user)
+
+    assert max_user.credit_balance == balance_before
+    reservation = db.query(CreditReservationRecord).filter_by(idempotency_key=f"strategy-activation-charge:{intent.id}").one()
+    assert reservation.status == "REFUNDED"
+
+
+def test_runtime_reconciliation_is_platform_funded(db, max_user):
+    account = paper_account(db, max_user)
+    max_user.credit_balance = 0
+    db.commit()
+
+    record = reconcile_account(db, max_user.id, account.id, runtime=FakeRuntime())
+    db.refresh(max_user)
+
+    assert record.status == "RECONCILED"
+    assert max_user.credit_balance == 0
 
 
 def test_strategy_change_invalidates_old_confirmation(db, max_user):

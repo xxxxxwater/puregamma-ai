@@ -79,13 +79,34 @@ def test_luna_run_charges_and_records_actual_model(db, max_user, monkeypatch):
     assistant = db.get(AgentMessage, run.assistant_message_id)
     usage = db.query(UsageEvent).filter_by(idempotency_key=f"agent-run:{run.id}").one()
     ledger = db.query(CreditLedger).filter_by(idempotency_key=f"agent-charge:{run.id}").one()
-    assert run.credit_cost == 20
-    assert max_user.credit_balance == starting_balance - 20
+    assert run.credit_cost == 6
+    assert max_user.credit_balance == starting_balance - 6
     assert ledger.action == "agent_luna_research"
     assert run.model == "gpt-5.6-luna"
     assert assistant.model == "gpt-5.6-luna"
     assert usage.metadata_json["model"] == "gpt-5.6-luna"
     assert any('"model": "gpt-5.6-luna"' in event for event in events)
+    assert any('"creditsUsed": 6' in event for event in events)
+    serialized = agent_service.serialize_message(db, assistant)
+    assert serialized["credits_used"] == 6
+    assert serialized["credits_refunded"] is False
+
+
+def test_luna_deep_research_uses_deep_metering_tier(db, max_user, monkeypatch):
+    monkeypatch.setattr(agent_service, "get_settings", lambda: luna_settings())
+    conversation = agent_service.create_conversation(db, max_user)
+
+    run = agent_service.start_run(
+        db,
+        max_user,
+        conversation,
+        "Run a deep market study",
+        context={"model": "gpt-5.6-luna", "skills": ["deep_research"]},
+    )
+
+    ledger = db.query(CreditLedger).filter_by(idempotency_key=f"agent-charge:{run.id}").one()
+    assert run.credit_cost == 20
+    assert ledger.action == "luna_deep_research"
 
 
 def test_capabilities_report_luna_plan_and_availability(db, normal_user, max_user, monkeypatch):
@@ -101,7 +122,7 @@ def test_capabilities_report_luna_plan_and_availability(db, normal_user, max_use
         "provider": "openai",
         "available": False,
         "reason": "plan_required",
-        "credit_cost": 20,
+        "credit_cost": None,
     }
     assert max_option["available"] is True
     assert max_option["reason"] is None
