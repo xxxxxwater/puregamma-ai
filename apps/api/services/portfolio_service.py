@@ -330,7 +330,7 @@ def portfolio_context(db: Session, user_id: str, *, detailed: bool = False) -> d
     }
 
 
-DEFAULT_AUTOPILOT = {"enabled": False, "cadence": "daily", "auto_sync": True, "risk_alerts": True, "long_gamma_watch": True, "delivery": "in_app"}
+DEFAULT_AUTOPILOT = {"enabled": False, "cadence": "daily", "auto_sync": True, "risk_alerts": True, "long_gamma_watch": True, "delivery": "in_app", "skill_refs": []}
 
 
 def autopilot_view(db: Session, user: User) -> dict:
@@ -357,7 +357,7 @@ def update_autopilot(db: Session, user: User, payload: dict) -> dict:
     for key in DEFAULT_AUTOPILOT:
         if key in payload:
             config[key] = payload[key]
-    if config["cadence"] not in {"daily", "weekly"} or config["delivery"] not in {"in_app", "telegram", "imessage"}:
+    if config["cadence"] not in {"daily", "weekly"} or config["delivery"] not in {"in_app", "telegram", "imessage"} or not isinstance(config["skill_refs"], list) or len(config["skill_refs"]) > 8:
         raise ValueError("Unsupported Autopilot configuration")
     preference.portfolio_autopilot_json = config
     db.commit()

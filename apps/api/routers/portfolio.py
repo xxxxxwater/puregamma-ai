@@ -18,7 +18,9 @@ from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.credit_service import InsufficientCreditsError, quote_task, refund_task, reserve_task, settle_task
 from apps.api.services.portfolio_service import autopilot_view, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_link_token, portfolio_view, run_autopilot_review, sync_account, update_autopilot
+from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
+from packages.skills.registry import SkillResolutionError
 
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -59,6 +61,7 @@ class AutopilotRequest(BaseModel):
     risk_alerts: bool | None = None
     long_gamma_watch: bool | None = None
     delivery: str | None = None
+    skill_refs: list[dict] | None = Field(default=None, max_length=8)
 
 
 class PortfolioPrivacyRequest(BaseModel):
@@ -126,7 +129,21 @@ def run_review(
 ) -> dict:
     quote = quote_task(task_type="portfolio_monitor", async_execution=True)
     reservation = None
+    skill_invocation_id = None
     try:
+        config = autopilot_view(db, user)["config"]
+        skill_invocation_id, _ = begin_module_skill_invocation(
+            db,
+            user,
+            config.get("skill_refs", []),
+            trigger_source="autopilot",
+            input_payload={"query": "Run the configured portfolio Autopilot review", "portfolio_user_id": user.id, "config": config},
+            estimated_credits=quote.credits,
+            allow_autopilot=True,
+            required_tool="get_account_snapshot",
+            invocation_id=f"portfolio-skill:{user.id}:{idempotency_key}" if idempotency_key else None,
+        )
+        db.commit()
         reservation = reserve_task(
             db,
             user.id,
@@ -137,22 +154,33 @@ def run_review(
         db.commit()
         result = run_autopilot_review(db, user)
         settle_task(db, user.id, reservation, quote.credits, metadata={"reviewed_at": result["last_review"]})
+        finish_module_skill_invocation(db, skill_invocation_id, status="completed", credits_used=quote.credits, output_summary="Portfolio Autopilot review", evidence={"reviewed_at": result["last_review"], "account_count": result["account_count"]})
         db.commit()
         return result
+    except SkillResolutionError as exc:
+        db.rollback()
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
     except InsufficientCreditsError as exc:
         db.rollback()
+        if skill_invocation_id:
+            finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="AUTOPILOT_CREDITS_REJECTED")
+            db.commit()
         raise HTTPException(status_code=402, detail=str(exc)) from exc
     except ValueError as exc:
         db.rollback()
         if reservation:
             refund_task(db, user.id, reservation, "PORTFOLIO_REVIEW_REJECTED")
-            db.commit()
+        if skill_invocation_id:
+            finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="AUTOPILOT_REJECTED")
+        db.commit()
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception:
         db.rollback()
         if reservation:
             refund_task(db, user.id, reservation, "PORTFOLIO_REVIEW_FAILED")
-            db.commit()
+        if skill_invocation_id:
+            finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="AUTOPILOT_FAILED")
+        db.commit()
         raise
 
 

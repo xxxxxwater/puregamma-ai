@@ -60,6 +60,12 @@ POST_BASELINE_TABLES = {
     "credit_budget_policies",
     "credit_reward_grants",
     "push_devices",
+    "skills",
+    "skill_versions",
+    "skill_installations",
+    "skill_runs",
+    "skill_permissions",
+    "skill_sources",
 }
 
 

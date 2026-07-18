@@ -76,7 +76,9 @@ def seed_all(db: Session) -> User:
 def seed_reference_data(db: Session) -> None:
     seed_plans(db)
     seed_assets(db)
-    db.commit()
     from apps.api.services.data_source_service import seed_data_sources
+    from packages.skills.builtins import seed_official_skills
 
     seed_data_sources(db)
+    seed_official_skills(db)
+    db.commit()

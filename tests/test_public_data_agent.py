@@ -87,6 +87,7 @@ def test_agent_conversation_stream_persists_usage(api_client, db, normal_user, m
 
     assert response.status_code == 200
     assert "event: run.started" in response.text
+    assert '"creditBalance":' in response.text
     assert "event: message.delta" in response.text
     assert "event: message.completed" in response.text
     run = db.query(AgentRun).filter_by(conversation_id=conversation_id).one()

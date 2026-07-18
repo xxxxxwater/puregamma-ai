@@ -15,6 +15,7 @@ from apps.api.services.data_source_service import sync_all_providers, sync_provi
 from apps.api.services.daily_push_service import next_delivery, render_daily_brief_delivery
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
+from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from apps.api.config import get_settings
 from packages.database.models import (
     AccountSnapshot,
@@ -172,13 +173,27 @@ def sync_portfolio_autopilot_accounts() -> dict:
             interval = timedelta(days=7 if cadence == "weekly" else 1)
             if accounts and (not last_review or utcnow() - last_review.created_at >= interval):
                 reservation = None
+                skill_invocation_id = None
                 try:
                     quote = quote_task(task_type="portfolio_monitor", async_execution=True)
+                    date_key = utcnow().date().isoformat()
+                    skill_invocation_id, _ = begin_module_skill_invocation(
+                        db,
+                        user,
+                        config.get("skill_refs", []),
+                        trigger_source="scheduled_job",
+                        input_payload={"query": "Run scheduled portfolio Autopilot review", "portfolio_user_id": user.id, "cadence": cadence},
+                        estimated_credits=quote.credits,
+                        allow_autopilot=True,
+                        required_tool="get_account_snapshot",
+                        invocation_id=f"portfolio-scheduled-skill:{user.id}:{date_key}",
+                    )
+                    db.commit()
                     reservation = reserve_task(
                         db,
                         user.id,
                         quote,
-                        f"portfolio-monitor:{user.id}:{utcnow().date().isoformat()}",
+                        f"portfolio-monitor:{user.id}:{date_key}",
                         {"automation_key": "portfolio_monitor", "cadence": cadence},
                     )
                     db.commit()
@@ -188,8 +203,12 @@ def sync_portfolio_autopilot_accounts() -> dict:
                         findings = "; ".join(item["title"] for item in review["findings"][:5])
                         send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"], "automation_key": "portfolio_monitor_delivery"})
                     settle_task(db, user.id, reservation, quote.credits, metadata={"reviewed_at": review["last_review"]})
+                    finish_module_skill_invocation(db, skill_invocation_id, status="completed", credits_used=quote.credits, output_summary="Scheduled portfolio Autopilot review", evidence={"reviewed_at": review["last_review"], "account_count": review["account_count"]})
                     db.commit()
                 except AutomationBudgetExceeded as exc:
+                    if skill_invocation_id:
+                        finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="AUTOMATION_BUDGET_EXCEEDED")
+                        db.commit()
                     _persist_budget_pause(db, user.id, "portfolio_monitor", exc)
                     current = db.get(UserPreference, preference.user_id)
                     if current:
@@ -203,7 +222,9 @@ def sync_portfolio_autopilot_accounts() -> dict:
                     db.rollback()
                     if reservation:
                         refund_task(db, user.id, reservation, "PORTFOLIO_MONITOR_FAILED")
-                        db.commit()
+                    if skill_invocation_id:
+                        finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="PORTFOLIO_MONITOR_FAILED")
+                    db.commit()
                     logger.exception("portfolio_autopilot_review_failed user_id=%s", preference.user_id)
                     errors += 1
         return {"synced": synced, "errors": errors}

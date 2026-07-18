@@ -1,6 +1,7 @@
 import type { IntegrationRow, PositionRow, SignalRow, StrategyRow } from "@/components/puregamma";
 import { defaultLocale, type Locale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
+import { syncUserStateFromPayload } from "@/lib/user-state";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
@@ -62,7 +63,9 @@ export async function api<T>(path: string, options: FetchOptions<T>): Promise<T>
       try { const body = await response.clone().json() as { code?: string; error_code?: string }; errorCode = body.error_code || body.code || errorCode; } catch { /* non-JSON error */ }
       return allowMockFallback ? options.fallback : unavailable(response.status, errorCode);
     }
-    return response.json() as Promise<T>;
+    const payload = await response.json() as T;
+    syncUserStateFromPayload(payload);
+    return payload;
   } catch {
     return allowMockFallback ? options.fallback : unavailable(0, "NETWORK_ERROR");
   }
@@ -448,7 +451,7 @@ export function getIbkrAuthorizeUrl() { return requestStrict<{ authorize_url: st
 export function exchangeIbkrCode(code: string, state: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/ibkr/exchange?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, { method: "POST" }); }
 export function syncPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}/sync`, { method: "POST" }); }
 export function disconnectPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" }); }
-export type PortfolioAutopilot = { config: { enabled: boolean; cadence: "daily" | "weekly"; auto_sync: boolean; risk_alerts: boolean; long_gamma_watch: boolean; delivery: "in_app" | "telegram" | "imessage" }; account_count: number; findings: Array<{ severity: string; title: string }>; concentration?: Record<string, number>; execution: "RESEARCH_ONLY"; last_review: string | null };
+export type PortfolioAutopilot = { config: { enabled: boolean; cadence: "daily" | "weekly"; auto_sync: boolean; risk_alerts: boolean; long_gamma_watch: boolean; delivery: "in_app" | "telegram" | "imessage"; skill_refs: SkillContextRef[] }; account_count: number; findings: Array<{ severity: string; title: string }>; concentration?: Record<string, number>; execution: "RESEARCH_ONLY"; last_review: string | null };
 export function getPortfolioAutopilot() { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot"); }
 export function updatePortfolioAutopilot(config: Partial<PortfolioAutopilot["config"]>) { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot", { method: "PUT", body: JSON.stringify(config) }); }
 export function runPortfolioAutopilot() { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot/run", { method: "POST" }); }
@@ -516,7 +519,30 @@ export function getDataSourcePreview(providerId: string) {
 export type AgentConversation = { id: string; title: string; summary?: string | null; status: string; created_at: string; updated_at: string; archived_at?: string | null };
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
 export type AgentAttachment = { name: string; content: string; mime: string };
-export type AgentContext = { data_sources: string[]; skills: string[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string };
+export type SkillContextRef = { skill_id: string; slug: string; version: string; installation_id?: string | null };
+export type SkillSummary = {
+  skill_id: string;
+  slug: string;
+  name: string;
+  description: string;
+  publisher: string;
+  scope: "personal" | "workspace" | "official" | "marketplace";
+  status: string;
+  current_version: string;
+  asset_classes: string[];
+  data_sources: string[];
+  tool_allowlist: string[];
+  risk_level: "low" | "medium" | "high" | "execution_sensitive";
+  allow_autopilot: boolean;
+  allow_order_intent: boolean;
+  billing_type: "free" | "included" | "paid" | "enterprise";
+  evidence: { required: boolean; require_source_timestamp: boolean; require_citation_links: boolean };
+  runtime: { max_calls_per_hour: number; max_credits_per_run: number; timeout_seconds: number; human_confirmation_required: boolean };
+  installation_id?: string | null;
+  installed: boolean;
+  enabled: boolean;
+};
+export type AgentContext = { data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type RuntimeStrategy = { id: string; name: string; description: string; status: string; current_version: number; execution_mode: string; draft: { instruments: string[]; venues: string[]; timeframe: string; strategy_type: string; sentiment_sources: string[]; max_notional: number; leverage: number; max_daily_loss: number; max_drawdown: number }; latest_run?: RuntimeRun | null; created_at: string; updated_at: string };
@@ -543,7 +569,9 @@ async function requestStrict<T>(path: string, init: RequestInit = {}): Promise<T
     error.status = response.status;
     throw error;
   }
-  return response.json() as Promise<T>;
+  const payload = await response.json() as T;
+  syncUserStateFromPayload(payload);
+  return payload;
 }
 
 export function getAgentConversations() {
@@ -566,7 +594,15 @@ export type AgentCapabilities = { plan: string; allowed_data_sources: string[]; 
 export type AgentModelOption = { id: string; display_name: string; description: string; provider: string; available: boolean; reason?: "plan_required" | "unavailable" | null; credit_cost?: number | null };
 
 export function getAgentCapabilities() {
-  return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
+  return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; skills: SkillSummary[]; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
+}
+
+export function getSkillCatalog() {
+  return requestStrict<{ skills: SkillSummary[] }>("/api/skills");
+}
+
+export function getSkillRuns(limit = 50) {
+  return requestStrict<{ runs: Array<{ id: string; skill_id: string; agent_run_id?: string | null; trigger_source: string; status: string; credits_reserved: number; credits_used: number; evidence: Record<string, unknown>; usage: Record<string, unknown>; started_at: string; completed_at?: string | null }> }>(`/api/skills/runs?limit=${limit}`);
 }
 
 export function cancelAgentRun(runId: string) {
@@ -585,7 +621,16 @@ export async function streamAgentMessage(
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },
-    body: JSON.stringify({ content, locale, data_sources: context?.data_sources || [], skills: context?.skills || [], custom_prompt: context?.custom_prompt || "", attachments: context?.attachments || [], model: context?.model || "default" }),
+    body: JSON.stringify({
+      content,
+      locale,
+      data_sources: context?.data_sources || [],
+      skills: (context?.skills || []).filter((item): item is string => typeof item === "string"),
+      skill_refs: context?.skill_refs || (context?.skills || []).filter((item): item is SkillContextRef => typeof item !== "string"),
+      custom_prompt: context?.custom_prompt || "",
+      attachments: context?.attachments || [],
+      model: context?.model || "default"
+    }),
     signal
   });
   if (!response.ok || !response.body) {

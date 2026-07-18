@@ -115,7 +115,7 @@ class AgentToolRegistry:
             raise PermissionError("TOOL_ENTITLEMENT_DENIED")
         return self.tools[name](**arguments)
 
-    def plan(self, query: str, skills: list[str] | None = None, data_sources: list[str] | None = None) -> list[tuple[str, dict[str, Any]]]:
+    def plan(self, query: str, skills: list[str] | None = None, data_sources: list[str] | None = None, skill_tool_allowlist: set[str] | None = None) -> list[tuple[str, dict[str, Any]]]:
         lowered = query.lower()
         symbols = [
             symbol
@@ -268,9 +268,11 @@ class AgentToolRegistry:
             "portfolio_review": {"get_account_snapshot", "get_position_snapshot", "get_open_orders"},
             "options_analysis": {"get_options_context", "get_earnings_gamma"},
             "source_check": {"get_data_source_status", "search_source_documents"},
+            "deep_research": {"get_market_quote", "get_market_history", "search_source_documents", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"},
         }
-        allowed = set().union(*(skill_tools.get(skill, set()) for skill in (skills or [])))
-        return [call for call in calls if not allowed or call[0] in allowed][:6]
+        allowed = skill_tool_allowlist if skill_tool_allowlist is not None else set().union(*(skill_tools.get(skill, set()) for skill in (skills or [])))
+        restricted = skill_tool_allowlist is not None or bool(skills)
+        return [call for call in calls if not restricted or call[0] in allowed][:6]
 
     def get_options_context(self, currency: str = "BTC") -> ToolResult:
         from apps.api.services.options_service import get_option_chain

@@ -822,6 +822,124 @@ class UsageEvent(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
 
+class Skill(Base, TimestampMixin):
+    __tablename__ = "skills"
+    __table_args__ = (
+        UniqueConstraint("slug", name="uq_skills_slug"),
+        UniqueConstraint("scope", "owner_user_id", "workspace_id", "slug", name="uq_skill_scope_owner_slug"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    slug = Column(String, nullable=False, index=True)
+    name = Column(String, nullable=False)
+    description = Column(Text, nullable=False, default="")
+    publisher_name = Column(String, nullable=False)
+    owner_user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    workspace_id = Column(String, nullable=True, index=True)
+    scope = Column(String, nullable=False, default="personal", index=True)
+    status = Column(String, nullable=False, default="draft", index=True)
+    current_version = Column(String, nullable=False, default="1.0.0")
+    asset_classes_json = Column(JSON, default=list, nullable=False)
+    risk_level = Column(String, nullable=False, default="low")
+    billing_type = Column(String, nullable=False, default="included")
+    allow_autopilot = Column(Boolean, nullable=False, default=False)
+    allow_order_intent = Column(Boolean, nullable=False, default=False)
+
+
+class SkillVersion(Base):
+    __tablename__ = "skill_versions"
+    __table_args__ = (UniqueConstraint("skill_id", "version", name="uq_skill_version"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    skill_id = Column(String, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
+    version = Column(String, nullable=False)
+    manifest_json = Column(JSON, default=dict, nullable=False)
+    content_bundle_json = Column(JSON, default=dict, nullable=False)
+    content_hash = Column(String, nullable=False, index=True)
+    release_status = Column(String, nullable=False, default="draft", index=True)
+    changelog = Column(Text, nullable=False, default="")
+    validation_json = Column(JSON, default=dict, nullable=False)
+    created_by_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    published_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class SkillInstallation(Base, TimestampMixin):
+    __tablename__ = "skill_installations"
+    __table_args__ = (
+        UniqueConstraint("skill_id", "target_key", name="uq_skill_installation_target"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    skill_id = Column(String, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    workspace_id = Column(String, nullable=True, index=True)
+    installed_by_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    target_key = Column(String, nullable=False, index=True)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    pinned_version = Column(String, nullable=True)
+    config_overrides_json = Column(JSON, default=dict, nullable=False)
+
+
+class SkillRun(Base):
+    __tablename__ = "skill_runs"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_skill_run_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    skill_id = Column(String, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
+    skill_version_id = Column(String, ForeignKey("skill_versions.id", ondelete="RESTRICT"), nullable=False, index=True)
+    installation_id = Column(String, ForeignKey("skill_installations.id", ondelete="SET NULL"), nullable=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    workspace_id = Column(String, nullable=True, index=True)
+    agent_run_id = Column(String, ForeignKey("agent_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    external_run_id = Column(String, nullable=True, index=True)
+    trigger_source = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, default="reserved", index=True)
+    input_summary_json = Column(JSON, default=dict, nullable=False)
+    output_summary = Column(Text, nullable=True)
+    evidence_json = Column(JSON, default=dict, nullable=False)
+    usage_json = Column(JSON, default=dict, nullable=False)
+    credits_reserved = Column(Integer, nullable=False, default=0)
+    credits_used = Column(Integer, nullable=False, default=0)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+    trace_id = Column(String, nullable=False, index=True)
+    idempotency_key = Column(String, nullable=False)
+    started_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class SkillPermission(Base):
+    __tablename__ = "skill_permissions"
+    __table_args__ = (
+        UniqueConstraint("skill_version_id", "permission_type", "resource", "effect", name="uq_skill_version_permission"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    skill_id = Column(String, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
+    skill_version_id = Column(String, ForeignKey("skill_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    permission_type = Column(String, nullable=False, index=True)
+    resource = Column(String, nullable=False)
+    effect = Column(String, nullable=False, default="allow")
+    constraints_json = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class SkillSource(Base):
+    __tablename__ = "skill_sources"
+
+    id = Column(String, primary_key=True, default=new_id)
+    skill_id = Column(String, ForeignKey("skills.id", ondelete="CASCADE"), nullable=False, index=True)
+    skill_version_id = Column(String, ForeignKey("skill_versions.id", ondelete="CASCADE"), nullable=False, index=True)
+    source_type = Column(String, nullable=False, index=True)
+    repo_url = Column(Text, nullable=True)
+    commit_hash = Column(String, nullable=True, index=True)
+    trust_status = Column(String, nullable=False, default="untrusted", index=True)
+    imported_by_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    metadata_json = Column(JSON, default=dict, nullable=False)
+    imported_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
 class TradingAccount(Base, TimestampMixin):
     __tablename__ = "trading_accounts"
 

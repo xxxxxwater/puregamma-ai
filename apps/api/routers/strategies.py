@@ -21,9 +21,12 @@ from apps.api.services.strategy_control_service import (
     validate_draft,
 )
 from apps.api.services.credit_service import InsufficientCreditsError
+from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
+from packages.billing.credits import cost_for
 from packages.database.models import SignalEvent, StrategyRun, TradingStrategy, User
 from packages.trading.policies.safety import LiveExecutionDenied
 from packages.trading.runtime_client import RuntimeUnavailable
+from packages.skills.registry import SkillResolutionError
 
 
 router = APIRouter(prefix="/strategies", tags=["strategies"])
@@ -40,12 +43,14 @@ class StrategyPatchRequest(BaseModel):
 
 class BacktestRequest(BaseModel):
     engine: str = "mock"
+    skill_refs: list[dict] = Field(default_factory=list, max_length=8)
 
 
 class ActivationPreviewRequest(BaseModel):
     mode: str = "PAPER"
     account_id: str | None = None
     conversation_id: str | None = None
+    skill_refs: list[dict] = Field(default_factory=list, max_length=8)
 
 
 class ActivationRequest(BaseModel):
@@ -54,6 +59,8 @@ class ActivationRequest(BaseModel):
 
 
 def error_response(exc: Exception) -> HTTPException:
+    if isinstance(exc, SkillResolutionError):
+        return HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)})
     if isinstance(exc, LookupError):
         return HTTPException(status_code=404, detail=str(exc))
     if isinstance(exc, RuntimeUnavailable):
@@ -166,13 +173,27 @@ def backtest(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
+    skill_invocation_id = None
     try:
-        return {
-            "backtest": serialize_backtest(
-                run_strategy_backtest(db, user.id, strategy_id, payload.engine)
-            )
-        }
+        skill_invocation_id, _ = begin_module_skill_invocation(
+            db,
+            user,
+            payload.skill_refs,
+            trigger_source="nautilus",
+            input_payload={"query": f"Backtest strategy {strategy_id}", "strategy_id": strategy_id, "engine": payload.engine},
+            estimated_credits=cost_for("backtest"),
+            required_tool="run_nautilus_backtest",
+        )
+        db.commit()
+        row = run_strategy_backtest(db, user.id, strategy_id, payload.engine)
+        finish_module_skill_invocation(db, skill_invocation_id, status="completed", credits_used=row.credits_spent, output_summary=f"Strategy backtest {strategy_id}", evidence={"backtest_id": row.id, "source": row.result_json.get("source")})
+        db.commit()
+        return {"backtest": serialize_backtest(row)}
     except Exception as exc:
+        db.rollback()
+        if skill_invocation_id:
+            finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="STRATEGY_BACKTEST_FAILED")
+            db.commit()
         raise error_response(exc) from exc
 
 
@@ -184,7 +205,19 @@ def _preview(
     db: Session,
     user: User,
 ) -> dict:
+    skill_invocation_id = None
     try:
+        skill_invocation_id, _ = begin_module_skill_invocation(
+            db,
+            user,
+            payload.skill_refs,
+            trigger_source="nautilus",
+            input_payload={"query": f"Preview {mode} activation for strategy {strategy_id}", "strategy_id": strategy_id, "mode": mode, "account_id": payload.account_id},
+            estimated_credits=0,
+            allow_order_intent=bool(payload.skill_refs),
+            required_tool="generate_order_preview" if payload.skill_refs else None,
+        )
+        db.commit()
         intent, confirmation = preview_activation(
             db,
             user.id,
@@ -194,8 +227,14 @@ def _preview(
             conversation_id=payload.conversation_id,
             idempotency_key=idempotency_key,
         )
+        finish_module_skill_invocation(db, skill_invocation_id, status="completed", credits_used=0, output_summary=f"{mode} activation preview", evidence={"intent_id": intent.id, "confirmation_required": True})
+        db.commit()
         return {"intent": serialize_intent(intent, confirmation)}
     except Exception as exc:
+        db.rollback()
+        if skill_invocation_id:
+            finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="STRATEGY_PREVIEW_FAILED")
+            db.commit()
         raise error_response(exc) from exc
 
 

@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from apps.api.config import get_settings, validate_production_settings
 from apps.api.dependencies import ensure_bootstrap
-from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, billing, google_auth, mobile_auth, internal, market, notifications, options, playbooks, portfolio, reports, signals, strategies, stripe_webhook, trading
+from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, billing, google_auth, mobile_auth, internal, market, notifications, options, playbooks, portfolio, reports, signals, skills, strategies, stripe_webhook, trading
 
 
 settings = get_settings()
@@ -164,6 +164,7 @@ app.include_router(internal.router)
 app.include_router(stripe_webhook.router)
 app.include_router(notifications.router)
 app.include_router(agent.router, prefix="/api")
+app.include_router(skills.router, prefix="/api")
 if not settings.initial_launch_mode:
     app.include_router(signals.router)
     app.include_router(playbooks.router)
