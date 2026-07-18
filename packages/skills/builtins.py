@@ -25,6 +25,8 @@ def _manifest(
     prompt: str,
     risk: str = "low",
     max_credits: int = 30,
+    version: str = "1.0.0",
+    changelog: str = "Migrated from the original Agent Chat capability selector.",
 ) -> tuple[SkillManifest, dict[str, str]]:
     files = {
         ".puregamma-skill.yaml": "generated from the signed PureGamma built-in catalog",
@@ -47,12 +49,12 @@ def _manifest(
             allow_autopilot=slug in {"market_research", "news_research", "portfolio_review", "source_check"},
             allow_order_intent=False,
             billing_type="included",
-            version="1.0.0",
+            version=version,
             release_status="published",
             scope="official",
             runtime={"max_calls_per_hour": 120, "max_credits_per_run": max_credits, "timeout_seconds": 90, "human_confirmation_required": False},
             tags=[slug, "official", "evidence-first"],
-            changelog="Migrated from the original Agent Chat capability selector.",
+            changelog=changelog,
         ),
         files,
     )
@@ -61,9 +63,11 @@ def _manifest(
 BUILTIN_SKILLS = [
     _manifest(
         "market_research", "Market Research", "Evidence-based market structure, price, and trend research.",
-        assets=["crypto", "equities", "multi_asset"], sources=["market"],
-        tools=["get_market_quote", "get_market_history", "get_data_source_status"],
-        prompt="Separate current observations, calculations, and inference. Cite market timestamps and providers.",
+        assets=["crypto", "equities", "multi_asset"], sources=["market", "rss", "fintwit", "x", "x-twitter", "bloomberg"],
+        tools=["get_market_quote", "get_market_history", "search_source_documents", "get_data_source_status"],
+        prompt="Build the current-market evidence pack before synthesis. Pair a fresh timestamped quote with traceable source documents. Separate observations, reported facts, source opinion, calculations, and inference. If either live price evidence or current source evidence is missing, state that evidence is insufficient instead of filling the gap from model memory.",
+        version="1.1.0",
+        changelog="Pair current market quotes with traceable document evidence and fail closed when either evidence class is unavailable.",
     ),
     _manifest(
         "news_research", "News Research", "Fresh, source-attributed news and market narrative research.",

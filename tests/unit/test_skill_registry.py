@@ -46,7 +46,7 @@ def test_official_registry_resolves_legacy_slugs(db, normal_user):
         "options_analysis", "source_check", "deep_research",
     }
     resolved = registry.resolve_many(legacy_slugs=["market_research", "news_research"])
-    assert [item.manifest.version for item in resolved] == ["1.0.0", "1.0.0"]
+    assert [item.manifest.version for item in resolved] == ["1.1.0", "1.0.0"]
     assert registry.allowed_tools(resolved) >= {"get_market_quote", "search_source_documents"}
 
 
@@ -61,7 +61,7 @@ def test_agent_persists_versioned_skill_refs_and_audit_runs(db, normal_user):
     )
     message = db.get(AgentMessage, run.user_message_id)
     assert message.context_json["skills"][0]["slug"] == "market_research"
-    assert message.context_json["skills"][0]["version"] == "1.0.0"
+    assert message.context_json["skills"][0]["version"] == "1.1.0"
     assert message.context_json["skills"][0]["skill_id"]
     audits = db.query(SkillRun).filter_by(agent_run_id=run.id).all()
     assert len(audits) == 1

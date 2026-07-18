@@ -181,10 +181,29 @@ class AgentToolRegistry:
             for word in ("price", "market", "quote", "行情", "价格", "市场")
         ):
             calls.append(("get_market_quote", {"symbols": symbols or ["BTC", "ETH"]}))
+        if "market_research" in set(skills or []) and not any(
+            name == "search_source_documents" for name, _ in calls
+        ):
+            providers = [
+                provider
+                for provider in ("rss", "fintwit", "x-twitter", "bloomberg")
+                if provider in selected_sources and self._provider_allowed(provider)
+            ]
+            calls.append(
+                (
+                    "search_source_documents",
+                    {
+                        "query": query,
+                        "symbols": symbols or ["BTC"],
+                        "providers": providers,
+                        "hours": 72,
+                    },
+                )
+            )
         if any(
             word in lowered
             for word in ("news", "headline", "rss", "bloomberg", "新闻", "消息", "来源")
-        ):
+        ) and not any(name == "search_source_documents" for name, _ in calls):
             providers = [provider for provider in ("rss", "fintwit", "x-twitter", "bloomberg") if provider in selected_sources and self._provider_allowed(provider)]
             calls.append(
                 (
@@ -263,7 +282,7 @@ class AgentToolRegistry:
         if "options" in selected_sources and not any(name == "get_options_context" for name, _ in calls):
             calls.append(("get_options_context", {"currency": "ETH" if "ETH" in symbols else "BTC"}))
         skill_tools = {
-            "market_research": {"get_market_quote", "get_market_history", "get_data_source_status"},
+            "market_research": {"get_market_quote", "get_market_history", "search_source_documents", "get_data_source_status"},
             "news_research": {"get_recent_news", "search_news", "search_source_documents", "get_sentiment_context"},
             "portfolio_review": {"get_account_snapshot", "get_position_snapshot", "get_open_orders"},
             "options_analysis": {"get_options_context", "get_earnings_gamma"},
@@ -691,9 +710,14 @@ class AgentToolRegistry:
                     "change24hPct": _string(row.change_24h_pct),
                     "volume24hBase": _string(row.volume_24h_base),
                     "volume24hQuote": _string(row.volume_24h_quote),
+                    "high24h": _string(row.high_24h),
+                    "low24h": _string(row.low_24h),
+                    "bid": _string(row.bid),
+                    "ask": _string(row.ask),
                     "provider": row.provider,
                     "sourceTimestamp": _iso(row.source_timestamp),
                     "fetchedAt": _iso(row.fetched_at),
+                    "ageSeconds": max(0, int(age)),
                     "fresh": age <= 300,
                 }
             )
@@ -830,14 +854,17 @@ class AgentToolRegistry:
         hours: int = 72,
     ) -> ToolResult:
         allowed_providers = [provider for provider in ("rss", "fintwit", "x-twitter", "bloomberg") if self._provider_allowed(provider)]
-        requested_providers = [provider for provider in (providers or allowed_providers) if provider in allowed_providers]
+        requested_providers = [
+            provider
+            for provider in (allowed_providers if providers is None else providers)
+            if provider in allowed_providers
+        ]
         cutoff = datetime.now(timezone.utc) - timedelta(hours=min(max(hours, 1), 720))
         q = self.db.query(NormalizedDocument).filter(
             NormalizedDocument.created_at >= cutoff,
             NormalizedDocument.provider.in_(requested_providers),
         )
-        if not get_settings().allow_nonredistributable_llm_input:
-            q = q.filter(NormalizedDocument.redistribution_allowed.is_(True))
+        allow_nonredistributable = get_settings().allow_nonredistributable_llm_input
         rows = (
             q.order_by(
                 NormalizedDocument.published_at.desc(),
@@ -850,11 +877,20 @@ class AgentToolRegistry:
             word.lower()
             for word in re.findall(r"[A-Za-z]{4,}", query)
             if word.lower()
-            not in {"what", "with", "from", "market", "about", "which", "recent"}
+            not in {
+                "what", "with", "from", "market", "about", "which", "recent",
+                "current", "condition", "conditions", "status", "situation",
+                "outlook", "analysis", "update", "today", "price",
+            }
         ][:8]
         selected = []
         for row in rows:
-            haystack = f"{row.title} {row.summary} {row.content}".lower()
+            full_text_allowed = bool(row.redistribution_allowed or allow_nonredistributable)
+            haystack = (
+                f"{row.title} {row.summary} {row.content}"
+                if full_text_allowed
+                else f"{row.source_name} {row.author or ''} {row.title}"
+            ).lower()
             if symbols and not any(
                 symbol.upper() in (row.symbols or []) for symbol in symbols
             ):
@@ -877,23 +913,35 @@ class AgentToolRegistry:
             {
                 "provider": row.provider,
                 "sourceType": row.source_type,
-                "evidenceType": "source_opinion"
+                "evidenceType": "linked_metadata"
+                if not (row.redistribution_allowed or allow_nonredistributable)
+                else "source_opinion"
                 if "opinion" in row.source_type
                 else "reported_fact",
                 "source": row.source_name,
                 "author": row.author,
                 "title": row.title,
-                "summary": row.summary,
+                "summary": row.summary
+                if row.redistribution_allowed or allow_nonredistributable
+                else None,
                 "url": row.url,
                 "publishedAt": _iso(row.published_at),
                 "fetchedAt": _iso(row.created_at),
                 "symbols": row.symbols,
                 "topics": row.topics,
-                "sentiment": row.sentiment,
+                "sentiment": row.sentiment
+                if row.redistribution_allowed or allow_nonredistributable
+                else {},
                 "credibilityScore": row.credibility_score,
                 "weightedScore": row.final_score,
                 "eventFingerprint": row.event_fingerprint,
                 "licenseStatus": row.license_status,
+                "redistributionAllowed": row.redistribution_allowed,
+                "contentPolicy": "redistributable_summary"
+                if row.redistribution_allowed
+                else "internal_nonredistributable_summary"
+                if allow_nonredistributable
+                else "linked_metadata_only",
             }
             for row in selected
         ]
@@ -909,7 +957,7 @@ class AgentToolRegistry:
             for row in selected
         ]
         summary = (
-            f"Retrieved {len(selected)} traceable documents from {len({row.provider for row in selected})} providers"
+            f"Retrieved {len(selected)} traceable documents from {len({row.source_name for row in selected})} publishers"
             if selected
             else "Connected sources do not contain enough matching evidence"
         )
