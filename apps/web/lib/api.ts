@@ -520,6 +520,20 @@ export type AgentConversation = { id: string; title: string; summary?: string | 
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
 export type AgentAttachment = { name: string; content: string; mime: string };
 export type SkillContextRef = { skill_id: string; slug: string; version: string; installation_id?: string | null };
+export type AgentRuntimePlan = {
+  intent: string;
+  goal?: string;
+  assets: string[];
+  horizon?: string | null;
+  skill_slugs?: string[];
+  data_sources?: string[];
+  evidence_requirements: string[];
+  clarification_recommended?: boolean;
+  auto_selected_skills?: boolean;
+  next_actions?: string[];
+  runtime_plan_version?: string;
+};
+export type AgentEvidenceSummary = { schema_version?: string; sufficient: boolean; missing: string[]; record_count: number; source_count: number; provider_count: number; kinds: string[] };
 export type SkillSummary = {
   skill_id: string;
   slug: string;
@@ -542,7 +556,7 @@ export type SkillSummary = {
   installed: boolean;
   enabled: boolean;
 };
-export type AgentContext = { data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string };
+export type AgentContext = { data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type RuntimeStrategy = { id: string; name: string; description: string; status: string; current_version: number; execution_mode: string; draft: { instruments: string[]; venues: string[]; timeframe: string; strategy_type: string; sentiment_sources: string[]; max_notional: number; leverage: number; max_daily_loss: number; max_drawdown: number }; latest_run?: RuntimeRun | null; created_at: string; updated_at: string };
@@ -595,6 +609,11 @@ export type AgentModelOption = { id: string; display_name: string; description: 
 
 export function getAgentCapabilities() {
   return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; skills: SkillSummary[]; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
+}
+
+export type AgentQuoteResponse = CreditQuoteResponse & { task_type: string; planned_tools: string[]; plan: AgentRuntimePlan };
+export function getAgentQuote(payload: { content: string; data_sources: string[]; skill_refs: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model: string }) {
+  return requestStrict<AgentQuoteResponse>("/api/agent/quote", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export function getSkillCatalog() {
