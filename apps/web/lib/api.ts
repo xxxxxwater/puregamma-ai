@@ -588,6 +588,90 @@ async function requestStrict<T>(path: string, init: RequestInit = {}): Promise<T
   return payload;
 }
 
+export type AdminCreditAccount = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  plan: string;
+  credit_balance: number;
+  stripe_customer_id?: string | null;
+  auth_provider: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminCreditLedgerEntry = {
+  id: string;
+  action: string;
+  credits_delta: number;
+  balance_after: number;
+  idempotency_key?: string | null;
+  metadata: Record<string, unknown>;
+  refundable: boolean;
+  created_at: string;
+};
+
+export type AdminCreditReservation = {
+  id: string;
+  user_id: string;
+  task_type: string;
+  status: string;
+  reserved_credits: number;
+  settled_credits?: number | null;
+  idempotency_key: string;
+  refundable: boolean;
+  created_at: string;
+  completed_at?: string | null;
+};
+
+export type AdminCreditAccountDetail = {
+  account: AdminCreditAccount;
+  reconciliation: {
+    user_id: string;
+    ledger_entries: number;
+    opening_balance: number;
+    ledger_balance: number;
+    account_balance: number;
+    matches: boolean;
+  };
+  ledger: AdminCreditLedgerEntry[];
+  reservations: AdminCreditReservation[];
+  settlements: Array<{ id: string; reservation_id: string; requested_actual_credits: number; settled_credits: number; adjustment: number; status: string; created_at: string }>;
+  refunds: Array<{ id: string; reservation_id: string; credits: number; reason: string; created_at: string }>;
+  rewards: Array<{ id: string; reward_type: string; credits: number; source: string; granted_by_user_id?: string | null; created_at: string }>;
+};
+
+export function getAdminCreditAccounts(search = "", limit = 50, offset = 0) {
+  const query = new URLSearchParams({ search, limit: String(limit), offset: String(offset) });
+  return requestStrict<{ accounts: AdminCreditAccount[]; total: number; limit: number; offset: number }>(`/admin/billing/accounts?${query.toString()}`);
+}
+
+export function getAdminCreditAccount(userId: string) {
+  return requestStrict<AdminCreditAccountDetail>(`/admin/billing/accounts/${encodeURIComponent(userId)}`);
+}
+
+export function grantAdminCredits(userId: string, payload: { credits: number; reason: string; reference: string; idempotency_key: string }) {
+  return requestStrict<{ grant: { id: string; credits: number; reason: string; reference: string; created_at: string }; credit_balance: number }>(`/admin/billing/accounts/${encodeURIComponent(userId)}/credits/grant`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function refundAdminCreditReservation(reservationId: string, payload: { reason: string; reference: string }) {
+  return requestStrict<{ refund: { reservation_id: string; credits: number; status: string }; credit_balance: number }>(`/admin/billing/reservations/${encodeURIComponent(reservationId)}/refund`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function refundAdminCreditLedgerEntry(entryId: string, payload: { reason: string; reference: string }) {
+  return requestStrict<{ refund: { ledger_entry_id: string; refund_ledger_entry_id: string; credits: number; reason: string; reference: string }; credit_balance: number }>(`/admin/billing/ledger/${encodeURIComponent(entryId)}/refund`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getAgentConversations() {
   return requestStrict<{ conversations: AgentConversation[] }>("/api/agent/conversations");
 }

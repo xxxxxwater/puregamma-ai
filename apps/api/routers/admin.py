@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -12,7 +12,7 @@ from apps.api.services.data_source_service import provider_registry, serialize_r
 from apps.api.services.report_service import serialize_report
 from apps.api.config import get_settings
 from packages.agents.llm.provider_factory import llm_status
-from packages.database.models import AgentRun, AgentToolCall, BillingCheckoutIntent, DataSource, DataSourceSyncRun, FinTwitAccount, LLMCallLog, NormalizedDocument, NotificationDelivery, ProviderSyncLog, RawDocument, Report, StripeWebhookEvent, Subscription, User
+from packages.database.models import AgentRun, AgentToolCall, BillingCheckoutIntent, CreditLedger, CreditRefundEvent, CreditReservationRecord, CreditRewardGrant, CreditSettlementRecord, DataSource, DataSourceSyncRun, FinTwitAccount, LLMCallLog, NormalizedDocument, NotificationDelivery, ProviderSyncLog, RawDocument, Report, StripeWebhookEvent, Subscription, User
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -32,6 +32,18 @@ class AdminRewardGrantRequest(BaseModel):
     metadata: dict = Field(default_factory=dict)
 
 
+class AdminCreditGrantRequest(BaseModel):
+    credits: int = Field(ge=1, le=5000)
+    reason: str = Field(min_length=3, max_length=300)
+    reference: str = Field(min_length=3, max_length=120)
+    idempotency_key: str = Field(min_length=8, max_length=200)
+
+
+class AdminCreditRefundRequest(BaseModel):
+    reason: str = Field(min_length=3, max_length=300)
+    reference: str = Field(min_length=3, max_length=120)
+
+
 class DataSourceControlRequest(BaseModel):
     enabled: bool
 
@@ -48,9 +60,328 @@ def admin_user(user: User = Depends(get_current_user)) -> User:
     return user
 
 
+def _admin_credit_metadata(metadata: dict | None) -> dict:
+    """Expose operational audit fields without returning stored prompts or provider payloads."""
+    allowed = {
+        "source",
+        "reason",
+        "reference",
+        "ticket",
+        "phase",
+        "reservation_id",
+        "granted_by_user_id",
+        "refunded_by_user_id",
+        "original_ledger_entry_id",
+        "task_type",
+    }
+    return {key: value for key, value in (metadata or {}).items() if key in allowed}
+
+
+def _serialize_admin_ledger(row: CreditLedger, refunded_entry_ids: set[str] | None = None) -> dict:
+    return {
+        "id": row.id,
+        "action": row.action,
+        "credits_delta": row.credits_delta,
+        "balance_after": row.balance_after,
+        "idempotency_key": row.idempotency_key,
+        "metadata": _admin_credit_metadata(row.metadata_json),
+        "refundable": row.credits_delta < 0 and row.id not in (refunded_entry_ids or set()),
+        "created_at": row.created_at.isoformat(),
+    }
+
+
+def _serialize_admin_reservation(row: CreditReservationRecord) -> dict:
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "task_type": row.task_type,
+        "status": row.status,
+        "reserved_credits": row.reserved_credits,
+        "settled_credits": row.settled_credits,
+        "idempotency_key": row.idempotency_key,
+        "refundable": row.status == "RESERVED",
+        "created_at": row.created_at.isoformat(),
+        "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+    }
+
+
 @router.get("/users")
 def users(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
     return {"users": [serialize_user(row) for row in db.query(User).order_by(User.created_at.desc()).all()]}
+
+
+@router.get("/billing/accounts")
+def billing_accounts(
+    search: str = Query(default="", max_length=120),
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    query = db.query(User)
+    normalized = search.strip()
+    if normalized:
+        pattern = f"%{normalized}%"
+        query = query.filter((User.email.ilike(pattern)) | (User.name.ilike(pattern)) | (User.id == normalized))
+    total = query.count()
+    rows = query.order_by(User.created_at.desc()).offset(offset).limit(limit).all()
+    return {
+        "accounts": [
+            {
+                "id": row.id,
+                "email": row.email,
+                "name": row.name,
+                "role": row.role,
+                "plan": row.plan,
+                "credit_balance": row.credit_balance,
+                "stripe_customer_id": row.stripe_customer_id,
+                "auth_provider": row.auth_provider,
+                "created_at": row.created_at.isoformat(),
+                "updated_at": row.updated_at.isoformat(),
+            }
+            for row in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/billing/accounts/{user_id}")
+def billing_account(user_id: str, db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
+    from apps.api.services.credit_service import reconcile_credit_account
+
+    account = db.get(User, user_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="User not found")
+    ledger_rows = (
+        db.query(CreditLedger)
+        .filter(CreditLedger.user_id == user_id)
+        .order_by(CreditLedger.created_at.desc(), CreditLedger.id.desc())
+        .limit(200)
+        .all()
+    )
+    non_refundable_entry_ids = {
+        str(row.metadata_json.get("original_ledger_entry_id"))
+        for row in ledger_rows
+        if row.action == "admin_credit_refund" and row.metadata_json.get("original_ledger_entry_id")
+    }
+    reservations = (
+        db.query(CreditReservationRecord)
+        .filter(CreditReservationRecord.user_id == user_id)
+        .order_by(CreditReservationRecord.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    non_refundable_entry_ids.update(
+        row.ledger_entry_id for row in reservations if not row.status.startswith("SETTLED")
+    )
+    settlements = (
+        db.query(CreditSettlementRecord)
+        .filter(CreditSettlementRecord.user_id == user_id)
+        .order_by(CreditSettlementRecord.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    refunds = (
+        db.query(CreditRefundEvent)
+        .filter(CreditRefundEvent.user_id == user_id)
+        .order_by(CreditRefundEvent.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    rewards = (
+        db.query(CreditRewardGrant)
+        .filter(CreditRewardGrant.user_id == user_id)
+        .order_by(CreditRewardGrant.created_at.desc())
+        .limit(100)
+        .all()
+    )
+    return {
+        "account": {
+            "id": account.id,
+            "email": account.email,
+            "name": account.name,
+            "role": account.role,
+            "plan": account.plan,
+            "credit_balance": account.credit_balance,
+            "stripe_customer_id": account.stripe_customer_id,
+            "auth_provider": account.auth_provider,
+            "created_at": account.created_at.isoformat(),
+            "updated_at": account.updated_at.isoformat(),
+        },
+        "reconciliation": reconcile_credit_account(db, user_id),
+        "ledger": [_serialize_admin_ledger(row, non_refundable_entry_ids) for row in ledger_rows],
+        "reservations": [_serialize_admin_reservation(row) for row in reservations],
+        "settlements": [
+            {
+                "id": row.id,
+                "reservation_id": row.reservation_id,
+                "requested_actual_credits": row.requested_actual_credits,
+                "settled_credits": row.settled_credits,
+                "adjustment": row.adjustment,
+                "status": row.status,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in settlements
+        ],
+        "refunds": [
+            {
+                "id": row.id,
+                "reservation_id": row.reservation_id,
+                "credits": row.credits,
+                "reason": row.reason,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in refunds
+        ],
+        "rewards": [
+            {
+                "id": row.id,
+                "reward_type": row.reward_type,
+                "credits": row.credits,
+                "source": row.source,
+                "granted_by_user_id": row.granted_by_user_id,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in rewards
+        ],
+    }
+
+
+@router.post("/billing/accounts/{user_id}/credits/grant")
+def grant_account_credits(
+    user_id: str,
+    payload: AdminCreditGrantRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.billing.rewards import grant_reward
+
+    if not db.get(User, user_id):
+        raise HTTPException(status_code=404, detail="User not found")
+    try:
+        row = grant_reward(
+            db,
+            user_id,
+            "manual_admin_grant",
+            payload.credits,
+            idempotency_key=payload.idempotency_key,
+            source="admin_credit_console",
+            metadata={"reason": payload.reason, "reference": payload.reference},
+            granted_by_user_id=user.id,
+        )
+        if row.user_id != user_id:
+            raise ValueError("Idempotency key belongs to another user")
+        db.commit()
+        account = db.get(User, user_id)
+        return {
+            "grant": {
+                "id": row.id,
+                "credits": row.credits,
+                "reason": row.metadata_json.get("reason"),
+                "reference": row.metadata_json.get("reference"),
+                "granted_by_user_id": row.granted_by_user_id,
+                "created_at": row.created_at.isoformat(),
+            },
+            "credit_balance": account.credit_balance,
+        }
+    except (ValueError, LookupError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/billing/reservations/{reservation_id}/refund")
+def refund_credit_reservation(
+    reservation_id: str,
+    payload: AdminCreditRefundRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from apps.api.services.credit_service import refund_task
+    from packages.billing.metering import CreditReservation
+
+    row = db.get(CreditReservationRecord, reservation_id)
+    if not row:
+        raise HTTPException(status_code=404, detail="Credit reservation not found")
+    try:
+        result = refund_task(
+            db,
+            row.user_id,
+            CreditReservation(idempotency_key=row.idempotency_key, credits=row.reserved_credits),
+            payload.reason,
+            {
+                "source": "admin_credit_console",
+                "reference": payload.reference,
+                "refunded_by_user_id": user.id,
+            },
+        )
+        db.commit()
+        account = db.get(User, row.user_id)
+        return {
+            "refund": {"reservation_id": row.id, "credits": result.adjustment, "status": row.status},
+            "credit_balance": account.credit_balance,
+        }
+    except ValueError as exc:
+        db.rollback()
+        raise HTTPException(status_code=409, detail=str(exc)) from exc
+
+
+@router.post("/billing/ledger/{entry_id}/refund")
+def refund_credit_ledger_entry(
+    entry_id: str,
+    payload: AdminCreditRefundRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from apps.api.services.credit_service import grant_credits
+
+    entry = db.get(CreditLedger, entry_id)
+    if not entry:
+        raise HTTPException(status_code=404, detail="Credit ledger entry not found")
+    if entry.credits_delta >= 0:
+        raise HTTPException(status_code=409, detail="Only a debit ledger entry can be refunded")
+    refund_key = f"admin-ledger-refund:{entry.id}"
+    reservation = db.query(CreditReservationRecord).filter_by(ledger_entry_id=entry.id).one_or_none()
+    if reservation and reservation.status == "RESERVED":
+        raise HTTPException(status_code=409, detail="Open reservation must be refunded through the reservation state machine")
+    if reservation and reservation.status == "REFUNDED":
+        raise HTTPException(status_code=409, detail="Reservation has already been refunded")
+    amount = abs(entry.credits_delta)
+    if reservation and reservation.status.startswith("SETTLED"):
+        amount = min(amount, max(0, int(reservation.settled_credits or 0)))
+    if amount <= 0:
+        raise HTTPException(status_code=409, detail="Ledger entry has no refundable settled credits")
+    try:
+        ledger = grant_credits(
+            db,
+            entry.user_id,
+            "admin_credit_refund",
+            amount,
+            {
+                "source": "admin_credit_console",
+                "reason": payload.reason,
+                "reference": payload.reference,
+                "refunded_by_user_id": user.id,
+                "original_ledger_entry_id": entry.id,
+            },
+            idempotency_key=refund_key,
+        )
+        db.commit()
+        account = db.get(User, entry.user_id)
+        return {
+            "refund": {
+                "ledger_entry_id": entry.id,
+                "refund_ledger_entry_id": ledger.id,
+                "credits": ledger.credits_delta,
+                "reason": ledger.metadata_json.get("reason"),
+                "reference": ledger.metadata_json.get("reference"),
+            },
+            "credit_balance": account.credit_balance,
+        }
+    except (ValueError, LookupError) as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.post("/billing/rewards/grant")
