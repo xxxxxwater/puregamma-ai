@@ -1,0 +1,15 @@
+[Unit]
+Description=PureGamma PostgreSQL and PAPER runtime backup
+Requires=docker.service
+After=docker.service
+
+[Service]
+Type=oneshot
+User=root
+Environment=PUREGAMMA_ROOT=/opt/puregamma-ai
+Environment=PUREGAMMA_BACKUP_DIR=/var/backups/puregamma
+Environment=PUREGAMMA_BACKUP_RETENTION_DAYS=7
+ExecStart=/opt/puregamma-ai/scripts/production-backup.sh
+Nice=10
+IOSchedulingClass=best-effort
+IOSchedulingPriority=7

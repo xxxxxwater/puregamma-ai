@@ -1,0 +1,11 @@
+[Unit]
+Description=Run PureGamma backup every day
+
+[Timer]
+OnCalendar=*-*-* 18:20:00 UTC
+Persistent=true
+RandomizedDelaySec=15m
+Unit=puregamma-backup.service
+
+[Install]
+WantedBy=timers.target

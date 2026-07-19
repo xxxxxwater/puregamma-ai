@@ -10,7 +10,6 @@ from apps.api.services.market_intelligence_service import latest_or_create_intel
 from apps.api.services.portfolio_service import portfolio_context
 from packages.agents.llm.provider_factory import get_llm_provider
 from packages.database.models import AgentConversation, AgentMessage, MarketSnapshot, UserPreference
-from packages.reports.templates import disclaimer_for
 
 
 def _recent_conversation_topics(db: Session, user_id: str) -> list[str]:
@@ -44,24 +43,54 @@ def gather_context(db: Session, user_id: str, language: str) -> dict:
 
 def generate_daily_brief(db: Session, user_id: str, language: str) -> str:
     context = gather_context(db, user_id, language)
-    disclaimer = disclaimer_for(language)
+    if context["market_stale"] and get_settings().app_environment.lower() == "production":
+        raise RuntimeError("DAILY_BRIEF_MARKET_DATA_STALE")
     if not context["portfolio_shared_with_llm"]:
-        return _local_brief(context, language, disclaimer)
-    prompt = (
-        "Write a concise portfolio-first daily research brief in Chinese. " if language == "zh" else "Write a concise portfolio-first daily research brief in English. "
-    ) + "Distinguish market facts, portfolio facts, and inference. Include portfolio relevance, concentration risk, watch conditions, invalidation conditions, source timestamps, stale or missing-data warnings. Never invent values. No trade execution advice.\n\n" + json.dumps(context, ensure_ascii=False, default=str)
+        return _local_brief(context, language, "")
+    if language == "zh":
+        language_instruction = "全部标题、正文、项目符号和标签都必须使用简体中文。除资产代码和专有名词外，不得输出英文标题或英文段落。"
+        structure = """## 今日市场判断
+用一句明确、易懂的话说明市场状态和风险取向。
+
+## 今日重点
+恰好三个简短项目符号。每项指出资产或条件、可观察数据，以及它为何重要。
+
+## 关键观察阈值
+最多三个可量化条件，说明当前状态以及什么变化会改变判断。"""
+        portfolio_instruction = "仅在已连接真实组合时加入 `## 我的组合`，最多给出三条简洁、个性化观察。" if context["portfolio"]["connected"] else "不要加入组合、NAV、集中度或缺少组合等章节；这是一份纯市场简报。"
+        data_quality_instruction = "仅在数据过期、不完整或缺失时加入 `## 数据质量`，用一句自然中文说明新鲜度和来源。"
+    else:
+        language_instruction = "Write every heading, sentence, bullet, and label in clear English. Do not output Chinese headings or prose."
+        structure = """## Today's view
+One decisive, plain-language sentence describing the market regime and risk posture.
+
+## What matters today
+Exactly three short bullets. Each bullet names the asset or condition, cites the observable data point, and explains why it matters.
+
+## Watch levels
+Up to three measurable conditions. State the current condition and what would change the view."""
+        portfolio_instruction = "Include `## My portfolio` only because a real portfolio is connected, with at most three concise personalised observations." if context["portfolio"]["connected"] else "Do not include any portfolio, NAV, concentration, or missing-portfolio section. This is a market-only brief."
+        data_quality_instruction = "Include `## Data quality` only when data is stale, partial, or missing, using one short human-readable line for freshness and sources."
+    prompt = f"""Create a premium, user-facing daily market brief for PureGamma. {language_instruction}
+
+Return Markdown only. Do not use tables, raw JSON, ISO timestamps, internal field names, boilerplate disclaimers, or headings such as Market Facts / Portfolio Facts / Inference. Do not repeat the title. Never invent prices, portfolio data, sources, or causal certainty. Use only the supplied context. State uncertainty plainly. Do not give execution instructions.
+
+Use exactly this structure:
+{structure}
+
+{portfolio_instruction}
+Omit unavailable metrics rather than describing their absence.
+
+{data_quality_instruction}
+
+{json.dumps(context, ensure_ascii=False, default=str)}"""
     try:
         generated = get_llm_provider().complete(prompt, task_type="daily_market_report", locale=language, user_id=user_id, db=db)
     except Exception as exc:
         if get_settings().app_environment.lower() == "production":
             raise RuntimeError("DAILY_BRIEF_MODEL_UNAVAILABLE") from exc
-        return _local_brief(context, language, disclaimer)
-    title = "PureGamma 每日加密市场简报 | 组合" if language == "zh" else "PureGamma Daily Crypto Brief | Portfolio"
-    if title not in generated:
-        generated = f"{title}\n\n{generated.lstrip()}"
-    if disclaimer not in generated:
-        generated = f"{generated.rstrip()}\n\n{disclaimer}"
-    return generated
+        return _local_brief(context, language, "")
+    return generated.strip()
 
 
 def _local_brief(context: dict, language: str, disclaimer: str) -> str:

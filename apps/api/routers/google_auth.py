@@ -8,11 +8,11 @@ from urllib.parse import urlencode
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi.responses import RedirectResponse
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.dependencies import get_db, set_session_cookie
-from apps.api.routers.auth import serialize_user
 from packages.database.models import UsageEvent, User, UserIdentity, UserPreference
 
 
@@ -150,7 +150,7 @@ def google_authorize(response: Response, return_to: str | None = None) -> dict:
 
 
 @router.get("/auth/google/callback")
-def google_callback(code: str, state: str, request: Request, response: Response, db: Session = Depends(get_db)) -> dict:
+def google_callback(code: str, state: str, request: Request, response: Response, db: Session = Depends(get_db)) -> Response:
     client_id, client_secret, redirect_uri = _configured_google_settings()
     cookie_state = request.cookies.get(STATE_COOKIE)
     nonce = request.cookies.get(NONCE_COOKIE)
@@ -182,5 +182,11 @@ def google_callback(code: str, state: str, request: Request, response: Response,
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     db.refresh(user)
-    set_session_cookie(response, user)
-    return {"user": serialize_user(user), "redirect_to": return_to}
+    redirect_response = RedirectResponse(
+        url=f"{get_settings().site_url.rstrip('/')}{return_to}",
+        status_code=303,
+    )
+    for cookie in (STATE_COOKIE, NONCE_COOKIE, PKCE_COOKIE, RETURN_COOKIE):
+        redirect_response.delete_cookie(cookie, path="/")
+    set_session_cookie(redirect_response, user)
+    return redirect_response

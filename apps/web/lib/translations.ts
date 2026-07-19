@@ -13,6 +13,7 @@ import onboardingEn from "@/messages/en/onboarding.json";
 import playbooksEn from "@/messages/en/playbooks.json";
 import portfolioEn from "@/messages/en/portfolio.json";
 import reportsEn from "@/messages/en/reports.json";
+import secretaryEn from "@/messages/en/secretary.json";
 import signalsEn from "@/messages/en/signals.json";
 import adminZh from "@/messages/zh/admin.json";
 import billingZh from "@/messages/zh/billing.json";
@@ -29,6 +30,7 @@ import onboardingZh from "@/messages/zh/onboarding.json";
 import playbooksZh from "@/messages/zh/playbooks.json";
 import portfolioZh from "@/messages/zh/portfolio.json";
 import reportsZh from "@/messages/zh/reports.json";
+import secretaryZh from "@/messages/zh/secretary.json";
 import signalsZh from "@/messages/zh/signals.json";
 import { defaultLocale, normalizeLocale, type Locale } from "@/i18n/routing";
 
@@ -48,6 +50,7 @@ const en = {
   playbooks: playbooksEn,
   portfolio: portfolioEn,
   reports: reportsEn,
+  secretary: secretaryEn,
   signals: signalsEn
 } as const;
 
@@ -67,6 +70,7 @@ const zh = {
   playbooks: playbooksZh,
   portfolio: portfolioZh,
   reports: reportsZh,
+  secretary: secretaryZh,
   signals: signalsZh
 } as const;
 

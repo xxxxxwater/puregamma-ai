@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { BookOpen, CreditCard, Database } from "lucide-react";
+import { HyperliquidMarketPanel } from "@/components/hyperliquid-market-panel";
 import { getDashboard } from "@/lib/api";
 import { ActionLink, Badge, EmptyState, ErrorState, MetricCard, PageHeader, ResearchCard, RiskBadge } from "@/components/puregamma";
 import { Markdown } from "@/components/markdown";
@@ -36,6 +37,8 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
         <MetricCard label={locale === "zh" ? "研究简报" : "Research briefs"} value={String(reports.reports.length)} detail={locale === "zh" ? "附来源的简短研究" : "Concise sourced research"} tone="emerald" icon={<BookOpen className="h-4 w-4" />} />
         <MetricCard label={locale === "zh" ? "实时资产" : "Live assets"} value={String(market.live_assets || 0)} detail={(market.source_summary || []).join(" / ") || (locale === "zh" ? "数据源暂不可用" : "Sources unavailable")} tone="amber" icon={<Database className="h-4 w-4" />} />
       </div>
+
+      <HyperliquidMarketPanel locale={locale} />
 
       <section>
         <div className="mb-3 text-eyebrow uppercase text-text-pg-muted">{copy.assetMonitor.title}</div>

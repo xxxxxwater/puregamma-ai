@@ -62,7 +62,11 @@ async def stripe_webhook(
                 raise HTTPException(status_code=400, detail=f"Invalid Stripe signature: {exc}") from exc
         else:
             event = parse_event_payload(payload)
-        event_dict = dict(event)
+        # stripe-python 15.x returns a StripeObject which exposes ``to_dict``
+        # but is not directly accepted by ``dict(event)`` (it raises KeyError(0)).
+        # Keep the non-Stripe/mock billing path compatible with plain mappings.
+        to_dict = getattr(event, "to_dict", None)
+        event_dict = to_dict() if callable(to_dict) else dict(event)
         event_id = event_dict.get("id")
         event_type = event_dict.get("type")
         return process_stripe_event(db, event_dict, payload)

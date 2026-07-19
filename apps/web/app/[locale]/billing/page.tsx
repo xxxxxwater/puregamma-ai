@@ -45,8 +45,6 @@ export default async function BillingPage({ params }: { params: { locale: Locale
             <div><div className="text-sm text-text-pg-muted">{copy.summary.accountSource}</div><div className="mt-2 text-sm">{subscription.account?.auth_provider === "google" ? copy.accountSources.google : copy.accountSources.email}</div></div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2 border-t border-border-pg pt-3 text-xs">
-            <Badge tone="neutral">{copy.summary.checkoutMode}: {subscription.checkout_mode === "payment_link" ? copy.checkoutModes.paymentLink : copy.checkoutModes.session}</Badge>
-            {subscription.primary_payment_link_configured ? <Badge tone="neutral">{copy.summary.primaryPaymentLink}</Badge> : null}
             {subscription.cancel_at_period_end && subscription.cancel_at ? <Badge tone="neutral"><StatusDot tone="amber" /> {copy.cancelAtPeriodEnd.replace("{date}", formatDateTime(locale, subscription.cancel_at))}</Badge> : null}
           </div>
           {subscription.subscription_status === "active" ? (
@@ -55,7 +53,6 @@ export default async function BillingPage({ params }: { params: { locale: Locale
               {!subscription.cancel_at_period_end ? <span className="text-xs text-text-pg-muted">{copy.cancelWarning}</span> : null}
             </div>
           ) : null}
-          <p className="mt-4 border-t border-border-pg pt-3 text-xs text-text-pg-dim">{t(locale, "compliance.subscription")}</p>
         </ResearchCard>
         <ResearchCard>
           <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{copy.summary.creditUsage}</h2><CreditCostBadge locale={locale} cost={credits.credit_balance} /></div>

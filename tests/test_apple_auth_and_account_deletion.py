@@ -6,12 +6,29 @@ from tests.conftest import auth_headers
 
 def apple_settings() -> Settings:
     return Settings(
+        apple_auth_enabled=True,
         apple_client_id="ai.puregamma.ios",
         apple_team_id="APPLE_TEAM",
         apple_key_id="APPLE_KEY",
         apple_private_key="test-key",
         encryption_master_key="0123456789abcdef0123456789abcdef",
     )
+
+
+def test_mobile_apple_exchange_is_fail_closed_when_disabled(api_client, monkeypatch):
+    monkeypatch.setattr(apple_auth, "get_settings", lambda: Settings(apple_auth_enabled=False))
+
+    response = api_client.post(
+        "/auth/mobile/apple/exchange",
+        json={
+            "identity_token": "x" * 80,
+            "authorization_code": "apple-code",
+            "nonce": "n" * 40,
+        },
+    )
+
+    assert response.status_code == 503
+    assert response.json()["detail"]["code"] == "APPLE_AUTH_DISABLED"
 
 
 def test_mobile_apple_exchange_links_verified_identity(api_client, db, monkeypatch):

@@ -41,6 +41,7 @@ class Settings:
     mobile_oauth_redirect_uris: tuple[str, ...] = tuple(
         _csv(os.getenv("MOBILE_OAUTH_REDIRECT_URIS", "puregamma://oauth/callback"))
     )
+    apple_auth_enabled: bool = os.getenv("APPLE_AUTH_ENABLED", "false").lower() == "true"
     apple_client_id: str = os.getenv("APPLE_CLIENT_ID", "ai.puregamma.ios")
     apple_team_id: str = os.getenv("APPLE_TEAM_ID", "")
     apple_key_id: str = os.getenv("APPLE_KEY_ID", "")
@@ -388,7 +389,7 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("SESSION_SECRET must be a strong value of at least 32 characters")
     if settings.auth_allow_demo_fallback:
         errors.append("AUTH_ALLOW_DEMO_FALLBACK must be false")
-    if not all((settings.apple_client_id, settings.apple_team_id, settings.apple_key_id, settings.apple_private_key)):
+    if settings.apple_auth_enabled and not all((settings.apple_client_id, settings.apple_team_id, settings.apple_key_id, settings.apple_private_key)):
         errors.append("APPLE_CLIENT_ID, APPLE_TEAM_ID, APPLE_KEY_ID and APPLE_PRIVATE_KEY are required")
     if settings.billing_mode != "stripe":
         errors.append("BILLING_MODE must be stripe in production")

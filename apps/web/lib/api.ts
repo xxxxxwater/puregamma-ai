@@ -559,6 +559,9 @@ export type SkillSummary = {
 export type AgentContext = { data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
+export type SecretaryMessage = { id: string; role: "user" | "assistant"; content: string; created_at: string };
+export type SecretarySkill = { id: string; status: "active" | "confirmation_required" | "setup_required" | "available" | "planned"; risk: "low" | "medium" | "high" };
+export type SecretaryState = { conversation_id: string | null; messages: SecretaryMessage[]; voice: { id: string; name: string; fixed: boolean }; skills: SecretarySkill[]; memory: { enabled: boolean; isolated_by_user: boolean }; billing: { credits_per_reply: number; credit_balance: number } };
 export type RuntimeStrategy = { id: string; name: string; description: string; status: string; current_version: number; execution_mode: string; draft: { instruments: string[]; venues: string[]; timeframe: string; strategy_type: string; sentiment_sources: string[]; max_notional: number; leverage: number; max_daily_loss: number; max_drawdown: number }; latest_run?: RuntimeRun | null; created_at: string; updated_at: string };
 export type RuntimeRun = { id: string; strategy_id: string; strategy_version: number; account_id?: string | null; runtime_run_id: string; execution_mode: string; status: string; started_at?: string | null; stopped_at?: string | null; performance: Record<string, number>; error_code?: string | null; error_message?: string | null };
 export type TradingAccount = { id: string; name: string; venue: string; account_type: string; base_currency: string; status: string; permissions: Record<string, boolean>; created_at: string };
@@ -674,6 +677,53 @@ export function refundAdminCreditLedgerEntry(entryId: string, payload: { reason:
 
 export function getAgentConversations() {
   return requestStrict<{ conversations: AgentConversation[] }>("/api/agent/conversations");
+}
+
+export function getSecretary(locale: Locale) {
+  return requestStrict<SecretaryState>(`/api/secretary?locale=${encodeURIComponent(locale)}`);
+}
+
+export function sendSecretaryMessage(content: string, locale: Locale, requestId: string) {
+  return requestStrict<{ user_message: SecretaryMessage; assistant_message: SecretaryMessage; credits_used: number; credit_balance: number }>("/api/secretary/messages", {
+    method: "POST",
+    body: JSON.stringify({ content, locale, request_id: requestId })
+  });
+}
+
+export function clearSecretaryMemory() {
+  return requestStrict<{ ok: boolean }>("/api/secretary/memory", { method: "DELETE" });
+}
+
+export async function synthesizeSecretaryVoice(text: string, locale: Locale, signal?: AbortSignal) {
+  const response = await fetch(`${API_URL}/api/secretary/voice`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, locale }),
+    signal
+  });
+  if (!response.ok) {
+    const error = new Error(await response.text()) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return response.blob();
+}
+
+export async function transcribeSecretaryAudio(audio: Blob, locale: Locale, signal?: AbortSignal) {
+  const response = await fetch(`${API_URL}/api/secretary/transcribe?locale=${encodeURIComponent(locale)}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": audio.type || "audio/webm" },
+    body: audio,
+    signal
+  });
+  if (!response.ok) {
+    const error = new Error(await response.text()) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return response.json() as Promise<{ text: string; language: Locale }>;
 }
 
 export function createAgentConversation(title?: string) {

@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from apps.api.config import get_settings, validate_production_settings
 from apps.api.dependencies import ensure_bootstrap
-from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, billing, google_auth, mobile_auth, internal, market, notifications, options, playbooks, portfolio, reports, signals, skills, strategies, stripe_webhook, trading
+from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, billing, google_auth, hyperliquid_stream, mobile_auth, internal, market, notifications, options, playbooks, portfolio, reports, secretary, signals, skills, strategies, stripe_webhook, trading
 
 
 settings = get_settings()
@@ -28,7 +28,7 @@ async def lifespan(_: FastAPI):
 
 
 app = FastAPI(title="PureGamma AI API", version="0.1.0", lifespan=lifespan)
-_expensive_paths = ("/agent/", "/reports/", "/backtest", "/market/intelligence", "/options/")
+_expensive_paths = ("/agent/", "/secretary/", "/reports/", "/backtest", "/market/intelligence", "/options/")
 
 app.add_middleware(
     CORSMiddleware,
@@ -155,6 +155,7 @@ app.include_router(mobile_auth.router)
 app.include_router(apple_auth.router)
 app.include_router(assets.router)
 app.include_router(market.router)
+app.include_router(hyperliquid_stream.router)
 app.include_router(options.router)
 app.include_router(reports.router)
 app.include_router(backtest.router)
@@ -164,6 +165,7 @@ app.include_router(internal.router)
 app.include_router(stripe_webhook.router)
 app.include_router(notifications.router)
 app.include_router(agent.router, prefix="/api")
+app.include_router(secretary.router, prefix="/api")
 app.include_router(skills.router, prefix="/api")
 app.include_router(admin.router)
 if not settings.initial_launch_mode:

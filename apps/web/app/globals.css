@@ -2,6 +2,34 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes secretary-portrait-blink {
+  0%, 41.8%, 43.6%, 45.3%, 100% { opacity: 0; }
+  42.3%, 43.1%, 44.1%, 44.8% { opacity: 1; }
+}
+
+.secretary-portrait-blink {
+  animation: secretary-portrait-blink 7.2s linear infinite;
+  opacity: 0;
+}
+
+.secretary-theme-light {
+  display: none;
+}
+
+:root[data-theme="light"] .secretary-theme-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .secretary-theme-light {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secretary-portrait-blink {
+    animation: none;
+  }
+}
+
 :root {
   --background: #030303;
   --foreground: #ededed;

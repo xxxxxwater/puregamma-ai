@@ -60,12 +60,15 @@ def test_google_oauth_callback_registers_verified_user(api_client, db, monkeypat
     state_holder["nonce"] = authorize.cookies.get("pg_google_oauth_nonce")
     state = authorize.json()["state"]
 
-    callback = api_client.get(f"/auth/google/callback?code=mock-code&state={state}")
+    callback = api_client.get(
+        f"/auth/google/callback?code=mock-code&state={state}",
+        follow_redirects=False,
+    )
     user = db.query(User).filter(User.email == "google-user@example.com").one()
 
-    assert callback.status_code == 200
-    assert callback.json()["user"]["auth_provider"] == "google"
-    assert "access_token" not in callback.json()
+    assert callback.status_code == 303
+    assert callback.headers["location"] == "http://localhost:3000/chat"
+    assert not callback.content
     assert "httponly" in callback.headers["set-cookie"].lower()
     assert user.google_user_id == "google-sub-1"
     assert user.avatar_url == "https://example.com/avatar.png"
@@ -104,8 +107,11 @@ def test_google_oauth_repeated_login_reuses_identity(api_client, db, monkeypatch
     for _ in range(2):
         authorize = api_client.get("/auth/google/authorize")
         holder["nonce"] = authorize.cookies.get("pg_google_oauth_nonce")
-        callback = api_client.get(f"/auth/google/callback?code=code&state={authorize.json()['state']}")
-        assert callback.status_code == 200
+        callback = api_client.get(
+            f"/auth/google/callback?code=code&state={authorize.json()['state']}",
+            follow_redirects=False,
+        )
+        assert callback.status_code == 303
 
     assert db.query(User).filter_by(email="stable@example.com").count() == 1
     assert db.query(UserIdentity).filter_by(provider="google", provider_subject="stable-google-sub").count() == 1

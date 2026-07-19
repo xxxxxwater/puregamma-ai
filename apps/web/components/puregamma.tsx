@@ -184,12 +184,46 @@ export function CreditCostBadge({ cost, locale = defaultLocale }: { cost: number
   return <Badge tone="neutral">{t(locale, "common.shared.creditCost", { credits: cost })}</Badge>;
 }
 
-export function PlanBadge({ plan }: { plan: string }) {
+type PlanIdentity = "silver" | "gold" | "black-gold" | "prestige";
+
+const planIdentityStyles: Record<PlanIdentity, string> = {
+  silver: "border-[#9aa3b2] bg-[#aeb6c4]/10 text-[#aeb6c4]",
+  gold: "border-[#b68a2c] bg-[#d5a93f]/10 text-[#d8ad46]",
+  "black-gold": "border-[#8a702e] bg-[#11100d] text-[#e2c66d] shadow-[inset_0_0_12px_rgba(226,198,109,0.08)]",
+  prestige: "border-[#9d83bb] bg-[#6f4f8f]/10 text-[#d9c3ef] shadow-[inset_0_0_12px_rgba(217,195,239,0.08)]",
+};
+
+function planIdentity(plan: string): PlanIdentity {
+  if (plan === "Enterprise") return "prestige";
+  if (plan === "Max") return "black-gold";
+  if (plan === "Pro") return "gold";
+  return "silver";
+}
+
+function PlanIdentityIcon({ identity }: { identity: PlanIdentity }) {
+  if (identity === "prestige") {
+    return <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m4 17 2-9 6 5 6-5 2 9H4Z" /><path d="M7 20h10M9 6l3-3 3 3-3 3-3-3Z" /></svg>;
+  }
+  if (identity === "black-gold") {
+    return <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2 20 6v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-4Z" /><path d="m7.5 14 1-5 3.5 3 3.5-3 1 5h-9ZM9 17h6" /></svg>;
+  }
+  if (identity === "gold") {
+    return <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m12 2 8 5v10l-8 5-8-5V7l8-5Z" /><path d="m12 6 4 6-4 6-4-6 4-6Z" /></svg>;
+  }
+  return <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2 20 6v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-4Z" /><path d="M8 9h8M8 12h8M10 15h4" /></svg>;
+}
+
+export function PlanBadge({ plan, locale = defaultLocale }: { plan: string; locale?: Locale }) {
+  const identity = planIdentity(plan);
+  const labels: Record<PlanIdentity, string> = locale === "zh"
+    ? { silver: "白银", gold: "黄金", "black-gold": "黑金", prestige: "尊贵" }
+    : { silver: "Silver", gold: "Gold", "black-gold": "Black Gold", prestige: "Prestige" };
   return (
-    <Badge tone="neutral">
-      <StatusDot tone={plan === "Free" ? "neutral" : "info"} />
-      {plan}
-    </Badge>
+    <span title={`${plan} · ${labels[identity]}`} className={clsx("inline-flex items-center gap-1.5 border px-2 py-0.5 text-xs font-semibold", planIdentityStyles[identity])}>
+      <PlanIdentityIcon identity={identity} />
+      <span>{plan}</span>
+      <span className="font-normal opacity-75">· {labels[identity]}</span>
+    </span>
   );
 }
 
