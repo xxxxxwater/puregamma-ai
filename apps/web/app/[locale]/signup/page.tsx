@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Bell, Chrome, Loader2 } from "lucide-react";
+import { Chrome, Loader2 } from "lucide-react";
+import { AuthLegalNotice } from "@/components/auth-legal-notice";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { googleLogin } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
@@ -47,9 +48,7 @@ export default function SignUpPage() {
           </button>
         </div>
 
-        <p className="text-center text-xs text-text-pg-dim">
-          {zh ? "创建账户即表示你同意服务条款与隐私政策。使用该服务用户自行承担风险。提供本服务的主体概不负责AI生成内容。" : "By creating an account you agree to our Terms of Service and Privacy Policy. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."}
-        </p>
+        <AuthLegalNotice locale={locale} mode="signup" />
       </div>
     </div>
   );

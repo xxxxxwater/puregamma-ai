@@ -3,7 +3,8 @@
 import { useState } from "react";
 import Link from "next/link";
 import Image from "next/image";
-import { Bell, Chrome, Loader2 } from "lucide-react";
+import { Chrome, Loader2 } from "lucide-react";
+import { AuthLegalNotice } from "@/components/auth-legal-notice";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { googleLogin } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
@@ -46,6 +47,8 @@ export default function LoginPage() {
             {t(locale, "common.auth.googleLogin")}
           </button>
         </div>
+
+        <AuthLegalNotice locale={locale} mode="login" />
 
       </div>
     </div>
