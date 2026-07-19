@@ -98,7 +98,7 @@ def requirements_for(intent: str, skill_slugs: list[str], assets: list[str]) -> 
 def _kind_for_tool(tool_name: str) -> str:
     if tool_name in {"get_market_quote", "get_market_history"}:
         return "market_quote"
-    if tool_name in {"get_recent_news", "search_news", "search_source_documents", "get_sentiment_context"}:
+    if tool_name in {"get_recent_news", "search_news", "search_source_documents", "search_online_sources", "get_sentiment_context"}:
         return "source_document"
     if tool_name in {"get_account_snapshot", "get_position_snapshot", "get_open_orders"}:
         return "portfolio_snapshot"

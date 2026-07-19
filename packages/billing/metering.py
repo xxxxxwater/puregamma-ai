@@ -9,7 +9,7 @@ MODEL_RATES = {
     "default": (1.0, 0.25, 0.75),
     "gpt-5.6-luna": (2.0, 0.8, 2.5),
 }
-TOOL_RATES = {"market": 1, "rss": 2, "portfolio": 2, "x": 4, "onchain": 5, "deep_research": 6}
+TOOL_RATES = {"market": 1, "rss": 2, "search_online_sources": 3, "portfolio": 2, "x": 4, "onchain": 5, "deep_research": 6}
 TASK_LIMITS = {
     "agent_chat_basic": (2, 30), "agent_market_research": (2, 30), "agent_news_research": (2, 30),
     "agent_portfolio_analysis": (2, 30), "agent_advanced_data": (2, 30), "agent_deep_research": (10, 80),

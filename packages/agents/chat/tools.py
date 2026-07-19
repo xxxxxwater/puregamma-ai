@@ -45,12 +45,12 @@ class ToolResult:
 
 
 SKILL_TOOL_ALLOWLISTS: dict[str, set[str]] = {
-    "market_research": {"get_market_quote", "get_market_history", "search_source_documents", "get_data_source_status"},
-    "news_research": {"get_recent_news", "search_news", "search_source_documents", "get_sentiment_context"},
+    "market_research": {"get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_data_source_status"},
+    "news_research": {"get_recent_news", "search_news", "search_source_documents", "search_online_sources", "get_sentiment_context"},
     "portfolio_review": {"get_account_snapshot", "get_position_snapshot", "get_open_orders"},
     "options_analysis": {"get_options_context", "get_earnings_gamma"},
-    "source_check": {"get_data_source_status", "search_source_documents"},
-    "deep_research": {"get_market_quote", "get_market_history", "search_source_documents", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"},
+    "source_check": {"get_data_source_status", "search_source_documents", "search_online_sources"},
+    "deep_research": {"get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"},
 }
 
 
@@ -78,6 +78,7 @@ class AgentToolRegistry:
             "get_recent_news": self.get_recent_news,
             "search_news": self.search_news,
             "search_source_documents": self.search_source_documents,
+            "search_online_sources": self.search_online_sources,
             "get_defi_protocol_metrics": self.get_defi_protocol_metrics,
             "get_chain_metrics": self.get_chain_metrics,
             "get_onchain_snapshot": self.get_chain_metrics,
@@ -121,6 +122,7 @@ class AgentToolRegistry:
             "get_position_snapshot": "portfolio",
             "get_open_orders": "portfolio",
             "get_options_context": "options",
+            "search_online_sources": "rss",
         }.get(name)
         if required_source and required_source not in self.allowed_data_sources:
             raise PermissionError("TOOL_ENTITLEMENT_DENIED")
@@ -965,6 +967,46 @@ class AgentToolRegistry:
             else "Connected sources do not contain enough matching evidence"
         )
         return ToolResult("search_source_documents", data, summary, sources)
+
+    def search_online_sources(self, query: str, count: int = 8) -> ToolResult:
+        """Search reviewed public endpoints for metadata when persisted evidence is missing."""
+        from packages.data.online_research_provider import OnlineResearchProvider
+
+        results = OnlineResearchProvider().search(query, count=min(max(count, 1), 10))
+        data = [
+            {
+                "provider": row.provider,
+                "sourceType": "online_web_metadata",
+                "evidenceType": "reported_metadata",
+                "source": row.publisher,
+                "title": row.title,
+                "summary": row.snippet,
+                "url": row.url,
+                "publishedAt": _iso(row.published_at),
+                "fetchedAt": _iso(row.fetched_at),
+                "contentPolicy": "linked_metadata_and_search_snippet",
+                "isMock": False,
+                "onlineFallback": True,
+            }
+            for row in results
+        ]
+        sources = [
+            ToolSource(
+                row.provider,
+                row.title,
+                row.url,
+                row.published_at,
+                row.published_at,
+                row.fetched_at,
+            )
+            for row in results
+        ]
+        return ToolResult(
+            "search_online_sources",
+            data,
+            f"Retrieved {len(results)} public online source records",
+            sources,
+        )
 
     def _provider_allowed(self, provider: str) -> bool:
         return provider in self.allowed_data_sources or (provider == "x-twitter" and "x" in self.allowed_data_sources)

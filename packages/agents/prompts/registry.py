@@ -9,7 +9,7 @@ from pathlib import Path
 _TEMPLATE_DIR = Path(__file__).resolve().parent / "templates"
 _PROMPTS = (
     ("platform_identity", "1.0.0", "platform_identity.v1.md"),
-    ("evidence_policy", "1.1.0", "evidence_policy.v1.md"),
+    ("evidence_policy", "1.2.0", "evidence_policy.v1.md"),
     ("trading_boundary", "1.0.0", "trading_boundary.v1.md"),
     ("conversation_experience", "1.0.0", "conversation_experience.v1.md"),
 )

@@ -27,6 +27,7 @@ from packages.agents.prompts import build_prompt_bundle, prompt_references
 from packages.agents.runtime import plan_agent_request
 from packages.database.models import AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentToolCall, UsageEvent, User, utcnow
 from packages.data.evidence import EvidencePack, EvidenceRequirement
+from packages.data.online_research_provider import online_research_enabled, online_search_candidate
 from packages.skills.registry import invocation_input_summary, update_skill_runs
 
 
@@ -53,6 +54,24 @@ class AgentModelPlanError(PermissionError):
 
 class AgentModelUnavailableError(RuntimeError):
     pass
+
+
+def _online_fallback_allowed(
+    content: str,
+    runtime_plan: dict,
+    *,
+    allowed_data_sources: set[str],
+    skill_tools: set[str],
+    has_selected_skills: bool,
+) -> bool:
+    if not online_research_enabled() or "rss" not in allowed_data_sources:
+        return False
+    if has_selected_skills and "search_online_sources" not in skill_tools:
+        return False
+    if runtime_plan.get("intent") in {"portfolio_review", "strategy_backtest"}:
+        return False
+    requirements = set(runtime_plan.get("evidence_requirements", []))
+    return "source_document" in requirements or online_search_candidate(content)
 
 def assert_quota(db: Session, user: User) -> None:
     state = quota_state(db, user)
@@ -167,13 +186,26 @@ def _prepare_agent_context(
     }
     selection, model = _resolve_agent_model(db, user, clean_context.get("model"))
     clean_context["model"] = selection
-    tool_plan = [] if runtime_plan.clarification_recommended else AgentToolRegistry(db, user.id).plan(
+    tool_registry = AgentToolRegistry(db, user.id)
+    skill_tools = registry.allowed_tools(resolved_skills) if resolved_skills else set()
+    tool_plan = [] if runtime_plan.clarification_recommended else tool_registry.plan(
         content,
         skills=sorted(_skill_slugs(clean_context)),
         data_sources=clean_context.get("data_sources", []),
-        skill_tool_allowlist=registry.allowed_tools(resolved_skills) if resolved_skills else None,
+        skill_tool_allowlist=skill_tools if resolved_skills else None,
     )
-    return clean_context, resolved_skills, selection, model, [name for name, _ in tool_plan]
+    tool_names = [name for name, _ in tool_plan]
+    if not runtime_plan.clarification_recommended and _online_fallback_allowed(
+        content,
+        clean_context["runtime"],
+        allowed_data_sources=tool_registry.allowed_data_sources,
+        skill_tools=skill_tools,
+        has_selected_skills=bool(resolved_skills),
+    ) and "search_online_sources" not in tool_names:
+        # Reserve for the possible fallback. Settlement refunds the difference
+        # when synchronized pipeline evidence was already sufficient.
+        tool_names.append("search_online_sources")
+    return clean_context, resolved_skills, selection, model, tool_names
 
 
 def quote_agent_run(db: Session, user: User, content: str, context: dict | None = None) -> dict:
@@ -536,6 +568,62 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 call.latency_ms = int((time.perf_counter() - tool_started) * 1000)
                 db.commit()
                 yield _sse("tool.completed", {"toolCallId": call.id, "tool": tool_name, "error": call.error_message})
+
+        if (
+            evidence_pack.count("source_document") == 0
+            and _online_fallback_allowed(
+                user_message.content,
+                runtime_plan,
+                allowed_data_sources=registry.allowed_data_sources,
+                skill_tools=skill_tools,
+                has_selected_skills=bool(selected_skills),
+            )
+        ):
+            if time.perf_counter() > skill_deadline:
+                raise TimeoutError("SKILL_RUNTIME_TIMEOUT")
+            tool_name = "search_online_sources"
+            arguments = {"query": user_message.content, "count": 8}
+            call = AgentToolCall(
+                run_id=run.id,
+                tool_name=tool_name,
+                arguments_json=arguments,
+                status="running",
+            )
+            db.add(call)
+            db.commit()
+            yield _sse("tool.started", {"toolCallId": call.id, "tool": tool_name})
+            tool_started = time.perf_counter()
+            try:
+                result = registry.call(tool_name, arguments)
+                call.status = "completed"
+                call.result_summary = result.summary[:1000]
+                call.latency_ms = int((time.perf_counter() - tool_started) * 1000)
+                evidence_pack.add_tool_result(result)
+                for source in result.sources:
+                    key = _source_key(source)
+                    if key not in source_keys:
+                        source_keys.add(key)
+                        unique_sources.append(source)
+                run.tool_calls_count += 1
+                db.commit()
+                yield _sse(
+                    "tool.completed",
+                    {
+                        "toolCallId": call.id,
+                        "tool": tool_name,
+                        "summary": result.summary,
+                        "data": result.data,
+                    },
+                )
+            except Exception as exc:
+                call.status = "failed"
+                call.error_message = str(exc)[:500]
+                call.latency_ms = int((time.perf_counter() - tool_started) * 1000)
+                db.commit()
+                yield _sse(
+                    "tool.completed",
+                    {"toolCallId": call.id, "tool": tool_name, "error": call.error_message},
+                )
 
         evidence_summary = evidence_pack.public_summary()
         assistant.context_json = {

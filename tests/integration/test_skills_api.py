@@ -77,7 +77,7 @@ def test_skill_invocation_validation_returns_resolved_version(api_client, normal
         headers=auth_headers(normal_user),
     )
     assert response.status_code == 200, response.text
-    assert response.json()["skills"][0]["version"] == "1.1.0"
+    assert response.json()["skills"][0]["version"] == "1.2.0"
     assert "get_market_quote" in response.json()["tool_allowlist"]
     assert "search_source_documents" in response.json()["tool_allowlist"]
 
