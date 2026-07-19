@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from pathlib import Path
+
 from apps.api.services.credit_service import consume_credits, quote_task, reserve_task
 from packages.database.models import CreditLedger, CreditRefundEvent, CreditRewardGrant
 from tests.conftest import auth_headers
+
+
+def test_admin_router_is_available_during_initial_launch() -> None:
+    source = (Path(__file__).resolve().parents[2] / "apps/api/main.py").read_text()
+    assert source.index("app.include_router(admin.router)") < source.index("if not settings.initial_launch_mode:")
 
 
 def test_admin_credit_accounts_are_database_backed_and_role_gated(api_client, normal_user, admin_user):
