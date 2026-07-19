@@ -60,6 +60,7 @@ def test_agent_quote_is_server_planned_and_persists_runtime_metadata(db, normal_
     assert quote["plan"]["intent"] == "market_research"
     assert quote["plan"]["auto_selected_skills"] is True
     assert quote["planned_tools"] == ["get_market_quote", "search_source_documents"]
+    assert quote["task_type"] == "agent_market_research"
     assert quote["reservation_amount"] >= 2
 
     conversation = create_conversation(db, normal_user)

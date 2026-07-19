@@ -219,13 +219,17 @@ def _metering_action(context: dict) -> str:
     skills = _skill_slugs(context)
     if "deep_research" in skills:
         return "agent_deep_research"
-    if sources.intersection({"x", "x-twitter", "bloomberg", "onchain"}):
-        return "agent_advanced_data"
     if "portfolio" in sources or "portfolio_review" in skills:
         return "agent_portfolio_analysis"
-    if sources.intersection({"rss", "fintwit"}) or "news_research" in skills:
+    if sources.intersection({"x", "x-twitter", "bloomberg", "onchain"}):
+        return "agent_advanced_data"
+    if "news_research" in skills:
         return "agent_news_research"
-    if "market" in sources or "market_research" in skills:
+    if "market_research" in skills:
+        return "agent_market_research"
+    if sources.intersection({"rss", "fintwit"}):
+        return "agent_news_research"
+    if "market" in sources:
         return "agent_market_research"
     return "agent_chat_basic"
 
