@@ -23,7 +23,11 @@ export function AuthLegalNotice({ locale, mode }: { locale: Locale; mode: "login
         </>
       ) : (
         <>
-          {zh ? "继续使用 Google 登录即表示你确认已阅读" : "By continuing with Google, you acknowledge our "}
+          {zh ? "继续使用 Google 登录即表示你同意" : "By continuing with Google, you agree to our "}
+          <a className={linkClass} href={TERMS_URL} target="_blank" rel="noreferrer">
+            {zh ? "服务条款" : "Terms of Service"}
+          </a>
+          {zh ? "并确认已阅读" : " and acknowledge our "}
           <a className={linkClass} href={PRIVACY_URL} target="_blank" rel="noreferrer">
             {zh ? "隐私政策" : "Privacy Policy"}
           </a>
