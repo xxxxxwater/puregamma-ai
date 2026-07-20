@@ -24,6 +24,7 @@ export const legacyLocaleRoutes = [
   "/daily-push",
   "/billing",
   "/admin",
+  "/internal/login",
   "/login",
   "/signup",
   "/onboarding/assets",

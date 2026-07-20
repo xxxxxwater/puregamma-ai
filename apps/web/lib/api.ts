@@ -92,6 +92,13 @@ export async function mockLogin(email = "demo@puregamma.ai", name = "Demo User",
   });
 }
 
+export async function internalAdminLogin(username: string, password: string) {
+  return requestStrict<AuthResponse>("/auth/internal-admin-login", {
+    method: "POST",
+    body: JSON.stringify({ username, password })
+  });
+}
+
 export async function googleLogin(locale: Locale = defaultLocale) {
   const requested = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("returnTo");
   const returnTo = requested?.startsWith("/") && !requested.startsWith("//") ? requested : `/${locale}/chat`;
