@@ -442,11 +442,13 @@ export function getPortfolioSnapshot(locale: Locale = defaultLocale) {
 }
 
 export type PortfolioConnection = { id: string; provider: string; name: string; status: string; last_sync: string | null; error?: string | null };
-export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; nav_history: Array<{ date: string; nav: number }>; connections: PortfolioConnection[]; providers: { plaid: boolean; ibkr: boolean; hyperliquid: boolean } };
+export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; nav_history: Array<{ date: string; nav: number }>; connections: PortfolioConnection[]; providers: { plaid: boolean; ibkr: boolean; hyperliquid: boolean; evm?: boolean } };
 
 export function createPlaidLinkToken() { return requestStrict<{ link_token: string }>("/portfolio/plaid/link-token", { method: "POST" }); }
 export function exchangePlaidToken(publicToken: string, institutionName: string) { return requestStrict<PortfolioSnapshot>("/portfolio/plaid/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken, institution_name: institutionName }) }); }
 export function connectHyperliquid(address: string) { return requestStrict<PortfolioSnapshot>("/portfolio/hyperliquid/connect", { method: "POST", body: JSON.stringify({ address }) }); }
+export function createEvmWalletChallenge(address: string, chainId: number) { return requestStrict<{ message: string; challenge_token: string; expires_in: number }>("/portfolio/evm/challenge", { method: "POST", body: JSON.stringify({ address, chain_id: chainId }) }); }
+export function connectEvmWallet(address: string, chainId: number, message: string, challengeToken: string, signature: string) { return requestStrict<PortfolioSnapshot>("/portfolio/evm/connect", { method: "POST", body: JSON.stringify({ address, chain_id: chainId, message, challenge_token: challengeToken, signature }) }); }
 export function getIbkrAuthorizeUrl() { return requestStrict<{ authorize_url: string }>("/portfolio/ibkr/authorize"); }
 export function exchangeIbkrCode(code: string, state: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/ibkr/exchange?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, { method: "POST" }); }
 export function syncPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}/sync`, { method: "POST" }); }

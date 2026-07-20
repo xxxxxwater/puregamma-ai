@@ -189,6 +189,10 @@ class Settings:
         _csv(os.getenv("MOBILE_PORTFOLIO_REDIRECT_URIS", "puregamma://oauth/ibkr"))
     )
     hyperliquid_api_url: str = os.getenv("HYPERLIQUID_API_URL", "https://api.hyperliquid.xyz")
+    moralis_api_key: str = os.getenv("MORALIS_API_KEY", "")
+    moralis_api_url: str = os.getenv(
+        "MORALIS_API_URL", "https://deep-index.moralis.io/api/v2.2"
+    )
 
     imessage_provider: str = os.getenv("IMESSAGE_PROVIDER", "mock")
     imessage_relay_url: str = os.getenv("IMESSAGE_RELAY_URL", "http://localhost:8787")
