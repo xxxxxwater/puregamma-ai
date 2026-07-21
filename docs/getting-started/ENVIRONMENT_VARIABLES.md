@@ -45,6 +45,10 @@ Sensitivity levels:
 | `OPENAI_API_KEY` | Required for real LLM | empty | `sk-...` | Store in secret manager and monitor usage. | Secret |
 | `OPENAI_BASE_URL` | No | empty | `https://api.openai.com/v1` | Use only trusted OpenAI-compatible endpoints. | Internal |
 | `OPENAI_MODEL` | No | empty | `gpt-4.1-mini` | Provider-specific override for OpenAI-compatible routing. | Internal |
+| `OPENAI_TRANSCRIBE_MODEL` | No | `gpt-4o-mini-transcribe` | `gpt-4o-mini-transcribe` | Server-side speech-to-text model used by the optional Private Secretary voice input. | Internal |
+| `NOIZ_API_KEY` | Required for Secretary voice output | empty | `...` | Store only in the server secret store; never expose it to the browser or commit it. | Secret |
+| `NOIZ_VOICE_ID` | No | `183203aa0` | `183203aa0` | Default Chinese voice identifier. | Internal |
+| `NOIZ_ENGLISH_VOICE_ID` | No | `7bc8b578` | `7bc8b578` | Default English voice identifier. | Internal |
 | `LLM_MODEL` | No | empty | `gpt-4.1-mini` | Pin model per environment before production. | Internal |
 | `DEEPSEEK_API_KEY` | Required when `LLM_PROVIDER=deepseek` | empty | `...` | Keep blank in examples and store real values only in secret manager or local `.env`. | Secret |
 | `DEEPSEEK_BASE_URL` | No | `https://api.deepseek.com` | `https://api.deepseek.com` | OpenAI-compatible base URL. | Internal |

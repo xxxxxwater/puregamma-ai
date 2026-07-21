@@ -153,6 +153,41 @@ def test_stripe_signature_valid_payload_is_accepted(api_client, monkeypatch):
     assert response.json()["processed"] is True
 
 
+def test_stripe_sdk_event_object_is_accepted(api_client, monkeypatch):
+    import stripe
+
+    from apps.api.routers import stripe_webhook as router
+
+    event = stripe.Event.construct_from(
+        {
+            "id": "evt_real_stripe_object",
+            "object": "event",
+            "type": "product.updated",
+            "data": {"object": {"id": "prod_real_object", "name": "Pro"}},
+        },
+        stripe.api_key,
+    )
+    monkeypatch.setattr(stripe.Webhook, "construct_event", lambda *args, **kwargs: event)
+    monkeypatch.setattr(
+        router,
+        "get_settings",
+        lambda: Settings(
+            billing_mode="stripe",
+            stripe_webhook_secret="whsec_test",
+            stripe_webhook_tolerance_seconds=300,
+        ),
+    )
+
+    response = api_client.post(
+        "/stripe/webhook",
+        content=b'{"id":"evt_real_stripe_object"}',
+        headers={"Stripe-Signature": f"t={int(time.time())},v1=test"},
+    )
+
+    assert response.status_code == 200
+    assert response.json()["processed"] is True
+
+
 def test_stripe_signature_expired_timestamp_is_rejected(api_client, monkeypatch):
     from apps.api.routers import stripe_webhook as router
 

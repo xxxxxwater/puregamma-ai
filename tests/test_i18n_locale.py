@@ -18,7 +18,7 @@ def test_daily_report_accepts_locale_en(api_client, max_user):
     assert response.status_code == 200
     report = response.json()["report"]
     assert report["language"] == "en"
-    assert "PureGamma Daily Crypto Brief" in report["content_markdown"]
+    assert report["title"] == "PureGamma Daily Brief"
 
 
 def test_daily_report_accepts_locale_zh(api_client, max_user):
@@ -27,7 +27,7 @@ def test_daily_report_accepts_locale_zh(api_client, max_user):
     assert response.status_code == 200
     report = response.json()["report"]
     assert report["language"] == "zh"
-    assert "PureGamma 每日加密市场简报" in report["content_markdown"]
+    assert report["title"] == "PureGamma 每日简报"
 
 
 def test_report_language_saved(api_client, max_user):
