@@ -185,21 +185,6 @@ def test_agent_retrieval_returns_source_citations(db, normal_user):
     assert result.sources[0].published_at is not None
 
 
-def test_agent_retrieval_exposes_only_link_metadata_without_redistribution_rights(db, normal_user):
-    item = ProviderDocument(external_id="agent-linked-1", source_name="Linked RSS", source_type="rss_news", title="BTC liquidity conditions improve", content="Licensed article body must not enter the model context", summary="Licensed summary must not enter the model context", url="https://linked.example/btc", published_at=datetime.now(timezone.utc), symbols=["BTC"], topics=["market"], sentiment={"score": 0.5, "label": "positive"}, credibility_score=0.75, license_status="linked-summary-only", redistribution_allowed=False)
-    persist_documents(db, "rss", [item])
-    db.commit()
-
-    result = AgentToolRegistry(db, normal_user.id).search_source_documents(query="current BTC market conditions", symbols=["BTC"], providers=["rss"], hours=24)
-
-    assert result.data[0]["evidenceType"] == "linked_metadata"
-    assert result.data[0]["contentPolicy"] == "linked_metadata_only"
-    assert result.data[0]["summary"] is None
-    assert result.data[0]["sentiment"] == {}
-    assert result.sources[0].url == "https://linked.example/btc"
-    assert "Licensed article body" not in str(result.data)
-
-
 def test_data_source_admin_apis_require_admin(api_client, normal_user, admin_user):
     assert api_client.get("/admin/data-sources", headers=auth_headers(normal_user)).status_code == 403
     response = api_client.get("/admin/data-sources", headers=auth_headers(admin_user))

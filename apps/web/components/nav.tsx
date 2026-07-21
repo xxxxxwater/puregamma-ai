@@ -2,9 +2,9 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname } from "next/navigation";
-import { Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, CreditCard, Gauge, LayoutDashboard, UserRound, type LucideIcon } from "lucide-react";
+import { Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, MessageCircle, UserRound, type LucideIcon } from "lucide-react";
 import { AppearanceControls } from "@/components/appearance-controls";
 import { DisclaimerFooter, PlanBadge, Badge } from "@/components/puregamma";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
@@ -14,6 +14,7 @@ import { stripLocale, withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 import type { TranslationKey } from "@/lib/translations";
 import { getMe } from "@/lib/api";
+import { publishUserState, USER_STATE_EVENT, type SessionUserState } from "@/lib/user-state";
 
 type NavItem = {
   href: string;
@@ -26,14 +27,7 @@ type NavGroup = {
   items: NavItem[];
 };
 
-type StoredUser = {
-  email?: string;
-  name?: string;
-  avatar_url?: string | null;
-  auth_provider?: string;
-  plan?: string;
-  credit_balance?: number;
-};
+type StoredUser = SessionUserState;
 
 const groups: NavGroup[] = [
   {
@@ -42,13 +36,15 @@ const groups: NavGroup[] = [
       { href: "/dashboard", labelKey: "common.nav.dashboard", icon: LayoutDashboard },
       { href: "/chat", labelKey: "common.nav.chat", icon: Bot },
       { href: "/reports", labelKey: "common.nav.reports", icon: BookOpen },
-      { href: "/options", labelKey: "common.nav.options", icon: Gauge }
+      { href: "/options", labelKey: "common.nav.options", icon: Gauge },
+      { href: "/backtest", labelKey: "common.nav.backtest", icon: FlaskConical }
     ]
   },
   {
     labelKey: "common.nav.groups.portfolio",
     items: [
-      { href: "/portfolio", labelKey: "common.nav.nav", icon: BriefcaseBusiness }
+      { href: "/portfolio", labelKey: "common.nav.nav", icon: BriefcaseBusiness },
+      { href: "/secretary", labelKey: "common.nav.secretary", icon: HeartHandshake }
     ]
   },
   {
@@ -84,10 +80,10 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   const activePathname = stripLocale(pathname);
   return (
     <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border-pg bg-bg-panel p-4 lg:block">
-      <Link href={withLocale(locale, "/")} className="flex items-center gap-2 font-semibold text-text-pg">
-        <Image src="/logo.png" alt="PureGamma" width={20} height={20} />PureGamma AI
+      <Link href={withLocale(locale, "/")} className="flex items-center gap-2 text-lg font-semibold text-text-pg">
+        <Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI
       </Link>
-      <div className="mt-2 text-xs leading-5 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
+      <div className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
       <div className="mt-4">
         <div className="flex items-center gap-2"><LanguageSwitcher compact /><AppearanceControls locale={locale} /></div>
       </div>
@@ -110,17 +106,47 @@ export function SidebarNav({ locale }: { locale: Locale }) {
           </div>
         ))}
       </nav>
+      <Link href={withLocale(locale, "/account#imessage-bind")} className="absolute bottom-5 left-4 right-4 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg">
+        <MessageCircle className="h-4 w-4" aria-hidden />
+        {locale === "zh" ? "绑定 iMessage" : "Bind iMessage"}
+      </Link>
     </aside>
   );
 }
 
 export function TopStatusBar({ locale }: { locale: Locale }) {
   const [storedUser, setStoredUser] = useState<StoredUser | null>(null);
-  useEffect(() => {
-    try {
-      getMe().then((result) => setStoredUser(result.user)).catch(() => setStoredUser(null));
-    } catch { setStoredUser(null); }
+  const refreshUser = useCallback(async () => {
+    const result = await getMe();
+    setStoredUser(result.user);
+    publishUserState(result.user, true);
   }, []);
+
+  useEffect(() => {
+    let active = true;
+    const refresh = () => refreshUser().catch(() => {
+      if (active) setStoredUser(null);
+    });
+    const handleUserState = (event: Event) => {
+      const detail = (event as CustomEvent<SessionUserState>).detail;
+      if (detail && active) setStoredUser((current) => ({ ...(current || {}), ...detail }));
+    };
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") void refresh();
+    };
+    void refresh();
+    window.addEventListener(USER_STATE_EVENT, handleUserState);
+    window.addEventListener("focus", refresh);
+    document.addEventListener("visibilitychange", handleVisibility);
+    const refreshTimer = window.setInterval(refresh, 60_000);
+    return () => {
+      active = false;
+      window.clearInterval(refreshTimer);
+      window.removeEventListener(USER_STATE_EVENT, handleUserState);
+      window.removeEventListener("focus", refresh);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [refreshUser]);
   return (
     <header className="sticky top-0 z-20 border-b border-border-pg bg-bg-app/95 backdrop-blur">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 py-3">
@@ -129,7 +155,7 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
           PureGamma AI
         </Link>
         <div className="hidden items-center gap-2 text-xs md:flex">
-          <PlanBadge plan={storedUser?.plan || "Free"} />
+          <PlanBadge plan={storedUser?.plan || "Free"} locale={locale} />
           <Badge tone="neutral">{storedUser ? `${storedUser.credit_balance ?? 0} credits` : t(locale, "common.topbar.credits")}</Badge>
           <LanguageSwitcher compact />
           <AppearanceControls locale={locale} />

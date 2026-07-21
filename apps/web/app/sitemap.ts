@@ -1,0 +1,31 @@
+import type { MetadataRoute } from "next";
+
+const baseUrl = process.env.NEXT_PUBLIC_SITE_URL || "https://puregamma.ai";
+
+const locales = ["en", "zh"] as const;
+
+const publicPages = [
+  { path: "/", changeFrequency: "daily" as const, priority: 1.0 },
+  { path: "/login", changeFrequency: "monthly" as const, priority: 0.6 },
+  { path: "/signup", changeFrequency: "monthly" as const, priority: 0.7 },
+  { path: "/forgot-password", changeFrequency: "monthly" as const, priority: 0.3 },
+  { path: "/terms", changeFrequency: "monthly" as const, priority: 0.2 },
+  { path: "/privacy", changeFrequency: "monthly" as const, priority: 0.2 },
+];
+
+export default function sitemap(): MetadataRoute.Sitemap {
+  const entries: MetadataRoute.Sitemap = [];
+
+  for (const locale of locales) {
+    for (const page of publicPages) {
+      entries.push({
+        url: `${baseUrl}/${locale}${page.path === "/" ? "" : page.path}`,
+        lastModified: new Date(),
+        changeFrequency: page.changeFrequency,
+        priority: page.priority,
+      });
+    }
+  }
+
+  return entries;
+}

@@ -1,14 +1,19 @@
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
+import json
 import secrets
 import time
 import uuid
-from datetime import timedelta, timezone
+from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
 import requests
+from eth_account import Account
+from eth_account.messages import encode_defunct
+from redis import Redis
 from fastapi import APIRouter, Depends, Header, HTTPException
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
@@ -17,7 +22,7 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.credit_service import InsufficientCreditsError, quote_task, refund_task, reserve_task, settle_task
-from apps.api.services.portfolio_service import autopilot_view, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_link_token, portfolio_view, run_autopilot_review, sync_account, update_autopilot
+from apps.api.services.portfolio_service import autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_link_token, portfolio_view, run_autopilot_review, sync_account, update_autopilot
 from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
 from packages.skills.registry import SkillResolutionError
@@ -25,6 +30,7 @@ from packages.skills.registry import SkillResolutionError
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 MOBILE_IBKR_TTL_SECONDS = 600
+EVM_CHALLENGE_TTL_SECONDS = 300
 
 
 def _ibkr_state(user_id: str) -> str:
@@ -52,6 +58,17 @@ class PlaidExchangeRequest(BaseModel):
 
 class HyperliquidRequest(BaseModel):
     address: str
+
+
+class EVMChallengeRequest(BaseModel):
+    address: str = Field(min_length=42, max_length=42)
+    chain_id: int = Field(gt=0)
+
+
+class EVMConnectRequest(EVMChallengeRequest):
+    challenge_token: str = Field(min_length=32, max_length=2048)
+    message: str = Field(min_length=32, max_length=4096)
+    signature: str = Field(min_length=132, max_length=132)
 
 
 class AutopilotRequest(BaseModel):
@@ -90,6 +107,89 @@ def _mobile_redirect(uri: str, **values: str) -> str:
     query = dict(parse_qsl(parts.query, keep_blank_values=True))
     query.update(values)
     return urlunsplit((parts.scheme, parts.netloc, parts.path, urlencode(query), parts.fragment))
+
+
+def _b64url(value: bytes) -> str:
+    return base64.urlsafe_b64encode(value).rstrip(b"=").decode()
+
+
+def _b64url_decode(value: str) -> bytes:
+    return base64.urlsafe_b64decode(value + "=" * (-len(value) % 4))
+
+
+def _evm_challenge_key(token: str) -> str:
+    return f"portfolio:evm-challenge:{hashlib.sha256(token.encode()).hexdigest()}"
+
+
+def _evm_challenge(user: User, address: str, chain_id: int) -> tuple[str, str]:
+    normalized = address.strip().lower()
+    if not normalized.startswith("0x") or len(normalized) != 42 or any(ch not in "0123456789abcdef" for ch in normalized[2:]):
+        raise ValueError("Invalid EVM wallet address")
+    issued_at = int(time.time())
+    nonce = secrets.token_hex(16)
+    payload = {
+        "user_id": user.id,
+        "address": normalized,
+        "chain_id": chain_id,
+        "nonce": nonce,
+        "issued_at": issued_at,
+    }
+    encoded = _b64url(json.dumps(payload, separators=(",", ":"), sort_keys=True).encode())
+    signature = hmac.new(get_settings().jwt_secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+    token = f"{encoded}.{signature}"
+    issued = datetime.fromtimestamp(issued_at, timezone.utc).isoformat().replace("+00:00", "Z")
+    message = (
+        "app.puregamma.ai wants you to sign in with your Ethereum account:\n"
+        f"{address}\n\n"
+        "Verify this wallet for read-only multi-chain portfolio tracking. No transaction or token approval will be requested.\n\n"
+        "URI: https://app.puregamma.ai/portfolio\n"
+        "Version: 1\n"
+        f"Chain ID: {chain_id}\n"
+        f"Nonce: {nonce}\n"
+        f"Issued At: {issued}"
+    )
+    return message, token
+
+
+def _verify_evm_challenge(payload: EVMConnectRequest, user: User) -> None:
+    try:
+        encoded, signature = payload.challenge_token.split(".", 1)
+        expected_signature = hmac.new(get_settings().jwt_secret.encode(), encoded.encode(), hashlib.sha256).hexdigest()
+        if not hmac.compare_digest(signature, expected_signature):
+            raise ValueError
+        challenge = json.loads(_b64url_decode(encoded))
+        if challenge.get("user_id") != user.id:
+            raise ValueError
+        if challenge.get("address") != payload.address.lower() or int(challenge.get("chain_id")) != payload.chain_id:
+            raise ValueError
+        if int(time.time()) - int(challenge.get("issued_at")) > EVM_CHALLENGE_TTL_SECONDS:
+            raise ValueError
+        expected_message, _ = _evm_challenge_from_payload(payload.address, challenge)
+        if not hmac.compare_digest(payload.message, expected_message):
+            raise ValueError
+        recovered = Account.recover_message(encode_defunct(text=payload.message), signature=payload.signature)
+        if recovered.lower() != payload.address.lower():
+            raise ValueError
+        redis = Redis.from_url(get_settings().redis_url, decode_responses=True)
+        if redis.getdel(_evm_challenge_key(payload.challenge_token)) != user.id:
+            raise ValueError
+    except Exception as exc:
+        raise ValueError("Invalid or expired wallet signature") from exc
+
+
+def _evm_challenge_from_payload(address: str, challenge: dict) -> tuple[str, str]:
+    issued = datetime.fromtimestamp(int(challenge["issued_at"]), timezone.utc).isoformat().replace("+00:00", "Z")
+    message = (
+        "app.puregamma.ai wants you to sign in with your Ethereum account:\n"
+        f"{address}\n\n"
+        "Verify this wallet for read-only multi-chain portfolio tracking. No transaction or token approval will be requested.\n\n"
+        "URI: https://app.puregamma.ai/portfolio\n"
+        "Version: 1\n"
+        f"Chain ID: {int(challenge['chain_id'])}\n"
+        f"Nonce: {challenge['nonce']}\n"
+        f"Issued At: {issued}"
+    )
+    return message, ""
 
 
 @router.get("")
@@ -214,6 +314,37 @@ def add_hyperliquid(payload: HyperliquidRequest, db: Session = Depends(get_db), 
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/evm/challenge")
+def create_evm_challenge(payload: EVMChallengeRequest, user: User = Depends(get_current_user)) -> dict:
+    try:
+        message, challenge_token = _evm_challenge(user, payload.address, payload.chain_id)
+        Redis.from_url(get_settings().redis_url, decode_responses=True).set(
+            _evm_challenge_key(challenge_token),
+            user.id,
+            ex=EVM_CHALLENGE_TTL_SECONDS,
+        )
+        return {"message": message, "challenge_token": challenge_token, "expires_in": EVM_CHALLENGE_TTL_SECONDS}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
+@router.post("/evm/connect")
+def add_evm_wallet(payload: EVMConnectRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        _verify_evm_challenge(payload, user)
+        account = connect_evm_wallet(db, user, payload.address, payload.chain_id)
+        sync_account(db, user, account)
+        return portfolio_view(db, user)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 

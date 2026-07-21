@@ -9,6 +9,7 @@ READ_ONLY_SKILL_TOOLS = {
     "get_recent_news",
     "search_news",
     "search_source_documents",
+    "search_online_sources",
     "get_defi_protocol_metrics",
     "get_chain_metrics",
     "get_onchain_snapshot",
@@ -78,4 +79,5 @@ TOOL_DATA_SOURCE_REQUIREMENTS = {
     "get_options_context": "options",
     "get_onchain_snapshot": "onchain",
     "get_chain_metrics": "onchain",
+    "search_online_sources": "rss",
 }

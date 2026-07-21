@@ -11,15 +11,16 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
-from apps.api.dependencies import create_access_token, get_db
+from apps.api.dependencies import create_access_token, get_current_user, get_db, set_session_cookie
 from apps.api.routers.auth import serialize_user
 from apps.api.routers.google_auth import GOOGLE_AUTHORIZE_URL, _challenge, _exchange_code_for_token, _verify_google_id_token, upsert_google_user
-from packages.database.models import MobileOAuthSession, User, utcnow
+from packages.database.models import MobileOAuthSession, MobileWebSession, User, utcnow
 
 
 router = APIRouter(prefix="/auth/mobile", tags=["auth"])
 SESSION_TTL_SECONDS = 600
 TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60
+WEB_SESSION_TTL_SECONDS = 60
 
 
 class MobileOAuthStart(BaseModel):
@@ -33,6 +34,10 @@ class MobileOAuthExchange(BaseModel):
     code: str = Field(min_length=32, max_length=512)
     code_verifier: str = Field(min_length=43, max_length=128)
     nonce: str = Field(min_length=32, max_length=256)
+
+
+class MobileWebSessionRequest(BaseModel):
+    locale: str = Field(default="en", pattern="^(en|zh)$")
 
 
 def _hash(value: str) -> str:
@@ -119,3 +124,43 @@ def mobile_google_exchange(payload: MobileOAuthExchange, db: Session = Depends(g
     row.exchange_code_hash = None
     db.commit()
     return {"access_token": create_access_token(user, TOKEN_TTL_SECONDS), "token_type": "bearer", "expires_in": TOKEN_TTL_SECONDS, "user": serialize_user(user)}
+
+
+@router.post("/web-session")
+def create_mobile_web_session(
+    payload: MobileWebSessionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Exchange an Android Bearer token for a short-lived, one-time web cookie handoff."""
+    code = secrets.token_urlsafe(48)
+    db.query(MobileWebSession).filter(MobileWebSession.expires_at < utcnow()).delete(synchronize_session=False)
+    row = MobileWebSession(
+        code_hash=_hash(code),
+        user_id=user.id,
+        locale=payload.locale,
+        expires_at=utcnow() + timedelta(seconds=WEB_SESSION_TTL_SECONDS),
+    )
+    db.add(row)
+    db.commit()
+    return {"handoff_path": f"/auth/mobile/web-session/consume?code={code}", "expires_in": WEB_SESSION_TTL_SECONDS}
+
+
+@router.get("/web-session/consume")
+def consume_mobile_web_session(code: str, db: Session = Depends(get_db)):
+    row = (
+        db.query(MobileWebSession)
+        .filter(MobileWebSession.code_hash == _hash(code))
+        .with_for_update()
+        .one_or_none()
+    )
+    if not row or row.consumed_at or _expired(row.expires_at):
+        raise HTTPException(status_code=400, detail={"code": "MOBILE_WEB_SESSION_INVALID"})
+    user = db.get(User, row.user_id)
+    if not user:
+        raise HTTPException(status_code=400, detail={"code": "MOBILE_WEB_SESSION_USER_MISSING"})
+    row.consumed_at = utcnow()
+    response = RedirectResponse(f"{get_settings().site_url}/{row.locale}/dashboard", status_code=302)
+    set_session_cookie(response, user)
+    db.commit()
+    return response

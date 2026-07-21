@@ -3,6 +3,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
 import { Badge, PGResearchCard } from "@/components/puregamma";
+import { LandingFooterRotator } from "@/components/landing-footer-rotator";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace } from "@/lib/translations";
 import { isLocale, type Locale, withLocale } from "@/i18n/routing";
@@ -19,12 +20,8 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
   return (
     <div className="space-y-16 py-4">
       <section className="border border-border-pg bg-bg-panel p-6 md:p-10">
-        <div className="flex flex-wrap items-center justify-between gap-4 border-b border-border-pg pb-5 text-sm">
+        <div className="flex flex-wrap items-center gap-4 border-b border-border-pg pb-5 text-sm">
           <div className="flex items-center gap-2 font-semibold"><Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI</div>
-          <div className="flex flex-wrap items-center gap-3">
-            <Link href={withLocale(locale, "/login")} className="inline-flex items-center border border-border-pg px-4 py-2 text-sm font-semibold hover:border-border-pg-strong">{locale === "zh" ? "登录" : "Login"}</Link>
-            <Link href={withLocale(locale, "/login")} className="inline-flex items-center border border-border-pg-strong bg-pg-white px-4 py-2 text-sm font-semibold text-pg-black">{locale === "zh" ? "注册" : "Sign Up"}</Link>
-          </div>
         </div>
         <div className="grid gap-10 py-16 lg:grid-cols-[1.05fr_0.95fr] lg:items-end">
           <div>
@@ -60,7 +57,7 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
         {copy.research.cards.map((item) => <PGResearchCard key={item.title}><h3 className="text-sm font-semibold">{item.title}</h3><p className="mt-2 text-xs leading-5 text-text-pg-muted">{item.body}</p></PGResearchCard>)}
       </section>
 
-      <footer className="border-t border-border-pg pt-5 text-xs text-text-pg-muted">{copy.footer}</footer>
+      <LandingFooterRotator slides={copy.footerSlides} />
     </div>
   );
 }

@@ -29,6 +29,8 @@ TASK_LIMITS = {
     "strategy_activation": (5, 40), "runtime_reconciliation": (2, 30),
     "manual_order_preview": (1, 10),
     "portfolio_monitor": (3, 30), "paper_monitor": (3, 30),
+    "private_secretary_reply": (20, 20),
+    "secretary_voice": (2, 8), "secretary_transcribe": (2, 8),
 }
 
 @dataclass(frozen=True)

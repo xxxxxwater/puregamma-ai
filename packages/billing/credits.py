@@ -30,6 +30,7 @@ CREDIT_COSTS: dict[str, int] = {
     "agent_advanced_data": 2,
     "agent_deep_research": 10,
     "agent_luna_research": 6,
+    "private_secretary_reply": 20,
 }
 
 

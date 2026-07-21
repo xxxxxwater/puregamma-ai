@@ -6,7 +6,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
-from apps.api.services.agent_service import AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from apps.api.services.agent_service import AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
 from apps.api.services.credit_service import InsufficientCreditsError, refund_task
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.skill_service import skill_registry
@@ -38,6 +38,16 @@ class MessageRequest(BaseModel):
     model: str | None = None
 
 
+class AgentQuoteRequest(BaseModel):
+    content: str = ""
+    data_sources: list[str] = Field(default_factory=list)
+    skills: list[str] = Field(default_factory=list)
+    skill_refs: list[dict] = Field(default_factory=list, max_length=8)
+    custom_prompt: str = ""
+    attachments: list[dict] = Field(default_factory=list)
+    model: str | None = None
+
+
 @router.get("/quota")
 def get_quota(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     return quota_state(db, user)
@@ -47,6 +57,29 @@ def get_quota(db: Session = Depends(get_db), user: User = Depends(get_current_us
 def capabilities(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     entitlement = get_user_entitlement(db, user.id)
     return {"capabilities": entitlement, "quota": quota_state(db, user), "models": agent_model_options(db, user), "skills": skill_registry(db, user).list_visible()}
+
+
+@router.post("/quote")
+def agent_quote(payload: AgentQuoteRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        return quote_agent_run(db, user, payload.content, context={
+            "data_sources": payload.data_sources,
+            "skills": payload.skills,
+            "skill_refs": payload.skill_refs,
+            "custom_prompt": payload.custom_prompt,
+            "attachments": payload.attachments,
+            "model": payload.model,
+        })
+    except AgentModelInvalidError as exc:
+        raise HTTPException(status_code=400, detail={"code": str(exc), "message": "The selected Agent model is invalid."}) from exc
+    except AgentModelPlanError as exc:
+        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "GPT-5.6 Luna requires an eligible plan."}) from exc
+    except AgentModelUnavailableError as exc:
+        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "GPT-5.6 Luna is currently unavailable."}) from exc
+    except SkillResolutionError as exc:
+        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
 @router.get("/conversations")

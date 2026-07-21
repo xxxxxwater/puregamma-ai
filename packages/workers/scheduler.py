@@ -24,6 +24,14 @@ def build_scheduler() -> BlockingScheduler:
     )
     scheduler.add_job(
         enqueue,
+        CronTrigger(hour=0, minute=0),
+        args=["puregamma.send_unified_daily_brief_to_all"],
+        id="unified_daily_brief_broadcast",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
         CronTrigger(hour=0, minute=10),
         args=["puregamma.generate_personalized_daily_reports"],
         id="personalized_daily_reports",
@@ -75,7 +83,12 @@ def build_scheduler() -> BlockingScheduler:
     )
     scheduler.add_job(
         enqueue,
-        IntervalTrigger(hours=48),
+        CronTrigger(
+            day_of_week="mon-fri",
+            hour=9,
+            minute=35,
+            timezone="America/New_York",
+        ),
         args=["puregamma.refresh_earnings_gamma_candidates"],
         id="earnings_gamma_refresh",
         max_instances=1,
@@ -172,6 +185,14 @@ def build_scheduler() -> BlockingScheduler:
             max_instances=1,
             coalesce=True,
         )
+    scheduler.add_job(
+        enqueue,
+        CronTrigger(hour=1, minute=40),
+        args=["puregamma.refresh_backtest_lab_candles"],
+        id="backtest_lab_candles_refresh",
+        max_instances=1,
+        coalesce=True,
+    )
     return scheduler
 
 

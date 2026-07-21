@@ -15,6 +15,9 @@ ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 if ROOT not in sys.path:
     sys.path.insert(0, ROOT)
 
+# Keep market data deterministic and offline for the whole test suite.
+os.environ.setdefault("ENABLE_MOCK_MARKET_DATA", "true")
+
 from apps.api.dependencies import create_access_token, get_db  # noqa: E402
 from apps.api.main import app  # noqa: E402
 from packages.database.models import Base, User, UserPreference  # noqa: E402

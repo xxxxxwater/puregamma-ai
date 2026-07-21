@@ -1,0 +1,62 @@
+{
+  "seo": {
+    "title": "回测实验室 - PureGamma AI",
+    "description": "基于你的研究上下文生成 Nautilus 规范的日频与截面多空策略，并在 BTC/ETH 三年日线上回测。"
+  },
+  "title": "回测实验室",
+  "subtitle": "",
+  "coverage": {
+    "title": "共享行情数据集",
+    "bars": "根K线",
+    "refresh": "更新数据",
+    "refreshing": "更新中...",
+    "empty": "暂无K线数据，请先更新数据再运行回测。"
+  },
+  "generate": {
+    "title": "1. 生成策略规范",
+    "ideaPlaceholder": "描述你的交易想法，或留空生成稳健的 BTC/ETH 基线策略...",
+    "useMemory": "使用我的秘书与 Agent 对话上下文",
+    "button": "生成规范",
+    "generating": "生成中...",
+    "fallbackNotice": "模型输出未通过校验，已改用安全基线规范。",
+    "contextNotes": "条上下文"
+  },
+  "run": {
+    "title": "2. 核对规范并运行回测",
+    "specLabel": "策略规范（可编辑 JSON）",
+    "invalidSpec": "规范 JSON 无效，请修正后再运行。",
+    "window": "窗口",
+    "years1": "1 年",
+    "years2": "2 年",
+    "years3": "3 年",
+    "button": "运行回测",
+    "running": "回测中...",
+    "creditsHint": "Credits / 次",
+    "dailyLimit": "已达每日回测次数上限，请明天再试。"
+  },
+  "performance": {
+    "title": "绩效",
+    "totalReturn": "累计收益",
+    "sharpe": "夏普",
+    "maxDrawdown": "最大回撤",
+    "winRate": "胜率",
+    "tradeCount": "交易次数",
+    "turnover": "换手",
+    "exposure": "持仓时间占比",
+    "tailLoss": "尾部损失 (95%)",
+    "equityCurve": "净值曲线",
+    "perAsset": "分资产表现",
+    "assumptions": "回测假设"
+  },
+  "history": {
+    "title": "最近回测",
+    "empty": "暂无回测记录。"
+  },
+  "errors": {
+    "loadFailed": "回测实验室加载失败。",
+    "generateFailed": "策略规范生成失败。",
+    "runFailed": "回测运行失败。",
+    "loginRequired": "请登录后使用回测实验室。"
+  },
+  "disclaimer": "基于历史日线数据的假设性回测。过往表现不代表未来收益。使用该服务用户自行承担风险。提供本服务的主体概不负责AI生成所有责任。"
+}

@@ -63,7 +63,7 @@ PLANS: dict[str, Plan] = {
         max_alerts_per_month=100,
         allowed_data_sources=("market", "rss", "fintwit", "portfolio", "options"),
         notification_channels=("telegram", "email", "push"),
-        backtest_tier="basic", monitoring_tier="standard", queue_priority=0, private_playbooks=False, imessage_enabled=False,
+        backtest_tier="none", monitoring_tier="standard", queue_priority=0, private_playbooks=False, imessage_enabled=False,
         high_cost_enabled=True,
         carryover_cap=6000,
     ),

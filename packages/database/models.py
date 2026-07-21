@@ -37,7 +37,12 @@ class User(Base, TimestampMixin):
     google_user_id = Column(String, nullable=True, unique=True, index=True)
     avatar_url = Column(String, nullable=True)
     auth_provider = Column(String, nullable=False, default="mock")
+    password_hash = Column(String, nullable=True)
     email_verified_at = Column(DateTime(timezone=True), nullable=True)
+    email_verification_token = Column(String, nullable=True, unique=True, index=True)
+    email_verification_token_expires_at = Column(DateTime(timezone=True), nullable=True)
+    password_reset_token = Column(String, nullable=True, unique=True, index=True)
+    password_reset_token_expires_at = Column(DateTime(timezone=True), nullable=True)
     last_login_at = Column(DateTime(timezone=True), nullable=True)
     session_version = Column(Integer, nullable=False, default=0)
 
@@ -79,6 +84,18 @@ class MobileOAuthSession(Base):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
     expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
     consumed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class MobileWebSession(Base):
+    __tablename__ = "mobile_web_sessions"
+
+    id = Column(String, primary_key=True, default=new_id)
+    code_hash = Column(String, nullable=False, unique=True, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    locale = Column(String, nullable=False, default="en")
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    consumed_at = Column(DateTime(timezone=True), nullable=True, index=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
@@ -465,6 +482,47 @@ class BacktestRun(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
+class BacktestCandle(Base):
+    """Downloaded daily OHLCV bars shared by the backtest lab (BTC/ETH, 3y)."""
+
+    __tablename__ = "backtest_candles"
+    __table_args__ = (UniqueConstraint("symbol", "interval", "ts", name="uq_backtest_candle_symbol_interval_ts"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    symbol = Column(String, nullable=False, index=True)
+    interval = Column(String, nullable=False, default="1d")
+    ts = Column(DateTime(timezone=True), nullable=False, index=True)
+    open = Column(Float, nullable=False)
+    high = Column(Float, nullable=False)
+    low = Column(Float, nullable=False)
+    close = Column(Float, nullable=False)
+    volume = Column(Float, nullable=False)
+    provider = Column(String, nullable=False, default="binance")
+    fetched_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class BacktestLabRun(Base, TimestampMixin):
+    """Nautilus-spec daily/cross-sectional strategy backtest produced by the lab."""
+
+    __tablename__ = "backtest_lab_runs"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    idempotency_key = Column(String, nullable=True, unique=True, index=True)
+    status = Column(String, nullable=False, default="completed", index=True)
+    mode = Column(String, nullable=False, default="daily")
+    spec_json = Column(JSON, default=dict, nullable=False)
+    symbols_json = Column(JSON, default=list, nullable=False)
+    window_start = Column(DateTime(timezone=True), nullable=True)
+    window_end = Column(DateTime(timezone=True), nullable=True)
+    performance_json = Column(JSON, default=dict, nullable=False)
+    equity_json = Column(JSON, default=list, nullable=False)
+    assumptions_json = Column(JSON, default=dict, nullable=False)
+    context_used_json = Column(JSON, default=dict, nullable=False)
+    error = Column(String, nullable=True)
+    credits_spent = Column(Integer, nullable=False, default=0)
+
+
 class DataSource(Base, TimestampMixin):
     __tablename__ = "data_sources"
 
@@ -752,6 +810,18 @@ class AgentMessage(Base, TimestampMixin):
     error_code = Column(String, nullable=True)
     error_message = Column(Text, nullable=True)
     context_json = Column(JSON, default=dict, nullable=False)
+
+
+class IMessageInboundEvent(Base, TimestampMixin):
+    """Idempotency record for messages delivered by the macOS iMessage relay."""
+
+    __tablename__ = "imessage_inbound_events"
+
+    id = Column(String, primary_key=True, default=new_id)
+    relay_message_id = Column(String, nullable=False, unique=True, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String, nullable=False, default="processing", index=True)
+    assistant_message_id = Column(String, ForeignKey("agent_messages.id", ondelete="SET NULL"), nullable=True)
 
 
 class AgentRun(Base):

@@ -2,12 +2,44 @@
 @tailwind components;
 @tailwind utilities;
 
+@keyframes secretary-portrait-blink {
+  0%, 41.8%, 43.6%, 45.3%, 100% { opacity: 0; }
+  42.3%, 43.1%, 44.1%, 44.8% { opacity: 1; }
+}
+
+.secretary-portrait-blink {
+  animation: secretary-portrait-blink 7.2s linear infinite;
+  opacity: 0;
+}
+
+.secretary-theme-light {
+  display: none;
+}
+
+:root[data-theme="light"] .secretary-theme-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .secretary-theme-light {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secretary-portrait-blink {
+    animation: none;
+  }
+}
+
 :root {
   --background: #030303;
   --foreground: #ededed;
   --panel: #0d0d0d;
   --panel-muted: #111111;
   --panel-strong: #161616;
+  --secretary-assistant-bg: #3b2a25;
+  --secretary-assistant-text: #f1e4dc;
+  --secretary-assistant-border: #5f443c;
+  --secretary-assistant-muted: #c9aea2;
   --border: rgba(255, 255, 255, 0.10);
   --border-strong: rgba(255, 255, 255, 0.18);
   --muted: #a3a3a3;
@@ -34,6 +66,10 @@
   --panel: #ffffff;
   --panel-muted: #f0f1f2;
   --panel-strong: #e7e8ea;
+  --secretary-assistant-bg: #dbeafe;
+  --secretary-assistant-text: #172554;
+  --secretary-assistant-border: #93c5fd;
+  --secretary-assistant-muted: #3b5ba9;
   --border: rgba(0, 0, 0, 0.12);
   --border-strong: rgba(0, 0, 0, 0.24);
   --muted: #525252;
@@ -122,4 +158,36 @@ textarea {
 ::selection {
   background: #ededed;
   color: #030303;
+}
+
+.secretary-bubble-assistant {
+  background: var(--secretary-assistant-bg);
+  color: var(--secretary-assistant-text);
+  border-color: var(--secretary-assistant-border);
+}
+
+@keyframes market-cell-flash {
+  0% { background-color: var(--flash-bg); }
+  100% { background-color: transparent; }
+}
+
+:root {
+  --flash-bg: rgba(255, 255, 255, 0.18);
+}
+
+:root[data-theme="light"] {
+  --flash-bg: rgba(23, 37, 84, 0.10);
+}
+
+.market-cell-flash {
+  animation: market-cell-flash 0.7s ease-out;
+}
+
+.secretary-bubble-assistant .secretary-bubble-muted {
+  color: var(--secretary-assistant-muted);
+}
+
+:root[data-theme="light"] ::selection {
+  background: #172554;
+  color: #dbeafe;
 }

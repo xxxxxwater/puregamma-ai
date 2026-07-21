@@ -77,14 +77,29 @@ def event_report(
 
 
 @router.get("")
-def list_reports(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
-    rows = db.query(Report).filter(Report.user_id == user.id).order_by(Report.created_at.desc()).all()
+def list_reports(
+    locale: str | None = Query(default=None),
+    x_pg_locale: str | None = Header(default=None),
+    pg_locale: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    language = resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
+    rows = db.query(Report).filter(Report.user_id == user.id, Report.language == language).order_by(Report.created_at.desc()).all()
     return {"reports": [serialize_report(row) for row in rows]}
 
 
 @router.get("/{report_id}")
-def get_report(report_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+def get_report(
+    report_id: str,
+    locale: str | None = Query(default=None),
+    x_pg_locale: str | None = Header(default=None),
+    pg_locale: str | None = Cookie(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    language = resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
     row = db.get(Report, report_id)
-    if not row or row.user_id != user.id:
+    if not row or row.user_id != user.id or row.language != language:
         raise HTTPException(status_code=404, detail="Report not found")
     return {"report": serialize_report(row)}

@@ -64,16 +64,75 @@ BUILTIN_SKILLS = [
     _manifest(
         "market_research", "Market Research", "Evidence-based market structure, price, and trend research.",
         assets=["crypto", "equities", "multi_asset"], sources=["market", "rss", "fintwit", "x", "x-twitter", "bloomberg"],
-        tools=["get_market_quote", "get_market_history", "search_source_documents", "get_data_source_status"],
-        prompt="Build the current-market evidence pack before synthesis. Pair a fresh timestamped quote with traceable source documents. Separate observations, reported facts, source opinion, calculations, and inference. If either live price evidence or current source evidence is missing, state that evidence is insufficient instead of filling the gap from model memory.",
-        version="1.1.0",
-        changelog="Pair current market quotes with traceable document evidence and fail closed when either evidence class is unavailable.",
+        tools=["get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_data_source_status"],
+        prompt="Build the current-market evidence pack before synthesis. First call get_data_source_status and treat DEGRADED, ERROR, NEED_KEY, or NOT_CONNECTED providers as unavailable: state their unavailability once, then continue with the remaining healthy providers instead of stopping. Pair a fresh timestamped quote with traceable source documents. Search the controlled public web only when synchronized documents are insufficient. Separate observations, reported facts, source opinion, calculations, and inference. Always deliver the best partial answer from available evidence and end with a short 'evidence gaps' list; never fill gaps from model memory.",
+        version="1.3.0",
+        changelog="Add data-health self-check with graceful degradation and explicit evidence-gap reporting.",
     ),
     _manifest(
         "news_research", "News Research", "Fresh, source-attributed news and market narrative research.",
         assets=["crypto", "equities", "multi_asset"], sources=["rss", "fintwit", "x", "x-twitter", "bloomberg"],
-        tools=["get_recent_news", "search_news", "search_source_documents", "get_sentiment_context"],
+        tools=["get_recent_news", "search_news", "search_source_documents", "search_online_sources", "get_sentiment_context"],
+        prompt="Cluster repeated reports, distinguish reporting from opinion, and attach URLs and publication timestamps. When a news provider is unavailable (missing key, license, or sync error), say so once and continue with the remaining providers; never present a partial feed as the complete picture.",
+        version="1.2.0",
+        changelog="Require explicit provider-availability disclosure when parts of the news pipeline are down.",
+    ),
+    _manifest(
+        "portfolio_review", "Portfolio Review", "Personal portfolio exposure, position, and risk-context review.",
+        assets=["portfolio", "multi_asset"], sources=["portfolio", "market"],
+        tools=["get_account_snapshot", "get_position_snapshot", "get_open_orders", "get_market_quote"],
+        prompt="Use only the authenticated user's portfolio facts. Mark missing prices, stale snapshots, and partial data. When no portfolio account is connected, say so plainly, explain what the review would cover once connected, and point to the Integrations page instead of returning a generic empty answer.",
+        version="1.1.0",
+        changelog="Add unconnected-portfolio guidance instead of empty responses.",
+    ),
+    _manifest(
+        "options_analysis", "Options Analysis", "Options surface, Greeks, and long-gamma research.",
+        assets=["options", "crypto", "equities"], sources=["options", "market"],
+        tools=["get_options_context", "get_earnings_gamma", "get_market_quote"],
+        prompt="State expiry, strike, timestamp, liquidity limitations, and assumptions for every options conclusion. When the options data feed is unavailable or stale, mark the affected instruments and limit conclusions to what fresh data supports.",
+        risk="medium",
+        version="1.1.0",
+        changelog="Add stale-feed marking and per-instrument availability scoping.",
+    ),
+    _manifest(
+        "source_check", "Source Verification", "Provenance, freshness, licensing, and cross-source verification.",
+        assets=["multi_asset"], sources=["rss", "fintwit", "x", "x-twitter", "bloomberg", "market"],
+        tools=["get_data_source_status", "search_source_documents", "search_online_sources"],
+        prompt="Do not infer truth from repetition. Report provenance, freshness, corroboration, and unresolved conflicts. Begin with get_data_source_status so the verification report can separate 'no corroboration found' from 'corroboration channel unavailable', and list unavailable channels explicitly.",
+        version="1.2.0",
+        changelog="Distinguish missing corroboration from unavailable corroboration channels.",
+    ),
+    _manifest(
+        "deep_research", "Deep Research", "Broader multi-source research with a higher evidence and cost budget.",
+        assets=["crypto", "options", "equities", "portfolio", "defi", "macro", "multi_asset"],
+        sources=["market", "rss", "fintwit", "x", "x-twitter", "bloomberg", "portfolio", "options", "onchain", "defillama"],
+        tools=["get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"],
+        prompt="Build an evidence pack before synthesis. Present competing hypotheses, missing evidence, timestamps, and citations. When the user asks about strategy quality or a trading idea, prefer validating it with run_nautilus_backtest and get_strategy_performance over narrative-only reasoning, and report the backtest window, assumptions, and key performance metrics alongside the thesis. Skip unavailable providers with a one-line disclosure instead of aborting the research.",
+        risk="medium", max_credits=150, version="1.2.0",
+        changelog="Route strategy-quality questions through backtest validation and add graceful provider degradation.",
+    ),
+]
+
+
+# Keep previously published manifests available for pinned installations and
+# replayable SkillRun audits. The latest manifest for each slug remains in
+# BUILTIN_SKILLS and is applied last by seed_official_skills.
+LEGACY_BUILTIN_SKILLS = [
+    _manifest(
+        "market_research", "Market Research", "Evidence-based market structure, price, and trend research.",
+        assets=["crypto", "equities", "multi_asset"], sources=["market", "rss", "fintwit", "x", "x-twitter", "bloomberg"],
+        tools=["get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_data_source_status"],
+        prompt="Build the current-market evidence pack before synthesis. Pair a fresh timestamped quote with traceable source documents. Search the controlled public web only when synchronized documents are insufficient. Separate observations, reported facts, source opinion, calculations, and inference. If either live price evidence or current source evidence remains missing, state that evidence is insufficient instead of filling the gap from model memory.",
+        version="1.2.0",
+        changelog="Add controlled online source discovery after synchronized pipeline evidence is insufficient.",
+    ),
+    _manifest(
+        "news_research", "News Research", "Fresh, source-attributed news and market narrative research.",
+        assets=["crypto", "equities", "multi_asset"], sources=["rss", "fintwit", "x", "x-twitter", "bloomberg"],
+        tools=["get_recent_news", "search_news", "search_source_documents", "search_online_sources", "get_sentiment_context"],
         prompt="Cluster repeated reports, distinguish reporting from opinion, and attach URLs and publication timestamps.",
+        version="1.1.0",
+        changelog="Add controlled online source discovery after synchronized news evidence is insufficient.",
     ),
     _manifest(
         "portfolio_review", "Portfolio Review", "Personal portfolio exposure, position, and risk-context review.",
@@ -91,8 +150,41 @@ BUILTIN_SKILLS = [
     _manifest(
         "source_check", "Source Verification", "Provenance, freshness, licensing, and cross-source verification.",
         assets=["multi_asset"], sources=["rss", "fintwit", "x", "x-twitter", "bloomberg", "market"],
+        tools=["get_data_source_status", "search_source_documents", "search_online_sources"],
+        prompt="Do not infer truth from repetition. Report provenance, freshness, corroboration, and unresolved conflicts.",
+        version="1.1.0",
+        changelog="Add controlled public-web metadata for source verification gaps.",
+    ),
+    _manifest(
+        "deep_research", "Deep Research", "Broader multi-source research with a higher evidence and cost budget.",
+        assets=["crypto", "options", "equities", "portfolio", "defi", "macro", "multi_asset"],
+        sources=["market", "rss", "fintwit", "x", "x-twitter", "bloomberg", "portfolio", "options", "onchain", "defillama"],
+        tools=["get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"],
+        prompt="Build an evidence pack before synthesis. Present competing hypotheses, missing evidence, timestamps, and citations.",
+        risk="medium", max_credits=150, version="1.1.0",
+        changelog="Add controlled online source discovery for missing deep-research evidence.",
+    ),
+    _manifest(
+        "market_research", "Market Research", "Evidence-based market structure, price, and trend research.",
+        assets=["crypto", "equities", "multi_asset"], sources=["market", "rss", "fintwit", "x", "x-twitter", "bloomberg"],
+        tools=["get_market_quote", "get_market_history", "search_source_documents", "get_data_source_status"],
+        prompt="Build the current-market evidence pack before synthesis. Pair a fresh timestamped quote with traceable source documents. Separate observations, reported facts, source opinion, calculations, and inference. If either live price evidence or current source evidence is missing, state that evidence is insufficient instead of filling the gap from model memory.",
+        version="1.1.0",
+        changelog="Pair current market quotes with traceable document evidence and fail closed when either evidence class is unavailable.",
+    ),
+    _manifest(
+        "news_research", "News Research", "Fresh, source-attributed news and market narrative research.",
+        assets=["crypto", "equities", "multi_asset"], sources=["rss", "fintwit", "x", "x-twitter", "bloomberg"],
+        tools=["get_recent_news", "search_news", "search_source_documents", "get_sentiment_context"],
+        prompt="Cluster repeated reports, distinguish reporting from opinion, and attach URLs and publication timestamps.",
+        version="1.0.0",
+    ),
+    _manifest(
+        "source_check", "Source Verification", "Provenance, freshness, licensing, and cross-source verification.",
+        assets=["multi_asset"], sources=["rss", "fintwit", "x", "x-twitter", "bloomberg", "market"],
         tools=["get_data_source_status", "search_source_documents"],
         prompt="Do not infer truth from repetition. Report provenance, freshness, corroboration, and unresolved conflicts.",
+        version="1.0.0",
     ),
     _manifest(
         "deep_research", "Deep Research", "Broader multi-source research with a higher evidence and cost budget.",
@@ -100,7 +192,7 @@ BUILTIN_SKILLS = [
         sources=["market", "rss", "fintwit", "x", "x-twitter", "bloomberg", "portfolio", "options", "onchain", "defillama"],
         tools=["get_market_quote", "get_market_history", "search_source_documents", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"],
         prompt="Build an evidence pack before synthesis. Present competing hypotheses, missing evidence, timestamps, and citations.",
-        risk="medium", max_credits=150,
+        risk="medium", max_credits=150, version="1.0.0",
     ),
 ]
 
@@ -109,7 +201,7 @@ def seed_official_skills(db) -> None:
     """Idempotently publish the six legacy Chat capabilities as official Skills."""
     from packages.database.models import Skill, SkillPermission, SkillSource, SkillVersion, utcnow
 
-    for manifest, files in BUILTIN_SKILLS:
+    for manifest, files in [*LEGACY_BUILTIN_SKILLS, *BUILTIN_SKILLS]:
         canonical = json.dumps(
             {"manifest": manifest.model_dump(mode="json"), "files": files},
             ensure_ascii=False,

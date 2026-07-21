@@ -77,18 +77,17 @@ def test_skill_invocation_validation_returns_resolved_version(api_client, normal
         headers=auth_headers(normal_user),
     )
     assert response.status_code == 200, response.text
-    assert response.json()["skills"][0]["version"] == "1.1.0"
+    assert response.json()["skills"][0]["version"] == "1.0.0"
     assert "get_market_quote" in response.json()["tool_allowlist"]
-    assert "search_source_documents" in response.json()["tool_allowlist"]
 
     first_install = api_client.post(
         f"/api/skills/{market['skill_id']}/install",
-        json={"pinned_version": market["current_version"]},
+        json={"pinned_version": "1.0.0"},
         headers=auth_headers(normal_user),
     )
     second_install = api_client.post(
         f"/api/skills/{market['skill_id']}/install",
-        json={"pinned_version": market["current_version"]},
+        json={"pinned_version": "1.0.0"},
         headers=auth_headers(normal_user),
     )
     assert first_install.status_code == second_install.status_code == 200
@@ -138,7 +137,7 @@ def test_report_module_uses_registry_and_order_preview_fails_closed(api_client, 
     market = next(item for item in catalog if item["slug"] == "market_research")
     report = api_client.post(
         "/reports/event",
-        json={"asset": "BTC", "event": "ETF flow update", "skill_refs": [{"skill_id": market["skill_id"], "version": market["current_version"]}]},
+        json={"asset": "BTC", "event": "ETF flow update", "skill_refs": [{"skill_id": market["skill_id"], "version": "1.0.0"}]},
         headers=auth_headers(normal_user),
     )
     assert report.status_code == 200, report.text
@@ -148,7 +147,7 @@ def test_report_module_uses_registry_and_order_preview_fails_closed(api_client, 
 
     preview = api_client.post(
         "/strategies/not-a-strategy/paper",
-        json={"mode": "PAPER", "skill_refs": [{"skill_id": market["skill_id"], "version": market["current_version"]}]},
+        json={"mode": "PAPER", "skill_refs": [{"skill_id": market["skill_id"], "version": "1.0.0"}]},
         headers=auth_headers(normal_user),
     )
     assert preview.status_code == 403

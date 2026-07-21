@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { Markdown } from "@/components/markdown";
 import { SendReportButton } from "@/components/actions";
+import { DailyBriefControls } from "@/components/daily-brief-controls";
 import { Badge, CreditCostBadge, EmptyState, PageHeader, ResearchCard, StatusDot } from "@/components/puregamma";
 import { getReports } from "@/lib/api";
 import { formatDateTime } from "@/lib/formatters";
@@ -26,7 +27,7 @@ export default async function ReportsPage({ params }: { params: { locale: Locale
         title={copy.title}
         description={copy.subtitle}
         sectionNumber="01"
-        actions={<CreditCostBadge locale={locale} cost={10} />}
+        actions={<div className="flex flex-wrap gap-2"><DailyBriefControls locale={locale} /><CreditCostBadge locale={locale} cost={10} /></div>}
       />
       <div className="flex flex-wrap gap-2">{copy.filters.map((filter) => <Badge key={filter} tone="neutral">{filter}</Badge>)}</div>
       <div className="grid gap-4 lg:grid-cols-[340px_1fr]">

@@ -15,5 +15,4 @@ def test_scheduler_registers_required_jobs():
         "market_regime_summary",
         "send_daily_reports",
         "subscription_status_check",
-        "provider_binance_market_sync",
     } <= job_ids

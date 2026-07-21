@@ -9,6 +9,7 @@ from typing import Any, Callable
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
+from packages.data.lexicon import understand_query
 from packages.database.models import (
     AccountSnapshot,
     DataSource,
@@ -43,6 +44,16 @@ class ToolResult:
     sources: list[ToolSource] = field(default_factory=list)
 
 
+SKILL_TOOL_ALLOWLISTS: dict[str, set[str]] = {
+    "market_research": {"get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_data_source_status"},
+    "news_research": {"get_recent_news", "search_news", "search_source_documents", "search_online_sources", "get_sentiment_context"},
+    "portfolio_review": {"get_account_snapshot", "get_position_snapshot", "get_open_orders"},
+    "options_analysis": {"get_options_context", "get_earnings_gamma"},
+    "source_check": {"get_data_source_status", "search_source_documents", "search_online_sources"},
+    "deep_research": {"get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"},
+}
+
+
 def _provenance_url(row: Any) -> str | None:
     value = getattr(row, "provenance_json", {}) or {}
     return value.get("sourceUrl")
@@ -67,6 +78,7 @@ class AgentToolRegistry:
             "get_recent_news": self.get_recent_news,
             "search_news": self.search_news,
             "search_source_documents": self.search_source_documents,
+            "search_online_sources": self.search_online_sources,
             "get_defi_protocol_metrics": self.get_defi_protocol_metrics,
             "get_chain_metrics": self.get_chain_metrics,
             "get_onchain_snapshot": self.get_chain_metrics,
@@ -110,6 +122,7 @@ class AgentToolRegistry:
             "get_position_snapshot": "portfolio",
             "get_open_orders": "portfolio",
             "get_options_context": "options",
+            "search_online_sources": "rss",
         }.get(name)
         if required_source and required_source not in self.allowed_data_sources:
             raise PermissionError("TOOL_ENTITLEMENT_DENIED")
@@ -117,27 +130,29 @@ class AgentToolRegistry:
 
     def plan(self, query: str, skills: list[str] | None = None, data_sources: list[str] | None = None, skill_tool_allowlist: set[str] | None = None) -> list[tuple[str, dict[str, Any]]]:
         lowered = query.lower()
-        symbols = [
-            symbol
-            for symbol in ("BTC", "ETH", "HYPE", "MSTR", "STRC")
-            if re.search(rf"\b{symbol}\b", query, re.I)
-        ]
+        symbols = list(understand_query(query).assets)
         calls: list[tuple[str, dict[str, Any]]] = []
         selected_sources = set(data_sources or [])
+        allowed = skill_tool_allowlist if skill_tool_allowlist is not None else set().union(*(SKILL_TOOL_ALLOWLISTS.get(skill, set()) for skill in (skills or [])))
+        restricted = skill_tool_allowlist is not None or bool(skills)
+
+        def permitted(planned: list[tuple[str, dict[str, Any]]]) -> list[tuple[str, dict[str, Any]]]:
+            return [call for call in planned if not restricted or call[0] in allowed][:6]
+
         confirmation = query.strip()
         if confirmation.startswith("CONFIRM STRATEGY "):
-            return [("activate_strategy", {"confirmation": confirmation})]
+            return permitted([("activate_strategy", {"confirmation": confirmation})])
         strategy_words = any(word in lowered for word in ("strategy", "策略"))
         if strategy_words and any(
             word in lowered
             for word in ("create", "design", "draft", "创建", "设计", "生成")
         ):
-            return [
+            return permitted([
                 (
                     "create_strategy_draft",
                     {"request": query, "symbols": symbols or ["BTC"]},
                 )
-            ]
+            ])
         if strategy_words and any(
             word in lowered for word in ("start", "activate", "启动", "激活")
         ):
@@ -146,16 +161,16 @@ class AgentToolRegistry:
                 if any(word in lowered for word in ("shadow", "影子"))
                 else "PAPER"
             )
-            return [("preview_strategy_activation", {"mode": mode})]
+            return permitted([("preview_strategy_activation", {"mode": mode})])
         if strategy_words and any(word in lowered for word in ("backtest", "回测")):
             engine = "nautilus" if "nautilus" in lowered else "mock"
-            return [("backtest_strategy", {"engine": engine})]
+            return permitted([("backtest_strategy", {"engine": engine})])
         if strategy_words and any(word in lowered for word in ("pause", "暂停")):
-            return [("pause_strategy", {})]
+            return permitted([("pause_strategy", {})])
         if strategy_words and any(word in lowered for word in ("resume", "恢复")):
-            return [("resume_strategy", {})]
+            return permitted([("resume_strategy", {})])
         if strategy_words and any(word in lowered for word in ("stop", "停止")):
-            return [("stop_strategy", {})]
+            return permitted([("stop_strategy", {})])
         if strategy_words and any(
             word in lowered
             for word in ("status", "状态", "position", "仓位", "order", "订单")
@@ -175,7 +190,7 @@ class AgentToolRegistry:
                 "平仓",
             )
         ):
-            return [("generate_order_preview", {"request": query, "symbols": symbols})]
+            return permitted([("generate_order_preview", {"request": query, "symbols": symbols})])
         if symbols or any(
             word in lowered
             for word in ("price", "market", "quote", "行情", "价格", "市场")
@@ -281,17 +296,7 @@ class AgentToolRegistry:
                 calls.append(("get_position_snapshot", {}))
         if "options" in selected_sources and not any(name == "get_options_context" for name, _ in calls):
             calls.append(("get_options_context", {"currency": "ETH" if "ETH" in symbols else "BTC"}))
-        skill_tools = {
-            "market_research": {"get_market_quote", "get_market_history", "search_source_documents", "get_data_source_status"},
-            "news_research": {"get_recent_news", "search_news", "search_source_documents", "get_sentiment_context"},
-            "portfolio_review": {"get_account_snapshot", "get_position_snapshot", "get_open_orders"},
-            "options_analysis": {"get_options_context", "get_earnings_gamma"},
-            "source_check": {"get_data_source_status", "search_source_documents"},
-            "deep_research": {"get_market_quote", "get_market_history", "search_source_documents", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"},
-        }
-        allowed = skill_tool_allowlist if skill_tool_allowlist is not None else set().union(*(skill_tools.get(skill, set()) for skill in (skills or [])))
-        restricted = skill_tool_allowlist is not None or bool(skills)
-        return [call for call in calls if not restricted or call[0] in allowed][:6]
+        return permitted(calls)
 
     def get_options_context(self, currency: str = "BTC") -> ToolResult:
         from apps.api.services.options_service import get_option_chain
@@ -962,6 +967,46 @@ class AgentToolRegistry:
             else "Connected sources do not contain enough matching evidence"
         )
         return ToolResult("search_source_documents", data, summary, sources)
+
+    def search_online_sources(self, query: str, count: int = 8) -> ToolResult:
+        """Search reviewed public endpoints for metadata when persisted evidence is missing."""
+        from packages.data.online_research_provider import OnlineResearchProvider
+
+        results = OnlineResearchProvider().search(query, count=min(max(count, 1), 10))
+        data = [
+            {
+                "provider": row.provider,
+                "sourceType": "online_web_metadata",
+                "evidenceType": "reported_metadata",
+                "source": row.publisher,
+                "title": row.title,
+                "summary": row.snippet,
+                "url": row.url,
+                "publishedAt": _iso(row.published_at),
+                "fetchedAt": _iso(row.fetched_at),
+                "contentPolicy": "linked_metadata_and_search_snippet",
+                "isMock": False,
+                "onlineFallback": True,
+            }
+            for row in results
+        ]
+        sources = [
+            ToolSource(
+                row.provider,
+                row.title,
+                row.url,
+                row.published_at,
+                row.published_at,
+                row.fetched_at,
+            )
+            for row in results
+        ]
+        return ToolResult(
+            "search_online_sources",
+            data,
+            f"Retrieved {len(results)} public online source records",
+            sources,
+        )
 
     def _provider_allowed(self, provider: str) -> bool:
         return provider in self.allowed_data_sources or (provider == "x-twitter" and "x" in self.allowed_data_sources)

@@ -4,15 +4,18 @@
 
 ```text
 Chat UI -> authenticated POST/SSE -> conversation ownership + quota
-        -> persisted user message + pending assistant + run
-        -> deterministic read-only tool plan
-        -> synchronized database retrieval
-        -> OpenAI-compatible LLM provider
+        -> financial lexicon + versioned Agent Runtime plan
+        -> server Skill/entitlement resolution + Credit reservation
+        -> deterministic allowlisted tool plan
+        -> synchronized retrieval + Evidence Pack quality check
+        -> versioned Prompt Registry -> OpenAI-compatible LLM composer
         -> SSE deltas/citations/status
-        -> persisted final message, sources, tool calls, tokens, usage event
+        -> persisted answer, evidence, prompt refs, usage, and settlement
 ```
 
-SSE events are `run.started`, `message.delta`, `tool.started`, `tool.completed`, `citation`, `message.completed`, `run.failed`, and `run.canceled`.
+SSE events are `run.started`, `plan.ready`, `tool.started`, `tool.completed`, `evidence.ready`, `citation`, `message.delta`, `message.completed`, `run.failed`, and `run.canceled`. The two planning/evidence events are additive and safe for older clients to ignore.
+
+The engineering boundaries and compatibility policy are defined in [AGENT_PLATFORM_BOUNDARIES.md](./AGENT_PLATFORM_BOUNDARIES.md).
 
 ## Read-only tools
 

@@ -25,3 +25,21 @@ class EmailProvider:
                 smtp.login(settings.smtp_user, settings.smtp_password)
             smtp.send_message(email)
         return NotificationResult(True, self.channel, {"mode": "smtp"})
+
+
+def send_email(recipient: str, subject: str, body: str) -> bool:
+    settings = get_settings()
+    if not settings.smtp_host:
+        return False
+    email = EmailMessage()
+    email["Subject"] = subject
+    email["From"] = f"PureGamma AI <{settings.smtp_user}>"
+    email["To"] = recipient
+    email["Reply-To"] = settings.smtp_user
+    email.set_content(body, charset="utf-8")
+    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=8) as smtp:
+        smtp.starttls()
+        if settings.smtp_user:
+            smtp.login(settings.smtp_user, settings.smtp_password)
+        smtp.send_message(email)
+    return True

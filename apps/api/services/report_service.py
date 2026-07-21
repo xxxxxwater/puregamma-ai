@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
+import re
 import uuid
 
 from sqlalchemy import text
@@ -175,6 +176,28 @@ def create_playbook_report(db: Session, user_id: str, language: str = "en") -> R
     return report
 
 
+_REPORT_DISCLAIMERS = (
+    "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
+    "使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。",
+)
+
+
+def _display_content(report: Report) -> str:
+    content = report.content_markdown
+    if report.report_type != "daily_market_report":
+        return content
+    for disclaimer in _REPORT_DISCLAIMERS:
+        content = content.replace(disclaimer, "")
+    content = re.sub(
+        r"Users bear all risks of using this service\.\s*The service provider is not responsible for any AI[^A-Za-z0-9\n]{0,3}generated content\.",
+        "",
+        content,
+        flags=re.IGNORECASE,
+    )
+    content = re.sub(r"使用该服务用户自行承担风险[^\n]*AI生成[^\n]*责任[。.]?", "", content)
+    return re.sub(r"\n{3,}", "\n\n", content).strip()
+
+
 def serialize_report(report: Report) -> dict:
     return {
         "id": report.id,
@@ -182,7 +205,7 @@ def serialize_report(report: Report) -> dict:
         "title": report.title,
         "report_type": report.report_type,
         "language": report.language,
-        "content_markdown": report.content_markdown,
+        "content_markdown": _display_content(report),
         "assets": report.assets,
         "source_intelligence_id": report.source_intelligence_id,
         "report_date": report.report_date.isoformat() if report.report_date else None,

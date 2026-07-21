@@ -10,8 +10,10 @@
 6. Topic and sentiment classifiers create traceable derived fields.
 7. The weighted score is calculated as sentiment x credibility x freshness x engagement x asset relevance.
 8. Repeated coverage of the same event is attenuated; it does not multiply confidence linearly.
-9. The Agent retrieves persisted documents by time, asset, topic, provider, and author.
-10. Responses distinguish reported facts, attributed opinions, and AI inference, and include original URLs and timestamps.
+9. The shared financial lexicon normalizes user asset aliases, task intent, and time horizon.
+10. The Agent retrieves persisted documents by time, asset, topic, provider, and author.
+11. Tool results are assembled into a versioned Evidence Pack and checked against the selected Skill/intent requirements.
+12. Responses distinguish reported facts, attributed opinions, and AI inference, and include original URLs and timestamps.
 
 ## Retrieval behavior
 

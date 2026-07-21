@@ -32,6 +32,7 @@ def valid_production_settings() -> Settings:
         google_oauth_redirect_uri="https://app.puregamma.ai/zh/auth/google/callback",
         mobile_google_oauth_redirect_uri="https://api.puregamma.ai/auth/mobile/google/callback",
         mobile_ibkr_oauth_redirect_uri="https://api.puregamma.ai/portfolio/ibkr/mobile/callback",
+        apple_auth_enabled=True,
         apple_client_id="ai.puregamma.ios",
         apple_team_id="APPLE_TEAM",
         apple_key_id="APPLE_KEY",
@@ -46,6 +47,17 @@ def valid_production_settings() -> Settings:
 
 def test_valid_production_configuration_passes():
     validate_production_settings(valid_production_settings())
+
+
+def test_production_allows_disabled_apple_auth_without_credentials():
+    settings = replace(
+        valid_production_settings(),
+        apple_auth_enabled=False,
+        apple_team_id="",
+        apple_key_id="",
+        apple_private_key="",
+    )
+    validate_production_settings(settings)
 
 
 @pytest.mark.parametrize(

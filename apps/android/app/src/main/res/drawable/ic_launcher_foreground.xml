@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:left="14dp" android:top="14dp" android:right="14dp" android:bottom="14dp">
+        <shape android:shape="rectangle">
+            <solid android:color="@android:color/transparent" />
+            <stroke android:width="1dp" android:color="#D6B35A" />
+        </shape>
+    </item>
+    <item android:left="18dp" android:top="18dp" android:right="18dp" android:bottom="18dp">
+        <bitmap
+            android:gravity="center"
+            android:src="@drawable/pg_launcher_foreground" />
+    </item>
+</layer-list>

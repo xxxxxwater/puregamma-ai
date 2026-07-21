@@ -2,8 +2,8 @@ import { NextResponse, type NextRequest } from "next/server";
 import { defaultLocale, isLocale, legacyLocaleRoutes, localeCookieName, localeFromAcceptLanguage, localePrefixPattern } from "@/i18n/routing";
 
 const PUBLIC_FILE = /\.(.*)$/;
-const INITIAL_LAUNCH_HIDDEN = ["/signals", "/playbooks", "/strategies", "/trading", "/nautilus", "/data-sources", "/integrations", "/daily-push", "/admin", "/billing/mock-checkout"];
-const AUTHENTICATED_ROUTES = ["/account", "/billing", "/chat", "/dashboard", "/options", "/portfolio", "/reports"];
+const INITIAL_LAUNCH_HIDDEN = ["/signals", "/playbooks", "/strategies", "/trading", "/nautilus", "/data-sources", "/integrations", "/daily-push", "/billing/mock-checkout"];
+const AUTHENTICATED_ROUTES = ["/account", "/admin", "/billing", "/chat", "/dashboard", "/options", "/portfolio", "/reports"];
 
 export function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;

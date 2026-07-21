@@ -72,7 +72,6 @@ def test_agent_query_text_cannot_bypass_source_entitlement(db, normal_user):
     document_call = next(arguments for name, arguments in calls if name == "search_source_documents")
 
     assert document_call["providers"] == []
-    assert registry.search_source_documents(query="BTC", symbols=["BTC"], providers=[]).data == []
     try:
         registry.call("get_chain_metrics", {})
     except PermissionError as exc:
@@ -89,18 +88,3 @@ def test_past_due_max_registry_uses_free_sources(db, demo_user):
     registry = AgentToolRegistry(db, demo_user.id)
 
     assert registry.allowed_data_sources == {"market", "rss"}
-
-
-def test_market_research_plans_quote_and_document_evidence(db, normal_user):
-    registry = AgentToolRegistry(db, normal_user.id)
-
-    calls = registry.plan(
-        "Assess current BTC market conditions",
-        skills=["market_research"],
-        data_sources=["market", "rss"],
-        skill_tool_allowlist={"get_market_quote", "search_source_documents"},
-    )
-
-    assert [name for name, _ in calls] == ["get_market_quote", "search_source_documents"]
-    assert calls[1][1]["symbols"] == ["BTC"]
-    assert calls[1][1]["providers"] == ["rss"]

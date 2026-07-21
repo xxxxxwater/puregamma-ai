@@ -78,7 +78,7 @@ async function post<T>(path: string, body: object, fallback: T, locale: Locale =
 // ── Auth ────────────────────────────────────────────
 
 export type AuthResponse = {
-  user: { id: string; email: string; name: string; role: string; plan: string; credit_balance: number; stripe_customer_id?: string; avatar_url?: string | null; auth_provider?: string; email_verified?: boolean; email_verified_at?: string | null; last_login_at?: string | null; login_methods?: string[] };
+  user: { id: string; email: string; name: string; role: string; plan: string; credit_balance: number; stripe_customer_id?: string; avatar_url?: string | null; auth_provider?: string; has_password?: boolean; email_verified?: boolean; email_verified_at?: string | null; last_login_at?: string | null; login_methods?: string[] };
   auth_header: { "X-User-Id"?: string; Authorization?: string };
   access_token?: string;
   token_type?: string;
@@ -89,6 +89,13 @@ export async function mockLogin(email = "demo@puregamma.ai", name = "Demo User",
   return post<AuthResponse>("/auth/mock-login", { email, name, role }, {
     user: { id: "demo", email, name, role, plan: "Free", credit_balance: 150, auth_provider: "mock" },
     auth_header: { "X-User-Id": "demo" }
+  });
+}
+
+export async function internalAdminLogin(username: string, password: string) {
+  return requestStrict<AuthResponse>("/auth/internal-admin-login", {
+    method: "POST",
+    body: JSON.stringify({ username, password })
   });
 }
 
@@ -121,6 +128,62 @@ export async function getMe() {
 
 export async function logout() {
   return requestStrict<{ ok: boolean }>("/auth/logout", { method: "POST" });
+}
+
+export async function emailRegister(email: string, password: string, name: string, locale: Locale = defaultLocale) {
+  return requestStrict<AuthResponse & { message?: string }>("/auth/email/register", {
+    method: "POST",
+    body: JSON.stringify({ email, password, name, locale })
+  });
+}
+
+export async function emailLogin(email: string, password: string) {
+  return requestStrict<AuthResponse>("/auth/email/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password })
+  });
+}
+
+export async function emailVerify(token: string) {
+  return requestStrict<AuthResponse & { message?: string }>("/auth/email/verify", {
+    method: "POST",
+    body: JSON.stringify({ token })
+  });
+}
+
+export async function resendVerificationEmail(email: string) {
+  return requestStrict<{ message: string }>("/auth/email/resend-verification", {
+    method: "POST",
+    body: JSON.stringify({ email })
+  });
+}
+
+export async function forgotPassword(email: string) {
+  return requestStrict<{ message: string }>("/auth/email/forgot-password", {
+    method: "POST",
+    body: JSON.stringify({ email })
+  });
+}
+
+export async function resetPassword(token: string, password: string) {
+  return requestStrict<AuthResponse & { message?: string }>("/auth/email/reset-password", {
+    method: "POST",
+    body: JSON.stringify({ token, password })
+  });
+}
+
+export async function changePassword(currentPassword: string, newPassword: string) {
+  return requestStrict<AuthResponse & { message?: string }>("/auth/email/change-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: currentPassword, new_password: newPassword })
+  });
+}
+
+export async function setPassword(newPassword: string) {
+  return requestStrict<AuthResponse & { message?: string }>("/auth/email/set-password", {
+    method: "POST",
+    body: JSON.stringify({ current_password: "", new_password: newPassword })
+  });
 }
 
 // ── Onboarding ──────────────────────────────────────
@@ -442,11 +505,13 @@ export function getPortfolioSnapshot(locale: Locale = defaultLocale) {
 }
 
 export type PortfolioConnection = { id: string; provider: string; name: string; status: string; last_sync: string | null; error?: string | null };
-export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; nav_history: Array<{ date: string; nav: number }>; connections: PortfolioConnection[]; providers: { plaid: boolean; ibkr: boolean; hyperliquid: boolean } };
+export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; nav_history: Array<{ date: string; nav: number }>; connections: PortfolioConnection[]; providers: { plaid: boolean; ibkr: boolean; hyperliquid: boolean; evm?: boolean } };
 
 export function createPlaidLinkToken() { return requestStrict<{ link_token: string }>("/portfolio/plaid/link-token", { method: "POST" }); }
 export function exchangePlaidToken(publicToken: string, institutionName: string) { return requestStrict<PortfolioSnapshot>("/portfolio/plaid/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken, institution_name: institutionName }) }); }
 export function connectHyperliquid(address: string) { return requestStrict<PortfolioSnapshot>("/portfolio/hyperliquid/connect", { method: "POST", body: JSON.stringify({ address }) }); }
+export function createEvmWalletChallenge(address: string, chainId: number) { return requestStrict<{ message: string; challenge_token: string; expires_in: number }>("/portfolio/evm/challenge", { method: "POST", body: JSON.stringify({ address, chain_id: chainId }) }); }
+export function connectEvmWallet(address: string, chainId: number, message: string, challengeToken: string, signature: string) { return requestStrict<PortfolioSnapshot>("/portfolio/evm/connect", { method: "POST", body: JSON.stringify({ address, chain_id: chainId, message, challenge_token: challengeToken, signature }) }); }
 export function getIbkrAuthorizeUrl() { return requestStrict<{ authorize_url: string }>("/portfolio/ibkr/authorize"); }
 export function exchangeIbkrCode(code: string, state: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/ibkr/exchange?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, { method: "POST" }); }
 export function syncPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}/sync`, { method: "POST" }); }
@@ -520,6 +585,20 @@ export type AgentConversation = { id: string; title: string; summary?: string | 
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
 export type AgentAttachment = { name: string; content: string; mime: string };
 export type SkillContextRef = { skill_id: string; slug: string; version: string; installation_id?: string | null };
+export type AgentRuntimePlan = {
+  intent: string;
+  goal?: string;
+  assets: string[];
+  horizon?: string | null;
+  skill_slugs?: string[];
+  data_sources?: string[];
+  evidence_requirements: string[];
+  clarification_recommended?: boolean;
+  auto_selected_skills?: boolean;
+  next_actions?: string[];
+  runtime_plan_version?: string;
+};
+export type AgentEvidenceSummary = { schema_version?: string; sufficient: boolean; missing: string[]; record_count: number; source_count: number; provider_count: number; kinds: string[] };
 export type SkillSummary = {
   skill_id: string;
   slug: string;
@@ -542,9 +621,12 @@ export type SkillSummary = {
   installed: boolean;
   enabled: boolean;
 };
-export type AgentContext = { data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string };
+export type AgentContext = { data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
+export type SecretaryMessage = { id: string; role: "user" | "assistant"; content: string; created_at: string };
+export type SecretarySkill = { id: string; status: "active" | "confirmation_required" | "setup_required" | "available" | "planned"; risk: "low" | "medium" | "high" };
+export type SecretaryState = { conversation_id: string | null; messages: SecretaryMessage[]; voice: { id: string; name: string; fixed: boolean }; skills: SecretarySkill[]; memory: { enabled: boolean; isolated_by_user: boolean }; billing: { credits_per_reply: number; credit_balance: number } };
 export type RuntimeStrategy = { id: string; name: string; description: string; status: string; current_version: number; execution_mode: string; draft: { instruments: string[]; venues: string[]; timeframe: string; strategy_type: string; sentiment_sources: string[]; max_notional: number; leverage: number; max_daily_loss: number; max_drawdown: number }; latest_run?: RuntimeRun | null; created_at: string; updated_at: string };
 export type RuntimeRun = { id: string; strategy_id: string; strategy_version: number; account_id?: string | null; runtime_run_id: string; execution_mode: string; status: string; started_at?: string | null; stopped_at?: string | null; performance: Record<string, number>; error_code?: string | null; error_message?: string | null };
 export type TradingAccount = { id: string; name: string; venue: string; account_type: string; base_currency: string; status: string; permissions: Record<string, boolean>; created_at: string };
@@ -574,8 +656,139 @@ async function requestStrict<T>(path: string, init: RequestInit = {}): Promise<T
   return payload;
 }
 
+export type AdminCreditAccount = {
+  id: string;
+  email: string;
+  name: string;
+  role: string;
+  plan: string;
+  credit_balance: number;
+  stripe_customer_id?: string | null;
+  auth_provider: string;
+  created_at: string;
+  updated_at: string;
+};
+
+export type AdminCreditLedgerEntry = {
+  id: string;
+  action: string;
+  credits_delta: number;
+  balance_after: number;
+  idempotency_key?: string | null;
+  metadata: Record<string, unknown>;
+  refundable: boolean;
+  created_at: string;
+};
+
+export type AdminCreditReservation = {
+  id: string;
+  user_id: string;
+  task_type: string;
+  status: string;
+  reserved_credits: number;
+  settled_credits?: number | null;
+  idempotency_key: string;
+  refundable: boolean;
+  created_at: string;
+  completed_at?: string | null;
+};
+
+export type AdminCreditAccountDetail = {
+  account: AdminCreditAccount;
+  reconciliation: {
+    user_id: string;
+    ledger_entries: number;
+    opening_balance: number;
+    ledger_balance: number;
+    account_balance: number;
+    matches: boolean;
+  };
+  ledger: AdminCreditLedgerEntry[];
+  reservations: AdminCreditReservation[];
+  settlements: Array<{ id: string; reservation_id: string; requested_actual_credits: number; settled_credits: number; adjustment: number; status: string; created_at: string }>;
+  refunds: Array<{ id: string; reservation_id: string; credits: number; reason: string; created_at: string }>;
+  rewards: Array<{ id: string; reward_type: string; credits: number; source: string; granted_by_user_id?: string | null; created_at: string }>;
+};
+
+export function getAdminCreditAccounts(search = "", limit = 50, offset = 0) {
+  const query = new URLSearchParams({ search, limit: String(limit), offset: String(offset) });
+  return requestStrict<{ accounts: AdminCreditAccount[]; total: number; limit: number; offset: number }>(`/admin/billing/accounts?${query.toString()}`);
+}
+
+export function getAdminCreditAccount(userId: string) {
+  return requestStrict<AdminCreditAccountDetail>(`/admin/billing/accounts/${encodeURIComponent(userId)}`);
+}
+
+export function grantAdminCredits(userId: string, payload: { credits: number; reason: string; reference: string; idempotency_key: string }) {
+  return requestStrict<{ grant: { id: string; credits: number; reason: string; reference: string; created_at: string }; credit_balance: number }>(`/admin/billing/accounts/${encodeURIComponent(userId)}/credits/grant`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function refundAdminCreditReservation(reservationId: string, payload: { reason: string; reference: string }) {
+  return requestStrict<{ refund: { reservation_id: string; credits: number; status: string }; credit_balance: number }>(`/admin/billing/reservations/${encodeURIComponent(reservationId)}/refund`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function refundAdminCreditLedgerEntry(entryId: string, payload: { reason: string; reference: string }) {
+  return requestStrict<{ refund: { ledger_entry_id: string; refund_ledger_entry_id: string; credits: number; reason: string; reference: string }; credit_balance: number }>(`/admin/billing/ledger/${encodeURIComponent(entryId)}/refund`, {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getAgentConversations() {
   return requestStrict<{ conversations: AgentConversation[] }>("/api/agent/conversations");
+}
+
+export function getSecretary(locale: Locale) {
+  return requestStrict<SecretaryState>(`/api/secretary?locale=${encodeURIComponent(locale)}`);
+}
+
+export function sendSecretaryMessage(content: string, locale: Locale, requestId: string) {
+  return requestStrict<{ user_message: SecretaryMessage; assistant_message: SecretaryMessage; credits_used: number; credit_balance: number }>("/api/secretary/messages", {
+    method: "POST",
+    body: JSON.stringify({ content, locale, request_id: requestId })
+  });
+}
+
+export function clearSecretaryMemory() {
+  return requestStrict<{ ok: boolean }>("/api/secretary/memory", { method: "DELETE" });
+}
+
+export async function synthesizeSecretaryVoice(text: string, locale: Locale, signal?: AbortSignal) {
+  const response = await fetch(`${API_URL}/api/secretary/voice`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, locale }),
+    signal
+  });
+  if (!response.ok) {
+    const error = new Error(await response.text()) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return response.blob();
+}
+
+export async function transcribeSecretaryAudio(audio: Blob, locale: Locale, signal?: AbortSignal) {
+  const response = await fetch(`${API_URL}/api/secretary/transcribe?locale=${encodeURIComponent(locale)}`, {
+    method: "POST",
+    credentials: "include",
+    headers: { "Content-Type": audio.type || "audio/webm" },
+    body: audio,
+    signal
+  });
+  if (!response.ok) {
+    const error = new Error(await response.text()) as Error & { status?: number };
+    error.status = response.status;
+    throw error;
+  }
+  return response.json() as Promise<{ text: string; language: Locale }>;
 }
 
 export function createAgentConversation(title?: string) {
@@ -595,6 +808,11 @@ export type AgentModelOption = { id: string; display_name: string; description: 
 
 export function getAgentCapabilities() {
   return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; skills: SkillSummary[]; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
+}
+
+export type AgentQuoteResponse = CreditQuoteResponse & { task_type: string; planned_tools: string[]; plan: AgentRuntimePlan };
+export function getAgentQuote(payload: { content: string; data_sources: string[]; skill_refs: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model: string }) {
+  return requestStrict<AgentQuoteResponse>("/api/agent/quote", { method: "POST", body: JSON.stringify(payload) });
 }
 
 export function getSkillCatalog() {
@@ -675,6 +893,72 @@ export function createRuntimeStrategy(draft: object, conversationId?: string) {
 
 export function runNautilusBacktest(strategyId: string, engine: "mock" | "nautilus" = "mock") {
   return requestStrict<{ backtest: { id: string; result: Record<string, unknown> } }>(`/strategies/${encodeURIComponent(strategyId)}/backtest`, { method: "POST", body: JSON.stringify({ engine }) });
+}
+
+// ── Backtest Lab ─────────────────────────────────────
+
+export type BacktestLabSpec = {
+  name: string;
+  mode: "daily" | "cross_sectional";
+  signal: "momentum" | "mean_reversion" | "breakout" | "relative_strength";
+  assets: string[];
+  fast_window: number;
+  slow_window: number;
+  entry_threshold: number;
+  exit_threshold: number;
+  rebalance_days: number;
+  long_short: boolean;
+  max_position: number;
+  fee_bps: number;
+  stop_loss_pct: number | null;
+  thesis: string;
+};
+
+export type BacktestLabRun = {
+  id: string;
+  status: string;
+  mode: string;
+  spec: BacktestLabSpec;
+  symbols: string[];
+  window: { start: string | null; end: string | null };
+  performance: Record<string, number> & { per_asset?: Record<string, Record<string, number>> };
+  equity_curve: Array<{ ts: string; equity: number }>;
+  assumptions: Record<string, unknown>;
+  context_used: Record<string, unknown>;
+  credits_spent: number;
+  created_at: string;
+};
+
+export type BacktestLabStatus = {
+  symbols: string[];
+  coverage: Record<string, { bars: number; first_ts: string | null; last_ts: string | null }>;
+  disclaimer: string;
+};
+
+export function getBacktestLabStatus() {
+  return requestStrict<BacktestLabStatus>("/backtest-lab/status");
+}
+
+export function generateBacktestLabSpec(idea: string, useMemory: boolean, locale: string) {
+  return requestStrict<{ spec: BacktestLabSpec; meta: { fallback: boolean; context_notes: number } }>("/backtest-lab/generate-spec", {
+    method: "POST",
+    body: JSON.stringify({ idea, use_memory: useMemory, locale })
+  });
+}
+
+export function runBacktestLab(spec: BacktestLabSpec, windowDays: number, contextMeta: Record<string, unknown> = {}) {
+  return requestStrict<{ run: BacktestLabRun }>("/backtest-lab/runs", {
+    method: "POST",
+    body: JSON.stringify({ spec, window_days: windowDays, context_meta: contextMeta })
+  });
+}
+
+export function getBacktestLabRuns(limit = 20) {
+  return requestStrict<{ runs: BacktestLabRun[] }>(`/backtest-lab/runs?limit=${limit}`);
+}
+
+export function refreshBacktestLabData() {
+  return requestStrict<BacktestLabStatus & { stats: Record<string, { fetched: number; upserted: number }> }>("/backtest-lab/data/refresh", { method: "POST" });
 }
 
 export function previewStrategyActivation(strategyId: string, mode: "PAPER" | "SHADOW", accountId?: string) {

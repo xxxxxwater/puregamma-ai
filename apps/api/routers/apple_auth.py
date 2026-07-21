@@ -161,6 +161,8 @@ def upsert_apple_user(db: Session, claims: dict, request: AppleExchangeRequest, 
 @router.post("/apple/exchange")
 def mobile_apple_exchange(payload: AppleExchangeRequest, db: Session = Depends(get_db)) -> dict:
     settings = get_settings()
+    if not settings.apple_auth_enabled:
+        raise HTTPException(status_code=503, detail={"code": "APPLE_AUTH_DISABLED"})
     try:
         claims = _verify_apple_identity_token(payload.identity_token, payload.nonce, settings)
         token_response = _exchange_authorization_code(payload.authorization_code, settings)

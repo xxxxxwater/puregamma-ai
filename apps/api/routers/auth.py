@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import logging
 import secrets
+import hashlib
+from datetime import datetime, timezone
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Response
+from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -28,6 +30,11 @@ class MockLoginRequest(BaseModel):
     email: str = "demo@puregamma.ai"
     name: str = "Demo User"
     locale: str = "en"
+
+
+class InternalAdminLoginRequest(BaseModel):
+    username: str = Field(min_length=1, max_length=120)
+    password: str = Field(min_length=1, max_length=1024)
 
 
 class LocalePreferenceRequest(BaseModel):
@@ -59,6 +66,7 @@ def serialize_user(user: User) -> dict:
         "google_user_id": user.google_user_id,
         "avatar_url": user.avatar_url,
         "auth_provider": user.auth_provider,
+        "has_password": bool(user.password_hash),
         "email_verified": bool(user.email_verified_at),
         "email_verified_at": user.email_verified_at.isoformat()
         if user.email_verified_at
@@ -71,6 +79,68 @@ def serialize_user(user: User) -> dict:
         "created_at": user.created_at.isoformat(),
         "updated_at": user.updated_at.isoformat(),
     }
+
+
+def _internal_admin_rate_limit(request: Request, username: str, *, success: bool = False) -> None:
+    """Five failed attempts per IP/account in 15 minutes; production fails closed."""
+    settings = get_settings()
+    if settings.app_environment.lower() != "production":
+        return
+    forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for")
+    client = forwarded.split(",", 1)[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    fingerprint = hashlib.sha256(f"{client}:{username.lower()}".encode()).hexdigest()
+    key = f"pg:auth:internal-admin:{fingerprint}"
+    try:
+        from redis import Redis
+
+        redis = Redis.from_url(settings.redis_url, socket_connect_timeout=1, socket_timeout=1)
+        if success:
+            redis.delete(key)
+            return
+        count = int(redis.incr(key))
+        if count == 1:
+            redis.expire(key, 900)
+        if count > 5:
+            raise HTTPException(status_code=429, detail="Too many login attempts", headers={"Retry-After": "900"})
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error("internal_admin_rate_limit_unavailable", extra={"error": type(exc).__name__})
+        raise HTTPException(status_code=503, detail="Authentication service unavailable") from exc
+
+
+@router.post("/auth/internal-admin-login")
+def internal_admin_login(
+    payload: InternalAdminLoginRequest,
+    request: Request,
+    response: Response,
+    db: Session = Depends(get_db),
+) -> dict:
+    settings = get_settings()
+    if not settings.internal_admin_login_enabled:
+        raise HTTPException(status_code=404, detail="Not found")
+
+    from packages.security.passwords import verify_password
+
+    username_matches = secrets.compare_digest(payload.username, settings.internal_admin_username)
+    password_matches = verify_password(payload.password, settings.internal_admin_password_hash)
+    if not (username_matches and password_matches):
+        _internal_admin_rate_limit(request, payload.username)
+        logger.warning("internal_admin_login_failed")
+        raise HTTPException(status_code=401, detail="Invalid administrator credentials")
+
+    user = db.query(User).filter(User.email == settings.internal_admin_user_email).one_or_none()
+    if not user or user.role != "admin":
+        logger.error("internal_admin_account_not_authorized")
+        raise HTTPException(status_code=403, detail="Administrator account is not authorized")
+
+    _internal_admin_rate_limit(request, payload.username, success=True)
+    user.last_login_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(user)
+    set_session_cookie(response, user)
+    logger.info("internal_admin_login_succeeded", extra={"user_id": user.id})
+    return {"user": serialize_user(user), "redirect_to": "/admin"}
 
 
 @router.post("/auth/mock-login")
@@ -238,7 +308,10 @@ def save_onboarding(
     preference.preferred_assets = assets or ["BTC", "ETH", "SOL"]
     preference.preferred_style = payload.preferred_style[:80]
     preference.notification_channels = channels or ["email"]
-    preference.email_recipient = (payload.email_recipient or user.email)[:320]
+    # Anti-abuse: notification email may only go to the verified account email
+    # until a recipient-verification flow exists; arbitrary addresses would let
+    # anyone weaponize the platform SMTP for phishing.
+    preference.email_recipient = user.email
     preference.telegram_chat_id = payload.telegram_chat_id[:160] or None
     preference.imessage_recipient = payload.imessage_recipient[:40] or None
     db.commit()

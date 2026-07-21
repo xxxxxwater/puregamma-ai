@@ -22,7 +22,7 @@ Sensitivity levels:
 | `NEXT_PUBLIC_API_URL` | Web only | `http://localhost:8000` | `https://api.example.com` | Public browser value. | Public |
 | `GOOGLE_CLIENT_ID` | Required for Google OAuth | empty | `...apps.googleusercontent.com` | Server-side OAuth client ID used for authorize URL and ID token audience check. | Internal |
 | `GOOGLE_CLIENT_SECRET` | Required for Google OAuth | empty | `...` | Never expose to the frontend. | Secret |
-| `GOOGLE_OAUTH_REDIRECT_URI` | Required for Google OAuth | `http://localhost:8000/auth/google/callback` | `https://app.example.com/en/auth/google/callback` | Must exactly match the URI configured in Google Cloud and token exchange. | Public |
+| `GOOGLE_OAUTH_REDIRECT_URI` | Required for Google OAuth | `http://127.0.0.1:8000/auth/google/callback` | `https://api.example.com/auth/google/callback` | Must exactly match the URI configured in Google Cloud and token exchange; the API sets the session cookie and redirects to `SITE_URL`. | Public |
 
 ## Database
 

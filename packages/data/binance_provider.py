@@ -23,7 +23,7 @@ BINANCE_SYMBOLS = {
     "BTC": "BTCUSDT",
     "ETH": "ETHUSDT",
     "SOL": "SOLUSDT",
-    "HYPE": "HYPEUSDT",
+    # HYPE has no Binance USDT spot pair; it is served by Coinbase/Hyperliquid.
 }
 
 

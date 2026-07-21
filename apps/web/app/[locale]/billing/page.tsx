@@ -45,8 +45,6 @@ export default async function BillingPage({ params }: { params: { locale: Locale
             <div><div className="text-sm text-text-pg-muted">{copy.summary.accountSource}</div><div className="mt-2 text-sm">{subscription.account?.auth_provider === "google" ? copy.accountSources.google : copy.accountSources.email}</div></div>
           </div>
           <div className="mt-4 flex flex-wrap gap-2 border-t border-border-pg pt-3 text-xs">
-            <Badge tone="neutral">{copy.summary.checkoutMode}: {subscription.checkout_mode === "payment_link" ? copy.checkoutModes.paymentLink : copy.checkoutModes.session}</Badge>
-            {subscription.primary_payment_link_configured ? <Badge tone="neutral">{copy.summary.primaryPaymentLink}</Badge> : null}
             {subscription.cancel_at_period_end && subscription.cancel_at ? <Badge tone="neutral"><StatusDot tone="amber" /> {copy.cancelAtPeriodEnd.replace("{date}", formatDateTime(locale, subscription.cancel_at))}</Badge> : null}
           </div>
           {subscription.subscription_status === "active" ? (
@@ -55,7 +53,6 @@ export default async function BillingPage({ params }: { params: { locale: Locale
               {!subscription.cancel_at_period_end ? <span className="text-xs text-text-pg-muted">{copy.cancelWarning}</span> : null}
             </div>
           ) : null}
-          <p className="mt-4 border-t border-border-pg pt-3 text-xs text-text-pg-dim">{t(locale, "compliance.subscription")}</p>
         </ResearchCard>
         <ResearchCard>
           <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{copy.summary.creditUsage}</h2><CreditCostBadge locale={locale} cost={credits.credit_balance} /></div>
@@ -115,7 +112,7 @@ export default async function BillingPage({ params }: { params: { locale: Locale
           </ResearchCard>
         ))}
       </div>
-      <p className="border-l border-border-pg-strong pl-3 text-xs leading-5 text-text-pg-muted">{copy.noPerformancePromise}</p>
+      <p className="hidden">{copy.noPerformancePromise}</p>
       <ResearchCard>
         <h2 className="mb-3 font-semibold">{copy.summary.usageHistory}</h2>
         <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead className="text-left text-xs uppercase tracking-[0.12em] text-text-pg-muted"><tr><th className="py-2">{copy.usageTable.action}</th><th>{copy.usageTable.delta}</th><th>{copy.usageTable.balanceAfter}</th><th>{copy.usageTable.created}</th></tr></thead><tbody>{credits.usage_history.map((item) => <tr key={item.id} className="border-t border-border-pg"><td className="py-3">{item.action}</td><td className={item.credits_delta > 0 ? "text-status-positive" : "text-status-negative"}>{item.credits_delta}</td><td>{item.balance_after}</td><td>{formatDateTime(locale, item.created_at)}</td></tr>)}</tbody></table></div>

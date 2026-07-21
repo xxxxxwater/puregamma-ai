@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from datetime import datetime, timedelta, timezone
 
 import requests
@@ -10,6 +11,24 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from apps.api.services.entitlement_service import get_user_entitlement
 from packages.database.models import AccountSnapshot, ExchangeConnection, PortfolioAutopilotReview, PositionSnapshot, TradingAccount, User, UserPreference, utcnow
+
+logger = logging.getLogger(__name__)
+
+_MORALIS_CHAIN_BY_ID = {
+    1: "eth",
+    10: "optimism",
+    56: "bsc",
+    100: "gnosis",
+    137: "polygon",
+    250: "fantom",
+    1284: "moonbeam",
+    1285: "moonriver",
+    8453: "base",
+    42161: "arbitrum",
+    43114: "avalanche",
+    59144: "linea",
+}
+_MORALIS_TEST_CHAIN_MARKERS = ("testnet", "sepolia", "amoy", "moonbase")
 
 
 def _fernet() -> Fernet:
@@ -80,15 +99,36 @@ def plaid_link_token(user: User) -> str:
     settings = get_settings()
     if not settings.plaid_client_id or not settings.plaid_secret:
         raise RuntimeError("Plaid Investments is not configured")
-    base = f"https://{settings.plaid_env}.plaid.com"
-    response = requests.post(f"{base}/link/token/create", json={"client_id": settings.plaid_client_id, "secret": settings.plaid_secret, "client_name": "PureGamma AI", "language": "en", "country_codes": ["US", "CA"], "user": {"client_user_id": user.id}, "products": ["investments"], "redirect_uri": settings.plaid_redirect_uri}, timeout=15)
+    environment = settings.plaid_env.strip().lower()
+    if environment not in {"sandbox", "production"}:
+        raise RuntimeError("PLAID_ENV must be sandbox or production")
+    if environment == "production" and not settings.plaid_redirect_uri.startswith("https://"):
+        raise RuntimeError("Plaid Production requires an HTTPS redirect URI")
+    base = f"https://{environment}.plaid.com"
+    response = requests.post(
+        f"{base}/link/token/create",
+        json={
+            "client_id": settings.plaid_client_id,
+            "secret": settings.plaid_secret,
+            "client_name": "PureGamma AI",
+            "language": "en",
+            "country_codes": ["US"],
+            "user": {"client_user_id": user.id},
+            "products": ["investments"],
+            "redirect_uri": settings.plaid_redirect_uri,
+        },
+        timeout=20,
+    )
     response.raise_for_status()
     return response.json()["link_token"]
 
 
 def connect_plaid(db: Session, user: User, public_token: str, institution_name: str = "Plaid Investments") -> TradingAccount:
     settings = get_settings()
-    base = f"https://{settings.plaid_env}.plaid.com"
+    environment = settings.plaid_env.strip().lower()
+    if environment not in {"sandbox", "production"}:
+        raise RuntimeError("PLAID_ENV must be sandbox or production")
+    base = f"https://{environment}.plaid.com"
     response = requests.post(f"{base}/item/public_token/exchange", json={"client_id": settings.plaid_client_id, "secret": settings.plaid_secret, "public_token": public_token}, timeout=15)
     response.raise_for_status()
     payload = response.json()
@@ -102,6 +142,22 @@ def connect_hyperliquid(db: Session, user: User, address: str) -> TradingAccount
     return _account(db, user, "HYPERLIQUID", "Hyperliquid", {"wallet_address": normalized})
 
 
+def connect_evm_wallet(db: Session, user: User, address: str, chain_id: int) -> TradingAccount:
+    settings = get_settings()
+    if not settings.moralis_api_key:
+        raise RuntimeError("MORALIS_API_KEY is required for multi-chain EVM portfolio sync")
+    normalized = address.strip().lower()
+    if not normalized.startswith("0x") or len(normalized) != 42 or any(ch not in "0123456789abcdef" for ch in normalized[2:]):
+        raise ValueError("Invalid EVM wallet address")
+    return _account(
+        db,
+        user,
+        "EVM",
+        f"MetaMask {normalized[:6]}...{normalized[-4:]}",
+        {"wallet_address": normalized, "verified_chain_id": chain_id, "verification": "EIP-4361"},
+    )
+
+
 def connect_ibkr_token(db: Session, user: User, token_payload: dict) -> TradingAccount:
     metadata = {"expires_at": int(datetime.now(timezone.utc).timestamp()) + int(token_payload.get("expires_in") or 3600)}
     return _account(db, user, "IBKR", "Interactive Brokers", metadata, json.dumps(token_payload))
@@ -113,6 +169,8 @@ def sync_account(db: Session, user: User, account: TradingAccount) -> None:
     try:
         if account.venue == "HYPERLIQUID":
             _sync_hyperliquid(db, account)
+        elif account.venue == "EVM":
+            _sync_evm(db, account)
         elif account.venue == "PLAID":
             _sync_plaid(db, account)
         elif account.venue == "IBKR":
@@ -169,6 +227,110 @@ def _sync_hyperliquid(db: Session, account: TradingAccount) -> None:
     equity += spot_value
     raw = {"perpetual": data, "spot": spot_data}
     _save_snapshot(db, account, equity, max(equity - margin, 0), raw, [*data.get("assetPositions", []), *spot_positions], "hyperliquid")
+
+
+def _sync_evm(db: Session, account: TradingAccount) -> None:
+    settings = get_settings()
+    if not settings.moralis_api_key:
+        raise RuntimeError("MORALIS_API_KEY is required for multi-chain EVM portfolio sync")
+    connection = _connection(db, account)
+    address = str((connection.metadata_json or {}).get("wallet_address") or "")
+    base_url = settings.moralis_api_url.rstrip("/")
+    headers = {
+        "X-API-Key": settings.moralis_api_key,
+        "Accept": "application/json",
+    }
+    active_response = requests.get(
+        f"{base_url}/wallets/{address}/chains",
+        headers=headers,
+        timeout=45,
+    )
+    active_response.raise_for_status()
+    active_payload = active_response.json()
+    chains = []
+    chain_ids = {}
+    for item in active_payload.get("active_chains", []):
+        chain = str(item.get("chain") or "").strip().lower()
+        if not chain or any(marker in chain for marker in _MORALIS_TEST_CHAIN_MARKERS):
+            continue
+        if chain not in chains:
+            chains.append(chain)
+            chain_ids[chain] = str(item.get("chain_id") or chain)
+    if not chains:
+        connected_chain_id = int((connection.metadata_json or {}).get("chain_id") or 1)
+        fallback_chain = _MORALIS_CHAIN_BY_ID.get(connected_chain_id, "eth")
+        chains = [fallback_chain]
+        chain_ids[fallback_chain] = str(connected_chain_id)
+
+    assets = []
+    chain_errors = []
+    for chain in chains:
+        cursor = None
+        for _page in range(10):
+            params = {"chain": chain, "limit": 100}
+            if cursor:
+                params["cursor"] = cursor
+            try:
+                response = requests.get(
+                    f"{base_url}/wallets/{address}/tokens",
+                    params=params,
+                    headers=headers,
+                    timeout=45,
+                )
+                response.raise_for_status()
+                payload = response.json()
+            except Exception as exc:
+                chain_errors.append({"chain": chain, "error": str(exc)[:160]})
+                logger.warning(
+                    "moralis_wallet_tokens_failed address=%s chain=%s error=%s",
+                    address,
+                    chain,
+                    exc,
+                )
+                break
+            for asset in payload.get("result", []):
+                assets.append({**asset, "_chain": chain})
+            cursor = payload.get("cursor")
+            if not cursor:
+                break
+    if chain_errors and len(chain_errors) == len(chains):
+        raise RuntimeError("Moralis could not read token balances on active EVM chains")
+
+    positions = []
+    equity = 0.0
+    available = 0.0
+    for asset in assets:
+        if asset.get("possible_spam") is True:
+            continue
+        value = float(asset.get("usd_value") or 0)
+        quantity = float(asset.get("balance_formatted") or 0)
+        price = float(asset.get("usd_price") or 0)
+        if value <= 0 and quantity <= 0:
+            continue
+        symbol = str(asset.get("symbol") or asset.get("name") or "UNKNOWN")
+        chain = str(asset.get("_chain") or "unknown")
+        equity += max(value, 0)
+        if symbol.upper() in {"USDC", "USDT", "DAI", "USDE", "USDH", "PYUSD"}:
+            available += max(value, 0)
+        positions.append(
+            {
+                "symbol": f"{symbol} @ {chain}",
+                "quantity": quantity,
+                "price": price,
+                "value": value,
+                "cost": price,
+            }
+        )
+    raw = {
+        "address": address,
+        "asset_count": len(positions),
+        "chains": [
+            {"chain": chain, "chain_id": chain_ids.get(chain, chain)}
+            for chain in chains
+        ],
+        "chain_errors": chain_errors,
+    }
+    _save_snapshot(db, account, equity, available, raw, positions, "evm")
 
 
 def _sync_plaid(db: Session, account: TradingAccount) -> None:
@@ -257,6 +419,13 @@ def _save_snapshot(db: Session, account: TradingAccount, equity: float, availabl
 
 
 def portfolio_view(db: Session, user: User) -> dict:
+    settings = get_settings()
+    plaid_configured = bool(
+        settings.plaid_client_id
+        and settings.plaid_secret
+        and settings.plaid_env.strip().lower() in {"sandbox", "production"}
+        and (settings.plaid_env.strip().lower() == "sandbox" or settings.plaid_redirect_uri.startswith("https://"))
+    )
     accounts = db.query(TradingAccount).filter(TradingAccount.user_id == user.id, TradingAccount.account_type == "READ_ONLY", TradingAccount.status == "ACTIVE").all()
     latest = []
     all_rows = []
@@ -285,7 +454,7 @@ def portfolio_view(db: Session, user: User) -> dict:
         effective_status = "STALE" if snapshot and _snapshot_is_stale(account, snapshot) else connection.status
         connections.append({"id": account.id, "provider": account.venue.lower(), "name": account.name, "status": effective_status, "last_sync": connection.last_health_at.isoformat() if connection.last_health_at else None, "error": connection.error_message})
     data_as_of = min((row.captured_at for row in latest), default=None)
-    return {"connected": bool(latest), "stale": any(_snapshot_is_stale(account, next(row for row in latest if row.account_id == account.id)) for account in accounts if any(row.account_id == account.id for row in latest)), "data_as_of": data_as_of.isoformat() if data_as_of else None, "nav": sum(row.equity for row in latest), "available_cash": sum(row.available_margin for row in latest), "nav_history": timeline, "connections": connections, "providers": {"plaid": True, "ibkr": True, "hyperliquid": True}}
+    return {"connected": bool(latest), "stale": any(_snapshot_is_stale(account, next(row for row in latest if row.account_id == account.id)) for account in accounts if any(row.account_id == account.id for row in latest)), "data_as_of": data_as_of.isoformat() if data_as_of else None, "nav": sum(row.equity for row in latest), "available_cash": sum(row.available_margin for row in latest), "nav_history": timeline, "connections": connections, "providers": {"plaid": plaid_configured, "ibkr": plaid_configured, "hyperliquid": True, "evm": bool(settings.moralis_api_key)}}
 
 
 def portfolio_context(db: Session, user_id: str, *, detailed: bool = False) -> dict:

@@ -154,23 +154,33 @@ class NotificationDispatcher:
                 retry_at = retry_at.replace(tzinfo=timezone.utc)
             if retry_at > utcnow():
                 return existing
+
+        def _finish(status: str, response: dict) -> NotificationDelivery:
+            """Terminal/skip outcome: update the retrying row in place instead of
+            inserting a duplicate idempotency-key row (which crashes on the
+            uq_notification_idempotency constraint)."""
+            if existing is not None:
+                existing.status = status
+                existing.provider_response = response
+                existing.last_attempt_at = utcnow()
+                existing.next_retry_at = None
+                existing.last_error = None
+                db.commit()
+                db.refresh(existing)
+                return existing
+            return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, status, response, locale=locale)
+
         pref = user.preference
         locale = normalize_locale(
             metadata.get("locale") or getattr(pref, "locale", None)
         )
         recipient = self._recipient(user_id, pref, channel, metadata)
+        if channel == "email":
+            # Hard bind email deliveries to the verified account email (defense
+            # in depth; onboarding already enforces this at write time).
+            recipient = user.email
         if not recipient:
-            return self._create_delivery(
-                db,
-                user_id,
-                channel,
-                recipient,
-                message,
-                idempotency_key,
-                "skipped",
-                {"reason": "missing_recipient"},
-                locale=locale,
-            )
+            return _finish("skipped", {"reason": "missing_recipient"})
         if self.settings.app_environment.lower() == "production":
             configured = {
                 "telegram": bool(self.settings.telegram_bot_token),
@@ -184,48 +194,18 @@ class NotificationDispatcher:
                 "push": self.settings.apns_enabled,
             }.get(channel, False)
             if not configured:
-                return self._create_delivery(
-                    db,
-                    user_id,
-                    channel,
-                    recipient,
-                    message,
-                    idempotency_key,
-                    "failed",
-                    {"reason": "provider_not_configured"},
-                    locale=locale,
-                )
+                return _finish("failed", {"reason": "provider_not_configured"})
         if channel == "imessage":
             try:
                 recipient = normalize_e164(recipient)
             except ValueError:
-                return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, "skipped", {"reason": "invalid_recipient"}, locale=locale)
+                return _finish("skipped", {"reason": "invalid_recipient"})
             if self.settings.imessage_provider == "macos_relay" and (not pref.imessage_recipient_verified_at or pref.imessage_recipient != recipient):
-                return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, "skipped", {"reason": "recipient_unverified"}, locale=locale)
+                return _finish("skipped", {"reason": "recipient_unverified"})
             if len(message) > self.settings.imessage_max_message_length:
-                return self._create_delivery(
-                    db,
-                    user_id,
-                    channel,
-                    recipient,
-                    message,
-                    idempotency_key,
-                    "skipped",
-                    {"reason": "message_too_long"},
-                    locale=locale,
-                )
+                return _finish("skipped", {"reason": "message_too_long"})
             if self._imessage_count_today(db, user_id) >= self.settings.imessage_rate_limit_per_user_per_day:
-                return self._create_delivery(
-                    db,
-                    user_id,
-                    channel,
-                    recipient,
-                    message,
-                    idempotency_key,
-                    "skipped",
-                    {"reason": "daily_rate_limit"},
-                    locale=locale,
-                )
+                return _finish("skipped", {"reason": "daily_rate_limit"})
         action = CHANNEL_ACTION[channel]
         attempt = (existing.attempt_count if existing else 0) + 1
         quote = quote_task(task_type=action, notification_channel=channel)
@@ -259,13 +239,7 @@ class NotificationDispatcher:
                 if isinstance(exc, AutomationBudgetExceeded)
                 else "skipped_entitlement"
             )
-            return self._create_delivery(
-                db,
-                user_id,
-                channel,
-                recipient,
-                message,
-                idempotency_key,
+            return _finish(
                 skip_status,
                 {
                     "reason": "insufficient_credits"
@@ -274,7 +248,6 @@ class NotificationDispatcher:
                     if isinstance(exc, AutomationBudgetExceeded)
                     else "entitlement_denied"
                 },
-                locale=locale,
             )
         if channel == "push":
             devices = db.query(PushDevice).filter_by(user_id=user_id, enabled=True).all()

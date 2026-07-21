@@ -44,7 +44,17 @@ def get_or_create_preference(db: Session, user: User) -> DailyBriefPreference:
     if row:
         return row
     locale = user.preference.locale if user.preference else "en"
-    row = DailyBriefPreference(user_id=user.id, locale=locale, recipient=_recipient(user, "email"))
+    timezone_name = "Asia/Shanghai" if locale == "zh" else "UTC"
+    row = DailyBriefPreference(
+        user_id=user.id,
+        enabled=True,
+        channel="email",
+        locale=locale,
+        timezone=timezone_name,
+        local_time="08:30",
+        recipient=_recipient(user, "email"),
+    )
+    row.next_delivery_at = next_delivery(row.timezone, row.local_time)
     db.add(row)
     db.commit()
     db.refresh(row)

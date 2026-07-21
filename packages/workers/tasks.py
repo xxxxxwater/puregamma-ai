@@ -99,11 +99,53 @@ def retry_notification_deliveries() -> dict:
         db.close()
 
 
+def _default_brief_timezone(locale: str) -> str:
+    return "Asia/Shanghai" if locale == "zh" else "UTC"
+
+
+def ensure_daily_brief_defaults(db) -> int:
+    """Auto-provision an enabled email daily brief for users who never configured one.
+
+    Keeps the daily brief on autopilot: every account gets a scheduled morning
+    brief unless it explicitly disables or customizes the preference.
+    """
+    missing = (
+        db.query(User)
+        .outerjoin(DailyBriefPreference, DailyBriefPreference.user_id == User.id)
+        .filter(DailyBriefPreference.user_id.is_(None))
+        .limit(200)
+        .all()
+    )
+    created = 0
+    for user in missing:
+        locale = user.preference.locale if user.preference else "en"
+        timezone_name = _default_brief_timezone(locale)
+        local_time = "08:30"
+        recipient = (user.preference.email_recipient if user.preference else None) or user.email
+        db.add(
+            DailyBriefPreference(
+                user_id=user.id,
+                enabled=True,
+                channel="email",
+                locale=locale,
+                timezone=timezone_name,
+                local_time=local_time,
+                recipient=recipient,
+                next_delivery_at=next_delivery(timezone_name, local_time),
+            )
+        )
+        created += 1
+    if created:
+        db.commit()
+    return created
+
+
 @celery_app.task(name="puregamma.dispatch_due_daily_briefs")
 def dispatch_due_daily_briefs() -> dict:
     db = SessionLocal()
     sent = skipped = failed = 0
     try:
+        provisioned = ensure_daily_brief_defaults(db)
         query = db.query(DailyBriefPreference).filter(DailyBriefPreference.enabled.is_(True), DailyBriefPreference.next_delivery_at <= utcnow()).order_by(DailyBriefPreference.next_delivery_at).limit(100)
         if db.bind and db.bind.dialect.name == "postgresql":
             query = query.with_for_update(skip_locked=True)
@@ -142,7 +184,22 @@ def dispatch_due_daily_briefs() -> dict:
                 db.rollback()
                 failed += 1
                 logger.exception("due_daily_brief_failed user_id=%s", preference.user_id)
-        return {"due": len(rows), "sent": sent, "skipped": skipped, "failed": failed}
+        return {"due": len(rows), "sent": sent, "skipped": skipped, "failed": failed, "provisioned": provisioned}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.refresh_backtest_lab_candles")
+def refresh_backtest_lab_candles() -> dict:
+    """Daily incremental refresh of the shared BTC/ETH 1d backtest dataset."""
+    from packages.backtest.daily_data import refresh_daily_candles
+
+    db = SessionLocal()
+    try:
+        return refresh_daily_candles(db)
+    except Exception:
+        logger.exception("backtest_lab_candles_refresh_failed")
+        return {"error": "refresh_failed"}
     finally:
         db.close()
 
@@ -335,14 +392,75 @@ def send_daily_reports_to_channels() -> int:
         db.close()
 
 
+@celery_app.task(name="puregamma.send_unified_daily_brief_to_all")
+def send_unified_daily_brief_to_all() -> dict:
+    """Render ONE unified brief per locale and broadcast it to every user (free).
+
+    Template-rendered (non-LLM) so all users share the same daily view.
+    Free of charge; failures land in the existing NotificationDelivery retry lane.
+    """
+    from packages.reports.unified_daily_brief import generate_unified_daily_brief
+
+    db = SessionLocal()
+    sent = skipped = failed = 0
+    try:
+        briefs = {
+            "en": generate_unified_daily_brief(db, "en"),
+            "zh": generate_unified_daily_brief(db, "zh"),
+        }
+        today = utcnow().date().isoformat()
+        users = db.query(User).all()
+        for user in users:
+            raw_locale = user.preference.locale if user.preference else "en"
+            locale = "zh" if raw_locale == "zh" else "en"
+            brief_pref = db.get(DailyBriefPreference, user.id)
+            channel = "email"
+            if brief_pref and brief_pref.enabled and brief_pref.channel in {"email", "imessage"}:
+                channel = brief_pref.channel
+            if channel == "imessage" and not (brief_pref and brief_pref.recipient and brief_pref.recipient_verified_at):
+                channel = "email"
+            try:
+                delivery = send_notification(
+                    db,
+                    user.id,
+                    channel,
+                    briefs[locale],
+                    {
+                        "idempotency_key": f"unified-brief:{today}:{user.id}:{channel}",
+                        "locale": locale,
+                        "automation_key": "unified_daily_brief",
+                    },
+                )
+                if delivery.status == "sent":
+                    sent += 1
+                else:
+                    skipped += 1
+            except Exception:
+                db.rollback()
+                failed += 1
+                logger.exception("unified_brief_delivery_failed user_id=%s", user.id)
+        return {"sent": sent, "skipped": skipped, "failed": failed, "users": len(users)}
+    finally:
+        db.close()
+
+
 @celery_app.task(name="puregamma.refresh_earnings_gamma_candidates")
 def refresh_earnings_gamma_candidates() -> dict:
     db = SessionLocal()
     try:
-        from packages.options.earnings_gamma import force_refresh_earnings
-        en = force_refresh_earnings(db, "en")
-        zh = force_refresh_earnings(db, "zh")
-        return {"en_count": len(en), "zh_count": len(zh)}
+        from packages.options.earnings_gamma import (
+            force_refresh_earnings,
+            is_us_equity_trading_day,
+        )
+
+        if not is_us_equity_trading_day():
+            return {"skipped": True, "reason": "us_market_closed"}
+        candidates = force_refresh_earnings(db, "en")
+        return {
+            "skipped": False,
+            "en_count": len(candidates),
+            "zh_count": len(candidates),
+        }
     finally:
         db.close()
 
