@@ -130,17 +130,49 @@ export async function logout() {
   return requestStrict<{ ok: boolean }>("/auth/logout", { method: "POST" });
 }
 
-export async function emailRegister(email: string, password: string, name: string, locale: Locale = defaultLocale) {
+export function extractApiError(err: unknown): { status?: number; code?: string; message?: string; rule?: string } {
+  const e = err as { status?: number; message?: string };
+  let code: string | undefined;
+  let message: string | undefined;
+  let rule: string | undefined;
+  try {
+    const parsed = JSON.parse(e?.message || "");
+    code = parsed?.detail?.code;
+    message = parsed?.detail?.message;
+    rule = parsed?.detail?.rule;
+  } catch {
+    /* non-JSON error body */
+  }
+  return { status: e?.status, code, message, rule };
+}
+
+export type CaptchaPayload = { captcha_id: string; captcha_offset: number } | { captcha_id?: undefined; captcha_offset?: undefined };
+
+export type CaptchaPuzzle = {
+  captcha_id: string;
+  background: string;
+  piece: string;
+  piece_y: number;
+  width: number;
+  height: number;
+  expires_in: number;
+};
+
+export async function getCaptchaPuzzle(): Promise<CaptchaPuzzle> {
+  return requestStrict<CaptchaPuzzle>("/auth/captcha/puzzle");
+}
+
+export async function emailRegister(email: string, password: string, name: string, locale: Locale = defaultLocale, captcha: CaptchaPayload = {}) {
   return requestStrict<AuthResponse & { message?: string }>("/auth/email/register", {
     method: "POST",
-    body: JSON.stringify({ email, password, name, locale })
+    body: JSON.stringify({ email, password, name, locale, ...captcha })
   });
 }
 
-export async function emailLogin(email: string, password: string) {
+export async function emailLogin(email: string, password: string, captcha: CaptchaPayload = {}) {
   return requestStrict<AuthResponse>("/auth/email/login", {
     method: "POST",
-    body: JSON.stringify({ email, password })
+    body: JSON.stringify({ email, password, ...captcha })
   });
 }
 
@@ -501,11 +533,13 @@ export function getSignals(locale: Locale = defaultLocale) {
 }
 
 export function getPortfolioSnapshot(locale: Locale = defaultLocale) {
-  return api<PortfolioSnapshot>("/portfolio", { fallback: { connected: false, nav: 0, available_cash: 0, nav_history: [], connections: [], providers: { plaid: false, ibkr: false, hyperliquid: true } }, locale });
+  return api<PortfolioSnapshot>("/portfolio", { fallback: { connected: false, nav: 0, available_cash: 0, daily_change: 0, daily_change_pct: null, nav_history: [], holdings: [], asset_classes: {}, accounts: [], connections: [], providers: { plaid: false, ibkr: false, hyperliquid: true, evm: false } }, locale });
 }
 
 export type PortfolioConnection = { id: string; provider: string; name: string; status: string; last_sync: string | null; error?: string | null };
-export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; nav_history: Array<{ date: string; nav: number }>; connections: PortfolioConnection[]; providers: { plaid: boolean; ibkr: boolean; hyperliquid: boolean; evm?: boolean } };
+export type PortfolioHolding = { symbol: string; instrument: string; name: string; chain: string | null; quantity: number; price: number; value: number; weight: number; change_24h: number; change_24h_pct: number; asset_class: string; native: boolean; verified: boolean; priced: boolean; logo?: string | null };
+export type PortfolioAccountSummary = { id: string; provider: string; name: string; status: string; nav: number; available_cash: number; daily_change: number; as_of: string | null };
+export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; daily_change?: number; daily_change_pct?: number | null; nav_history: Array<{ date: string; nav: number }>; holdings?: PortfolioHolding[]; asset_classes?: Record<string, number>; accounts?: PortfolioAccountSummary[]; connections: PortfolioConnection[]; providers: { plaid: boolean; ibkr: boolean; hyperliquid: boolean; evm?: boolean } };
 
 export function createPlaidLinkToken() { return requestStrict<{ link_token: string }>("/portfolio/plaid/link-token", { method: "POST" }); }
 export function exchangePlaidToken(publicToken: string, institutionName: string) { return requestStrict<PortfolioSnapshot>("/portfolio/plaid/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken, institution_name: institutionName }) }); }
@@ -531,7 +565,7 @@ export function syncPortfolio() {
 
 export async function getIntegrations(locale: Locale = defaultLocale) {
   const portfolio = await api<PortfolioSnapshot & { unavailable?: boolean }>("/portfolio", {
-    fallback: { connected: false, stale: false, data_as_of: null, nav: 0, available_cash: 0, nav_history: [], connections: [], providers: { plaid: false, ibkr: false, hyperliquid: false }, unavailable: true },
+    fallback: { connected: false, stale: false, data_as_of: null, nav: 0, available_cash: 0, daily_change: 0, daily_change_pct: null, nav_history: [], holdings: [], asset_classes: {}, accounts: [], connections: [], providers: { plaid: false, ibkr: false, hyperliquid: false, evm: false }, unavailable: true },
     locale
   });
   return {
@@ -1106,6 +1140,12 @@ export function updateDailyPushPreferences(preference: Partial<DailyPushPreferen
 export function sendDailyPushTest(channel: DailyPushPreference["channel"], locale: Locale = defaultLocale) {
   const message = locale === "zh" ? "PureGamma AI 每日简报测试。使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" : "PureGamma AI daily brief test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.";
   return requestStrict<{ delivery: DeliveryRecord }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, message, locale, metadata: { idempotency_key: `daily-push-test-${Date.now()}` } }) });
+}
+
+export type IMessageConfig = { official_number: string; provider: string; enabled_plans: string[]; recipient: string | null; recipient_verified_at: string | null };
+
+export function getIMessageConfig() {
+  return requestStrict<IMessageConfig>("/notifications/imessage/config");
 }
 
 export function requestIMessageVerification(recipient: string) {

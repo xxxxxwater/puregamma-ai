@@ -55,6 +55,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var signingIn by mutableStateOf(false)
         private set
+    var isRegistering by mutableStateOf(false)
+        private set
     var language: String by mutableStateOf(preferences.getString("language", null) ?: defaultLanguage())
         private set
     var themeMode: ThemeMode by mutableStateOf(
@@ -112,6 +114,42 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         runCatching { oauth.beginGoogle() }
             .onSuccess(openBrowser)
             .onFailure { globalError = it.message ?: "Unable to start Google sign-in" }
+        signingIn = false
+    }
+
+    fun emailLogin(email: String, password: String) = viewModelScope.launch {
+        signingIn = true
+        globalError = null
+        val body = JSONObject().put("email", email.trim()).put("password", password)
+        runCatching { api.post("/auth/mobile/email/login", body) }
+            .onSuccess { response ->
+                tokenStore.save(response.getString("access_token"))
+                val user = response.getJSONObject("user").toUser()
+                session = SessionState.SignedIn(user)
+                loadAll()
+                createWebProductSession()
+            }
+            .onFailure { globalError = it.message ?: "Unable to sign in" }
+        signingIn = false
+    }
+
+    fun emailRegister(email: String, password: String, name: String) = viewModelScope.launch {
+        signingIn = true
+        globalError = null
+        val body = JSONObject()
+            .put("email", email.trim())
+            .put("password", password)
+            .put("name", name.trim())
+            .put("locale", language)
+        runCatching { api.post("/auth/mobile/email/register", body) }
+            .onSuccess { response ->
+                tokenStore.save(response.getString("access_token"))
+                val user = response.getJSONObject("user").toUser()
+                session = SessionState.SignedIn(user)
+                loadAll()
+                createWebProductSession()
+            }
+            .onFailure { globalError = it.message ?: "Unable to create account" }
         signingIn = false
     }
 

@@ -42,6 +42,7 @@ def valid_production_settings() -> Settings:
         openai_luna_enabled=False,
         imessage_provider="disabled",
         nautilus_execution_mode="paper",
+        enable_mock_market_data=False,
     )
 
 

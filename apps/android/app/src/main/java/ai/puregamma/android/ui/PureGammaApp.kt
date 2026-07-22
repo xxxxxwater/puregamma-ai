@@ -18,6 +18,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Article
 import androidx.compose.material.icons.automirrored.filled.ExitToApp
@@ -39,6 +40,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -161,7 +164,12 @@ private fun LoadingScreen() {
 
 @Composable
 private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
-    Box(Modifier.fillMaxSize().padding(horizontal = 24.dp)) {
+    var email by remember { mutableStateOf("") }
+    var password by remember { mutableStateOf("") }
+    var name by remember { mutableStateOf("") }
+    var showRegister by remember { mutableStateOf(false) }
+
+    Box(Modifier.fillMaxSize().padding(horizontal = 24.dp).verticalScroll(rememberScrollState())) {
         Column(
             Modifier.align(Alignment.Center).widthIn(max = 420.dp).fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
@@ -189,6 +197,67 @@ private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
                 verticalArrangement = Arrangement.spacedBy(12.dp),
             ) {
                 model.globalError?.let { InlineError(it, model::clearError) }
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = { email = it },
+                    label = { Text(stringResource(R.string.email)) },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email, imeAction = ImeAction.Next),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.outline,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    ),
+                )
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = { password = it },
+                    label = { Text(stringResource(R.string.password)) },
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation(),
+                    modifier = Modifier.fillMaxWidth(),
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Password, imeAction = if (showRegister) ImeAction.Next else ImeAction.Done),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedBorderColor = MaterialTheme.colorScheme.outline,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                    ),
+                )
+
+                if (showRegister) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text(stringResource(R.string.name_optional)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = KeyboardOptions(imeAction = ImeAction.Done),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.outline,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant,
+                        ),
+                    )
+                }
+
+                Button(
+                    onClick = {
+                        if (showRegister) model.emailRegister(email, password, name)
+                        else model.emailLogin(email, password)
+                    },
+                    enabled = !model.signingIn && email.isNotBlank() && password.isNotBlank(),
+                    modifier = Modifier.fillMaxWidth().height(48.dp),
+                    shape = RoundedCornerShape(0.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandGold, contentColor = Color(0xFF030303)),
+                ) {
+                    if (model.signingIn) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFF030303))
+                    else Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(10.dp))
+                    Text(if (showRegister) stringResource(R.string.sign_up) else stringResource(R.string.sign_in_email), fontWeight = FontWeight.SemiBold)
+                }
+
+                HorizontalDivider()
+
                 Button(
                     onClick = { model.beginGoogleSignIn(openBrowser) },
                     enabled = !model.signingIn,
@@ -203,7 +272,23 @@ private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
                     Text(stringResource(R.string.sign_in_google), fontWeight = FontWeight.SemiBold)
                 }
             }
-            Spacer(Modifier.height(18.dp))
+
+            Spacer(Modifier.height(14.dp))
+
+            TextButton(
+                onClick = {
+                    showRegister = !showRegister
+                    model.clearError()
+                },
+                enabled = !model.signingIn,
+            ) {
+                Text(
+                    if (showRegister) stringResource(R.string.have_account) else stringResource(R.string.no_account),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+
+            Spacer(Modifier.height(4.dp))
             Text(stringResource(R.string.login_legal), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }

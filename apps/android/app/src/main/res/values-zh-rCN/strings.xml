@@ -7,6 +7,13 @@
     <string name="portfolio">组合</string>
     <string name="account">账户</string>
     <string name="sign_in_google">使用 Google 继续</string>
+    <string name="sign_in_email">使用邮箱登录</string>
+    <string name="email">邮箱</string>
+    <string name="password">密码</string>
+    <string name="name_optional">名称（选填）</string>
+    <string name="sign_up">创建账户</string>
+    <string name="no_account">没有账户？注册</string>
+    <string name="have_account">已有账户？登录</string>
     <string name="welcome_back">欢迎回来</string>
     <string name="sign_in_console">登录投研控制台。</string>
     <string name="login_legal">继续使用 Google 登录即表示你同意服务条款并确认已阅读隐私政策。AI 生成内容仅供研究参考。</string>

@@ -52,7 +52,7 @@ def test_payment_failed_restricts_high_cost_and_imessage(db, demo_user):
     assert entitlement["queue_priority"] == 0
     assert entitlement["backtest_tier"] == "none"
     assert entitlement["monitoring_tier"] == "basic"
-    assert entitlement["max_portfolios"] == 0
+    assert entitlement["max_portfolios"] == 1
     assert entitlement["portfolio_access"] == "read_only"
     assert entitlement["notification_channels"] == ["email", "push"]
     assert can_run_action("Max", "daily_market_report", "past_due") is False

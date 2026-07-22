@@ -1,11 +1,21 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { defaultLocale, isLocale, legacyLocaleRoutes, localeCookieName, localeFromAcceptLanguage, localePrefixPattern } from "@/i18n/routing";
+import { isChinaIP } from "@/lib/geoip";
 
 const PUBLIC_FILE = /\.(.*)$/;
 const INITIAL_LAUNCH_HIDDEN = ["/signals", "/playbooks", "/strategies", "/trading", "/nautilus", "/data-sources", "/integrations", "/daily-push", "/billing/mock-checkout"];
 const AUTHENTICATED_ROUTES = ["/account", "/admin", "/billing", "/chat", "/dashboard", "/options", "/portfolio", "/reports"];
 
-export function middleware(request: NextRequest) {
+async function resolveLocale(request: NextRequest): Promise<string> {
+  const cookieLocale = request.cookies.get(localeCookieName)?.value;
+  if (isLocale(cookieLocale)) return cookieLocale;
+  const acceptLocale = localeFromAcceptLanguage(request.headers.get("accept-language"));
+  if (acceptLocale !== defaultLocale) return acceptLocale;
+  const isCN = await isChinaIP(request.headers);
+  return isCN ? "zh" : defaultLocale;
+}
+
+export async function middleware(request: NextRequest) {
   const { pathname, search } = request.nextUrl;
 
   if (pathname.startsWith("/api") || pathname.startsWith("/_next") || PUBLIC_FILE.test(pathname)) {
@@ -37,8 +47,7 @@ export function middleware(request: NextRequest) {
     return response;
   }
 
-  const cookieLocale = request.cookies.get(localeCookieName)?.value;
-  const preferred = isLocale(cookieLocale) ? cookieLocale : localeFromAcceptLanguage(request.headers.get("accept-language")) || defaultLocale;
+  const preferred = await resolveLocale(request);
   const shouldRedirect = pathname === "/" || legacyLocaleRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
   if (shouldRedirect) {

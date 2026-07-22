@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import hashlib
+import re
 import secrets
 from datetime import timedelta, timezone
 from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qsl
@@ -12,9 +13,11 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.dependencies import create_access_token, get_current_user, get_db, set_session_cookie
+from apps.api.i18n import normalize_locale
 from apps.api.routers.auth import serialize_user
 from apps.api.routers.google_auth import GOOGLE_AUTHORIZE_URL, _challenge, _exchange_code_for_token, _verify_google_id_token, upsert_google_user
-from packages.database.models import MobileOAuthSession, MobileWebSession, User, utcnow
+from packages.database.models import MobileOAuthSession, MobileWebSession, User, UserPreference, utcnow
+from packages.security.passwords import hash_password, verify_password
 
 
 router = APIRouter(prefix="/auth/mobile", tags=["auth"])
@@ -164,3 +167,138 @@ def consume_mobile_web_session(code: str, db: Session = Depends(get_db)):
     set_session_cookie(response, user)
     db.commit()
     return response
+
+
+# ── Mobile Email Auth ──────────────────────────────
+
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$")
+_MIN_PASSWORD_LENGTH = 8
+
+_COMMON_PASSWORDS = frozenset({
+    "password", "password1", "password12", "password123",
+    "12345678", "123456789", "1234567890",
+    "qwertyuiop", "asdfghjkl", "zxcvbnm",
+    "iloveyou", "sunshine", "trustno1",
+    "puregamma", "puregamma1", "puregammaai",
+})
+
+
+class MobileEmailLoginRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=320)
+    password: str = Field(min_length=1, max_length=128)
+
+
+class MobileEmailRegisterRequest(BaseModel):
+    email: str = Field(min_length=5, max_length=320)
+    password: str = Field(min_length=_MIN_PASSWORD_LENGTH, max_length=128)
+    name: str = Field(min_length=1, max_length=120, default="")
+    locale: str = Field(default="en", max_length=5)
+
+
+def _normalize_email(value: str) -> str:
+    return value.strip().lower()
+
+
+def _validate_email_format(email: str) -> None:
+    if not _EMAIL_RE.match(email) or ".." in email:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_EMAIL"})
+
+
+def _check_password_strength(password: str) -> str | None:
+    if len(password) < _MIN_PASSWORD_LENGTH:
+        return "length"
+    if password.lower() in _COMMON_PASSWORDS:
+        return "common"
+    if not re.search(r"[A-Za-z]", password):
+        return "letter"
+    if not re.search(r"[0-9]", password):
+        return "digit"
+    if password.lower() == password:
+        return "uppercase"
+    return None
+
+
+@router.post("/email/login")
+def mobile_email_login(
+    payload: MobileEmailLoginRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    email = _normalize_email(payload.email)
+    _validate_email_format(email)
+
+    user = db.query(User).filter(
+        User.email == email,
+        User.password_hash.isnot(None),
+    ).one_or_none()
+
+    if not user or not user.password_hash:
+        raise HTTPException(status_code=401, detail={"code": "INVALID_CREDENTIALS"})
+
+    if not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=401, detail={"code": "INVALID_CREDENTIALS"})
+
+    if not user.email_verified_at:
+        raise HTTPException(status_code=403, detail={"code": "EMAIL_NOT_VERIFIED", "email": email})
+
+    user.last_login_at = utcnow()
+    user.session_version = int(user.session_version or 0) + 1
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "access_token": create_access_token(user, TOKEN_TTL_SECONDS),
+        "token_type": "bearer",
+        "expires_in": TOKEN_TTL_SECONDS,
+        "user": serialize_user(user),
+    }
+
+
+@router.post("/email/register")
+def mobile_email_register(
+    payload: MobileEmailRegisterRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    email = _normalize_email(payload.email)
+    _validate_email_format(email)
+
+    existing = db.query(User).filter(User.email == email).one_or_none()
+    if existing:
+        raise HTTPException(status_code=409, detail={"code": "EMAIL_ALREADY_REGISTERED"})
+
+    weakness = _check_password_strength(payload.password)
+    if weakness:
+        raise HTTPException(
+            status_code=400,
+            detail={"code": "PASSWORD_TOO_WEAK", "rule": weakness},
+        )
+
+    pw_hash = hash_password(payload.password)
+    locale = normalize_locale(payload.locale)
+
+    user = User(
+        email=email,
+        name=payload.name.strip() or "PureGamma User",
+        role="user",
+        plan="Free",
+        credit_balance=150,
+        auth_provider="email",
+        password_hash=pw_hash,
+        email_verified_at=utcnow(),
+    )
+    db.add(user)
+    db.flush()
+
+    if not user.preference:
+        db.add(UserPreference(user_id=user.id, email_recipient=email, locale=locale))
+
+    user.last_login_at = utcnow()
+    user.session_version = int(user.session_version or 0) + 1
+    db.commit()
+    db.refresh(user)
+
+    return {
+        "access_token": create_access_token(user, TOKEN_TTL_SECONDS),
+        "token_type": "bearer",
+        "expires_in": TOKEN_TTL_SECONDS,
+        "user": serialize_user(user),
+    }

@@ -5,8 +5,11 @@ import Link from "next/link";
 import Image from "next/image";
 import { Chrome, Loader2 } from "lucide-react";
 import { AuthLegalNotice } from "@/components/auth-legal-notice";
+import { PasswordInput } from "@/components/password-input";
+import { CaptchaModal } from "@/components/captcha-modal";
+import type { CaptchaResult } from "@/components/puzzle-captcha";
 import { useLocale } from "@/components/i18n/LocaleProvider";
-import { googleLogin, emailLogin, resendVerificationEmail } from "@/lib/api";
+import { emailLogin, extractApiError, googleLogin, resendVerificationEmail } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 
@@ -17,6 +20,9 @@ export default function LoginPage() {
   const [verifyError, setVerifyError] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [captchaOpen, setCaptchaOpen] = useState(false);
+  const [captchaError, setCaptchaError] = useState("");
+  const [captchaKey, setCaptchaKey] = useState(0);
   const zh = locale === "zh";
 
   const handleGoogleLogin = async () => {
@@ -31,22 +37,45 @@ export default function LoginPage() {
     }
   };
 
-  const handleEmailLogin = async (e: React.FormEvent) => {
+  const openCaptcha = () => {
+    setCaptchaError("");
+    setCaptchaKey((key) => key + 1);
+    setCaptchaOpen(true);
+  };
+
+  const handleEmailLogin = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email || !password) return;
-    setBusy(true);
+    if (!email || !password || busy) return;
     setError("");
+    setVerifyError("");
+    openCaptcha();
+  };
+
+  const handleCaptchaSolved = async (result: CaptchaResult) => {
+    setBusy(true);
+    setCaptchaError("");
     try {
-      await emailLogin(email, password);
+      await emailLogin(email.trim(), password, { captcha_id: result.captchaId, captcha_offset: result.offset });
+      setCaptchaOpen(false);
       const returnTo = new URLSearchParams(window.location.search).get("returnTo");
       window.location.href = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : `/${locale}/chat`;
     } catch (err: unknown) {
-      const status = (err as { status?: number }).status;
-      if (status === 403) {
-        setError("");
-        setVerifyError(email);
+      const apiError = extractApiError(err);
+      if (apiError.code === "CAPTCHA_FAILED") {
+        setCaptchaError(t(locale, "common.auth.captchaFailed"));
+        setCaptchaKey((key) => key + 1);
+      } else if (apiError.code === "CAPTCHA_REQUIRED" || apiError.code === "CAPTCHA_EXPIRED" || apiError.code === "CAPTCHA_UNAVAILABLE") {
+        setCaptchaError(t(locale, "common.auth.captchaExpired"));
+        setCaptchaKey((key) => key + 1);
       } else {
-        setError(t(locale, "common.auth.invalidCredentials"));
+        setCaptchaOpen(false);
+        if (apiError.status === 403) {
+          setVerifyError(email.trim());
+        } else if (apiError.code === "INVALID_EMAIL") setError(t(locale, "common.auth.invalidEmail"));
+        else if (apiError.status === 429) setError(zh ? "尝试过于频繁，请稍后再试" : "Too many attempts. Please try again later.");
+        else {
+          setError(t(locale, "common.auth.invalidCredentials"));
+        }
       }
     } finally {
       setBusy(false);
@@ -82,13 +111,11 @@ export default function LoginPage() {
               className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong"
               required
             />
-            <input
-              type="password"
+            <PasswordInput
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={setPassword}
               placeholder={t(locale, "common.auth.passwordPlaceholder")}
-              className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong"
-              required
+              autoComplete="current-password"
             />
             <button
               type="submit"
@@ -124,6 +151,23 @@ export default function LoginPage() {
 
         <AuthLegalNotice locale={locale} mode="login" />
       </div>
+
+      <CaptchaModal
+        open={captchaOpen}
+        busy={busy}
+        error={captchaError}
+        resetKey={captchaKey}
+        onSolved={handleCaptchaSolved}
+        onClose={() => setCaptchaOpen(false)}
+        onRefresh={() => setCaptchaError("")}
+        labels={{
+          title: t(locale, "common.auth.captchaModalTitle"),
+          verifying: t(locale, "common.auth.captchaVerifying"),
+          instruction: t(locale, "common.auth.captchaInstruction"),
+          success: t(locale, "common.auth.captchaSuccess"),
+          drag: t(locale, "common.auth.captchaDrag")
+        }}
+      />
     </div>
   );
 }

@@ -6,9 +6,18 @@ import Image from "next/image";
 import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
-import { resetPassword } from "@/lib/api";
+import { PasswordInput } from "@/components/password-input";
+import { extractApiError, resetPassword } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
-import { t } from "@/lib/translations";
+import { t, type TranslationKey } from "@/lib/translations";
+
+const PASSWORD_RULE_KEYS: Record<string, TranslationKey> = {
+  length: "common.auth.passwordTooShort",
+  common: "common.auth.passwordTooCommon",
+  letter: "common.auth.passwordNeedLetter",
+  digit: "common.auth.passwordNeedDigit",
+  uppercase: "common.auth.passwordNeedUppercase",
+};
 
 export default function ResetPasswordPage() {
   const locale = useLocale();
@@ -21,11 +30,11 @@ export default function ResetPasswordPage() {
   const [errorMsg, setErrorMsg] = useState("");
 
   useEffect(() => {
-    const t = new URLSearchParams(window.location.search).get("token");
-    if (!t) { setStatus("error"); setErrorMsg("Missing token"); return; }
-    setToken(t);
+    const tokenParam = new URLSearchParams(window.location.search).get("token");
+    if (!tokenParam) { setStatus("error"); setErrorMsg(t(locale, "common.auth.resetLinkInvalid")); return; }
+    setToken(tokenParam);
     setStatus("form");
-  }, []);
+  }, [locale]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -36,8 +45,19 @@ export default function ResetPasswordPage() {
       await resetPassword(token, password);
       setStatus("success");
       setTimeout(() => router.push(`/${locale}/chat`), 3000);
-    } catch {
-      setErrorMsg(t(locale, "common.auth.verifyEmailError"));
+    } catch (err: unknown) {
+      const apiError = extractApiError(err);
+      if (apiError.code === "INVALID_OR_EXPIRED_TOKEN") {
+        setStatus("error");
+        setErrorMsg(t(locale, "common.auth.resetLinkInvalid"));
+      } else if (apiError.code === "PASSWORD_TOO_WEAK") {
+        const ruleKey = apiError.rule ? PASSWORD_RULE_KEYS[apiError.rule] : undefined;
+        setErrorMsg(ruleKey ? t(locale, ruleKey) : apiError.message || t(locale, "common.auth.passwordTooShort"));
+      } else if (apiError.status === 429) {
+        setErrorMsg(zh ? "操作过于频繁，请稍后再试" : "Too many attempts. Please try again later.");
+      } else {
+        setErrorMsg(t(locale, "common.auth.resetPasswordFailed"));
+      }
     } finally {
       setBusy(false);
     }
@@ -73,7 +93,8 @@ export default function ResetPasswordPage() {
           ) : (
             <form onSubmit={handleSubmit} className="space-y-3">
               {errorMsg ? <p className="text-sm text-status-negative">{errorMsg}</p> : null}
-              <input type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder={t(locale, "common.auth.newPassword")} className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong" required minLength={8} />
+              <PasswordInput value={password} onChange={setPassword} placeholder={t(locale, "common.auth.newPassword")} minLength={8} autoComplete="new-password" />
+              <p className="text-xs text-text-pg-dim">{t(locale, "common.auth.passwordRequirements")}</p>
               <button type="submit" disabled={busy || !password || password.length < 8} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-text-pg px-4 py-2.5 text-sm font-semibold text-bg-panel transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {t(locale, "common.auth.resetPasswordTitle")}

@@ -6,7 +6,7 @@ import { BadgeCheck, Chrome, Key, Loader2, LogOut, MessageCircle, UserRound } fr
 import { PageHeader, ResearchCard } from "@/components/puregamma";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { withLocale } from "@/i18n/routing";
-import { AuthResponse, changePassword, getAgentQuota, getMe, logout, requestIMessageVerification, setPassword } from "@/lib/api";
+import { AuthResponse, changePassword, getAgentQuota, getIMessageConfig, getMe, IMessageConfig, logout, requestIMessageVerification, setPassword } from "@/lib/api";
 import { t } from "@/lib/translations";
 
 export default function AccountPage() {
@@ -22,9 +22,11 @@ export default function AccountPage() {
   const [newPw, setNewPw] = useState("");
   const [imessageAddress, setIMessageAddress] = useState("");
   const [bindingStatus, setBindingStatus] = useState("");
-  useEffect(() => { Promise.all([getMe(), getAgentQuota()]).then(([me, usage]) => { setUser(me.user); setQuota(usage); }).catch((reason) => setError(String(reason))); }, []);
+  const [imessageConfig, setIMessageConfig] = useState<IMessageConfig | null>(null);
+  useEffect(() => { Promise.all([getMe(), getAgentQuota()]).then(([me, usage]) => { setUser(me.user); setQuota(usage); }).catch((reason) => setError(String(reason))); getIMessageConfig().then(setIMessageConfig).catch(() => {}); }, []);
+  const formatNumber = (n: string) => { const d = (n || "").replace(/\D/g, ""); return d.length === 11 && d.startsWith("1") ? `+1 (${d.slice(1, 4)}) ${d.slice(4, 7)}-${d.slice(7)}` : n; };
   const signOut = async () => { await logout(); localStorage.removeItem("pg_user"); router.replace(withLocale(locale, "/login")); };
-  const requestBinding = async () => { setBindingStatus(""); try { const result = await requestIMessageVerification(imessageAddress); setIMessageAddress(result.recipient); setBindingStatus(zh ? "iMessage 已绑定。请用该地址向 PureGamma AI 发消息。" : "iMessage is bound. Message PureGamma AI from this address."); } catch (reason) { setBindingStatus(String(reason)); } };
+  const requestBinding = async () => { setBindingStatus(""); try { const result = await requestIMessageVerification(imessageAddress); setIMessageAddress(result.recipient); setIMessageConfig((c) => c ? { ...c, recipient: result.recipient, recipient_verified_at: new Date().toISOString() } : c); setBindingStatus(zh ? "iMessage 已绑定。请用该地址向官方号码发消息。" : "iMessage is bound. Message the official number from this address."); } catch (reason) { setBindingStatus(String(reason)); } };
 
   const handleChangePassword = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -66,6 +68,6 @@ export default function AccountPage() {
       <button type="submit" disabled={pwBusy} className="inline-flex items-center gap-2 border border-border-pg bg-text-pg px-4 py-2 text-sm font-semibold text-bg-panel transition hover:opacity-90 disabled:opacity-50">{pwBusy ? <Loader2 className="h-3 w-3 animate-spin" /> : null}{user.has_password ? t(locale, "common.auth.changePasswordBtn") : t(locale, "common.auth.setPasswordBtn")}</button>
     </form>{pwMsg ? <p className="mt-3 text-sm text-text-pg-muted">{pwMsg}</p> : null}</ResearchCard> : null}
 
-    <ResearchCard id="imessage-bind"><div className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-5 w-5" /><div><h2 className="font-semibold">{zh ? "绑定 iMessage Agent" : "Bind iMessage Agent"}</h2><p className="mt-1 text-sm text-text-pg-muted">{zh ? "填写 iMessage 手机号（E.164 格式）或 Apple ID 邮箱即可绑定，不发送验证码。只有该地址向 PureGamma AI 发消息时才会进入你的 Agent 和记忆；其他地址不回复。" : "Bind an iMessage phone number (E.164) or Apple ID email. No code is sent. Only messages from this address enter your Agent memory; other senders receive no reply."}</p></div></div><div className="mt-4 flex gap-3"><input className="control flex-1" value={imessageAddress} onChange={(event) => setIMessageAddress(event.target.value)} placeholder="+12135550123 or name@icloud.com" /><button type="button" onClick={requestBinding} className="border border-border-pg px-3 py-2 text-sm">{zh ? "绑定" : "Bind"}</button></div>{bindingStatus ? <p className="mt-3 text-sm text-text-pg-muted">{bindingStatus}</p> : null}</ResearchCard>
+    <ResearchCard id="imessage-bind"><div className="flex items-start gap-3"><MessageCircle className="mt-0.5 h-5 w-5" /><div><h2 className="font-semibold">{zh ? "绑定 iMessage Agent" : "Bind iMessage Agent"}</h2><p className="mt-1 text-sm text-text-pg-muted">{zh ? "填写 iMessage 手机号（E.164 格式）或 Apple ID 邮箱即可绑定，不发送验证码。只有该地址向 PureGamma AI 发消息时才会进入你的 Agent 和记忆；其他地址不回复。" : "Bind an iMessage phone number (E.164) or Apple ID email. No code is sent. Only messages from this address enter your Agent memory; other senders receive no reply."}</p></div></div>{user && imessageConfig ? <div className="mt-3 border border-border-pg bg-bg-panel-muted p-3"><div className="text-xs uppercase tracking-wider text-text-pg-muted">{zh ? "官方 iMessage 号码" : "Official iMessage number"}</div><div className="mt-1 text-lg font-semibold tracking-wide">{formatNumber(imessageConfig.official_number)}</div><p className="mt-1 text-xs text-text-pg-muted">{zh ? "绑定你的手机号或 Apple ID 后，用 iMessage 向此号码发消息即可与 Agent 对话；每日简报也会通过它推送。" : "Bind your phone or Apple ID, then send an iMessage to this number to chat with your Agent. Daily briefs are also pushed from it."}</p>{imessageConfig.recipient ? <p className="mt-2 text-xs text-status-positive">{zh ? "当前绑定：" : "Currently bound: "}{imessageConfig.recipient}</p> : null}</div> : null}<div className="mt-4 flex gap-3"><input className="control flex-1" value={imessageAddress} onChange={(event) => setIMessageAddress(event.target.value)} placeholder="+12135550123 or name@icloud.com" /><button type="button" onClick={requestBinding} className="border border-border-pg px-3 py-2 text-sm">{zh ? "绑定" : "Bind"}</button></div>{bindingStatus ? <p className="mt-3 text-sm text-text-pg-muted">{bindingStatus}</p> : null}</ResearchCard>
   </div>;
 }

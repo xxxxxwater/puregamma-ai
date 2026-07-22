@@ -18,6 +18,7 @@ from apps.api.dependencies import (
 from apps.api.config import get_settings
 from apps.api.i18n import normalize_locale
 from apps.api.routers.auth import serialize_user
+from apps.api.routers.captcha import CaptchaError, verify_captcha
 from packages.database.models import User, UserPreference
 from packages.security.passwords import hash_password, verify_password
 from packages.notifications.email import send_email
@@ -46,11 +47,15 @@ class EmailRegisterRequest(BaseModel):
     password: str = Field(min_length=_MIN_PASSWORD_LENGTH, max_length=128)
     name: str = Field(min_length=1, max_length=120, default="")
     locale: str = Field(default="en", max_length=5)
+    captcha_id: str | None = Field(default=None, max_length=64)
+    captcha_offset: int | None = Field(default=None, ge=0, le=400)
 
 
 class EmailLoginRequest(BaseModel):
     email: str = Field(min_length=5, max_length=320)
     password: str = Field(min_length=1, max_length=128)
+    captcha_id: str | None = Field(default=None, max_length=64)
+    captcha_offset: int | None = Field(default=None, ge=0, le=400)
 
 
 class EmailVerifyRequest(BaseModel):
@@ -75,22 +80,48 @@ class ChangePasswordRequest(BaseModel):
     new_password: str = Field(min_length=_MIN_PASSWORD_LENGTH, max_length=128)
 
 
+_EMAIL_RE = re.compile(r"^[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$")
+
+
 def _normalize_email(value: str) -> str:
     return value.strip().lower()
 
 
+def _validate_email_format(email: str) -> None:
+    """Reject syntactically invalid or TLD-less addresses (e.g. a@xxx)."""
+    if not _EMAIL_RE.match(email) or ".." in email:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_EMAIL"})
+
+
+_PASSWORD_RULE_MESSAGES = {
+    "length": "Password must be at least 8 characters",
+    "common": "Password is too common",
+    "letter": "Password must contain at least one letter",
+    "digit": "Password must contain at least one digit",
+    "uppercase": "Password must contain at least one uppercase letter",
+}
+
+
 def _check_password_strength(password: str) -> str | None:
+    """Return a machine-readable weakness rule code, or None when acceptable."""
     if len(password) < _MIN_PASSWORD_LENGTH:
-        return "Password must be at least 8 characters"
+        return "length"
     if password.lower() in _COMMON_PASSWORDS:
-        return "Password is too common"
+        return "common"
     if not re.search(r"[A-Za-z]", password):
-        return "Password must contain at least one letter"
+        return "letter"
     if not re.search(r"[0-9]", password):
-        return "Password must contain at least one digit"
+        return "digit"
     if password.lower() == password:
-        return "Password must contain at least one uppercase letter"
+        return "uppercase"
     return None
+
+
+def _weak_password_error(rule: str) -> HTTPException:
+    return HTTPException(
+        status_code=400,
+        detail={"code": "PASSWORD_TOO_WEAK", "rule": rule, "message": _PASSWORD_RULE_MESSAGES[rule]},
+    )
 
 
 def _email_rate_limit(request: Request, email: str, action: str, limit: int = 5, window: int = 900) -> None:
@@ -191,8 +222,11 @@ def email_register(
     db: Session = Depends(get_db),
 ) -> dict:
     email = _normalize_email(payload.email)
-    if "@" not in email:
-        raise HTTPException(status_code=400, detail={"code": "INVALID_EMAIL"})
+    _validate_email_format(email)
+    try:
+        verify_captcha(payload.captcha_id, payload.captcha_offset)
+    except CaptchaError as exc:
+        raise HTTPException(status_code=400, detail={"code": exc.code}) from exc
 
     _email_rate_limit(request, email, "register", limit=3, window=900)
 
@@ -202,7 +236,7 @@ def email_register(
 
     weakness = _check_password_strength(payload.password)
     if weakness:
-        raise HTTPException(status_code=400, detail={"code": "PASSWORD_TOO_WEAK", "message": weakness})
+        raise _weak_password_error(weakness)
 
     pw_hash = hash_password(payload.password)
     locale = normalize_locale(payload.locale)
@@ -248,6 +282,11 @@ def email_login(
     db: Session = Depends(get_db),
 ) -> dict:
     email = _normalize_email(payload.email)
+    _validate_email_format(email)
+    try:
+        verify_captcha(payload.captcha_id, payload.captcha_offset)
+    except CaptchaError as exc:
+        raise HTTPException(status_code=400, detail={"code": exc.code}) from exc
     _email_rate_limit(request, email, "login", limit=5, window=900)
     user = db.query(User).filter(User.email == email, User.password_hash.isnot(None)).one_or_none()
 
@@ -366,7 +405,7 @@ def email_reset_password(
 
     weakness = _check_password_strength(payload.password)
     if weakness:
-        raise HTTPException(status_code=400, detail={"code": "PASSWORD_TOO_WEAK", "message": weakness})
+        raise _weak_password_error(weakness)
 
     user.password_hash = hash_password(payload.password)
     user.password_reset_token = None
@@ -399,7 +438,7 @@ def email_change_password(
 
     weakness = _check_password_strength(payload.new_password)
     if weakness:
-        raise HTTPException(status_code=400, detail={"code": "PASSWORD_TOO_WEAK", "message": weakness})
+        raise _weak_password_error(weakness)
 
     user.password_hash = hash_password(payload.new_password)
     user.session_version = int(user.session_version or 0) + 1
@@ -425,7 +464,7 @@ def email_set_password(
 
     weakness = _check_password_strength(payload.new_password)
     if weakness:
-        raise HTTPException(status_code=400, detail={"code": "PASSWORD_TOO_WEAK", "message": weakness})
+        raise _weak_password_error(weakness)
 
     user.password_hash = hash_password(payload.new_password)
     user.session_version = int(user.session_version or 0) + 1

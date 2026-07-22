@@ -87,4 +87,4 @@ def test_past_due_max_registry_uses_free_sources(db, demo_user):
 
     registry = AgentToolRegistry(db, demo_user.id)
 
-    assert registry.allowed_data_sources == {"market", "rss"}
+    assert registry.allowed_data_sources == {"market", "rss", "portfolio"}

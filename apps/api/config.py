@@ -203,6 +203,7 @@ class Settings:
     imessage_provider: str = os.getenv("IMESSAGE_PROVIDER", "mock")
     imessage_relay_url: str = os.getenv("IMESSAGE_RELAY_URL", "http://localhost:8787")
     imessage_relay_secret: str = os.getenv("IMESSAGE_RELAY_SECRET", "")
+    imessage_official_number: str = os.getenv("IMESSAGE_OFFICIAL_NUMBER", "+14243825596")
     imessage_enabled_plans: tuple[str, ...] = tuple(
         _csv(os.getenv("IMESSAGE_ENABLED_PLANS", "Max,Enterprise"))
     )

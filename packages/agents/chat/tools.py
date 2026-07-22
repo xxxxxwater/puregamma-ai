@@ -375,6 +375,8 @@ class AgentToolRegistry:
             .all()
         )
         data = []
+        total_nav = 0.0
+        total_daily_change = 0.0
         for row in rows:
             snapshot = (
                 self.db.query(AccountSnapshot)
@@ -382,6 +384,36 @@ class AgentToolRegistry:
                 .order_by(AccountSnapshot.captured_at.desc())
                 .first()
             )
+            holdings = []
+            if snapshot:
+                positions = (
+                    self.db.query(PositionSnapshot)
+                    .filter(
+                        PositionSnapshot.user_id == self.user_id,
+                        PositionSnapshot.account_id == row.id,
+                        PositionSnapshot.captured_at >= snapshot.captured_at - timedelta(minutes=1),
+                        PositionSnapshot.captured_at <= snapshot.captured_at + timedelta(minutes=1),
+                    )
+                    .all()
+                )
+                for position in positions:
+                    raw = position.raw_event_reference or {}
+                    value = abs(float(raw.get("value") or position.quantity * position.mark_price))
+                    holdings.append(
+                        {
+                            "instrument": position.instrument,
+                            "chain": raw.get("chain"),
+                            "assetClass": raw.get("asset_class"),
+                            "quantity": position.quantity,
+                            "markPrice": position.mark_price,
+                            "value": round(value, 2),
+                            "change24h": round(float(raw.get("change_24h") or 0), 2),
+                            "change24hPct": round(float(raw.get("change_24h_pct") or 0), 4),
+                        }
+                    )
+                holdings.sort(key=lambda item: item["value"], reverse=True)
+                total_nav += float(snapshot.equity)
+                total_daily_change += float(snapshot.daily_pnl or 0)
             data.append(
                 {
                     "id": row.id,
@@ -393,6 +425,7 @@ class AgentToolRegistry:
                     "performance": {
                         "balance": snapshot.balance,
                         "equity": snapshot.equity,
+                        "availableCash": snapshot.available_margin,
                         "dailyPnl": snapshot.daily_pnl,
                         "drawdown": snapshot.drawdown,
                         "exposure": snapshot.exposure,
@@ -400,11 +433,17 @@ class AgentToolRegistry:
                     }
                     if snapshot
                     else None,
+                    "holdings": holdings[:15],
                 }
             )
         return ToolResult(
             "get_account_snapshot",
-            data,
+            {
+                "accounts": data,
+                "count": len(data),
+                "totalNav": round(total_nav, 2),
+                "totalDailyChange": round(total_daily_change, 2),
+            },
             f"Retrieved {len(data)} tenant-owned trading accounts",
         )
 
@@ -429,9 +468,12 @@ class AgentToolRegistry:
                 "accountId": row.account_id,
                 "strategyId": row.strategy_id,
                 "instrument": row.instrument,
+                "chain": (row.raw_event_reference or {}).get("chain"),
                 "quantity": row.quantity,
                 "side": row.side,
                 "markPrice": row.mark_price,
+                "value": round(abs(float((row.raw_event_reference or {}).get("value") or row.quantity * row.mark_price)), 2),
+                "change24h": round(float((row.raw_event_reference or {}).get("change_24h") or 0), 2),
                 "unrealizedPnl": row.unrealized_pnl,
                 "capturedAt": _iso(row.captured_at),
             }

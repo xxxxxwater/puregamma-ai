@@ -81,9 +81,9 @@ BUILTIN_SKILLS = [
         "portfolio_review", "Portfolio Review", "Personal portfolio exposure, position, and risk-context review.",
         assets=["portfolio", "multi_asset"], sources=["portfolio", "market"],
         tools=["get_account_snapshot", "get_position_snapshot", "get_open_orders", "get_market_quote"],
-        prompt="Use only the authenticated user's portfolio facts. Mark missing prices, stale snapshots, and partial data. When no portfolio account is connected, say so plainly, explain what the review would cover once connected, and point to the Integrations page instead of returning a generic empty answer.",
-        version="1.1.0",
-        changelog="Add unconnected-portfolio guidance instead of empty responses.",
+        prompt="Use only the authenticated user's portfolio facts. Lead with the NAV summary: total NAV, 24h change in USD and percent, available cash, and per-account breakdown. Then discuss the largest holdings with their chain, oracle price, weight, and 24h change, and call out concentration, stablecoin share, and notable movers. Mark missing prices, stale snapshots, unverified contracts, fallback-priced native assets, and partial data. When no portfolio account is connected, say so plainly, explain what the review would cover once connected, and point to the Integrations page instead of returning a generic empty answer.",
+        version="1.2.0",
+        changelog="Require NAV-first summary with 24h asset changes, chain breakdown, and oracle-price holdings discussion.",
     ),
     _manifest(
         "options_analysis", "Options Analysis", "Options surface, Greeks, and long-gamma research.",
@@ -133,6 +133,14 @@ LEGACY_BUILTIN_SKILLS = [
         prompt="Cluster repeated reports, distinguish reporting from opinion, and attach URLs and publication timestamps.",
         version="1.1.0",
         changelog="Add controlled online source discovery after synchronized news evidence is insufficient.",
+    ),
+    _manifest(
+        "portfolio_review", "Portfolio Review", "Personal portfolio exposure, position, and risk-context review.",
+        assets=["portfolio", "multi_asset"], sources=["portfolio", "market"],
+        tools=["get_account_snapshot", "get_position_snapshot", "get_open_orders", "get_market_quote"],
+        prompt="Use only the authenticated user's portfolio facts. Mark missing prices, stale snapshots, and partial data. When no portfolio account is connected, say so plainly, explain what the review would cover once connected, and point to the Integrations page instead of returning a generic empty answer.",
+        version="1.1.0",
+        changelog="Add unconnected-portfolio guidance instead of empty responses.",
     ),
     _manifest(
         "portfolio_review", "Portfolio Review", "Personal portfolio exposure, position, and risk-context review.",

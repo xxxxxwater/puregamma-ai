@@ -6,9 +6,10 @@ from packages.database.models import TradingAccount
 from tests.conftest import stripe_event
 
 
-def test_free_user_cannot_add_portfolio(db, normal_user):
+def test_free_user_can_add_one_portfolio_but_not_two(db, normal_user):
+    connect_hyperliquid(db, normal_user, "0x" + "1" * 40)
     with pytest.raises(PermissionError, match="PORTFOLIO_LIMIT_REACHED"):
-        connect_hyperliquid(db, normal_user, "0x" + "1" * 40)
+        connect_hyperliquid(db, normal_user, "0x" + "2" * 40)
 
 
 def test_pro_user_cannot_exceed_one_portfolio(db, demo_user):
@@ -26,5 +27,5 @@ def test_past_due_user_keeps_existing_portfolio_read_only_but_cannot_add(db, dem
     process_stripe_event(db, event, raw)
 
     assert db.get(TradingAccount, existing.id) is not None
-    with pytest.raises(PermissionError, match="PORTFOLIO_LIMIT_REACHED"):
+    with pytest.raises(PermissionError, match="PORTFOLIO_ACCESS_RESTRICTED"):
         connect_hyperliquid(db, demo_user, "0x" + "2" * 40)

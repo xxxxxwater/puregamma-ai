@@ -79,6 +79,20 @@ def remove_push_device(payload: PushDeviceRequest, db: Session = Depends(get_db)
     return {"ok": True, "removed": removed}
 
 
+@router.get("/imessage/config")
+def imessage_config(user: User = Depends(get_current_user)) -> dict:
+    settings = get_settings()
+    preference = getattr(user, "preference", None)
+    verified_at = getattr(preference, "imessage_recipient_verified_at", None)
+    return {
+        "official_number": settings.imessage_official_number,
+        "provider": settings.imessage_provider,
+        "enabled_plans": list(settings.imessage_enabled_plans),
+        "recipient": getattr(preference, "imessage_recipient", None),
+        "recipient_verified_at": verified_at.isoformat() if verified_at else None,
+    }
+
+
 @router.post("/imessage/verify/request")
 def request_imessage_verification(payload: IMessageVerifyRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     try:

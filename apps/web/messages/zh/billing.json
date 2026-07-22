@@ -40,7 +40,7 @@
   "paymentLinkMissing": "该套餐尚未配置 Stripe Payment Link。",
   "checkoutFailed": "无法创建结账会话。请先登录。",
   "plans": [
-    { "name": "Free", "price": "$0", "credits": "150", "tagline": "建立基础市场观察习惯。", "benefits": ["核心资产观察", "共享市场简报", "基础事件视图", "Email 投递"] },
+    { "name": "Free", "price": "$0", "credits": "150", "tagline": "建立基础市场观察习惯。", "benefits": ["核心资产观察", "1 个组合账户连接", "共享市场简报", "基础事件视图", "Email 投递"] },
     { "name": "Pro", "price": "$29.9", "credits": "3,000", "tagline": "适合持续跟踪个人组合的主动投资者。", "benefits": ["20–50 项资产", "每日组合简报", "重要事件提醒", "限量深度研究", "Telegram / Email", "基础回测"] },
     { "name": "Max", "price": "$199", "credits": "15,000", "tagline": "适合多组合与高频研究工作流。", "benefits": ["包含全部 Pro 权益", "多组合", "更高 Agent 额度", "iMessage", "高频监控", "高级回测", "私有 Playbook"] },
     { "name": "Enterprise", "price": "Custom", "credits": "Custom", "tagline": "适合团队、定制数据与私有部署。", "benefits": ["团队工作区", "API 访问", "自定义数据源", "私有部署", "专属支持与合规配置"] }

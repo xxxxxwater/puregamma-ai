@@ -13,7 +13,7 @@ from sqlalchemy import text
 
 from apps.api.config import get_settings, validate_production_settings
 from apps.api.dependencies import ensure_bootstrap
-from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, email_auth, google_auth, hyperliquid_stream, imessage_agent, mobile_auth, internal, market, notifications, options, playbooks, portfolio, reports, secretary, signals, skills, strategies, stripe_webhook, trading
+from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, email_auth, google_auth, hyperliquid_stream, imessage_agent, mobile_auth, internal, market, notifications, options, playbooks, portfolio, reports, secretary, signals, skills, strategies, stripe_webhook, trading
 
 
 settings = get_settings()
@@ -151,6 +151,7 @@ def readiness():
 
 app.include_router(auth.router)
 app.include_router(email_auth.router)
+app.include_router(captcha.router)
 app.include_router(google_auth.router)
 app.include_router(mobile_auth.router)
 app.include_router(apple_auth.router)

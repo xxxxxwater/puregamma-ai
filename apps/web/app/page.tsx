@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
-import { getPreferredLocale } from "@/i18n/request";
+import { getPreferredLocaleGeo } from "@/i18n/request";
 
-export default function RootPage() {
-  redirect(`/${getPreferredLocale()}`);
+export default async function RootPage() {
+  redirect(`/${await getPreferredLocaleGeo()}`);
 }

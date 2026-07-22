@@ -22,10 +22,16 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.credit_service import InsufficientCreditsError, quote_task, refund_task, reserve_task, settle_task
-from apps.api.services.portfolio_service import autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_link_token, portfolio_view, run_autopilot_review, sync_account, update_autopilot
+from apps.api.services.portfolio_service import PortfolioAccessError, autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_link_token, portfolio_view, run_autopilot_review, sync_account, update_autopilot
 from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
 from packages.skills.registry import SkillResolutionError
+
+
+def _portfolio_access_http(exc: PermissionError) -> HTTPException:
+    if isinstance(exc, PortfolioAccessError):
+        return HTTPException(status_code=403, detail={"code": exc.code, **exc.context})
+    return HTTPException(status_code=403, detail={"code": str(exc)})
 
 
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
@@ -299,7 +305,7 @@ def exchange_plaid(payload: PlaidExchangeRequest, db: Session = Depends(get_db),
         sync_account(db, user, account)
         return portfolio_view(db, user)
     except PermissionError as exc:
-        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
+        raise _portfolio_access_http(exc) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -313,7 +319,7 @@ def add_hyperliquid(payload: HyperliquidRequest, db: Session = Depends(get_db), 
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
-        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
+        raise _portfolio_access_http(exc) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
@@ -342,7 +348,7 @@ def add_evm_wallet(payload: EVMConnectRequest, db: Session = Depends(get_db), us
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except PermissionError as exc:
-        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
+        raise _portfolio_access_http(exc) from exc
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
     except Exception as exc:
@@ -465,7 +471,7 @@ def ibkr_exchange(code: str, state: str, db: Session = Depends(get_db), user: Us
         sync_account(db, user, account)
         return portfolio_view(db, user)
     except PermissionError as exc:
-        raise HTTPException(status_code=403, detail={"code": str(exc)}) from exc
+        raise _portfolio_access_http(exc) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
 
