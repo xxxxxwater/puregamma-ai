@@ -2,8 +2,10 @@
 
 import { useEffect, useRef, useState } from "react";
 import Image from "next/image";
+import Link from "next/link";
 import { Brain, Coins, Mic, Pause, Play, Send, ShieldCheck, Trash2, Volume2 } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
+import { withLocale } from "@/i18n/routing";
 import { clearSecretaryMemory, getSecretary, sendSecretaryMessage, synthesizeSecretaryVoice, transcribeSecretaryAudio, type SecretaryMessage, type SecretarySkill } from "@/lib/api";
 import { getMessageNamespace } from "@/lib/translations";
 
@@ -47,6 +49,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
   const [audioDuration, setAudioDuration] = useState(0);
   const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
+  const [creditError, setCreditError] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeAudioIdRef = useRef<string | null>(null);
   const loadingAudioIdRef = useRef<string | null>(null);
@@ -69,7 +72,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       setMessages(Array.isArray(state?.messages) ? state.messages.filter((item) => item && typeof item.content === "string") : []);
       setSkills(Array.isArray(state?.skills) ? state.skills.filter((item) => item && typeof item.id === "string") : []);
       if (Number.isFinite(state?.billing?.credits_per_reply)) setCreditsPerReply(state.billing.credits_per_reply);
-    }).catch((reason) => setError(isUnauthorized(reason) ? copy.loginRequired : copy.loadError));
+    }).catch((reason) => { setError(isUnauthorized(reason) ? copy.loginRequired : copy.loadError); setCreditError(false); });
     return () => {
       stopHoldRecording(true);
       synthesisAbortRef.current?.abort();
@@ -117,6 +120,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     synthesisAbortRef.current = null;
     finishPlayback();
     setError("");
+    setCreditError(false);
     loadingAudioIdRef.current = message.id;
     setLoadingAudioId(message.id);
     try {
@@ -144,12 +148,23 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       audio.ontimeupdate = () => setAudioProgress(audio.currentTime);
       const completed = new Promise<void>((resolve) => { playbackResolveRef.current = resolve; });
       audio.onended = finishPlayback;
-      audio.onerror = () => { setError(copy.voiceError); finishPlayback(); };
+      audio.onerror = () => { setError(copy.voiceError); setCreditError(false); finishPlayback(); };
       await audio.play();
       if (waitForEnd) await completed;
     } catch (reason) {
       if (requestId === playRequestRef.current) {
-        if (!(reason instanceof DOMException && reason.name === "AbortError")) setError(isUnauthorized(reason) ? copy.loginRequired : copy.voiceError);
+        if (!(reason instanceof DOMException && reason.name === "AbortError")) {
+          if (isUnauthorized(reason)) {
+            setError(copy.loginRequired);
+            setCreditError(false);
+          } else if (hasStatus(reason, 402)) {
+            setError(copy.voiceInsufficientCredits);
+            setCreditError(true);
+          } else {
+            setError(copy.voiceError);
+            setCreditError(false);
+          }
+        }
         finishPlayback();
       }
     } finally {
@@ -168,6 +183,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     setInput("");
     setBusy(true);
     setError("");
+    setCreditError(false);
     const optimistic: SecretaryMessage = { id: `local-${Date.now()}`, role: "user", content: clean, created_at: new Date().toISOString() };
     setMessages((current) => [...current, optimistic]);
     try {
@@ -179,6 +195,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       setMessages((current) => current.filter((item) => item.id !== optimistic.id));
       setInput(clean);
       setError(isUnauthorized(reason) ? copy.loginRequired : hasStatus(reason, 402) ? copy.insufficientCredits : copy.messageError);
+      setCreditError(hasStatus(reason, 402));
     } finally {
       setBusy(false);
       processingRef.current = false;
@@ -198,6 +215,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       processingRef.current = false;
       setTranscribing(false);
       setError(isUnauthorized(reason) ? copy.loginRequired : copy.transcriptionError);
+      setCreditError(false);
     }
   }
 
@@ -224,7 +242,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       setRecordingRemaining(60);
       const elapsed = Date.now() - recordingStartedAtRef.current;
       if (discardRecordingRef.current) return;
-      if (elapsed < 350 || chunks.length === 0) { setError(copy.tooShort); return; }
+      if (elapsed < 350 || chunks.length === 0) { setError(copy.tooShort); setCreditError(false); return; }
       const blob = new Blob(chunks, { type: recorder.mimeType || "audio/webm" });
       void processVoice(blob);
     };
@@ -243,6 +261,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     if (processingRef.current || busy || transcribing || recording) return;
     if (!navigator.mediaDevices?.getUserMedia || typeof MediaRecorder === "undefined") {
       setError(copy.permissionDenied);
+      setCreditError(false);
       return;
     }
     synthesisAbortRef.current?.abort();
@@ -254,11 +273,13 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
       if (!holdRequestedRef.current) { stream.getTracks().forEach((track) => track.stop()); return; }
-      setError("");
+    setError("");
+    setCreditError(false);
       beginHoldRecording(stream);
     } catch {
       holdRequestedRef.current = false;
       setError(copy.permissionDenied);
+      setCreditError(false);
     }
   }
 
@@ -273,7 +294,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
   async function clearMemory() {
     if (!window.confirm(copy.clearConfirm)) return;
     try { await clearSecretaryMemory(); stopHoldRecording(true); setMessages([]); }
-    catch (reason) { setError(isUnauthorized(reason) ? copy.loginRequired : copy.loadError); }
+    catch (reason) { setError(isUnauthorized(reason) ? copy.loginRequired : copy.loadError); setCreditError(false); }
   }
 
   function statusLabel(status: SecretarySkill["status"]) {
@@ -327,7 +348,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
         </div>
 
         <div className="shrink-0 border-t border-border-pg bg-bg-panel p-4">
-          {error ? <div className="mb-3 text-sm text-status-negative">{error}</div> : null}
+          {error ? <div className="mb-3 text-sm text-status-negative">{error}{creditError ? <Link href={withLocale(locale, "/billing")} className="ml-2 underline underline-offset-2">{copy.upgradeForVoice}</Link> : null}</div> : null}
           <div className="flex items-end gap-2">
             <button
               type="button"
