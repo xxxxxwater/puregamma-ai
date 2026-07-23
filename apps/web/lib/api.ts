@@ -980,14 +980,22 @@ export type BacktestLabRun = {
   performance: Record<string, number> & { per_asset?: Record<string, Record<string, number>> };
   equity_curve: Array<{ ts: string; equity: number }>;
   drawdown_curve?: Array<{ ts: string; drawdown: number }>;
+  benchmark_curve?: Array<{ ts: string; equity: number }>;
   trades?: Array<Record<string, unknown>>;
   positions?: Array<Record<string, unknown>>;
-  charts?: { equity?: { data: unknown[]; layout?: Record<string, unknown> }; drawdown?: { data: unknown[]; layout?: Record<string, unknown> } };
+  charts?: {
+    equity?: { data: unknown[]; layout?: Record<string, unknown> };
+    drawdown?: { data: unknown[]; layout?: Record<string, unknown> };
+    benchmark_comparison?: { data: unknown[]; layout?: Record<string, unknown> };
+    trades?: { data: unknown[]; layout?: Record<string, unknown> };
+    positions?: { data: unknown[]; layout?: Record<string, unknown> };
+  };
   assumptions: Record<string, unknown>;
   context_used: Record<string, unknown>;
   credits_spent: number;
   credits_reserved?: number;
   created_at: string;
+  is_legacy?: boolean;
 };
 
 export type BacktestLabStatus = {

@@ -16,6 +16,7 @@ from packages.billing.credits import cost_for
 from packages.backtest.artifacts import artifact_root
 from packages.database.models import BacktestArtifact, BacktestRun, User
 from packages.skills.registry import SkillResolutionError
+from apps.api.routers.backtest_lab import BacktestDispatchUnavailable
 
 
 router = APIRouter(prefix="/backtest", tags=["backtest"])
@@ -90,6 +91,11 @@ def create(payload: BacktestRequest, db: Session = Depends(get_db), user: User =
             finish_module_skill_invocation(db, invocation_id, status="failed", credits_used=0, error_code="BACKTEST_REJECTED")
             db.commit()
         raise HTTPException(status_code=402, detail=str(exc)) from exc
+    except BacktestDispatchUnavailable as exc:
+        if invocation_id:
+            finish_module_skill_invocation(db, invocation_id, status="failed", credits_used=0, error_code="BACKTEST_QUEUE_UNAVAILABLE")
+            db.commit()
+        raise HTTPException(status_code=503, detail={"code": "BACKTEST_QUEUE_UNAVAILABLE", "message": str(exc)}) from exc
     except ValueError as exc:
         db.rollback()
         if invocation_id:

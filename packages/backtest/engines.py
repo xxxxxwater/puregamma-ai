@@ -59,7 +59,6 @@ class VectorBTBacktestEngine:
             # Development/test fallback keeps the contract usable without a
             # network dependency; it is explicitly labeled mock below.
             freshness = "mock"
-            from datetime import datetime
             from packages.backtest.daily_data import load_candle_window
             now = datetime.now(timezone.utc)
             synthetic = [{"ts": now - timedelta(days=365 - index), "close": 100 + index * 0.15 + ((index % 11) - 5) * 0.4} for index in range(365)]

@@ -42,6 +42,39 @@ def _signal(closes: list[float], index: int, fast: int, slow: int, signal: str, 
     return 0.0
 
 
+def _drawdown_curve(equity: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    peak = 0.0
+    drawdown = []
+    for item in equity:
+        peak = max(peak, float(item["equity"]))
+        drawdown.append({"ts": item["ts"], "drawdown": round(float(item["equity"]) / peak - 1, 8) if peak else 0.0})
+    return drawdown
+
+
+def _charts(
+    equity: list[dict[str, Any]],
+    drawdown: list[dict[str, Any]],
+    benchmark: list[dict[str, Any]],
+    trades: list[dict[str, Any]],
+    positions: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    strategy_x = [item["ts"] for item in equity]
+    strategy_y = [item["equity"] for item in equity]
+    benchmark_x = [item["ts"] for item in benchmark]
+    benchmark_y = [item["equity"] for item in benchmark]
+    position_data = []
+    for asset in sorted({str(item["asset"]) for item in positions}):
+        points = [item for item in positions if item["asset"] == asset]
+        position_data.append({"x": [item["ts"] for item in points], "y": [item["weight"] for item in points], "type": "scatter", "mode": "lines", "name": asset})
+    return {
+        "equity": {"data": [{"x": strategy_x, "y": strategy_y, "type": "scatter", "mode": "lines", "name": "Strategy"}], "layout": {"title": "Equity Curve", "template": "plotly_dark"}},
+        "drawdown": {"data": [{"x": [item["ts"] for item in drawdown], "y": [item["drawdown"] for item in drawdown], "type": "scatter", "mode": "lines", "fill": "tozeroy", "name": "Drawdown"}], "layout": {"title": "Drawdown", "template": "plotly_dark"}},
+        "benchmark_comparison": {"data": [{"x": strategy_x, "y": strategy_y, "type": "scatter", "mode": "lines", "name": "Strategy"}, {"x": benchmark_x, "y": benchmark_y, "type": "scatter", "mode": "lines", "name": "Equal-weight benchmark"}], "layout": {"title": "Strategy vs Benchmark", "template": "plotly_dark"}},
+        "trades": {"data": [{"x": [item["ts"] for item in trades], "y": [item["to"] for item in trades], "text": [f'{item["asset"]}: {item["from"]} → {item["to"]}' for item in trades], "type": "scatter", "mode": "markers", "name": "Trades", "marker": {"size": 9, "symbol": ["triangle-up" if float(item["to"]) > float(item["from"]) else "triangle-down" for item in trades]}}], "layout": {"title": "Trade Details", "template": "plotly_dark"}},
+        "positions": {"data": position_data, "layout": {"title": "Position Changes", "template": "plotly_dark", "yaxis": {"title": "Weight"}}},
+    }
+
+
 def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial_cash: float = 100_000.0) -> dict:
     native = _run_native_vectorbt(spec, window, initial_cash=initial_cash)
     if native is not None:
@@ -53,7 +86,7 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     signal = str(spec.get("signal", "momentum"))
     threshold = float(spec.get("entry_threshold", 0.0))
     long_short = bool(spec.get("long_short", False))
-    series: list[tuple[datetime, float]] = []
+    series: list[tuple[datetime, float, float]] = []
     trades: list[dict] = []
     positions: list[dict] = []
     all_returns: list[float] = []
@@ -69,7 +102,7 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
             asset_return = closes[index] / closes[index - 1] - 1
             period_return = previous * asset_return - abs(change) * fee_bps / 10_000
             all_returns.append(period_return)
-            series.append((bars[index]["ts"], period_return))
+            series.append((bars[index]["ts"], period_return, asset_return))
             positions.append({"ts": bars[index]["ts"].isoformat(), "asset": asset, "weight": round(target, 6)})
             if change:
                 trades.append({"ts": bars[index]["ts"].isoformat(), "asset": asset, "from": previous, "to": target, "turnover": abs(change)})
@@ -77,21 +110,21 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     series.sort(key=lambda item: item[0])
     equity = []
     value = 1.0
-    for ts, period_return in series:
+    for ts, period_return, _ in series:
         value *= 1 + period_return
         equity.append({"ts": ts.isoformat(), "equity": round(value * initial_cash, 6)})
     metrics = enrich_metrics(calculate_metrics(all_returns), all_returns)
     metrics.update({"trade_count": len(trades), "turnover": round(sum(item["turnover"] for item in trades), 6), "exposure_time": round(sum(abs(item["weight"]) for item in positions) / len(positions), 6) if positions else 0.0, "initial_cash": initial_cash, "final_equity": round(value * initial_cash, 6)})
-    peak = 0.0
-    drawdown = []
-    for item in equity:
-        peak = max(peak, item["equity"])
-        drawdown.append({"ts": item["ts"], "drawdown": round(item["equity"] / peak - 1, 8) if peak else 0.0})
-    charts = {
-        "equity": {"data": [{"x": [item["ts"] for item in equity], "y": [item["equity"] for item in equity], "type": "scatter", "mode": "lines", "name": "Strategy"}], "layout": {"title": "Equity Curve", "template": "plotly_dark"}},
-        "drawdown": {"data": [{"x": [item["ts"] for item in drawdown], "y": [item["drawdown"] for item in drawdown], "type": "scatter", "mode": "lines", "fill": "tozeroy", "name": "Drawdown"}], "layout": {"title": "Drawdown", "template": "plotly_dark"}},
-    }
-    return {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "trades": trades, "positions": positions, "charts": charts, "engine": "vectorbt" if _vectorbt_available() else "vectorbt_compatible", "is_live": False}
+    benchmark_by_ts: dict[str, list[float]] = {}
+    for ts, _, asset_return in series:
+        benchmark_by_ts.setdefault(ts.isoformat(), []).append(asset_return)
+    benchmark_value = initial_cash
+    benchmark = []
+    for ts in sorted(benchmark_by_ts):
+        benchmark_value *= 1 + sum(benchmark_by_ts[ts]) / len(benchmark_by_ts[ts])
+        benchmark.append({"ts": ts, "equity": round(benchmark_value, 6)})
+    drawdown = _drawdown_curve(equity)
+    return {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt" if _vectorbt_available() else "vectorbt_compatible", "is_live": False}
 
 
 def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial_cash: float) -> dict[str, Any] | None:
@@ -120,10 +153,19 @@ def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *,
         metrics = enrich_metrics(calculate_metrics(returns), returns)
         metrics.update({"trade_count": int(pf.trades.count()), "initial_cash": initial_cash, "final_equity": float(values.iloc[-1])})
         equity = [{"ts": index.isoformat(), "equity": round(float(value), 6)} for index, value in values.items()]
-        peak = np.maximum.accumulate(values.to_numpy())
-        drawdown = [{"ts": index.isoformat(), "drawdown": round(float(value / peak[i] - 1), 8)} for i, (index, value) in enumerate(values.items())]
-        x = [item["ts"] for item in equity]
-        return {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "trades": [], "positions": [], "charts": {"equity": {"data": [{"x": x, "y": [item["equity"] for item in equity], "type": "scatter", "mode": "lines", "name": "Strategy"}], "layout": {"title": "Equity Curve", "template": "plotly_dark"}}, "drawdown": {"data": [{"x": x, "y": [item["drawdown"] for item in drawdown], "type": "scatter", "mode": "lines", "fill": "tozeroy", "name": "Drawdown"}], "layout": {"title": "Drawdown", "template": "plotly_dark"}}}, "engine": "vectorbt", "is_live": False}
+        benchmark = [{"ts": index.isoformat(), "equity": round(float(value / close.iloc[0] * initial_cash), 6)} for index, value in close.items()]
+        positions = []
+        trades = []
+        previous = 0.0
+        for index, entry, exit in zip(close.index, entries, exits):
+            target = 1.0 if entry else 0.0 if exit else previous
+            ts = index.isoformat()
+            positions.append({"ts": ts, "asset": assets[0], "weight": target})
+            if target != previous:
+                trades.append({"ts": ts, "asset": assets[0], "from": previous, "to": target, "turnover": abs(target - previous)})
+            previous = target
+        drawdown = _drawdown_curve(equity)
+        return {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt", "is_live": False}
     except (ImportError, ValueError, TypeError, AttributeError, KeyError):
         return None
 

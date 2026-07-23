@@ -18,8 +18,8 @@ def test_pro_can_run_mock_backtest(api_client, db, demo_user):
     db.refresh(demo_user)
 
     assert response.status_code == 200
-    assert response.json()["backtest"]["credits_spent"] == 25
-    assert demo_user.credit_balance == before - 25
+    assert response.json()["backtest"]["credits_spent"] == 50
+    assert demo_user.credit_balance == before - 50
     assert {"total_return", "sharpe", "max_drawdown", "win_rate"} <= set(response.json()["backtest"]["result"]["metrics"])
 
 

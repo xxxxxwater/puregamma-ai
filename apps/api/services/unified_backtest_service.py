@@ -13,7 +13,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
 from apps.api.services.entitlement_service import assert_action_allowed
-from packages.backtest.artifacts import artifact_root, write_json_artifact
+from packages.backtest.artifacts import artifact_path, write_json_artifact
 from packages.backtest.daily_data import candle_coverage, load_candle_window, refresh_daily_candles
 from packages.backtest.strategy_spec import parse_spec
 from packages.backtest.vectorbt_engine import run_vectorbt
@@ -65,7 +65,7 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
     row = db.get(BacktestRun, run_id)
     if not row:
         raise ValueError("Backtest run not found")
-    if row.status == "completed":
+    if row.status in {"completed", "failed"}:
         return row
     reservation_key = f"backtest-charge:{row.idempotency_key}"
     reservation = CreditReservation(idempotency_key=reservation_key, credits=row.credits_reserved or BACKTEST_CREDITS)
@@ -119,10 +119,30 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
     return row
 
 
+def fail_unified_run(db: Session, run_id: str, *, code: str, message: str) -> BacktestRun | None:
+    """Fail and refund a queued run that could not be handed to a worker."""
+    row = db.get(BacktestRun, run_id)
+    if not row or row.status in {"completed", "failed"}:
+        return row
+    reservation = CreditReservation(
+        idempotency_key=f"backtest-charge:{row.idempotency_key}",
+        credits=row.credits_reserved or BACKTEST_CREDITS,
+    )
+    row.status = "failed"
+    row.error_json = {"code": code, "message": message[:500]}
+    try:
+        refund_task(db, row.user_id, reservation, code)
+    except Exception:
+        logger.exception("backtest_refund_failed run_id=%s", run_id)
+    db.commit()
+    db.refresh(row)
+    return row
+
+
 def serialize_unified_run(row: BacktestRun) -> dict:
     result = row.result_json or {}
     spec = row.spec_json or {}
-    return {"id": row.id, "status": row.status, "engine": row.engine, "mode": (spec.get("spec") or {}).get("mode", "daily"), "strategy_name": row.strategy_name, "asset": row.asset, "spec": spec.get("spec", spec), "run_spec": spec, "window": {"start": (row.data_snapshot_json or {}).get("window_start"), "end": (row.data_snapshot_json or {}).get("window_end")}, "params": row.params_json, "result": result, "performance": result.get("metrics", {}), "equity_curve": result.get("equity_curve", []), "drawdown_curve": result.get("drawdown_curve", []), "trades": result.get("trades", []), "positions": result.get("positions", []), "charts": result.get("charts", {}), "data_snapshot": row.data_snapshot_json or {}, "assumptions": row.assumptions_json or {}, "error": row.error_json or {}, "credits_spent": row.credits_spent, "credits_reserved": row.credits_reserved, "created_at": row.created_at.isoformat() if row.created_at else None, "completed_at": row.completed_at.isoformat() if row.completed_at else None}
+    return {"id": row.id, "status": row.status, "engine": row.engine, "mode": (spec.get("spec") or {}).get("mode", "daily"), "strategy_name": row.strategy_name, "asset": row.asset, "spec": spec.get("spec", spec), "run_spec": spec, "window": {"start": (row.data_snapshot_json or {}).get("window_start"), "end": (row.data_snapshot_json or {}).get("window_end")}, "params": row.params_json, "result": result, "performance": result.get("metrics", {}), "equity_curve": result.get("equity_curve", []), "drawdown_curve": result.get("drawdown_curve", []), "benchmark_curve": result.get("benchmark_curve", []), "trades": result.get("trades", []), "positions": result.get("positions", []), "charts": result.get("charts", {}), "data_snapshot": row.data_snapshot_json or {}, "assumptions": row.assumptions_json or {}, "error": row.error_json or {}, "credits_spent": row.credits_spent, "credits_reserved": row.credits_reserved, "created_at": row.created_at.isoformat() if row.created_at else None, "completed_at": row.completed_at.isoformat() if row.completed_at else None}
 
 
 def export_run(db: Session, user_id: str, run_id: str, fmt: str = "json") -> BacktestArtifact:
@@ -138,31 +158,36 @@ def export_run(db: Session, user_id: str, run_id: str, fmt: str = "json") -> Bac
     quote = quote_task(task_type="backtest_export", requested_model="default", async_execution=False)
     reservation = reserve_task(db, user_id, quote, f"backtest-export:{run_id}:{fmt}", {"backtest_id": run_id, "format": fmt})
     db.commit()
-    payload = serialize_unified_run(row)
-    if fmt == "json":
-        meta = write_json_artifact(user_id, run_id, "report", payload)
-        artifact_type = "report"
-    else:
-        root = artifact_root()
-        relative = Path(user_id) / run_id / "trades.csv"
-        path = (root / relative).resolve()
-        path.parent.mkdir(parents=True, exist_ok=True)
-        buf = io.StringIO()
-        trades = payload["trades"]
-        writer = csv.DictWriter(buf, fieldnames=sorted({key for item in trades for key in item} or {"ts"}))
-        writer.writeheader()
-        writer.writerows(trades)
-        raw = buf.getvalue().encode("utf-8")
-        path.write_bytes(raw)
-        import hashlib
-        meta = {"relative_path": relative.as_posix(), "size_bytes": len(raw), "checksum": hashlib.sha256(raw).hexdigest(), "format": "csv"}
-        artifact_type = "trades"
-    settlement = settle_task(db, user_id, reservation, EXPORT_CREDITS, {"backtest_id": run_id, "format": fmt})
-    artifact = BacktestArtifact(user_id=user_id, backtest_id=run_id, artifact_type=artifact_type, format=fmt, relative_path=meta["relative_path"], size_bytes=meta["size_bytes"], checksum=meta["checksum"], credits_spent=settlement.actual)
-    db.add(artifact)
-    db.commit()
-    db.refresh(artifact)
-    return artifact
+    try:
+        payload = serialize_unified_run(row)
+        if fmt == "json":
+            meta = write_json_artifact(user_id, run_id, "report", payload)
+            artifact_type = "report"
+        else:
+            relative = Path(user_id) / run_id / "trades.csv"
+            path = artifact_path(relative)
+            path.parent.mkdir(parents=True, exist_ok=True)
+            buf = io.StringIO()
+            trades = payload["trades"]
+            writer = csv.DictWriter(buf, fieldnames=sorted({key for item in trades for key in item} or {"ts"}))
+            writer.writeheader()
+            writer.writerows(trades)
+            raw = buf.getvalue().encode("utf-8")
+            path.write_bytes(raw)
+            import hashlib
+            meta = {"relative_path": relative.as_posix(), "size_bytes": len(raw), "checksum": hashlib.sha256(raw).hexdigest(), "format": "csv"}
+            artifact_type = "trades"
+        settlement = settle_task(db, user_id, reservation, EXPORT_CREDITS, {"backtest_id": run_id, "format": fmt})
+        artifact = BacktestArtifact(user_id=user_id, backtest_id=run_id, artifact_type=artifact_type, format=fmt, relative_path=meta["relative_path"], size_bytes=meta["size_bytes"], checksum=meta["checksum"], credits_spent=settlement.actual)
+        db.add(artifact)
+        db.commit()
+        db.refresh(artifact)
+        return artifact
+    except Exception:
+        db.rollback()
+        refund_task(db, user_id, reservation, "BACKTEST_EXPORT_FAILED")
+        db.commit()
+        raise
 
 
 def serialize_artifact(artifact: BacktestArtifact) -> dict:

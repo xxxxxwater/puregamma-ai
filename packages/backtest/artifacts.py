@@ -14,13 +14,19 @@ def artifact_root() -> Path:
     return root
 
 
+def artifact_path(relative_path: Path) -> Path:
+    """Resolve an artifact path while keeping it inside the configured root."""
+    root = artifact_root()
+    path = (root / relative_path).resolve()
+    if root not in path.parents:
+        raise ValueError("invalid artifact path")
+    return path
+
+
 def write_json_artifact(user_id: str, backtest_id: str, artifact_type: str, payload: Any) -> dict:
     """Write a bounded, deterministic JSON artifact below the server artifact root."""
     relative = Path(user_id) / backtest_id / f"{artifact_type}.json"
-    root = artifact_root()
-    path = (root / relative).resolve()
-    if root not in path.parents:
-        raise ValueError("invalid artifact path")
+    path = artifact_path(relative)
     path.parent.mkdir(parents=True, exist_ok=True)
     raw = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), default=str).encode("utf-8")
     path.write_bytes(raw)

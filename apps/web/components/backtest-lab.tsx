@@ -127,7 +127,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
   };
 
   const handleExport = async (format: "json" | "csv") => {
-    if (!selected) return;
+    if (!selected || selected.is_legacy) return;
     setExporting(true);
     setError("");
     try {
@@ -141,6 +141,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
   };
 
   const perf = selected?.performance;
+  const isActive = selected?.status === "queued" || selected?.status === "running";
 
   return (
     <div className="space-y-6 py-4">
@@ -214,6 +215,8 @@ export function BacktestLab({ locale }: { locale: Locale }) {
         <section className="space-y-5 border border-border-pg bg-bg-panel p-5">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">{copy.performance.title}: {selected.spec?.name}</h2>
+            {isActive ? <span className="flex items-center gap-1 text-[11px] text-text-pg-muted"><Loader2 className="h-3 w-3 animate-spin" />{selected.status}</span> : null}
+            {selected.is_legacy ? <span className="text-[11px] text-text-pg-dim">Legacy read-only result</span> : null}
             <span className="text-[11px] text-text-pg-dim">{selected.window.start?.slice(0, 10)} → {selected.window.end?.slice(0, 10)} · {selected.mode}</span>
           </div>
           <div className="grid grid-cols-2 gap-px border border-border-pg bg-border-pg md:grid-cols-4">
@@ -241,6 +244,36 @@ export function BacktestLab({ locale }: { locale: Locale }) {
             </div>
           ) : null}
           {selected.charts?.drawdown ? <PlotlyChart figure={selected.charts.drawdown} className="h-56" /> : null}
+          {selected.charts?.benchmark_comparison ? (
+            <div>
+              <h3 className="mb-2 text-xs font-semibold text-text-pg-muted">Strategy vs benchmark</h3>
+              <PlotlyChart figure={selected.charts.benchmark_comparison} />
+            </div>
+          ) : null}
+          {selected.charts?.trades ? (
+            <div>
+              <h3 className="mb-2 text-xs font-semibold text-text-pg-muted">Trade details</h3>
+              <PlotlyChart figure={selected.charts.trades} className="h-56" />
+            </div>
+          ) : null}
+          {selected.charts?.positions ? (
+            <div>
+              <h3 className="mb-2 text-xs font-semibold text-text-pg-muted">Position changes</h3>
+              <PlotlyChart figure={selected.charts.positions} className="h-56" />
+            </div>
+          ) : null}
+          {selected.trades?.length ? (
+            <details className="text-xs text-text-pg-muted">
+              <summary className="cursor-pointer font-medium">Trade records ({selected.trades.length})</summary>
+              <pre className="mt-2 max-h-64 overflow-auto border border-border-pg bg-bg-panel-muted p-3 text-[11px] leading-4">{JSON.stringify(selected.trades, null, 2)}</pre>
+            </details>
+          ) : null}
+          {selected.positions?.length ? (
+            <details className="text-xs text-text-pg-muted">
+              <summary className="cursor-pointer font-medium">Position records ({selected.positions.length})</summary>
+              <pre className="mt-2 max-h-64 overflow-auto border border-border-pg bg-bg-panel-muted p-3 text-[11px] leading-4">{JSON.stringify(selected.positions, null, 2)}</pre>
+            </details>
+          ) : null}
           {perf.per_asset ? (
             <div>
               <h3 className="mb-2 text-xs font-semibold text-text-pg-muted">{copy.performance.perAsset}</h3>
@@ -273,6 +306,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
               <button key={run.id} type="button" onClick={() => setSelected(run)} className={`flex w-full flex-wrap items-center gap-3 px-3 py-2.5 text-left text-xs transition hover:bg-bg-panel-muted ${selected?.id === run.id ? "bg-bg-panel-muted" : ""}`}>
                 <span className="font-semibold">{run.spec?.name || run.id.slice(0, 8)}</span>
                 <span className="text-text-pg-dim">{run.mode}</span>
+                <span className="text-text-pg-dim">{run.status}</span>
                 <span className="text-text-pg-muted">{copy.performance.totalReturn}: {fmtPct(run.performance?.total_return)}</span>
                 <span className="text-text-pg-muted">{copy.performance.sharpe}: {fmtNum(run.performance?.sharpe)}</span>
                 <span className="ml-auto text-text-pg-dim">{run.created_at.slice(0, 16).replace("T", " ")}</span>
