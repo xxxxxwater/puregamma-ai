@@ -3,6 +3,7 @@ from __future__ import annotations
 from fastapi.testclient import TestClient
 
 from apps.api.main import app
+from apps.api.routers import market as market_router
 from apps.api.services.billing_service import mock_upgrade
 from apps.api.services.report_service import create_daily_report
 from apps.api.services.signal_service import scan_signals
@@ -390,16 +391,22 @@ def test_api_health_check():
     assert response.json()["status"] == "ok"
 
 
-def test_market_snapshot_api_includes_equity_fields(monkeypatch):
+def test_market_snapshot_api_excludes_equities_without_keys(monkeypatch):
     monkeypatch.setenv("ENABLE_MOCK_MARKET_DATA", "true")
     client = TestClient(app)
     response = client.get("/market/snapshot")
     assert response.status_code == 200
     data = response.json()
-    mstr = next((a for a in data["assets"] if a["symbol"] == "MSTR"), None)
-    strc = next((a for a in data["assets"] if a["symbol"] == "STRC"), None)
-    assert mstr is not None
-    assert strc is not None
+    symbols = {a["symbol"] for a in data["assets"]}
+    assert "MSTR" not in symbols
+    assert "STRC" not in symbols
+
+
+def test_serialize_quote_handles_equity_fields():
+    mstr_quote = MockMarketDataProvider().get_snapshot(["MSTR"])[0]
+    strc_quote = MockMarketDataProvider().get_snapshot(["STRC"])[0]
+    mstr = market_router._serialize_quote(mstr_quote)
+    strc = market_router._serialize_quote(strc_quote)
     assert mstr["asset_type"] == "equity"
     assert strc["asset_type"] == "preferred_equity"
     assert mstr["open_interest"] is None

@@ -6,11 +6,14 @@ const PUBLIC_FILE = /\.(.*)$/;
 const INITIAL_LAUNCH_HIDDEN = ["/signals", "/playbooks", "/strategies", "/trading", "/nautilus", "/data-sources", "/integrations", "/daily-push", "/billing/mock-checkout"];
 const AUTHENTICATED_ROUTES = ["/account", "/admin", "/billing", "/chat", "/dashboard", "/options", "/portfolio", "/reports"];
 
-async function resolveLocale(request: NextRequest): Promise<string> {
+async function resolveLocale(request: NextRequest, useGeo: boolean): Promise<string> {
   const cookieLocale = request.cookies.get(localeCookieName)?.value;
   if (isLocale(cookieLocale)) return cookieLocale;
   const acceptLocale = localeFromAcceptLanguage(request.headers.get("accept-language"));
   if (acceptLocale !== defaultLocale) return acceptLocale;
+  // Geo lookup is a paid, rate-limited external call — only worth it for the
+  // landing page, not for every deep-link/404/crawler request.
+  if (!useGeo) return defaultLocale;
   const isCN = await isChinaIP(request.headers);
   return isCN ? "zh" : defaultLocale;
 }
@@ -47,10 +50,10 @@ export async function middleware(request: NextRequest) {
     return response;
   }
 
-  const preferred = await resolveLocale(request);
   const shouldRedirect = pathname === "/" || legacyLocaleRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`));
 
   if (shouldRedirect) {
+    const preferred = await resolveLocale(request, pathname === "/");
     const url = request.nextUrl.clone();
     url.pathname = `/${preferred}${pathname === "/" ? "" : pathname}`;
     url.search = search;

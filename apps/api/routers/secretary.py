@@ -1,15 +1,14 @@
 from __future__ import annotations
 
-import base64
-import binascii
 import json
+import logging
 import os
 import re
 import uuid
 from datetime import datetime, timezone
 
 import requests
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, Depends, Header, HTTPException, Request
 from fastapi.responses import Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -23,6 +22,7 @@ from packages.data.online_research_provider import online_research_enabled, onli
 
 
 router = APIRouter(prefix="/secretary", tags=["secretary"])
+logger = logging.getLogger("puregamma.secretary")
 SECRETARY_MARKER = "surface:secretary:v1"
 DEFAULT_VOICE_ID = "183203aa0"
 DEFAULT_ENGLISH_VOICE_ID = "7bc8b578"
@@ -73,6 +73,10 @@ _AUDIO_EXTENSIONS = {
     "audio/x-wav": "wav",
     "audio/mpeg": "mp3",
 }
+
+
+async def _raw_body(request: Request) -> bytes:
+    return await request.body()
 
 
 def _conversation(db: Session, user_id: str, create: bool = True) -> AgentConversation | None:
@@ -407,16 +411,13 @@ def create_message(payload: SecretaryMessageRequest, db: Session = Depends(get_d
 
 
 def _normalized_key(value: str) -> str:
-    key = value.strip()
-    padded = key + ("=" * (-len(key) % 4))
-    try:
-        decoded = base64.b64decode(padded, validate=True)
-        canonical = base64.b64encode(decoded).decode("ascii").rstrip("=")
-        if decoded and canonical == key.rstrip("="):
-            return key
-    except binascii.Error:
-        pass
-    return base64.b64encode(key.encode("utf-8")).decode("ascii")
+    """Return the API key exactly as configured.
+
+    A previous implementation conditionally base64-re-encoded "non-canonical"
+    keys, which would silently send wrong credentials after a key rotation
+    while the smoke-test client (which sends the raw key) kept passing.
+    """
+    return value.strip()
 
 
 @router.post("/voice")
@@ -453,26 +454,46 @@ def create_voice(payload: VoiceRequest, db: Session = Depends(get_db), user: Use
         refund_task(db, user.id, reservation, "NOIZ_UNAVAILABLE")
         db.commit()
         raise HTTPException(status_code=502, detail={"code": "NOIZ_UNAVAILABLE"}) from exc
-    if response.status_code != 200 or not response.content:
-        refund_task(db, user.id, reservation, "NOIZ_SYNTHESIS_FAILED")
+    upstream_media_type = response.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+    if response.status_code != 200 or not response.content or not upstream_media_type.startswith("audio/"):
+        detail_code = "NOIZ_SYNTHESIS_FAILED"
+        if not upstream_media_type.startswith("audio/"):
+            try:
+                body = json.loads(response.content)
+                detail_code = body.get("code", detail_code)
+                if body.get("code") == 402:
+                    detail_code = "NOIZ_INSUFFICIENT_CREDITS"
+            except (json.JSONDecodeError, UnicodeDecodeError):
+                pass
+        refund_task(db, user.id, reservation, detail_code)
         db.commit()
-        raise HTTPException(status_code=502, detail={"code": "NOIZ_SYNTHESIS_FAILED"})
+        logger.warning(
+            "noiz_synthesis_failed",
+            extra={"user_id": user.id, "upstream_status": response.status_code, "upstream_ct": upstream_media_type, "upstream_body": response.text[:500]},
+        )
+        status = 402 if detail_code == "NOIZ_INSUFFICIENT_CREDITS" else 502
+        raise HTTPException(status_code=status, detail={"code": detail_code})
     settle_task(db, user.id, reservation, quote.credits, metadata={"surface": "secretary", "action": "voice"})
     db.commit()
     return Response(
         content=response.content,
-        media_type=response.headers.get("content-type", "audio/mpeg"),
+        media_type=upstream_media_type,
         headers={"Cache-Control": "private, no-store", "X-PG-Voice-ID": voice_id},
     )
 
 
 @router.post("/transcribe")
-async def transcribe_voice(request: Request, locale: str = "zh", db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
-    content_type = request.headers.get("content-type", "").split(";", 1)[0].strip().lower()
+def transcribe_voice(
+    audio: bytes = Depends(_raw_body),
+    content_type_header: str | None = Header(default=None, alias="Content-Type"),
+    locale: str = "zh",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    content_type = (content_type_header or "").split(";", 1)[0].strip().lower()
     extension = _AUDIO_EXTENSIONS.get(content_type)
     if not extension:
         raise HTTPException(status_code=415, detail={"code": "UNSUPPORTED_AUDIO_FORMAT"})
-    audio = await request.body()
     if len(audio) < 512:
         raise HTTPException(status_code=400, detail={"code": "AUDIO_TOO_SHORT"})
     if len(audio) > 2_000_000:

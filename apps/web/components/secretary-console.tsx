@@ -32,6 +32,21 @@ function hasStatus(reason: unknown, status: number) {
   return Boolean(reason && typeof reason === "object" && "status" in reason && (reason as { status?: number }).status === status);
 }
 
+// Backend VoiceRequest caps text at 1500 chars; longer assistant replies must be
+// truncated (preferably at a sentence boundary) or synthesis always fails with 422.
+const VOICE_TEXT_LIMIT = 1500;
+
+function truncateForVoice(text: string): string {
+  if (text.length <= VOICE_TEXT_LIMIT) return text;
+  const slice = text.slice(0, VOICE_TEXT_LIMIT);
+  let cut = -1;
+  for (const mark of ["。", "！", "？", ". ", "! ", "? ", "\n"]) {
+    const index = slice.lastIndexOf(mark);
+    if (index > cut) cut = index;
+  }
+  return cut > VOICE_TEXT_LIMIT * 0.6 ? slice.slice(0, cut + 1) : slice;
+}
+
 export function SecretaryConsole({ locale }: { locale: Locale }) {
   const copy = getMessageNamespace(locale, "secretary");
   const [messages, setMessages] = useState<SecretaryMessage[]>([]);
@@ -128,7 +143,15 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       if (!url) {
         const controller = new AbortController();
         synthesisAbortRef.current = controller;
-        const blob = await synthesizeSecretaryVoice(message.content, locale, controller.signal);
+        // The backend allows up to 120s for synthesis; give up earlier so the UI
+        // recovers instead of spinning for two minutes.
+        const timeout = window.setTimeout(() => controller.abort(new DOMException("Voice synthesis timed out", "TimeoutError")), 60_000);
+        let blob: Blob;
+        try {
+          blob = await synthesizeSecretaryVoice(truncateForVoice(message.content), locale, controller.signal);
+        } finally {
+          window.clearTimeout(timeout);
+        }
         if (requestId !== playRequestRef.current || controller.signal.aborted) return;
         url = URL.createObjectURL(blob);
         audioCacheRef.current.set(message.id, url);
@@ -154,13 +177,25 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     } catch (reason) {
       if (requestId === playRequestRef.current) {
         if (!(reason instanceof DOMException && reason.name === "AbortError")) {
-          if (isUnauthorized(reason)) {
+          if (reason instanceof DOMException && reason.name === "NotAllowedError") {
+            // Autoplay blocked: the gesture window expired during synthesis. The
+            // audio is already cached, so the next tap plays instantly. Degrade
+            // silently instead of showing a scary "voice failed" error.
+            console.info("secretary voice autoplay blocked by browser; tap play to listen");
+          } else if (isUnauthorized(reason)) {
             setError(copy.loginRequired);
             setCreditError(false);
           } else if (hasStatus(reason, 402)) {
             setError(copy.voiceInsufficientCredits);
             setCreditError(true);
+          } else if (hasStatus(reason, 429)) {
+            setError(copy.voiceRateLimited);
+            setCreditError(false);
+          } else if (hasStatus(reason, 502) || hasStatus(reason, 503) || (reason instanceof DOMException && reason.name === "TimeoutError")) {
+            setError(copy.voiceUnavailable);
+            setCreditError(false);
           } else {
+            console.error("secretary voice playback failed", reason);
             setError(copy.voiceError);
             setCreditError(false);
           }
@@ -190,7 +225,9 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       const requestId = typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const result = await sendSecretaryMessage(clean, locale, requestId);
       setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), result.user_message, result.assistant_message]);
-      await playMessage(result.assistant_message, true);
+      // Fire-and-forget: autoplay must not hold the composer hostage. If the
+      // browser blocks autoplay or the user pauses, the input must still unlock.
+      void playMessage(result.assistant_message);
     } catch (reason) {
       setMessages((current) => current.filter((item) => item.id !== optimistic.id));
       setInput(clean);

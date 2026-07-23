@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import time
 import logging
 import uuid
@@ -27,7 +28,21 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="PureGamma AI API", version="0.1.0", lifespan=lifespan)
+# API schema/docs are a developer surface; keep them off in production unless
+# explicitly re-enabled for an internal environment.
+_docs_enabled = (
+    settings.app_environment.lower() != "production"
+    or os.getenv("API_DOCS_ENABLED", "").lower() == "true"
+)
+
+app = FastAPI(
+    title="PureGamma AI API",
+    version="0.1.0",
+    lifespan=lifespan,
+    docs_url="/docs" if _docs_enabled else None,
+    redoc_url="/redoc" if _docs_enabled else None,
+    openapi_url="/openapi.json" if _docs_enabled else None,
+)
 _expensive_paths = ("/agent/", "/secretary/", "/reports/", "/backtest", "/market/intelligence", "/options/")
 
 app.add_middleware(
@@ -69,15 +84,9 @@ async def rate_limit(request: Request, call_next):
     minute = int(time.time() // 60)
     bucket_key = f"pg:rate:{'expensive' if expensive else 'general'}:{client}:{minute}"
     try:
-        from redis import Redis
+        from apps.api.redis_client import get_redis
 
-        redis = Redis.from_url(
-            settings.redis_url,
-            socket_connect_timeout=1,
-            socket_timeout=1,
-            decode_responses=True,
-        )
-        pipeline = redis.pipeline(transaction=True)
+        pipeline = get_redis().pipeline(transaction=True)
         pipeline.incr(bucket_key)
         pipeline.expire(bucket_key, 120)
         count, _ = pipeline.execute()
@@ -132,8 +141,9 @@ def readiness():
         db.close()
     redis_status = "unknown"
     try:
-        from redis import Redis
-        Redis.from_url(settings.redis_url, socket_connect_timeout=1, socket_timeout=1).ping()
+        from apps.api.redis_client import get_redis
+
+        get_redis().ping()
         redis_status = "ok"
     except Exception:
         redis_status = "error"

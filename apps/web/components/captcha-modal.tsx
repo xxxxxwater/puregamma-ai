@@ -9,6 +9,7 @@ export function CaptchaModal({
   busy,
   error,
   resetKey,
+  retryToken = 0,
   onSolved,
   onClose,
   onRefresh,
@@ -21,6 +22,8 @@ export function CaptchaModal({
   error: string;
   /** Bump to remount the slider with a fresh puzzle. */
   resetKey: number;
+  /** Bump to retry the SAME puzzle after a failed attempt. */
+  retryToken?: number;
   onSolved: (result: CaptchaResult) => void;
   onClose: () => void;
   onRefresh: () => void;
@@ -79,6 +82,7 @@ export function CaptchaModal({
           disabled={busy}
           onSolved={onSolved}
           onReset={onRefresh}
+          retryToken={retryToken}
           labels={{ instruction: labels.instruction, success: labels.success, drag: labels.drag }}
         />
 

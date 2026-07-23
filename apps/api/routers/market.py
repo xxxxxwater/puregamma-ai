@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
-from apps.api.dependencies import get_current_user, get_db
+from apps.api.dependencies import get_current_user, get_db, require_admin
 from apps.api.services.market_intelligence_service import (
     DEFAULT_ASSETS,
     generate_shared_market_intelligence,
@@ -111,6 +111,9 @@ def intelligence(db: Session = Depends(get_db)) -> dict:
 def regenerate_intelligence(
     db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
+    # Shared-intelligence rebuilds write to the database and fan out to external
+    # market sources; they are staff-triggered, not a per-user action.
+    require_admin(user)
     item = generate_shared_market_intelligence(db)
     return {
         "id": item.id,

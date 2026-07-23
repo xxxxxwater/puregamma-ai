@@ -87,14 +87,17 @@ def _duplicate_reply(db: Session, message_id: str) -> str | None:
     return _reply_text(assistant.content) if assistant and assistant.status == "completed" else ""
 
 
+async def _raw_body(request: Request) -> bytes:
+    return await request.body()
+
+
 @router.post("/inbound")
-async def inbound(
-    request: Request,
+def inbound(
+    body: bytes = Depends(_raw_body),
     db: Session = Depends(get_db),
     x_pg_timestamp: str | None = Header(default=None, alias="X-PG-Timestamp"),
     x_pg_signature: str | None = Header(default=None, alias="X-PG-Signature"),
 ) -> dict:
-    body = await request.body()
     if not _verify(x_pg_timestamp, x_pg_signature, body):
         raise HTTPException(status_code=401, detail="invalid_hmac_signature")
     payload = InboundMessage(**json.loads(body.decode()))

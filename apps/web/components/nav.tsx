@@ -3,8 +3,8 @@
 import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
-import { usePathname } from "next/navigation";
-import { Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, MessageCircle, UserRound, type LucideIcon } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, MessageCircle, UserRound, type LucideIcon } from "lucide-react";
 import { AppearanceControls } from "@/components/appearance-controls";
 import { DisclaimerFooter, PlanBadge, Badge } from "@/components/puregamma";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
@@ -13,7 +13,7 @@ import type { Locale } from "@/i18n/routing";
 import { stripLocale, withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 import type { TranslationKey } from "@/lib/translations";
-import { getMe } from "@/lib/api";
+import { getMe, AUTH_EXPIRED_EVENT } from "@/lib/api";
 import { publishUserState, USER_STATE_EVENT, type SessionUserState } from "@/lib/user-state";
 
 type NavItem = {
@@ -51,15 +51,36 @@ const groups: NavGroup[] = [
     labelKey: "common.nav.groups.company",
     items: [
       { href: "/billing", labelKey: "common.nav.billing", icon: CreditCard },
-      { href: "/account", labelKey: "common.nav.account", icon: UserRound }
+      { href: "/account", labelKey: "common.nav.account", icon: UserRound },
+      { href: "/docs", labelKey: "common.nav.docs", icon: LifeBuoy }
     ]
   }
 ];
 
+function AuthExpiredRedirector({ locale }: { locale: Locale }) {
+  const router = useRouter();
+  const pathname = usePathname();
+  useEffect(() => {
+    const handler = () => {
+      const returnTo = stripLocale(pathname || "/");
+      router.replace(withLocale(locale, `/login?returnTo=${encodeURIComponent(returnTo)}`));
+    };
+    window.addEventListener(AUTH_EXPIRED_EVENT, handler);
+    return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handler);
+  }, [locale, pathname, router]);
+  return null;
+}
+
 export function AppShell({ children, locale }: { children: ReactNode; locale: Locale }) {
+  // The root <html> element is shared across locales; keep its lang accurate
+  // for SEO and assistive technology.
+  useEffect(() => {
+    document.documentElement.lang = locale === "zh" ? "zh-CN" : "en";
+  }, [locale]);
   return (
     <LocaleProvider locale={locale}>
       <div className="relative min-h-screen">
+        <AuthExpiredRedirector locale={locale} />
         <SidebarNav locale={locale} />
 
         <div className="lg:pl-72">
@@ -124,8 +145,11 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
 
   useEffect(() => {
     let active = true;
-    const refresh = () => refreshUser().catch(() => {
-      if (active) setStoredUser(null);
+    const refresh = () => refreshUser().catch((error: unknown) => {
+      // Only drop the session UI on a definitive 401; transient errors (429, network)
+      // must not flip the top bar to "signed out".
+      const status = (error as { status?: number } | null)?.status;
+      if (active && status === 401) setStoredUser(null);
     });
     const handleUserState = (event: Event) => {
       const detail = (event as CustomEvent<SessionUserState>).detail;

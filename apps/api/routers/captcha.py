@@ -24,12 +24,14 @@ logger = logging.getLogger("puregamma.captcha")
 router = APIRouter(tags=["captcha"])
 
 _TTL_SECONDS = 180
-_TOLERANCE_PX = 6
+_TOLERANCE_PX = 10
+_MAX_ATTEMPTS = 5
 _RATE_LIMIT = 40
 _RATE_WINDOW = 900
 
 # Dev-only fallback store; production uses Redis (shared across replicas).
-_mem_store: dict[str, tuple[int, float]] = {}
+# captcha_id -> (offset_x, expires_at, failed_attempts)
+_mem_store: dict[str, tuple[int, float, int]] = {}
 
 
 class CaptchaError(Exception):
@@ -39,9 +41,9 @@ class CaptchaError(Exception):
 
 
 def _redis():
-    from redis import Redis
+    from apps.api.redis_client import get_redis
 
-    return Redis.from_url(get_settings().redis_url, socket_connect_timeout=1, socket_timeout=1)
+    return get_redis()
 
 
 def _is_production() -> bool:
@@ -56,39 +58,84 @@ def _store_answer(captcha_id: str, offset_x: int) -> None:
         except Exception as exc:
             logger.error("captcha_store_unavailable", extra={"error": type(exc).__name__})
             raise HTTPException(status_code=503, detail={"code": "CAPTCHA_UNAVAILABLE"}) from exc
-    _mem_store[captcha_id] = (offset_x, time.time() + _TTL_SECONDS)
+    _mem_store[captcha_id] = (offset_x, time.time() + _TTL_SECONDS, 0)
 
 
-def _take_answer(captcha_id: str) -> int | None:
-    """One-time read: the answer is consumed whether or not verification passes."""
+def _read_answer(captcha_id: str) -> int | None:
+    """Read the stored offset without consuming it."""
     if _is_production():
         try:
-            client = _redis()
-            key = f"pg:captcha:{captcha_id}"
-            value = client.get(key)
-            client.delete(key)
+            value = _redis().get(f"pg:captcha:{captcha_id}")
             return int(value) if value is not None else None
+        except HTTPException:
+            raise
         except Exception as exc:
             logger.error("captcha_read_unavailable", extra={"error": type(exc).__name__})
             raise HTTPException(status_code=503, detail={"code": "CAPTCHA_UNAVAILABLE"}) from exc
-    entry = _mem_store.pop(captcha_id, None)
+    entry = _mem_store.get(captcha_id)
     if not entry:
         return None
-    offset_x, expires_at = entry
+    offset_x, expires_at, _attempts = entry
     return offset_x if time.time() < expires_at else None
 
 
+def _consume_answer(captcha_id: str) -> None:
+    if _is_production():
+        try:
+            client = _redis()
+            client.delete(f"pg:captcha:{captcha_id}")
+            client.delete(f"pg:captcha-att:{captcha_id}")
+        except Exception as exc:
+            logger.error("captcha_consume_unavailable", extra={"error": type(exc).__name__})
+            raise HTTPException(status_code=503, detail={"code": "CAPTCHA_UNAVAILABLE"}) from exc
+        return
+    _mem_store.pop(captcha_id, None)
+
+
+def _record_failure(captcha_id: str) -> int:
+    """Count a failed attempt; returns the total failures so far."""
+    if _is_production():
+        try:
+            client = _redis()
+            key = f"pg:captcha-att:{captcha_id}"
+            attempts = int(client.incr(key))
+            if attempts == 1:
+                client.expire(key, _TTL_SECONDS)
+            return attempts
+        except HTTPException:
+            raise
+        except Exception as exc:
+            logger.error("captcha_attempt_unavailable", extra={"error": type(exc).__name__})
+            raise HTTPException(status_code=503, detail={"code": "CAPTCHA_UNAVAILABLE"}) from exc
+    entry = _mem_store.get(captcha_id)
+    if not entry:
+        return _MAX_ATTEMPTS
+    offset_x, expires_at, attempts = entry
+    attempts += 1
+    _mem_store[captcha_id] = (offset_x, expires_at, attempts)
+    return attempts
+
+
 def verify_captcha(captcha_id: str | None, offset: int | None) -> None:
-    """Raise CaptchaError unless the submitted offset matches the stored notch."""
+    """Raise CaptchaError unless the submitted offset matches the stored notch.
+
+    Wrong answers may be retried a bounded number of times within the TTL; the
+    answer is only consumed on success or after the attempt budget is spent, so
+    a slightly-off drag does not force the user to start over.
+    """
     if not _is_production():
         return  # captcha is optional outside production
     if not captcha_id or offset is None:
         raise CaptchaError("CAPTCHA_REQUIRED")
-    answer = _take_answer(captcha_id)
+    answer = _read_answer(captcha_id)
     if answer is None:
         raise CaptchaError("CAPTCHA_EXPIRED")
     if abs(int(offset) - answer) > _TOLERANCE_PX:
+        if _record_failure(captcha_id) >= _MAX_ATTEMPTS:
+            _consume_answer(captcha_id)
+            raise CaptchaError("CAPTCHA_EXPIRED")
         raise CaptchaError("CAPTCHA_FAILED")
+    _consume_answer(captcha_id)
 
 
 def _rate_limit(request: Request) -> None:

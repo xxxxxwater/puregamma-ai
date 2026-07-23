@@ -21,7 +21,7 @@ TASK_LIMITS = {
     "slack_alert": (1, 1),
     "event_report": (5, 20), "sentiment_scan": (8, 40),
     "x_sentiment_scan": (20, 80), "onchain_scan": (12, 80),
-    "backtest": (25, 100), "playbook_generation": (30, 100),
+    "backtest": (50, 50), "backtest_export": (50, 50), "playbook_generation": (30, 100),
     "daily_combined_imessage": (15, 40),
     "deepseek_report_generation": (10, 80),
     "deepseek_playbook_generation": (30, 100),
@@ -29,7 +29,7 @@ TASK_LIMITS = {
     "strategy_activation": (5, 40), "runtime_reconciliation": (2, 30),
     "manual_order_preview": (1, 10),
     "portfolio_monitor": (3, 30), "paper_monitor": (3, 30),
-    "private_secretary_reply": (20, 20),
+    "private_secretary_reply": (100, 100),
     "secretary_voice": (2, 8), "secretary_transcribe": (2, 8),
 }
 

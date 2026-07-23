@@ -9,6 +9,7 @@ from datetime import datetime, time, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
+from apps.api.services.entitlement_service import get_user_entitlement
 from packages.database.models import DailyBriefPreference, IMessageVerificationChallenge, NotificationDelivery, User, UserPreference, utcnow
 from packages.notifications.imessage.macos_relay_client import MacOSIMessageRelayClient
 from packages.notifications.imessage.mock_provider import MockIMessageProvider
@@ -39,14 +40,40 @@ def _hash(user_id: str, recipient: str, code: str) -> str:
 
 
 def request_verification(db: Session, user: User, recipient: str) -> dict:
-    """Bind an iMessage address to the signed-in account without sending SMS/iMessage."""
+    """Create a verification challenge and deliver a one-time code to the recipient via iMessage."""
+    entitlement = get_user_entitlement(db, user.id)
+    if not entitlement["imessage_enabled"]:
+        raise PermissionError("IMESSAGE_ENTITLEMENT_DENIED")
     recipient = normalize_e164(recipient)
+    settings = get_settings()
+    now = utcnow()
+    hour_ago = now - timedelta(hours=1)
+    day_start = datetime.combine(now.date(), time.min, tzinfo=timezone.utc)
+    user_requests = db.query(IMessageVerificationChallenge).filter(IMessageVerificationChallenge.user_id == user.id, IMessageVerificationChallenge.created_at >= hour_ago).count()
+    recipient_requests = db.query(IMessageVerificationChallenge).filter(IMessageVerificationChallenge.recipient == recipient, IMessageVerificationChallenge.created_at >= day_start).count()
+    if user_requests >= settings.imessage_verification_per_user_per_hour or recipient_requests >= settings.imessage_verification_per_recipient_per_day:
+        raise VerificationRateLimitError("IMESSAGE_VERIFICATION_RATE_LIMITED")
+    db.query(IMessageVerificationChallenge).filter(IMessageVerificationChallenge.user_id == user.id, IMessageVerificationChallenge.verified_at.is_(None), IMessageVerificationChallenge.expires_at > now).update({IMessageVerificationChallenge.expires_at: now}, synchronize_session=False)
     preference = db.query(UserPreference).filter_by(user_id=user.id).one_or_none() or UserPreference(user_id=user.id)
+    if preference.imessage_recipient != recipient:
+        preference.imessage_recipient_verified_at = None
     preference.imessage_recipient = recipient
-    preference.imessage_recipient_verified_at = utcnow()
     db.add(preference)
+    code = f"{secrets.randbelow(1_000_000):06d}"
+    challenge = IMessageVerificationChallenge(user_id=user.id, recipient=recipient, code_hash=_hash(user.id, recipient, code), expires_at=utcnow() + timedelta(minutes=10))
+    db.add(challenge)
+    db.flush()
+    provider = MacOSIMessageRelayClient() if settings.imessage_provider == "macos_relay" else MockIMessageProvider()
+    result = provider.send(recipient, f"PureGamma AI verification code: {code}", f"imessage-verify:{challenge.id}")
+    delivery = NotificationDelivery(user_id=user.id, channel="imessage", recipient=recipient, payload={"type": "verification"}, locale=preference.locale, status="sent" if result.ok else "failed_retryable", provider_response={"type": "verification", "status": result.response.get("status")}, idempotency_key=f"imessage-verify:{challenge.id}", attempt_count=1, last_attempt_at=utcnow(), next_retry_at=None if result.ok else utcnow() + timedelta(minutes=1), last_error=None if result.ok else "provider_failed", sent_at=utcnow() if result.ok else None)
+    db.add(delivery)
     db.commit()
-    return {"recipient": recipient, "recipient_verified_at": preference.imessage_recipient_verified_at.isoformat(), "bound": True}
+    if not result.ok:
+        raise RuntimeError("VERIFICATION_DELIVERY_FAILED")
+    response = {"challenge_id": challenge.id, "expires_at": challenge.expires_at.isoformat(), "recipient": recipient}
+    if settings.app_environment.lower() != "production" and settings.imessage_provider == "mock":
+        response["development_code"] = code
+    return response
 
 
 def confirm_verification(db: Session, user: User, challenge_id: str, code: str) -> dict:

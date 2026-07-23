@@ -12,6 +12,7 @@ from packages.data.base import (
 from packages.data.binance_provider import BinanceProvider
 from packages.data.coinbase_provider import CoinbaseProvider
 from packages.data.equity_providers.equity_provider import EquityDataProvider
+from packages.data.hyperliquid_provider import HyperliquidProvider
 from packages.data.mock_provider import MockMarketDataProvider
 
 
@@ -85,7 +86,42 @@ class PublicMarketDataProvider(MarketDataProvider):
             if quote:
                 quotes.append(quote)
 
-        return quotes
+        return self._enrich_with_hyperliquid(quotes)
+
+    def _enrich_with_hyperliquid(self, quotes: list[MarketQuote]) -> list[MarketQuote]:
+        """Attach perp funding/OI from the Hyperliquid public feed.
+
+        Crypto quotes that carry no derivatives metrics from the primary chain
+        (e.g. HYPE served from Coinbase spot) are enriched with the same public
+        Hyperliquid data that feeds the console watchlist. Any failure leaves
+        the original quotes untouched.
+        """
+        missing = [
+            quote.symbol
+            for quote in quotes
+            if quote.asset_type == "crypto" and not quote.funding_rate and not quote.open_interest
+        ]
+        if not missing:
+            return quotes
+        try:
+            perp = {quote.symbol: quote for quote in HyperliquidProvider().get_snapshot(missing)}
+        except Exception:
+            return quotes
+        enriched: list[MarketQuote] = []
+        for quote in quotes:
+            metrics = perp.get(quote.symbol)
+            if metrics and (metrics.funding_rate or metrics.open_interest):
+                enriched.append(
+                    replace(
+                        quote,
+                        funding_rate=metrics.funding_rate,
+                        open_interest=metrics.open_interest,
+                        open_interest_usd=metrics.open_interest_usd,
+                    )
+                )
+            else:
+                enriched.append(quote)
+        return enriched
 
     def get_market_regime(self, quotes: list[MarketQuote]) -> str:
         if not quotes:

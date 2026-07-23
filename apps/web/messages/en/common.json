@@ -32,6 +32,7 @@
     "billing": "Billing",
     "admin": "Admin",
     "account": "Account",
+    "docs": "Docs",
     "access": "Access",
     "signup": "Sign Up",
     "signin": "Sign In"
@@ -106,7 +107,7 @@
     }
   },
   "topbar": {
-    "credits": "30 credits",
+    "credits": "-- credits",
     "riskRegime": "Risk-on momentum",
     "freshness": "Fresh 60s",
     "imessage": "iMessage mock",

@@ -474,10 +474,37 @@ class BacktestRun(Base):
     id = Column(String, primary_key=True, default=new_id)
     user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
     idempotency_key = Column(String, nullable=True, unique=True, index=True)
+    status = Column(String, nullable=False, default="completed", index=True)
+    engine = Column(String, nullable=False, default="vectorbt")
+    strategy_id = Column(String, nullable=True, index=True)
+    strategy_version = Column(String, nullable=True)
     strategy_name = Column(String, nullable=False)
     asset = Column(String, nullable=False)
     params_json = Column(JSON, default=dict, nullable=False)
     result_json = Column(JSON, default=dict, nullable=False)
+    spec_json = Column(JSON, default=dict, nullable=False)
+    data_snapshot_json = Column(JSON, default=dict, nullable=False)
+    assumptions_json = Column(JSON, default=dict, nullable=False)
+    error_json = Column(JSON, default=dict, nullable=False)
+    credits_spent = Column(Integer, nullable=False, default=0)
+    credits_reserved = Column(Integer, nullable=False, default=0)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class BacktestArtifact(Base):
+    """Durable result/export metadata; payloads live under the configured artifact root."""
+
+    __tablename__ = "backtest_artifacts"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id"), nullable=False, index=True)
+    backtest_id = Column(String, ForeignKey("backtest_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    artifact_type = Column(String, nullable=False, index=True)
+    format = Column(String, nullable=False, default="json")
+    relative_path = Column(String, nullable=False)
+    size_bytes = Column(Integer, nullable=False, default=0)
+    checksum = Column(String, nullable=True)
     credits_spent = Column(Integer, nullable=False, default=0)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 

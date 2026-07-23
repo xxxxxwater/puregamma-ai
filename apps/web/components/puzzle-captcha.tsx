@@ -25,12 +25,15 @@ export function PuzzleCaptcha({
   onSolved,
   onReset,
   labels,
+  retryToken = 0,
 }: {
   verified: CaptchaResult | null;
   disabled?: boolean;
   onSolved: (result: CaptchaResult) => void;
   onReset: () => void;
   labels: { instruction: string; success: string; drag: string };
+  /** Bump to allow another attempt with the SAME puzzle (slider resets, puzzle stays). */
+  retryToken?: number;
 }) {
   const [puzzle, setPuzzle] = useState<Puzzle | null>(null);
   const [loading, setLoading] = useState(false);
@@ -56,6 +59,15 @@ export function PuzzleCaptcha({
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Server rejected the attempt but kept the puzzle alive: reset the slider and
+  // let the user try again without fetching a new challenge.
+  useEffect(() => {
+    if (retryToken > 0) {
+      solvedRef.current = false;
+      setDragX(0);
+    }
+  }, [retryToken]);
 
   const maxDrag = TRACK_WIDTH - PIECE_SIZE - 8;
 
@@ -120,6 +132,10 @@ export function PuzzleCaptcha({
           if (verified || !puzzle || disabled) return;
           if (event.key === "ArrowRight") setDragX((value) => Math.min(maxDrag, value + 8));
           if (event.key === "ArrowLeft") setDragX((value) => Math.max(0, value - 8));
+          if (event.key === "Enter" || event.key === " ") {
+            event.preventDefault();
+            finishDrag();
+          }
         }}
         className={`relative h-9 border text-[11px] ${disabled ? "cursor-wait opacity-70" : "cursor-ew-resize"} ${verified ? "border-status-positive bg-bg-panel-muted text-status-positive" : "border-border-pg bg-bg-panel-muted text-text-pg-dim"}`}
       >

@@ -103,17 +103,25 @@ def create_daily_report(
 def create_event_report(db: Session, user_id: str, asset: str, event: str, language: str = "en") -> Report:
     quote = quote_task(task_type="event_report", requested_model="default")
     reservation = reserve_task(db, user_id, quote, f"event-report-charge:{user_id}:{uuid.uuid4()}")
-    report = Report(
-        user_id=user_id,
-        title=f"PureGamma 事件报告：{asset}" if language == "zh" else f"PureGamma Event Report: {asset}",
-        report_type="event_report",
-        language=language,
-        content_markdown=render_event_report(asset, event, language),
-        assets=[asset],
-    )
-    db.add(report)
-    settle_task(db, user_id, reservation, quote.credits, metadata={"report_id": report.id})
     db.commit()
+    try:
+        content = render_event_report(asset, event, language)
+        report = Report(
+            user_id=user_id,
+            title=f"PureGamma 事件报告：{asset}" if language == "zh" else f"PureGamma Event Report: {asset}",
+            report_type="event_report",
+            language=language,
+            content_markdown=content,
+            assets=[asset],
+        )
+        db.add(report)
+        settle_task(db, user_id, reservation, quote.credits, metadata={"report_id": report.id})
+        db.commit()
+    except Exception:
+        db.rollback()
+        refund_task(db, user_id, reservation, "EVENT_REPORT_FAILED", metadata={"asset": asset})
+        db.commit()
+        raise
     db.refresh(report)
     return report
 

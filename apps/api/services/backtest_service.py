@@ -19,7 +19,7 @@ def run_backtest(
     asset: str,
     params: dict | None = None,
     *,
-    engine: str = "mock",
+    engine: str = "vectorbt",
     strategy_id: str | None = None,
     idempotency_key: str | None = None,
 ) -> BacktestRun:
@@ -50,7 +50,7 @@ def run_backtest(
     result["requested_engine"] = engine
     result["strategy_id"] = strategy_id
     result["is_mock"] = normalized_engine == "mock"
-    result["source"] = "mock" if normalized_engine == "mock" else "nautilus"
+    result["source"] = normalized_engine
     result["idempotency_key"] = scoped_key
     settlement = settle_task(db, user_id, reservation, quote.credits, metadata={"engine": normalized_engine})
     row = BacktestRun(
@@ -60,6 +60,13 @@ def run_backtest(
         asset=asset,
         params_json=params or {},
         result_json=result,
+        status="completed",
+        engine=normalized_engine,
+        strategy_id=strategy_id,
+        spec_json={"strategy_name": strategy_name, "asset": asset, "params": params or {}},
+        data_snapshot_json=result.get("data_snapshot", {}),
+        assumptions_json={"execution": "next-bar close-to-close", "lookahead": False, "live_trading": False},
+        completed_at=__import__("datetime").datetime.now(__import__("datetime").timezone.utc),
         credits_spent=settlement.actual,
     )
     db.add(row)

@@ -85,7 +85,7 @@ def list_reports(
     user: User = Depends(get_current_user),
 ) -> dict:
     language = resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
-    rows = db.query(Report).filter(Report.user_id == user.id, Report.language == language).order_by(Report.created_at.desc()).all()
+    rows = db.query(Report).filter(Report.user_id == user.id, Report.language == language).order_by(Report.created_at.desc()).limit(100).all()
     return {"reports": [serialize_report(row) for row in rows]}
 
 

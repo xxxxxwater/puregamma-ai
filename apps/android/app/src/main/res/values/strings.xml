@@ -45,4 +45,13 @@
     <string name="research_only">Research only. No live order execution, transfer or withdrawal.</string>
     <string name="risk_disclosure">AI output may be inaccurate. Verify sources and make independent decisions.</string>
     <string name="chrome_required">Install or enable Google Chrome to continue signing in.</string>
+    <string name="error_rate_limited">Too many attempts. Please try again in a few minutes.</string>
+    <string name="error_invalid_credentials">Incorrect email or password.</string>
+    <string name="error_email_not_verified">Please verify your email before signing in. Check your inbox.</string>
+    <string name="error_email_already_registered">This email is already registered. Try signing in instead.</string>
+    <string name="error_password_too_weak">Password is too weak. Use at least 8 characters with upper/lowercase letters and a digit.</string>
+    <string name="error_invalid_email">Please enter a valid email address.</string>
+    <string name="error_captcha">Verification failed. Please try again.</string>
+    <string name="error_google_sign_in">Google sign-in failed. Please try again.</string>
+    <string name="error_insufficient_credits">Not enough credits. Please upgrade or top up on the website.</string>
 </resources>

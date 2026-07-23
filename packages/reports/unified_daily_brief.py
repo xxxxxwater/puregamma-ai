@@ -13,8 +13,9 @@ from datetime import date
 
 from sqlalchemy.orm import Session
 
-from packages.data.earnings_calendar import earnings_for
+from packages.data.earnings_calendar import upcoming_earnings
 from packages.data.macro_calendar import events_for
+from packages.data.trending import top_trending
 from packages.database.models import MarketSnapshot, SharedMarketIntelligence, Signal
 from packages.reports.templates import disclaimer_for
 
@@ -46,14 +47,31 @@ def _macro_section(today: date, locale: str) -> str:
 
 def _earnings_section(today: date, locale: str) -> str:
     try:
-        items = earnings_for(today, locale)
+        items = upcoming_earnings(today, days=7, locale=locale)
     except Exception:
         logger.warning("unified_brief_earnings_failed")
         items = []
     if not items:
         return ""
-    label = "美股" if locale == "zh" else "Equities"
-    return f"{label}: " + _clip("；".join(items) if locale == "zh" else "; ".join(items), 40)
+    label = "美股财报(7天)" if locale == "zh" else "US earnings (7d)"
+    return f"{label}: " + _clip("；".join(items) if locale == "zh" else "; ".join(items), 52)
+
+
+def _trending_section(db: Session, locale: str) -> str:
+    zh = locale == "zh"
+    try:
+        # Shared brief goes to every plan, so it only uses sources available to
+        # all tiers. Plan-restricted sources (X/Twitter on Max+) are included
+        # in the per-user report instead.
+        items = top_trending(db, hours=24, limit=3, providers=("rss",))
+    except Exception:
+        logger.warning("unified_brief_trending_failed")
+        items = []
+    if not items:
+        return ""
+    label = "热议" if zh else "Trending"
+    body = ("；" if zh else "; ").join(f"{item['symbol']}×{item['mentions']}" for item in items)
+    return f"{label}: " + _clip(body, 36)
 
 
 def _crypto_section(db: Session, locale: str) -> str:
@@ -104,6 +122,7 @@ def render_unified_brief(db: Session, today: date, locale: str) -> str:
         _macro_section(today, locale),
         _earnings_section(today, locale),
         _crypto_section(db, locale),
+        _trending_section(db, locale),
         _signals_section(db, locale),
     ]
     body = "\n".join(section for section in sections if section)

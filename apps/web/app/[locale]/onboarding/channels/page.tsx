@@ -30,9 +30,19 @@ export default function LocalizedOnboardingChannelsPage({ params }: { params: { 
 
   const handleComplete = async () => {
     setBusy(true);
-    const assets = JSON.parse(localStorage.getItem("pg_onboarding_assets") || "[\"BTC\",\"ETH\",\"SOL\"]");
-    const style = localStorage.getItem("pg_onboarding_style") || "risk-controlled";
     const activeChannels = Object.entries(channels).filter(([, enabled]) => enabled).map(([key]) => key);
+
+    // localStorage can be user-corrupted; a JSON.parse throw must not escape or
+    // the button wedges in its busy state / the user gets bounced to login.
+    let assets: string[] = ["BTC", "ETH", "SOL"];
+    try {
+      const stored = localStorage.getItem("pg_onboarding_assets");
+      if (stored) {
+        const parsed: unknown = JSON.parse(stored);
+        if (Array.isArray(parsed) && parsed.every((item) => typeof item === "string")) assets = parsed;
+      }
+    } catch { /* fall back to defaults */ }
+    const style = localStorage.getItem("pg_onboarding_style") || "risk-controlled";
 
     try {
       const result = await saveOnboarding({

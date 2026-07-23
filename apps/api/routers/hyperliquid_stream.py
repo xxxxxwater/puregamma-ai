@@ -103,8 +103,7 @@ async def hyperliquid_market_stream(websocket: WebSocket) -> None:
     except WebSocketDisconnect:
         return
     except Exception as exc:
-        print(f"hyperliquid_market_stream_failed {type(exc).__name__}: {exc}", flush=True)
-        logger.exception("hyperliquid_market_stream_failed")
+        logger.exception("hyperliquid_market_stream_failed", extra={"error": f"{type(exc).__name__}: {exc}"})
         try:
             await websocket.send_json({"channel": "marketFeedError", "error": type(exc).__name__})
             await websocket.close(code=status.WS_1011_INTERNAL_ERROR)

@@ -680,7 +680,7 @@ def portfolio_view(db: Session, user: User) -> dict:
     latest = []
     all_rows = []
     for account in accounts:
-        rows = list(reversed(db.query(AccountSnapshot).filter_by(user_id=user.id, account_id=account.id).order_by(AccountSnapshot.captured_at.desc()).limit(10_000).all()))
+        rows = list(reversed(db.query(AccountSnapshot).filter_by(user_id=user.id, account_id=account.id).order_by(AccountSnapshot.captured_at.desc()).limit(1_500).all()))
         all_rows.extend(rows)
         if rows:
             latest.append(rows[-1])
@@ -732,7 +732,17 @@ def portfolio_view(db: Session, user: User) -> dict:
         "asset_classes": _asset_class_totals(holdings),
         "accounts": account_summaries,
         "connections": connections,
-        "providers": {"plaid": plaid_configured, "ibkr": plaid_configured, "hyperliquid": True, "evm": bool(settings.moralis_api_key)},
+        "providers": {
+            "plaid": plaid_configured,
+            "ibkr": bool(
+                getattr(settings, "ibkr_oauth_authorize_url", "")
+                and getattr(settings, "ibkr_oauth_token_url", "")
+                and getattr(settings, "ibkr_client_id", "")
+                and getattr(settings, "ibkr_client_secret", "")
+            ),
+            "hyperliquid": True,
+            "evm": bool(settings.moralis_api_key),
+        },
     }
 
 

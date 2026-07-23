@@ -45,4 +45,13 @@
     <string name="research_only">仅供研究，不执行真实订单、转账或提现。</string>
     <string name="risk_disclosure">AI 输出可能有误，请核对来源并独立决策。</string>
     <string name="chrome_required">&#x8BF7;&#x5B89;&#x88C5;&#x6216;&#x542F;&#x7528; Google Chrome &#x540E;&#x518D;&#x767B;&#x5F55;&#x3002;</string>
+    <string name="error_rate_limited">尝试过于频繁，请几分钟后再试。</string>
+    <string name="error_invalid_credentials">邮箱或密码不正确。</string>
+    <string name="error_email_not_verified">请先验证邮箱后再登录，请查收验证邮件。</string>
+    <string name="error_email_already_registered">该邮箱已注册，请直接登录。</string>
+    <string name="error_password_too_weak">密码强度不足，至少 8 位，需包含大小写字母和数字。</string>
+    <string name="error_invalid_email">请输入有效的邮箱地址。</string>
+    <string name="error_captcha">验证失败，请重试。</string>
+    <string name="error_google_sign_in">Google 登录失败，请重试。</string>
+    <string name="error_insufficient_credits">Credits 不足，请前往网站升级或充值。</string>
 </resources>

@@ -68,24 +68,36 @@ export function BillingButton({
 
 export function PortalButton() {
   const [busy, setBusy] = useState(false);
+  const [failed, setFailed] = useState(false);
   const locale = useLocale();
   return (
-    <Button
-      variant="secondary"
-      disabled={busy}
-      onClick={async () => {
-        setBusy(true);
-        try {
-          const data = await createPortalSession(locale);
-          window.location.href = data.portal_url;
-        } finally {
-          setBusy(false);
-        }
-      }}
-    >
-      <ExternalLink className="h-4 w-4" aria-hidden />
-      {t(locale, "common.actions.manageSubscription")}
-    </Button>
+    <span className="inline-flex flex-col gap-1">
+      <Button
+        variant="secondary"
+        disabled={busy}
+        onClick={async () => {
+          setBusy(true);
+          setFailed(false);
+          try {
+            const data = await createPortalSession(locale);
+            if (!data?.portal_url) {
+              // Empty URL would silently reload the current page.
+              setFailed(true);
+              return;
+            }
+            window.location.href = data.portal_url;
+          } catch {
+            setFailed(true);
+          } finally {
+            setBusy(false);
+          }
+        }}
+      >
+        <ExternalLink className="h-4 w-4" aria-hidden />
+        {t(locale, "common.actions.manageSubscription")}
+      </Button>
+      {failed ? <span className="text-xs text-status-negative">{t(locale, "billing.checkoutFailed")}</span> : null}
+    </span>
   );
 }
 
@@ -124,8 +136,12 @@ export function SendReportButton({ channel, reportId }: { channel: string; repor
       variant="secondary"
       onClick={async () => {
         setStatus("sending");
-        const data = await sendReport(channel, locale);
-        setStatus(data.delivery.status);
+        try {
+          const data = await sendReport(channel, locale);
+          setStatus(data.delivery.status);
+        } catch {
+          setStatus("failed");
+        }
       }}
     >
       <Send className="h-4 w-4" aria-hidden />

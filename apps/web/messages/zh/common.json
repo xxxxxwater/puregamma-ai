@@ -32,6 +32,7 @@
     "billing": "订阅",
     "admin": "管理",
     "account": "账户",
+    "docs": "帮助文档",
     "access": "访问权限",
     "signup": "注册",
     "signin": "登录"
@@ -106,7 +107,7 @@
     }
   },
   "topbar": {
-    "credits": "30 Credits",
+    "credits": "-- Credits",
     "riskRegime": "风险偏好动能",
     "freshness": "60 秒内更新",
     "imessage": "iMessage Mock",

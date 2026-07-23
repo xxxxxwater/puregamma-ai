@@ -91,9 +91,9 @@ def _internal_admin_rate_limit(request: Request, username: str, *, success: bool
     fingerprint = hashlib.sha256(f"{client}:{username.lower()}".encode()).hexdigest()
     key = f"pg:auth:internal-admin:{fingerprint}"
     try:
-        from redis import Redis
+        from apps.api.redis_client import get_redis
 
-        redis = Redis.from_url(settings.redis_url, socket_connect_timeout=1, socket_timeout=1)
+        redis = get_redis()
         if success:
             redis.delete(key)
             return
@@ -172,7 +172,6 @@ def mock_login(
             UserPreference(
                 user_id=user.id,
                 email_recipient=user.email,
-                imessage_recipient="+15555550100",
                 locale=locale,
             )
         )
@@ -280,7 +279,6 @@ def save_locale(
             UserPreference(
                 user_id=user.id,
                 email_recipient=user.email,
-                imessage_recipient="+15555550100",
                 locale=locale,
             )
         )

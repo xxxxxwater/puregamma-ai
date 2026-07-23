@@ -2,10 +2,10 @@
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { FlaskConical, Loader2, Play, RefreshCw, Sparkles } from "lucide-react";
-import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { Download, FlaskConical, Loader2, Play, RefreshCw, Sparkles } from "lucide-react";
 import { type Locale, withLocale } from "@/i18n/routing";
-import { BacktestLabRun, BacktestLabSpec, BacktestLabStatus, generateBacktestLabSpec, getBacktestLabRuns, getBacktestLabStatus, refreshBacktestLabData, runBacktestLab } from "@/lib/api";
+import { API_URL, BacktestLabRun, BacktestLabSpec, BacktestLabStatus, exportBacktestLabRun, generateBacktestLabSpec, getBacktestLabRuns, getBacktestLabStatus, refreshBacktestLabData, runBacktestLab } from "@/lib/api";
+import { PlotlyChart } from "@/components/plotly-chart";
 import { getMessageNamespace } from "@/lib/translations";
 
 type Copy = ReturnType<typeof getLabCopy>;
@@ -44,6 +44,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
   const [running, setRunning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState("");
+  const [exporting, setExporting] = useState(false);
 
   const parsedSpec = useMemo<BacktestLabSpec | null>(() => {
     if (!specText.trim()) return null;
@@ -68,6 +69,18 @@ export function BacktestLab({ locale }: { locale: Locale }) {
     });
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [locale]);
+
+  useEffect(() => {
+    if (!selected || (selected.status !== "queued" && selected.status !== "running")) return;
+    const timer = window.setInterval(() => {
+      getBacktestLabRuns(20).then((result) => {
+        setRuns(result.runs);
+        const latest = result.runs.find((item) => item.id === selected.id);
+        if (latest) setSelected(latest);
+      }).catch(() => undefined);
+    }, 2000);
+    return () => window.clearInterval(timer);
+  }, [selected]);
 
   const handleRefreshData = async () => {
     setRefreshing(true);
@@ -110,6 +123,20 @@ export function BacktestLab({ locale }: { locale: Locale }) {
       setError(message.includes("BACKTEST_LAB_DAILY_LIMIT") ? copy.run.dailyLimit : message);
     } finally {
       setRunning(false);
+    }
+  };
+
+  const handleExport = async (format: "json" | "csv") => {
+    if (!selected) return;
+    setExporting(true);
+    setError("");
+    try {
+      const result = await exportBacktestLabRun(selected.id, format);
+      if (typeof window !== "undefined") window.open(`${API_URL}/backtest-lab/artifacts/${result.artifact.id}`, "_blank", "noopener,noreferrer");
+    } catch (reason) {
+      setError(reason instanceof Error ? reason.message : "Export failed");
+    } finally {
+      setExporting(false);
     }
   };
 
@@ -177,7 +204,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
             ))}
             <button type="button" onClick={handleRun} disabled={!parsedSpec || running} className="ml-auto inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-2 text-sm font-semibold text-pg-black disabled:opacity-50">
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
-              {running ? copy.run.running : `${copy.run.button} · 25 ${copy.run.creditsHint}`}
+              {running ? copy.run.running : `${copy.run.button} · 50 ${copy.run.creditsHint}`}
             </button>
           </div>
         </section>
@@ -206,28 +233,14 @@ export function BacktestLab({ locale }: { locale: Locale }) {
               </div>
             ))}
           </div>
-          {selected.equity_curve?.length ? (
+          <div className="flex gap-2 text-xs"><button type="button" onClick={() => handleExport("json")} disabled={exporting || selected.status !== "completed"} className="inline-flex items-center gap-1 border border-border-pg px-2.5 py-1.5 hover:border-border-pg-strong disabled:opacity-50"><Download className="h-3 w-3" /> JSON · 50 credits</button><button type="button" onClick={() => handleExport("csv")} disabled={exporting || selected.status !== "completed"} className="border border-border-pg px-2.5 py-1.5 hover:border-border-pg-strong disabled:opacity-50">CSV · 50 credits</button></div>
+          {selected.charts?.equity ? (
             <div>
               <h3 className="mb-2 text-xs font-semibold text-text-pg-muted">{copy.performance.equityCurve}</h3>
-              <div className="h-64 border border-border-pg bg-bg-panel-muted p-2">
-                <ResponsiveContainer width="100%" height="100%">
-                  <AreaChart data={selected.equity_curve} margin={{ top: 8, right: 12, bottom: 0, left: 0 }}>
-                    <defs>
-                      <linearGradient id="labEquity" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="0%" stopColor="currentColor" stopOpacity={0.35} />
-                        <stop offset="100%" stopColor="currentColor" stopOpacity={0.02} />
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid stroke="rgba(128,128,128,0.2)" strokeDasharray="3 3" />
-                    <XAxis dataKey="ts" tickFormatter={(value: string) => value.slice(0, 7)} tick={{ fontSize: 10, fill: "currentColor", opacity: 0.6 }} minTickGap={48} />
-                    <YAxis domain={["auto", "auto"]} tick={{ fontSize: 10, fill: "currentColor", opacity: 0.6 }} width={56} tickFormatter={(value: number) => value.toFixed(2)} />
-                    <Tooltip formatter={(value: number) => [value.toFixed(4), "NAV"]} labelFormatter={(label: string) => label.slice(0, 10)} contentStyle={{ fontSize: 12 }} />
-                    <Area type="monotone" dataKey="equity" stroke="currentColor" fill="url(#labEquity)" strokeWidth={1.5} dot={false} />
-                  </AreaChart>
-                </ResponsiveContainer>
-              </div>
+              <PlotlyChart figure={selected.charts.equity} />
             </div>
           ) : null}
+          {selected.charts?.drawdown ? <PlotlyChart figure={selected.charts.drawdown} className="h-56" /> : null}
           {perf.per_asset ? (
             <div>
               <h3 className="mb-2 text-xs font-semibold text-text-pg-muted">{copy.performance.perAsset}</h3>

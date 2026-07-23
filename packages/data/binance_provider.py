@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+from dataclasses import replace
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 from typing import Any
@@ -37,6 +38,9 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
         self.base_url = (
             base_url or os.getenv("BINANCE_REST_BASE_URL") or "https://api.binance.com"
         ).rstrip("/")
+        self.futures_base_url = (
+            os.getenv("BINANCE_FUTURES_BASE_URL") or "https://fapi.binance.com"
+        ).rstrip("/")
         self.timeout_seconds = timeout_seconds
         self._mock = MockMarketDataProvider()
 
@@ -53,7 +57,48 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
         )
         response.raise_for_status()
         payload = response.json()
-        return self._quote_from_payload(normalized, binance_symbol, payload)
+        quote = self._quote_from_payload(normalized, binance_symbol, payload)
+        return self._with_futures_metrics(quote, binance_symbol)
+
+    def _with_futures_metrics(self, quote: MarketQuote, source_symbol: str) -> MarketQuote:
+        """Attach perpetual funding rate and open interest from public futures endpoints.
+
+        These endpoints need no API key. Any failure leaves the spot quote
+        unchanged (funding/OI stay 0) so spot data is never blocked by a
+        futures outage.
+        """
+        try:
+            premium = httpx.get(
+                f"{self.futures_base_url}/fapi/v1/premiumIndex",
+                params={"symbol": source_symbol},
+                timeout=self.timeout_seconds,
+            )
+            premium.raise_for_status()
+            premium_payload = premium.json()
+            funding_rate = _float(premium_payload.get("lastFundingRate"))
+            mark_price = _float(premium_payload.get("markPrice")) or quote.price
+            open_interest = 0.0
+            open_interest_usd: float | None = None
+            oi = httpx.get(
+                f"{self.futures_base_url}/fapi/v1/openInterest",
+                params={"symbol": source_symbol},
+                timeout=self.timeout_seconds,
+            )
+            oi.raise_for_status()
+            oi_payload = oi.json()
+            open_interest = _float(oi_payload.get("openInterest"))
+            if open_interest and mark_price:
+                open_interest_usd = round(open_interest * mark_price, 2)
+            if not (funding_rate or open_interest):
+                return quote
+            return replace(
+                quote,
+                funding_rate=funding_rate,
+                open_interest=open_interest,
+                open_interest_usd=open_interest_usd,
+            )
+        except Exception:
+            return quote
 
     def _get_json(self, path: str, params: dict | None = None) -> Any:
         try:

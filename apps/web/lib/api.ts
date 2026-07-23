@@ -5,6 +5,16 @@ import { syncUserStateFromPayload } from "@/lib/user-state";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+export const AUTH_EXPIRED_EVENT = "pg:auth-expired";
+
+function notifyAuthExpired() {
+  if (typeof window === "undefined") return;
+  const path = window.location.pathname;
+  // Avoid redirect loops on pages that are already part of the auth flow.
+  if (/^\/(en|zh)\/(login|signup|auth|verify-email|reset-password|forgot-password)(\/|$)/.test(path)) return;
+  window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
+}
+
 async function forwardedSessionHeaders(): Promise<Record<string, string>> {
   if (typeof window !== "undefined") return {};
   const { cookies } = await import("next/headers");
@@ -40,7 +50,15 @@ export async function api<T>(path: string, options: FetchOptions<T>): Promise<T>
   const unavailable = (status = 0, errorCode = "API_UNAVAILABLE") => {
     const fallback = options.fallback as unknown;
     if (fallback && typeof fallback === "object" && !Array.isArray(fallback)) {
-      return { ...(neutralizeFallback(fallback) as Record<string, unknown>), unavailable: true, error_code: errorCode, http_status: status } as T;
+      return {
+        ...(neutralizeFallback(fallback) as Record<string, unknown>),
+        unavailable: true,
+        error_code: errorCode,
+        http_status: status,
+        // Auth failures must survive fallback neutralization so pages can render
+        // their "unauthorized" state instead of an empty-but-normal-looking view.
+        ...(status === 401 || status === 403 ? { unauthorized: true } : {})
+      } as T;
     }
     return fallback as T;
   };
@@ -59,6 +77,7 @@ export async function api<T>(path: string, options: FetchOptions<T>): Promise<T>
       signal: options.signal || AbortSignal.timeout(8_000)
     });
     if (!response.ok) {
+      if (response.status === 401) notifyAuthExpired();
       let errorCode = `HTTP_${response.status}`;
       try { const body = await response.clone().json() as { code?: string; error_code?: string }; errorCode = body.error_code || body.code || errorCode; } catch { /* non-JSON error */ }
       return allowMockFallback ? options.fallback : unavailable(response.status, errorCode);
@@ -680,6 +699,7 @@ async function requestStrict<T>(path: string, init: RequestInit = {}): Promise<T
     headers: { "Content-Type": "application/json", ...sessionHeaders, ...(init.headers || {}) }
   });
   if (!response.ok) {
+    if (response.status === 401) notifyAuthExpired();
     const detail = await response.text();
     const error = new Error(detail || `Request failed with HTTP ${response.status}`) as Error & { status?: number };
     error.status = response.status;
@@ -951,15 +971,22 @@ export type BacktestLabSpec = {
 export type BacktestLabRun = {
   id: string;
   status: string;
+  engine?: string;
   mode: string;
   spec: BacktestLabSpec;
+  run_spec?: Record<string, unknown>;
   symbols: string[];
   window: { start: string | null; end: string | null };
   performance: Record<string, number> & { per_asset?: Record<string, Record<string, number>> };
   equity_curve: Array<{ ts: string; equity: number }>;
+  drawdown_curve?: Array<{ ts: string; drawdown: number }>;
+  trades?: Array<Record<string, unknown>>;
+  positions?: Array<Record<string, unknown>>;
+  charts?: { equity?: { data: unknown[]; layout?: Record<string, unknown> }; drawdown?: { data: unknown[]; layout?: Record<string, unknown> } };
   assumptions: Record<string, unknown>;
   context_used: Record<string, unknown>;
   credits_spent: number;
+  credits_reserved?: number;
   created_at: string;
 };
 
@@ -993,6 +1020,10 @@ export function getBacktestLabRuns(limit = 20) {
 
 export function refreshBacktestLabData() {
   return requestStrict<BacktestLabStatus & { stats: Record<string, { fetched: number; upserted: number }> }>("/backtest-lab/data/refresh", { method: "POST" });
+}
+
+export function exportBacktestLabRun(runId: string, format: "json" | "csv" = "json") {
+  return requestStrict<{ artifact: { id: string; format: string; credits_spent: number; relative_path: string; size_bytes: number } }>(`/backtest-lab/runs/${encodeURIComponent(runId)}/export?format=${format}`, { method: "POST" });
 }
 
 export function previewStrategyActivation(strategyId: string, mode: "PAPER" | "SHADOW", accountId?: string) {

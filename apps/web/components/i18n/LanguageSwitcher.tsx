@@ -22,6 +22,9 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
     void fetch(`${API_URL}/auth/preferences/locale`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-PG-Locale": nextLocale },
+      // Cross-subdomain call: without credentials the session cookie is never
+      // sent and the account-level locale preference silently failed with 401.
+      credentials: "include",
       body: JSON.stringify({ locale: nextLocale })
     }).catch(() => undefined);
     const search = typeof window !== "undefined" ? window.location.search : "";

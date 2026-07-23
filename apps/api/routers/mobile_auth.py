@@ -6,7 +6,7 @@ import secrets
 from datetime import timedelta, timezone
 from urllib.parse import urlencode, urlsplit, urlunsplit, parse_qsl
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -15,6 +15,7 @@ from apps.api.config import get_settings
 from apps.api.dependencies import create_access_token, get_current_user, get_db, set_session_cookie
 from apps.api.i18n import normalize_locale
 from apps.api.routers.auth import serialize_user
+from apps.api.routers.email_auth import _email_rate_limit
 from apps.api.routers.google_auth import GOOGLE_AUTHORIZE_URL, _challenge, _exchange_code_for_token, _verify_google_id_token, upsert_google_user
 from packages.database.models import MobileOAuthSession, MobileWebSession, User, UserPreference, utcnow
 from packages.security.passwords import hash_password, verify_password
@@ -221,10 +222,12 @@ def _check_password_strength(password: str) -> str | None:
 @router.post("/email/login")
 def mobile_email_login(
     payload: MobileEmailLoginRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> dict:
     email = _normalize_email(payload.email)
     _validate_email_format(email)
+    _email_rate_limit(request, email, "mobile-login", limit=5, window=900)
 
     user = db.query(User).filter(
         User.email == email,
@@ -256,10 +259,12 @@ def mobile_email_login(
 @router.post("/email/register")
 def mobile_email_register(
     payload: MobileEmailRegisterRequest,
+    request: Request,
     db: Session = Depends(get_db),
 ) -> dict:
     email = _normalize_email(payload.email)
     _validate_email_format(email)
+    _email_rate_limit(request, email, "mobile-register", limit=3, window=900)
 
     existing = db.query(User).filter(User.email == email).one_or_none()
     if existing:

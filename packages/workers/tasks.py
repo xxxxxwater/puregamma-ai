@@ -19,6 +19,7 @@ from apps.api.services.skill_service import begin_module_skill_invocation, finis
 from apps.api.config import get_settings
 from packages.database.models import (
     AccountSnapshot,
+    BacktestRun,
     DailyBriefPreference,
     PortfolioAutopilotReview,
     RawDocument,
@@ -200,6 +201,31 @@ def refresh_backtest_lab_candles() -> dict:
     except Exception:
         logger.exception("backtest_lab_candles_refresh_failed")
         return {"error": "refresh_failed"}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.execute_unified_backtest", bind=True, max_retries=0)
+def execute_unified_backtest(self, run_id: str) -> dict:
+    """Execute one paid research backtest outside the API request process."""
+    from apps.api.services.unified_backtest_service import execute_unified_run, serialize_unified_run
+
+    db = SessionLocal()
+    try:
+        row = execute_unified_run(db, run_id)
+        invocation_id = ((row.spec_json or {}).get("context_meta") or {}).get("skill_invocation_id")
+        if invocation_id:
+            finish_module_skill_invocation(db, invocation_id, status="completed", credits_used=row.credits_spent, output_summary=f"{row.strategy_name} / {row.asset}", evidence={"backtest_id": row.id, "source": row.engine})
+            db.commit()
+        return serialize_unified_run(row)
+    except Exception as exc:
+        logger.exception("unified_backtest_failed run_id=%s", run_id)
+        row = db.get(BacktestRun, run_id)
+        invocation_id = ((row.spec_json or {}).get("context_meta") or {}).get("skill_invocation_id") if row else None
+        if invocation_id:
+            finish_module_skill_invocation(db, invocation_id, status="failed", credits_used=0, error_code="BACKTEST_EXECUTION_FAILED")
+            db.commit()
+        raise
     finally:
         db.close()
 

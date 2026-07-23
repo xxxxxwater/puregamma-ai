@@ -6,7 +6,9 @@ from packages.agents.research_agent import ResearchAgent
 from packages.database.models import MarketSnapshot, SharedMarketIntelligence
 
 
-DEFAULT_ASSETS = ["BTC", "ETH", "HYPE", "MSTR", "STRC"]
+# MSTR/STRC removed: no equity market-data key is configured in production, so
+# those quotes always failed and never produced real snapshots.
+DEFAULT_ASSETS = ["BTC", "ETH", "HYPE"]
 
 
 def generate_shared_market_intelligence(db: Session, assets: list[str] | None = None) -> SharedMarketIntelligence:

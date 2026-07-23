@@ -21,6 +21,7 @@ def _csv(value: str) -> list[str]:
 class Settings:
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./puregamma.db")
     redis_url: str = os.getenv("REDIS_URL", "redis://localhost:6379/0")
+    backtest_artifact_dir: str = os.getenv("BACKTEST_ARTIFACT_DIR", "./storage/backtests")
     jwt_secret: str = os.getenv("JWT_SECRET", "dev-only-change-me")
     session_secret: str = os.getenv("SESSION_SECRET", "")
     auth_allow_demo_fallback: bool = (
@@ -203,6 +204,9 @@ class Settings:
     imessage_provider: str = os.getenv("IMESSAGE_PROVIDER", "mock")
     imessage_relay_url: str = os.getenv("IMESSAGE_RELAY_URL", "http://localhost:8787")
     imessage_relay_secret: str = os.getenv("IMESSAGE_RELAY_SECRET", "")
+    imessage_replay_tolerance_seconds: int = int(
+        os.getenv("IMESSAGE_REPLAY_TOLERANCE_SECONDS", "300") or 300
+    )
     imessage_official_number: str = os.getenv("IMESSAGE_OFFICIAL_NUMBER", "+14243825596")
     imessage_enabled_plans: tuple[str, ...] = tuple(
         _csv(os.getenv("IMESSAGE_ENABLED_PLANS", "Max,Enterprise"))

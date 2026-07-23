@@ -11,7 +11,7 @@ import java.net.URL
 import java.util.Locale
 import kotlin.coroutines.coroutineContext
 
-class ApiException(val status: Int, override val message: String) : Exception(message)
+class ApiException(val status: Int, val code: String?, override val message: String) : Exception(message)
 
 data class ServerEvent(val name: String, val data: JSONObject)
 
@@ -114,11 +114,12 @@ class ApiClient(
         if (status == 401) onUnauthorized()
         val root = runCatching { JSONObject(content) }.getOrNull()
         val detail = root?.opt("detail")
+        val code = (detail as? JSONObject)?.optString("code")?.takeIf { it.isNotBlank() }
         val message = when (detail) {
             is String -> detail
-            is JSONObject -> detail.optString("message", detail.optString("code", "Request failed"))
+            is JSONObject -> detail.optString("message", code ?: "Request failed")
             else -> "HTTP $status"
         }
-        throw ApiException(status, message)
+        throw ApiException(status, code, message)
     }
 }

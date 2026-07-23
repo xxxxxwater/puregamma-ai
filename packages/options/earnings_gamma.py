@@ -26,13 +26,21 @@ def _cache_key(language: str) -> str:
     return f"puregamma:options:earnings:{language}"
 
 
+_shared_client: Redis | None = None
+
+
 def _redis_client() -> Redis:
-    return Redis.from_url(
-        get_settings().redis_url,
-        decode_responses=True,
-        socket_connect_timeout=1,
-        socket_timeout=1,
-    )
+    """Process-wide client: redis-py clients are thread-safe connection pools,
+    so building one per call only leaked sockets."""
+    global _shared_client
+    if _shared_client is None:
+        _shared_client = Redis.from_url(
+            get_settings().redis_url,
+            decode_responses=True,
+            socket_connect_timeout=1,
+            socket_timeout=1,
+        )
+    return _shared_client
 
 
 def _store_candidates(language: str, candidates: list[dict]) -> None:

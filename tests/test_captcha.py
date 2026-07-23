@@ -9,8 +9,25 @@ from apps.api.routers import captcha as captcha_module
 def _patch_memory_backend(monkeypatch, store: dict) -> None:
     """Force production-mode verification while keeping storage in memory."""
     monkeypatch.setattr(captcha_module, "_is_production", lambda: True)
-    monkeypatch.setattr(captcha_module, "_store_answer", lambda cid, x: store.__setitem__(cid, (x, time.time() + 180)))
-    monkeypatch.setattr(captcha_module, "_take_answer", lambda cid: (store.pop(cid, None) or (None,))[0])
+    monkeypatch.setattr(captcha_module, "_store_answer", lambda cid, x: store.__setitem__(cid, [x, time.time() + 180, 0]))
+
+    def _read(cid: str):
+        entry = store.get(cid)
+        return entry[0] if entry and time.time() < entry[1] else None
+
+    def _consume(cid: str) -> None:
+        store.pop(cid, None)
+
+    def _fail(cid: str) -> int:
+        entry = store.get(cid)
+        if not entry:
+            return captcha_module._MAX_ATTEMPTS
+        entry[2] += 1
+        return entry[2]
+
+    monkeypatch.setattr(captcha_module, "_read_answer", _read)
+    monkeypatch.setattr(captcha_module, "_consume_answer", _consume)
+    monkeypatch.setattr(captcha_module, "_record_failure", _fail)
 
 
 def test_issue_puzzle_returns_svg_parts(api_client):
@@ -23,21 +40,44 @@ def test_issue_puzzle_returns_svg_parts(api_client):
     assert 60 <= payload["expires_in"] <= 300
 
 
-def test_verify_captcha_one_time_and_tolerance(monkeypatch):
+def test_verify_captcha_wrong_offset_allows_retry_within_budget(monkeypatch):
     store: dict = {}
     _patch_memory_backend(monkeypatch, store)
     captcha_module._store_answer("test-id", 120)
 
-    # wrong offset consumes the answer (one-time)
+    # wrong offset does NOT consume the answer; the user may retry
     try:
         verify_captcha("test-id", 200)
         assert False, "expected CaptchaError"
     except CaptchaError as exc:
         assert exc.code == "CAPTCHA_FAILED"
 
-    # second attempt always fails (already consumed)
+    # a correct retry still succeeds
+    verify_captcha("test-id", 120)
+
+    # the answer is consumed on success
     try:
         verify_captcha("test-id", 120)
+        assert False, "expected CaptchaError"
+    except CaptchaError as exc:
+        assert exc.code == "CAPTCHA_EXPIRED"
+
+
+def test_verify_captcha_attempt_budget_exhaustion(monkeypatch):
+    store: dict = {}
+    _patch_memory_backend(monkeypatch, store)
+    captcha_module._store_answer("budget-id", 100)
+
+    for _ in range(captcha_module._MAX_ATTEMPTS - 1):
+        try:
+            verify_captcha("budget-id", 300)
+            assert False, "expected CaptchaError"
+        except CaptchaError as exc:
+            assert exc.code == "CAPTCHA_FAILED"
+
+    # the final allowed failure consumes the answer
+    try:
+        verify_captcha("budget-id", 300)
         assert False, "expected CaptchaError"
     except CaptchaError as exc:
         assert exc.code == "CAPTCHA_EXPIRED"
@@ -47,7 +87,7 @@ def test_verify_captcha_success_within_tolerance(monkeypatch):
     store: dict = {}
     _patch_memory_backend(monkeypatch, store)
     captcha_module._store_answer("ok-id", 150)
-    verify_captcha("ok-id", 153)  # within ±6 px
+    verify_captcha("ok-id", 159)  # within ±10 px
 
 
 def test_verify_captcha_optional_outside_production(monkeypatch):

@@ -32,8 +32,8 @@ android {
         applicationId = "ai.puregamma.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 7
-        versionName = "1.3.0"
+        versionCode = 8
+        versionName = "1.4.0"
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -86,13 +86,9 @@ android {
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
 }
 
-tasks.matching { it.name == "validateSigningRelease" }.configureEach {
-    doFirst {
-        check(releaseSigningReady) {
-            "Release signing requires PG_KEYSTORE_FILE, PG_KEYSTORE_PASSWORD, PG_KEY_ALIAS, and PG_KEY_PASSWORD."
-        }
-    }
-}
+// NOTE: no custom validateSigningRelease hook — a doFirst closure here breaks
+// the Gradle configuration cache. AGP's built-in ValidateSigningTask already
+// fails with a clear message when the release signing config is incomplete.
 
 dependencies {
     implementation(platform("androidx.compose:compose-bom:2026.06.00"))

@@ -102,6 +102,30 @@ def quote_task(**kwargs) -> CreditQuote:
     return quote_credits(**kwargs)
 
 
+def _reusable_reservation(
+    db: Session,
+    user_id: str,
+    idempotency_key: str,
+) -> tuple[CreditReservationRecord | None, str]:
+    """Find the live reservation for an idempotency key, or derive a fresh key.
+
+    A reservation in a terminal state (SETTLED/REFUNDED/EXPIRED) must never be
+    reused for a new operation: settling it would no-op to zero credits and the
+    caller's work would go unbilled. In that case a deterministic retry key is
+    derived from the terminal record so the new attempt is billed normally.
+    """
+    key = idempotency_key
+    while True:
+        record = (
+            db.query(CreditReservationRecord)
+            .filter_by(user_id=user_id, idempotency_key=key)
+            .one_or_none()
+        )
+        if record is None or record.status == "RESERVED":
+            return record, key
+        key = f"{idempotency_key}:retry:{record.id}"
+
+
 def reserve_task(
     db: Session,
     user_id: str,
@@ -109,11 +133,7 @@ def reserve_task(
     idempotency_key: str,
     metadata: dict | None = None,
 ) -> CreditReservation:
-    existing = (
-        db.query(CreditReservationRecord)
-        .filter_by(user_id=user_id, idempotency_key=idempotency_key)
-        .one_or_none()
-    )
+    existing, key = _reusable_reservation(db, user_id, idempotency_key)
     if existing:
         return CreditReservation(
             idempotency_key=existing.idempotency_key,
@@ -124,11 +144,7 @@ def reserve_task(
     # lookup. Without this second lookup two concurrent requests can both pass
     # the optimistic check and collide while creating the reservation row.
     db.query(User).filter(User.id == user_id).with_for_update().one()
-    existing = (
-        db.query(CreditReservationRecord)
-        .filter_by(user_id=user_id, idempotency_key=idempotency_key)
-        .one_or_none()
-    )
+    existing, key = _reusable_reservation(db, user_id, idempotency_key)
     if existing:
         return CreditReservation(
             idempotency_key=existing.idempotency_key,
@@ -147,12 +163,12 @@ def reserve_task(
         quote.task_type,
         quote.credits,
         {**(metadata or {}), "phase": "reservation", "quote": quote.__dict__},
-        idempotency_key=idempotency_key,
+        idempotency_key=key,
     )
     reserved = abs(entry.credits_delta)
     record = CreditReservationRecord(
         user_id=user_id,
-        idempotency_key=idempotency_key,
+        idempotency_key=key,
         task_type=quote.task_type,
         status="RESERVED",
         reserved_credits=reserved,
@@ -162,7 +178,7 @@ def reserve_task(
     )
     db.add(record)
     db.flush()
-    return CreditReservation(idempotency_key=idempotency_key, credits=reserved)
+    return CreditReservation(idempotency_key=key, credits=reserved)
 
 
 def reconcile_credit_account(db: Session, user_id: str) -> dict:

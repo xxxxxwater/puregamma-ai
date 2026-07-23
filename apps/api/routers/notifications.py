@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import Literal
+
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -18,7 +20,7 @@ router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
 class SendNotificationRequest(BaseModel):
-    channel: str = "email"
+    channel: Literal["telegram", "slack", "email", "imessage", "push"] = "email"
     message: str = "PureGamma AI test notification. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
     metadata: dict = {}
     locale: str | None = None

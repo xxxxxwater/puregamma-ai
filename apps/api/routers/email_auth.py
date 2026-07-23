@@ -133,8 +133,8 @@ def _email_rate_limit(request: Request, email: str, action: str, limit: int = 5,
     fingerprint = hashlib.sha256(f"{client}:{email.lower()}:{action}".encode()).hexdigest()
     key = f"pg:auth:email:{fingerprint}"
     try:
-        from redis import Redis
-        redis = Redis.from_url(settings.redis_url, socket_connect_timeout=1, socket_timeout=1)
+        from apps.api.redis_client import get_redis
+        redis = get_redis()
         count = int(redis.incr(key))
         if count == 1:
             redis.expire(key, window)

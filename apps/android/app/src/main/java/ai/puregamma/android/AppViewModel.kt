@@ -8,6 +8,7 @@ import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import ai.puregamma.android.core.ApiClient
+import ai.puregamma.android.core.ErrorMessages
 import ai.puregamma.android.core.MobileOAuth
 import ai.puregamma.android.core.SecureTokenStore
 import ai.puregamma.android.core.ServerEvent
@@ -108,12 +109,15 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .onFailure { forceSignOut() }
     }
 
+    private fun resolveError(error: Throwable, fallback: String): String =
+        ErrorMessages.resolve(getApplication(), error, fallback)
+
     fun beginGoogleSignIn(openBrowser: (Uri) -> Unit) = viewModelScope.launch {
         signingIn = true
         globalError = null
         runCatching { oauth.beginGoogle() }
             .onSuccess(openBrowser)
-            .onFailure { globalError = it.message ?: "Unable to start Google sign-in" }
+            .onFailure { globalError = resolveError(it, "Unable to start Google sign-in") }
         signingIn = false
     }
 
@@ -129,7 +133,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 loadAll()
                 createWebProductSession()
             }
-            .onFailure { globalError = it.message ?: "Unable to sign in" }
+            .onFailure { globalError = resolveError(it, "Unable to sign in") }
         signingIn = false
     }
 
@@ -149,7 +153,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 loadAll()
                 createWebProductSession()
             }
-            .onFailure { globalError = it.message ?: "Unable to create account" }
+            .onFailure { globalError = resolveError(it, "Unable to create account") }
         signingIn = false
     }
 
@@ -162,7 +166,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                 loadAll()
                 createWebProductSession()
             }
-            .onFailure { globalError = it.message ?: "Unable to complete Google sign-in" }
+            .onFailure { globalError = resolveError(it, "Unable to complete Google sign-in") }
         signingIn = false
     }
 

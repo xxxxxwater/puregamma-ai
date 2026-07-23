@@ -657,14 +657,22 @@ def llm_calls(db: Session = Depends(get_db), user: User = Depends(admin_user)) -
 
 @router.get("/llm-cost-summary")
 def llm_cost_summary(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    rows = db.query(LLMCallLog).all()
-    summary: dict[str, dict] = {}
-    for row in rows:
-        bucket = summary.setdefault(row.provider, {"provider": row.provider, "calls": 0, "tokens": 0, "estimated_cost_usd": 0.0})
-        bucket["calls"] += 1
-        bucket["tokens"] += row.total_tokens
-        bucket["estimated_cost_usd"] += row.estimated_cost_usd
-    return {"summary": list(summary.values())}
+    # Aggregate in the database instead of scanning the whole table into memory.
+    rows = (
+        db.query(
+            LLMCallLog.provider,
+            func.count().label("calls"),
+            func.coalesce(func.sum(LLMCallLog.total_tokens), 0).label("tokens"),
+            func.coalesce(func.sum(LLMCallLog.estimated_cost_usd), 0.0).label("estimated_cost_usd"),
+        )
+        .group_by(LLMCallLog.provider)
+        .all()
+    )
+    summary = [
+        {"provider": provider, "calls": calls, "tokens": int(tokens or 0), "estimated_cost_usd": float(cost or 0.0)}
+        for provider, calls, tokens, cost in rows
+    ]
+    return {"summary": summary}
 
 
 def _serialize_agent_run(db: Session, row: AgentRun) -> dict:

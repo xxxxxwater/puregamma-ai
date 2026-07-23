@@ -66,6 +66,22 @@ final class APIClient: @unchecked Sendable {
 }
 
 private struct EmptyBody: Encodable {}
+
+/// Lenient scalar used so error envelopes with non-string metadata still decode.
+/// `{"code": "INSUFFICIENT_CREDITS", "required": 8}` or FastAPI's validation
+/// array `[{"loc": [...], "msg": "..."}]` must not silently lose the message.
+private enum LooseValue: Decodable {
+    case text(String), number(Double), flag(Bool), other
+    var text: String? { if case .text(let value) = self { value } else { nil } }
+    init(from decoder: Decoder) throws {
+        let container = try decoder.singleValueContainer()
+        if let value = try? container.decode(String.self) { self = .text(value); return }
+        if let value = try? container.decode(Double.self) { self = .number(value); return }
+        if let value = try? container.decode(Bool.self) { self = .flag(value); return }
+        self = .other
+    }
+}
+
 private struct ErrorEnvelope: Decodable {
     let detail: Detail?
     var message: String? { detail?.message }
@@ -74,8 +90,13 @@ private struct ErrorEnvelope: Decodable {
         init(from decoder: Decoder) throws {
             let container = try decoder.singleValueContainer()
             if let text = try? container.decode(String.self) { self = .string(text); return }
-            let object = try container.decode([String: String].self)
-            self = .object(object["message"] ?? object["code"] ?? String(localized: "Request failed"))
+            if let object = try? container.decode([String: LooseValue].self) {
+                if let message = object["message"]?.text ?? object["code"]?.text { self = .object(message); return }
+            }
+            if let list = try? container.decode([[String: LooseValue]].self), let message = list.first?["msg"]?.text {
+                self = .object(message); return
+            }
+            self = .object(String(localized: "Request failed"))
         }
         var message: String { switch self { case .string(let value), .object(let value): value } }
     }

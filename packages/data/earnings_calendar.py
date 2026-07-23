@@ -8,7 +8,7 @@ FMP earnings-calendar adapter without changing the caller contract.
 
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 # ticker -> list of (month, day) reporting windows for 2026 (estimated).
 _EARNINGS_2026: dict[str, list[tuple[int, int]]] = {
@@ -32,3 +32,23 @@ def earnings_for(day: date, locale: str = "en") -> list[str]:
         return []
     suffix = "财报（预计）" if zh else "earnings (est.)"
     return [f"{ticker} {suffix}" for ticker in sorted(hits)]
+
+
+def upcoming_earnings(day: date, days: int = 7, locale: str = "en") -> list[str]:
+    """Return estimated earnings within the next `days` days as dated labels.
+
+    Entries stay labeled as estimated because the built-in calendar tracks
+    reporting cadence, not confirmed dates.
+    """
+    zh = locale == "zh"
+    items: list[tuple[date, str]] = []
+    for ticker, windows in _EARNINGS_2026.items():
+        for month, dom in windows:
+            report_day = date(2026, month, dom)
+            if day <= report_day < day + timedelta(days=days):
+                items.append((report_day, ticker))
+    if not items:
+        return []
+    items.sort()
+    suffix = "财报（预计）" if zh else "earnings (est.)"
+    return [f"{ticker} {report_day.strftime('%m-%d')} {suffix}" for report_day, ticker in items]

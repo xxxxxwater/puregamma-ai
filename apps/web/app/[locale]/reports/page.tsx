@@ -3,11 +3,24 @@ import { Markdown } from "@/components/markdown";
 import { SendReportButton } from "@/components/actions";
 import { DailyBriefControls } from "@/components/daily-brief-controls";
 import { Badge, CreditCostBadge, EmptyState, PageHeader, ResearchCard, StatusDot } from "@/components/puregamma";
-import { getReports } from "@/lib/api";
+import { getReports, type ReportRow } from "@/lib/api";
 import { formatDateTime } from "@/lib/formatters";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace, t } from "@/lib/translations";
 import { isLocale, type Locale } from "@/i18n/routing";
+
+const DAILY_REPORT_FRESH_HOURS = 36;
+
+function reportFreshness(report: ReportRow, locale: Locale) {
+  const createdAt = new Date(report.created_at).getTime();
+  const ageHours = Number.isFinite(createdAt) ? (Date.now() - createdAt) / 36e5 : Number.POSITIVE_INFINITY;
+  const stale = ageHours > DAILY_REPORT_FRESH_HOURS;
+  const age = ageHours >= 24
+    ? locale === "zh" ? `${Math.floor(ageHours / 24)} 天前` : `${Math.floor(ageHours / 24)}d ago`
+    : locale === "zh" ? `${Math.max(1, Math.floor(ageHours))} 小时前` : `${Math.max(1, Math.floor(ageHours))}h ago`;
+  const label = stale ? (locale === "zh" ? "已过期" : "Stale") : t(locale, "common.badges.available");
+  return { stale, age, label };
+}
 
 export function generateMetadata({ params }: { params: { locale: string } }): Metadata {
   const locale = isLocale(params.locale) ? params.locale : "en";
@@ -37,24 +50,27 @@ export default async function ReportsPage({ params }: { params: { locale: Locale
             <h2 className="mt-2 font-semibold">{copy.archive.title}</h2>
           </div>
           <div className="space-y-3">
-            {data.reports.map((report, index) => (
+            {data.reports.map((report, index) => {
+              const freshness = reportFreshness(report, locale);
+              return (
               <div key={report.id} className="grid grid-cols-[42px_1fr] gap-3 border border-border-pg bg-bg-panel-muted p-3">
                 <div className="text-sm text-text-pg-dim">{String(index + 1).padStart(2, "0")}</div>
                 <div>
                   <div className="font-medium">{report.title}</div>
                   <div className="mt-2 flex flex-wrap gap-2">
                     {report.assets.slice(0, 3).map((asset) => <Badge key={asset}>{asset}</Badge>)}
-                    <Badge tone="neutral"><StatusDot tone="emerald" /> {t(locale, "common.badges.available")}</Badge>
+                    <Badge tone="neutral"><StatusDot tone={freshness.stale ? "amber" : "emerald"} /> {freshness.label}</Badge>
                     <Badge tone="neutral">{copy.detail.language}: {(report.language || locale).toUpperCase()}</Badge>
                   </div>
                   <div className="mt-3 grid gap-1 text-xs text-text-pg-muted">
                     <span>{copy.archive.created}: {formatDateTime(locale, report.created_at)}</span>
-                    <span>{copy.archive.sourceFreshness}: {report.source_intelligence_id ? t(locale, "common.badges.available") : "-"}</span>
+                    <span>{copy.archive.sourceFreshness}: {report.source_intelligence_id ? `${freshness.label} · ${freshness.age}` : "-"}</span>
                     <a href="#report-detail" className="text-text-pg underline-offset-4 hover:underline">{copy.archive.openReport}</a>
                   </div>
                 </div>
               </div>
-            ))}
+              );
+            })}
             {!data.reports.length ? <EmptyState title={copy.archive.emptyTitle} description={copy.archive.emptyDescription} /> : null}
           </div>
         </ResearchCard>
@@ -68,7 +84,7 @@ export default async function ReportsPage({ params }: { params: { locale: Locale
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selected.assets.map((asset) => <Badge key={asset}>{asset}</Badge>)}
                     <Badge tone="neutral">{t(locale, "common.shared.source")}: {selected.source_intelligence_id || "shared-intel"}</Badge>
-                    <Badge tone="neutral"><StatusDot tone="emerald" /> {t(locale, "common.badges.available")}</Badge>
+                    <Badge tone="neutral"><StatusDot tone={reportFreshness(selected, locale).stale ? "amber" : "emerald"} /> {reportFreshness(selected, locale).label} · {reportFreshness(selected, locale).age}</Badge>
                     <Badge tone="neutral">{copy.detail.language}: {(selected.language || locale).toUpperCase()}</Badge>
                   </div>
                 </div>

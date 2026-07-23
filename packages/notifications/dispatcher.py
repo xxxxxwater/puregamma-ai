@@ -206,6 +206,8 @@ class NotificationDispatcher:
                 return _finish("skipped", {"reason": "message_too_long"})
             if self._imessage_count_today(db, user_id) >= self.settings.imessage_rate_limit_per_user_per_day:
                 return _finish("skipped", {"reason": "daily_rate_limit"})
+        if channel not in CHANNEL_ACTION:
+            return _finish("failed", {"reason": "unsupported_channel"})
         action = CHANNEL_ACTION[channel]
         attempt = (existing.attempt_count if existing else 0) + 1
         quote = quote_task(task_type=action, notification_channel=channel)

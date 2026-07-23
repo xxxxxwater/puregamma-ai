@@ -23,6 +23,7 @@ export default function LoginPage() {
   const [captchaOpen, setCaptchaOpen] = useState(false);
   const [captchaError, setCaptchaError] = useState("");
   const [captchaKey, setCaptchaKey] = useState(0);
+  const [captchaRetry, setCaptchaRetry] = useState(0);
   const zh = locale === "zh";
 
   const handleGoogleLogin = async () => {
@@ -62,8 +63,9 @@ export default function LoginPage() {
     } catch (err: unknown) {
       const apiError = extractApiError(err);
       if (apiError.code === "CAPTCHA_FAILED") {
+        // Same puzzle stays valid for a few attempts: just reset the slider.
         setCaptchaError(t(locale, "common.auth.captchaFailed"));
-        setCaptchaKey((key) => key + 1);
+        setCaptchaRetry((key) => key + 1);
       } else if (apiError.code === "CAPTCHA_REQUIRED" || apiError.code === "CAPTCHA_EXPIRED" || apiError.code === "CAPTCHA_UNAVAILABLE") {
         setCaptchaError(t(locale, "common.auth.captchaExpired"));
         setCaptchaKey((key) => key + 1);
@@ -157,6 +159,7 @@ export default function LoginPage() {
         busy={busy}
         error={captchaError}
         resetKey={captchaKey}
+        retryToken={captchaRetry}
         onSolved={handleCaptchaSolved}
         onClose={() => setCaptchaOpen(false)}
         onRefresh={() => setCaptchaError("")}
