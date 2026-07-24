@@ -182,6 +182,11 @@ class Settings:
     plaid_client_id: str = os.getenv("PLAID_CLIENT_ID", "")
     plaid_secret: str = os.getenv("PLAID_SECRET", "")
     plaid_redirect_uri: str = os.getenv("PLAID_REDIRECT_URI", "http://localhost:3000/portfolio")
+    plaid_webhook_url: str = os.getenv("PLAID_WEBHOOK_URL", "")
+    plaid_cash_transactions_enabled: bool = os.getenv("PLAID_ENABLE_CASH_TRANSACTIONS", "false").lower() == "true"
+    plaid_investments_refresh_min_minutes: int = int(
+        os.getenv("PLAID_INVESTMENTS_REFRESH_MINUTES", "15") or 15
+    )
     ibkr_api_url: str = os.getenv("IBKR_API_URL", "https://api.ibkr.com/v1/api")
     ibkr_oauth_authorize_url: str = os.getenv("IBKR_OAUTH_AUTHORIZE_URL", "")
     ibkr_oauth_token_url: str = os.getenv("IBKR_OAUTH_TOKEN_URL", "")

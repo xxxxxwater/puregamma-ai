@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import secrets
 import time
 import uuid
@@ -14,7 +15,7 @@ import requests
 from eth_account import Account
 from eth_account.messages import encode_defunct
 from redis import Redis
-from fastapi import APIRouter, Depends, Header, HTTPException
+from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -22,7 +23,7 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.credit_service import InsufficientCreditsError, quote_task, refund_task, reserve_task, settle_task
-from apps.api.services.portfolio_service import PortfolioAccessError, autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_link_token, portfolio_view, run_autopilot_review, sync_account, update_autopilot
+from apps.api.services.portfolio_service import PlaidDataPending, PlaidRefreshRateLimited, PlaidRefreshUnsupported, PlaidWebhookVerificationError, PortfolioAccessError, autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_investment_transactions, plaid_link_token, portfolio_view, process_plaid_webhook, request_plaid_investments_refresh, run_autopilot_review, sync_account, update_autopilot, verify_plaid_webhook
 from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
 from packages.skills.registry import SkillResolutionError
@@ -37,6 +38,14 @@ def _portfolio_access_http(exc: PermissionError) -> HTTPException:
 router = APIRouter(prefix="/portfolio", tags=["portfolio"])
 MOBILE_IBKR_TTL_SECONDS = 600
 EVM_CHALLENGE_TTL_SECONDS = 300
+logger = logging.getLogger(__name__)
+
+
+def _enqueue_plaid_history_sync(account_id: str) -> None:
+    """Keep Link and webhook handlers fast; the worker fetches up to 24 months."""
+    from packages.workers.tasks import sync_plaid_investments_account
+
+    sync_plaid_investments_account.delay(account_id)
 
 
 def _ibkr_state(user_id: str) -> str:
@@ -302,8 +311,22 @@ def create_plaid_link_token(user: User = Depends(get_current_user)) -> dict:
 def exchange_plaid(payload: PlaidExchangeRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     try:
         account = connect_plaid(db, user, payload.public_token, payload.institution_name)
-        sync_account(db, user, account)
-        return portfolio_view(db, user)
+        # Holdings establish the initial NAV promptly. Investments transaction
+        # history can take one to two minutes after Link, so it is queued.
+        sync_account(db, user, account, include_transactions=False)
+        try:
+            _enqueue_plaid_history_sync(account.id)
+        except Exception:
+            logger.exception("plaid_history_dispatch_failed account_id=%s", account.id)
+            # Redis/Celery is normally mandatory in production. The inline
+            # fallback keeps a successful Link exchange usable if it is down.
+            try:
+                sync_account(db, user, account, include_transactions=True)
+            except PlaidDataPending:
+                pass
+        result = portfolio_view(db, user)
+        result["plaid_history_sync"] = "pending"
+        return result
     except PermissionError as exc:
         raise _portfolio_access_http(exc) from exc
     except Exception as exc:
@@ -322,6 +345,46 @@ def add_hyperliquid(payload: HyperliquidRequest, db: Session = Depends(get_db), 
         raise _portfolio_access_http(exc) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.get("/plaid/transactions")
+def list_plaid_transactions(
+    account_id: str | None = None,
+    limit: int = Query(default=100, ge=1, le=250),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    try:
+        return {"transactions": plaid_investment_transactions(db, user, account_id=account_id, limit=limit)}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+
+
+@router.post("/plaid/webhook")
+async def plaid_webhook(
+    request: Request,
+    plaid_verification: str | None = Header(default=None, alias="Plaid-Verification"),
+    db: Session = Depends(get_db),
+) -> dict:
+    raw_body = await request.body()
+    try:
+        verify_plaid_webhook(raw_body, plaid_verification)
+        payload = json.loads(raw_body.decode("utf-8"))
+        if not isinstance(payload, dict):
+            raise ValueError("invalid payload")
+        account = process_plaid_webhook(db, payload)
+        if account:
+            _enqueue_plaid_history_sync(account.id)
+    except PlaidWebhookVerificationError as exc:
+        raise HTTPException(status_code=401, detail="Invalid Plaid webhook") from exc
+    except (UnicodeDecodeError, ValueError, json.JSONDecodeError) as exc:
+        raise HTTPException(status_code=400, detail="Invalid Plaid webhook payload") from exc
+    except Exception as exc:
+        logger.exception("plaid_webhook_processing_failed")
+        # A non-2xx response makes Plaid retry the webhook. We do not expose
+        # Item IDs, credentials, or provider errors to the caller.
+        raise HTTPException(status_code=503, detail="Plaid webhook processing unavailable") from exc
+    return {"accepted": True}
 
 
 @router.post("/evm/challenge")
@@ -482,10 +545,44 @@ def sync_connected_account(account_id: str, db: Session = Depends(get_db), user:
     if not account:
         raise HTTPException(status_code=404, detail="Portfolio account not found")
     try:
+        if account.venue == "PLAID":
+            # Keep the interactive NAV action responsive. The task retries the
+            # historical Investments pull until Plaid reports it is ready.
+            sync_account(db, user, account, include_transactions=False)
+            try:
+                _enqueue_plaid_history_sync(account.id)
+            except Exception:
+                logger.exception("plaid_history_dispatch_failed account_id=%s", account.id)
+                try:
+                    sync_account(db, user, account, include_transactions=True)
+                except PlaidDataPending:
+                    pass
+            result = portfolio_view(db, user)
+            result["plaid_history_sync"] = "pending"
+            return result
         sync_account(db, user, account)
         return portfolio_view(db, user)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/accounts/{account_id}/plaid-refresh")
+def refresh_plaid_investments(account_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    account = db.query(TradingAccount).filter_by(id=account_id, user_id=user.id, account_type="READ_ONLY").one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Portfolio account not found")
+    try:
+        result = request_plaid_investments_refresh(db, user, account)
+        _enqueue_plaid_history_sync(account.id)
+        return result
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PlaidRefreshRateLimited as exc:
+        raise HTTPException(status_code=429, detail={"code": "PLAID_REFRESH_RATE_LIMITED", "message": str(exc)}) from exc
+    except PlaidRefreshUnsupported as exc:
+        raise HTTPException(status_code=409, detail={"code": "PLAID_REFRESH_UNSUPPORTED", "message": str(exc)}) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Plaid Investments Refresh failed") from exc
 
 
 @router.delete("/accounts/{account_id}")

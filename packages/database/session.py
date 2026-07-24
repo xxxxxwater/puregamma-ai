@@ -71,6 +71,7 @@ POST_BASELINE_TABLES = {
     "credit_reward_grants",
     "push_devices",
     "backtest_artifacts",
+    "portfolio_investment_transactions",
     "skills",
     "skill_versions",
     "skill_installations",

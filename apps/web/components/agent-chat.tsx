@@ -2,10 +2,10 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Bot, CheckCircle2, ChevronDown, CircleStop, Compass, Database, FilePlus2, Loader2, MessageSquarePlus, Paperclip, RefreshCw, SearchCheck, Send, Settings2, Sparkles, Target, Wrench, X } from "lucide-react";
+import { Bot, CheckCircle2, ChevronDown, CircleStop, Compass, Database, FilePlus2, Loader2, MessageSquarePlus, Paperclip, RefreshCw, SearchCheck, Send, Settings2, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
 import { ReportMarkdown } from "@/components/puregamma";
 import { type Locale, withLocale } from "@/i18n/routing";
-import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentSource, SkillContextRef, SkillSummary, cancelAgentRun, createAgentConversation, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getMe, streamAgentMessage } from "@/lib/api";
+import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentSource, SkillContextRef, SkillSummary, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getMe, streamAgentMessage } from "@/lib/api";
 import { publishCreditBalance } from "@/lib/user-state";
 
 const DATA_SOURCES = ["market", "rss", "fintwit", "x-twitter", "bloomberg", "portfolio", "options"];
@@ -93,6 +93,30 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     setConversationId(result.conversation.id);
     setMessages([]);
     router.push(withLocale(locale, `/chat/${result.conversation.id}`));
+  };
+
+  const deleteConversation = async (id: string) => {
+    setConversations((current) => current.filter((conversation) => conversation.id !== id));
+    if (conversationId === id) {
+      const remaining = conversations.filter((conversation) => conversation.id !== id);
+      if (remaining.length) {
+        router.push(withLocale(locale, `/chat/${remaining[0].id}`));
+        openConversation(remaining[0].id);
+      } else {
+        setConversationId("");
+        setMessages([]);
+        router.push(withLocale(locale, "/chat"));
+      }
+    }
+    deleteAgentConversation(id).catch(() => {});
+  };
+
+  const deleteAll = async () => {
+    setConversations([]);
+    setConversationId("");
+    setMessages([]);
+    router.push(withLocale(locale, "/chat"));
+    deleteAllAgentConversations().catch(() => {});
   };
 
   const ensureConversation = async () => {
@@ -242,14 +266,31 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
 
   return (
     <div className="grid h-[calc(100dvh-7rem)] min-h-[620px] overflow-hidden border border-border-pg bg-bg-panel lg:grid-cols-[244px_minmax(0,1fr)]">
-      <aside className="hidden border-b border-border-pg bg-bg-app lg:block lg:border-b-0 lg:border-r">
+      <aside className="hidden border-b border-border-pg bg-bg-app lg:flex lg:flex-col lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between border-b border-border-pg p-3">
           <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"} · ${quota.credit_balance} Credits` : "-"}</div></div>
           <button type="button" onClick={createNew} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong" title={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
         </div>
-        <div className="flex gap-2 overflow-x-auto p-2 lg:block lg:max-h-[calc(100vh-13rem)] lg:space-y-1 lg:overflow-y-auto">
-          {conversations.map((conversation) => <button key={conversation.id} type="button" onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); openConversation(conversation.id); }} className={`min-w-52 border px-3 py-2 text-left text-sm lg:block lg:w-full lg:min-w-0 ${conversation.id === conversationId ? "border-border-pg-strong bg-bg-panel-muted" : "border-transparent text-text-pg-muted hover:border-border-pg"}`}><div className="truncate font-medium">{conversation.title}</div><div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div></button>)}
+        <div className="flex-1 overflow-y-auto p-2 lg:space-y-1">
+          {conversations.map((conversation) => (
+            <div key={conversation.id} className="group flex items-center">
+              <button type="button" onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); openConversation(conversation.id); }} className={`min-w-0 flex-1 border px-3 py-2 text-left text-sm ${conversation.id === conversationId ? "border-border-pg-strong bg-bg-panel-muted" : "border-transparent text-text-pg-muted hover:border-border-pg"}`}>
+                <div className="truncate font-medium">{conversation.title}</div>
+                <div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div>
+              </button>
+              <button type="button" onClick={(event) => { event.stopPropagation(); void deleteConversation(conversation.id); }} className="invisible ml-0.5 grid h-9 w-8 shrink-0 place-items-center border border-transparent text-text-pg-dim hover:border-status-negative hover:text-status-negative group-hover:visible" title={zh ? "删除会话" : "Delete conversation"}><Trash2 className="h-3.5 w-3.5" /></button>
+            </div>
+          ))}
+          {conversations.length === 0 ? <div className="px-3 py-4 text-center text-xs text-text-pg-dim">{zh ? "暂无历史对话" : "No conversation history"}</div> : null}
         </div>
+        {conversations.length ? (
+          <div className="border-t border-border-pg p-2">
+            <button type="button" onClick={() => void deleteAll()} className="flex w-full items-center justify-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-dim hover:border-status-negative hover:text-status-negative transition" title={zh ? "删除全部历史对话" : "Delete all conversation history"}>
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{zh ? "删除全部历史对话" : "Delete all history"}</span>
+            </button>
+          </div>
+        ) : null}
       </aside>
 
       <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">

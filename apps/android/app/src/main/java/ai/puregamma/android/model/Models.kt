@@ -101,6 +101,26 @@ data class Portfolio(
     val nav: Double?,
     val availableCash: Double?,
     val connections: List<PortfolioConnection>,
+    val navHistory: List<NavPoint> = emptyList(),
+)
+
+data class NavPoint(
+    val date: Instant,
+    val value: Double,
+)
+
+data class OptionCandidate(
+    val instrument: String,
+    val underlying: String,
+    val type: String,
+    val strike: Double?,
+    val markIv: Double?,
+    val gamma: Double?,
+    val theta: Double?,
+    val score: Double?,
+    val expiry: Instant?,
+    val timestamp: Instant?,
+    val rationale: List<String>,
 )
 
 data class AutopilotFinding(val severity: String, val title: String)

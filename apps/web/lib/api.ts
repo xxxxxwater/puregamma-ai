@@ -555,10 +555,11 @@ export function getPortfolioSnapshot(locale: Locale = defaultLocale) {
   return api<PortfolioSnapshot>("/portfolio", { fallback: { connected: false, nav: 0, available_cash: 0, daily_change: 0, daily_change_pct: null, nav_history: [], holdings: [], asset_classes: {}, accounts: [], connections: [], providers: { plaid: false, ibkr: false, hyperliquid: true, evm: false } }, locale });
 }
 
-export type PortfolioConnection = { id: string; provider: string; name: string; status: string; last_sync: string | null; error?: string | null };
+export type PortfolioConnection = { id: string; provider: string; name: string; status: string; last_sync: string | null; error?: string | null; can_refresh?: boolean; refresh_requested_at?: string | null };
 export type PortfolioHolding = { symbol: string; instrument: string; name: string; chain: string | null; quantity: number; price: number; value: number; weight: number; change_24h: number; change_24h_pct: number; asset_class: string; native: boolean; verified: boolean; priced: boolean; logo?: string | null };
 export type PortfolioAccountSummary = { id: string; provider: string; name: string; status: string; nav: number; available_cash: number; daily_change: number; as_of: string | null };
-export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; daily_change?: number; daily_change_pct?: number | null; nav_history: Array<{ date: string; nav: number }>; holdings?: PortfolioHolding[]; asset_classes?: Record<string, number>; accounts?: PortfolioAccountSummary[]; connections: PortfolioConnection[]; providers: { plaid: boolean; ibkr: boolean; hyperliquid: boolean; evm?: boolean } };
+export type PortfolioSnapshot = { connected: boolean; stale?: boolean; data_as_of?: string | null; nav: number; available_cash: number; daily_change?: number; daily_change_pct?: number | null; nav_history: Array<{ date: string; nav: number }>; holdings?: PortfolioHolding[]; asset_classes?: Record<string, number>; accounts?: PortfolioAccountSummary[]; connections: PortfolioConnection[]; providers: { plaid: boolean; plaid_refresh?: boolean; plaid_cash_transactions?: boolean; plaid_webhooks?: boolean; ibkr: boolean; hyperliquid: boolean; evm?: boolean } };
+export type PortfolioInvestmentTransaction = { id: string; account_id: string; provider_account_id: string; date: string; transaction_datetime?: string | null; name: string; symbol?: string | null; type: string; subtype?: string | null; quantity: number; price: number; amount: number; fees: number; currency?: string | null; cancelled: boolean };
 
 export function createPlaidLinkToken() { return requestStrict<{ link_token: string }>("/portfolio/plaid/link-token", { method: "POST" }); }
 export function exchangePlaidToken(publicToken: string, institutionName: string) { return requestStrict<PortfolioSnapshot>("/portfolio/plaid/exchange", { method: "POST", body: JSON.stringify({ public_token: publicToken, institution_name: institutionName }) }); }
@@ -568,6 +569,8 @@ export function connectEvmWallet(address: string, chainId: number, message: stri
 export function getIbkrAuthorizeUrl() { return requestStrict<{ authorize_url: string }>("/portfolio/ibkr/authorize"); }
 export function exchangeIbkrCode(code: string, state: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/ibkr/exchange?code=${encodeURIComponent(code)}&state=${encodeURIComponent(state)}`, { method: "POST" }); }
 export function syncPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}/sync`, { method: "POST" }); }
+export function requestPlaidInvestmentRefresh(accountId: string) { return requestStrict<{ account_id: string; status: string; request_id?: string | null; retry_after_seconds: number }>(`/portfolio/accounts/${encodeURIComponent(accountId)}/plaid-refresh`, { method: "POST" }); }
+export function getPlaidInvestmentTransactions(accountId?: string, limit = 100) { const query = new URLSearchParams({ limit: String(limit) }); if (accountId) query.set("account_id", accountId); return requestStrict<{ transactions: PortfolioInvestmentTransaction[] }>(`/portfolio/plaid/transactions?${query.toString()}`); }
 export function disconnectPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" }); }
 export type PortfolioAutopilot = { config: { enabled: boolean; cadence: "daily" | "weekly"; auto_sync: boolean; risk_alerts: boolean; long_gamma_watch: boolean; delivery: "in_app" | "telegram" | "imessage"; skill_refs: SkillContextRef[] }; account_count: number; findings: Array<{ severity: string; title: string }>; concentration?: Record<string, number>; execution: "RESEARCH_ONLY"; last_review: string | null };
 export function getPortfolioAutopilot() { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot"); }
@@ -847,6 +850,14 @@ export async function transcribeSecretaryAudio(audio: Blob, locale: Locale, sign
 
 export function createAgentConversation(title?: string) {
   return requestStrict<{ conversation: AgentConversation }>("/api/agent/conversations", { method: "POST", body: JSON.stringify({ title }) });
+}
+
+export function deleteAgentConversation(id: string) {
+  return requestStrict<{ ok: boolean }>(`/api/agent/conversations/${encodeURIComponent(id)}`, { method: "DELETE" });
+}
+
+export function deleteAllAgentConversations() {
+  return requestStrict<{ ok: boolean; deleted: number }>("/api/agent/conversations", { method: "DELETE" });
 }
 
 export function getAgentConversation(id: string) {

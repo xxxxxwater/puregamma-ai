@@ -1329,6 +1329,46 @@ class AccountSnapshot(Base):
     captured_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
 
+class PortfolioInvestmentTransaction(Base, TimestampMixin):
+    """Normalized read-only investment activity received from Plaid.
+
+    The encrypted Plaid Item access token is deliberately kept on
+    ``ExchangeConnection`` only. This table contains the minimum user-authorized
+    transaction fields required for portfolio history and never exposes it.
+    """
+
+    __tablename__ = "portfolio_investment_transactions"
+    __table_args__ = (
+        UniqueConstraint(
+            "account_id",
+            "provider",
+            "external_id",
+            name="uq_portfolio_investment_transaction_external",
+        ),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False, default="plaid", index=True)
+    external_id = Column(String, nullable=False)
+    provider_account_id = Column(String, nullable=False, index=True)
+    security_id = Column(String, nullable=True, index=True)
+    posted_date = Column(Date, nullable=False, index=True)
+    transaction_datetime = Column(DateTime(timezone=True), nullable=True)
+    name = Column(String, nullable=False)
+    symbol = Column(String, nullable=True, index=True)
+    transaction_type = Column(String, nullable=False)
+    subtype = Column(String, nullable=True)
+    quantity = Column(Float, nullable=False, default=0)
+    price = Column(Float, nullable=False, default=0)
+    amount = Column(Float, nullable=False, default=0)
+    fees = Column(Float, nullable=False, default=0)
+    currency = Column(String, nullable=True)
+    cancelled = Column(Boolean, nullable=False, default=False)
+    raw_event_reference = Column(JSON, default=dict, nullable=False)
+
+
 class PortfolioAutopilotReview(Base, TimestampMixin):
     __tablename__ = "portfolio_autopilot_reviews"
 

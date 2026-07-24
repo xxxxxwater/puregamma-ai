@@ -3,15 +3,18 @@ from __future__ import annotations
 import json
 import logging
 import math
-from datetime import datetime, timedelta, timezone
+import hashlib
+import hmac
+from datetime import date, datetime, timedelta, timezone
 
+import jwt
 import requests
 from cryptography.fernet import Fernet, InvalidToken
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.services.entitlement_service import get_user_entitlement
-from packages.database.models import AccountSnapshot, ExchangeConnection, PortfolioAutopilotReview, PositionSnapshot, TradingAccount, User, UserPreference, utcnow
+from packages.database.models import AccountSnapshot, ExchangeConnection, PortfolioAutopilotReview, PortfolioInvestmentTransaction, PositionSnapshot, TradingAccount, User, UserPreference, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -23,6 +26,22 @@ class PortfolioAccessError(PermissionError):
         super().__init__(code)
         self.code = code
         self.context = context
+
+
+class PlaidDataPending(RuntimeError):
+    """Plaid has accepted a request but Investments data is not ready yet."""
+
+
+class PlaidRefreshRateLimited(RuntimeError):
+    """Protect against accidental repeated billable Investments Refresh calls."""
+
+
+class PlaidRefreshUnsupported(RuntimeError):
+    """The connected institution does not support Investments Refresh."""
+
+
+class PlaidWebhookVerificationError(PermissionError):
+    """Raised when a Plaid webhook cannot be authenticated."""
 
 _MORALIS_CHAIN_BY_ID = {
     1: "eth",
@@ -158,44 +177,124 @@ def _snapshot_is_stale(account: TradingAccount, snapshot: AccountSnapshot) -> bo
     return bool(snapshot.stale or datetime.now(timezone.utc) - snapshot.captured_at.astimezone(timezone.utc) > limit)
 
 
+def _plaid_base_url() -> str:
+    environment = get_settings().plaid_env.strip().lower()
+    if environment not in {"sandbox", "production"}:
+        raise RuntimeError("PLAID_ENV must be sandbox or production")
+    return f"https://{environment}.plaid.com"
+
+
+def _plaid_request(path: str, access_token: str | None = None, *, payload: dict | None = None, timeout: int = 45) -> requests.Response:
+    settings = get_settings()
+    if not settings.plaid_client_id or not settings.plaid_secret:
+        raise RuntimeError("Plaid Investments is not configured")
+    body = {"client_id": settings.plaid_client_id, "secret": settings.plaid_secret, **(payload or {})}
+    if access_token:
+        body["access_token"] = access_token
+    return requests.post(f"{_plaid_base_url()}{path}", json=body, timeout=timeout)
+
+
+def _plaid_error_code(response: requests.Response) -> str | None:
+    try:
+        payload = response.json()
+    except Exception:
+        return None
+    if not isinstance(payload, dict):
+        return None
+    return str(payload.get("error_code") or "") or None
+
+
+def _parse_aware_datetime(value: object) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(str(value).replace("Z", "+00:00"))
+        return parsed if parsed.tzinfo else parsed.replace(tzinfo=timezone.utc)
+    except ValueError:
+        return None
+
+
+def _plaid_webhook_url() -> str:
+    return str(getattr(get_settings(), "plaid_webhook_url", "") or "").strip()
+
+
+def _update_plaid_webhook(connection: ExchangeConnection, token: str) -> None:
+    """Register the receiver for existing Items without blocking portfolio sync.
+
+    Link only applies its webhook field when an Item is created. Updating here
+    also upgrades Items linked before webhook support was added.
+    """
+    webhook_url = _plaid_webhook_url()
+    if not webhook_url:
+        return
+    metadata = dict(connection.metadata_json or {})
+    if metadata.get("plaid_webhook_url") == webhook_url:
+        return
+    try:
+        response = _plaid_request("/item/webhook/update", token, payload={"webhook": webhook_url}, timeout=20)
+        response.raise_for_status()
+    except Exception as exc:
+        logger.warning("plaid_webhook_update_failed account_id=%s error=%s", connection.account_id, type(exc).__name__)
+        metadata["plaid_webhook_error"] = type(exc).__name__
+    else:
+        metadata["plaid_webhook_url"] = webhook_url
+        metadata.pop("plaid_webhook_error", None)
+    connection.metadata_json = metadata
+
+
 def plaid_link_token(user: User) -> str:
     settings = get_settings()
     if not settings.plaid_client_id or not settings.plaid_secret:
         raise RuntimeError("Plaid Investments is not configured")
     environment = settings.plaid_env.strip().lower()
-    if environment not in {"sandbox", "production"}:
-        raise RuntimeError("PLAID_ENV must be sandbox or production")
+    _plaid_base_url()
     if environment == "production" and not settings.plaid_redirect_uri.startswith("https://"):
         raise RuntimeError("Plaid Production requires an HTTPS redirect URI")
-    base = f"https://{environment}.plaid.com"
-    response = requests.post(
-        f"{base}/link/token/create",
-        json={
-            "client_id": settings.plaid_client_id,
-            "secret": settings.plaid_secret,
-            "client_name": "PureGamma AI",
-            "language": "en",
-            "country_codes": ["US"],
-            "user": {"client_user_id": user.id},
-            "products": ["investments"],
-            "redirect_uri": settings.plaid_redirect_uri,
-        },
-        timeout=20,
-    )
+    payload = {
+        "client_name": "PureGamma AI",
+        "language": "en",
+        "country_codes": ["US", "CA"],
+        "user": {"client_user_id": user.id},
+        "products": ["investments"],
+        "redirect_uri": settings.plaid_redirect_uri,
+    }
+    if bool(getattr(settings, "plaid_cash_transactions_enabled", False)):
+        # Keep brokerage-only institutions selectable while asking Plaid to
+        # prepare the user-authorized cash-account history when available.
+        payload["optional_products"] = ["transactions"]
+        payload["transactions"] = {"days_requested": 730}
+    if _plaid_webhook_url():
+        payload["webhook"] = _plaid_webhook_url()
+    response = _plaid_request("/link/token/create", payload=payload, timeout=25)
     response.raise_for_status()
     return response.json()["link_token"]
 
 
 def connect_plaid(db: Session, user: User, public_token: str, institution_name: str = "Plaid Investments") -> TradingAccount:
-    settings = get_settings()
-    environment = settings.plaid_env.strip().lower()
-    if environment not in {"sandbox", "production"}:
-        raise RuntimeError("PLAID_ENV must be sandbox or production")
-    base = f"https://{environment}.plaid.com"
-    response = requests.post(f"{base}/item/public_token/exchange", json={"client_id": settings.plaid_client_id, "secret": settings.plaid_secret, "public_token": public_token}, timeout=15)
+    _plaid_base_url()
+    response = _plaid_request("/item/public_token/exchange", payload={"public_token": public_token}, timeout=20)
     response.raise_for_status()
     payload = response.json()
-    return _account(db, user, "PLAID", institution_name, {"item_id": payload.get("item_id")}, payload["access_token"])
+    account = _account(
+        db,
+        user,
+        "PLAID",
+        institution_name,
+        {
+            "item_id": payload.get("item_id"),
+            "institution_name": institution_name,
+            # Never activate a newly billable product on legacy Items merely
+            # because the application was upgraded. Only Link sessions created
+            # with the explicit optional Transactions consent receive this.
+            "plaid_cash_transactions_requested": bool(
+                getattr(get_settings(), "plaid_cash_transactions_enabled", False)
+            ),
+        },
+        payload["access_token"],
+    )
+    _update_plaid_webhook(_connection(db, account), payload["access_token"])
+    db.commit()
+    return account
 
 
 def connect_hyperliquid(db: Session, user: User, address: str) -> TradingAccount:
@@ -226,7 +325,7 @@ def connect_ibkr_token(db: Session, user: User, token_payload: dict) -> TradingA
     return _account(db, user, "IBKR", "Interactive Brokers", metadata, json.dumps(token_payload))
 
 
-def sync_account(db: Session, user: User, account: TradingAccount) -> None:
+def sync_account(db: Session, user: User, account: TradingAccount, *, include_transactions: bool = True) -> None:
     if account.user_id != user.id:
         raise LookupError("Account not found")
     try:
@@ -235,7 +334,7 @@ def sync_account(db: Session, user: User, account: TradingAccount) -> None:
         elif account.venue == "EVM":
             _sync_evm(db, account)
         elif account.venue == "PLAID":
-            _sync_plaid(db, account)
+            _sync_plaid(db, account, include_transactions=include_transactions)
         elif account.venue == "IBKR":
             _sync_ibkr(db, account)
         else:
@@ -252,6 +351,14 @@ def sync_account(db: Session, user: User, account: TradingAccount) -> None:
             metadata={"account_id": account.id, "provider": account.venue},
         )
         db.commit()
+    except PlaidDataPending:
+        db.rollback()
+        connection = _connection(db, account)
+        connection.status = "PENDING_HISTORY"
+        connection.error_code = "PLAID_PRODUCT_NOT_READY"
+        connection.error_message = "Plaid is still preparing investment transaction history"
+        db.commit()
+        raise
     except Exception as exc:
         db.rollback()
         connection = _connection(db, account)
@@ -493,21 +600,493 @@ def _sync_evm(db: Session, account: TradingAccount) -> None:
     _save_snapshot(db, account, equity, available, raw, stored_positions, "evm", daily_pnl=daily_pnl)
 
 
-def _sync_plaid(db: Session, account: TradingAccount) -> None:
-    settings = get_settings()
+def _plaid_asset_class(security: dict) -> str:
+    kind = str(security.get("type") or "").lower()
+    if kind == "cryptocurrency":
+        return "crypto"
+    if kind == "cash" or security.get("is_cash_equivalent"):
+        return "cash"
+    return "equity"
+
+
+def _sync_plaid_investment_transactions(
+    db: Session,
+    account: TradingAccount,
+    token: str,
+    securities: dict[str, dict],
+) -> int:
+    """Upsert the user-authorized 24-month Investments transaction window.
+
+    Plaid returns stable reverse-chronological pages. After the first full import
+    we re-read a short overlap window so corrected/cancelled transactions are
+    reconciled without repeatedly billing the application for the whole history.
+    """
+    latest = (
+        db.query(PortfolioInvestmentTransaction)
+        .filter_by(account_id=account.id, provider="plaid")
+        .filter(PortfolioInvestmentTransaction.external_id.like("investment:%"))
+        .order_by(PortfolioInvestmentTransaction.posted_date.desc())
+        .first()
+    )
+    today = datetime.now(timezone.utc).date()
+    earliest = today - timedelta(days=730)
+    start = earliest if not latest else max(earliest, latest.posted_date - timedelta(days=35))
+    offset = 0
+    total = None
+    imported = 0
+    while total is None or offset < total:
+        response = _plaid_request(
+            "/investments/transactions/get",
+            token,
+            payload={
+                "start_date": start.isoformat(),
+                "end_date": today.isoformat(),
+                "options": {"count": 500, "offset": offset},
+            },
+            timeout=150,
+        )
+        if response.status_code >= 400 and _plaid_error_code(response) == "PRODUCT_NOT_READY":
+            raise PlaidDataPending("Plaid is still preparing investment transaction history")
+        response.raise_for_status()
+        payload = response.json()
+        transaction_rows = list(payload.get("investment_transactions") or [])
+        total = int(payload.get("total_investment_transactions") or len(transaction_rows))
+        for security in payload.get("securities") or []:
+            if security.get("security_id"):
+                securities[str(security["security_id"])] = security
+        for item in transaction_rows:
+            transaction_id = str(item.get("investment_transaction_id") or "")
+            posted_raw = str(item.get("date") or "")
+            if not transaction_id or not posted_raw:
+                continue
+            external_id = f"investment:{transaction_id}"
+            try:
+                posted_date = date.fromisoformat(posted_raw)
+            except ValueError:
+                continue
+            security = securities.get(str(item.get("security_id") or ""), {})
+            values = {
+                "user_id": account.user_id,
+                "provider_account_id": str(item.get("account_id") or ""),
+                "security_id": str(item.get("security_id") or "") or None,
+                "posted_date": posted_date,
+                "transaction_datetime": _parse_aware_datetime(item.get("transaction_datetime")),
+                "name": str(item.get("name") or security.get("name") or "Investment activity"),
+                "symbol": str(security.get("ticker_symbol") or security.get("name") or "") or None,
+                "transaction_type": str(item.get("type") or "cash"),
+                "subtype": str(item.get("subtype") or "") or None,
+                "quantity": _finite(item.get("quantity")),
+                "price": _finite(item.get("price")),
+                "amount": _finite(item.get("amount")),
+                "fees": _finite(item.get("fees")),
+                "currency": item.get("iso_currency_code") or item.get("unofficial_currency_code"),
+                "cancelled": str(item.get("type") or "").lower() == "cancel",
+                "raw_event_reference": {
+                    "security_type": security.get("type"),
+                    "security_subtype": security.get("subtype"),
+                    "is_cash_equivalent": bool(security.get("is_cash_equivalent")),
+                },
+            }
+            row = (
+                db.query(PortfolioInvestmentTransaction)
+                .filter_by(account_id=account.id, provider="plaid", external_id=external_id)
+                .one_or_none()
+            )
+            if row:
+                for key, value in values.items():
+                    setattr(row, key, value)
+            else:
+                db.add(
+                    PortfolioInvestmentTransaction(
+                        account_id=account.id,
+                        provider="plaid",
+                        external_id=external_id,
+                        **values,
+                    )
+                )
+            imported += 1
+        offset += len(transaction_rows)
+        if not transaction_rows:
+            break
+    db.commit()
+    return imported
+
+
+def _sync_plaid_cash_transactions(db: Session, account: TradingAccount, token: str) -> int:
+    """Apply incremental Plaid Transactions updates for non-investment accounts.
+
+    The cursor lives with the encrypted Item connection, never in a client
+    request. This follows Plaid's pagination rule: if the update mutates during
+    pagination, restart from the cursor that began the update batch.
+    """
+    connection = _connection(db, account)
+    metadata = dict(connection.metadata_json or {})
+    initial_cursor = metadata.get("plaid_transactions_cursor")
+    cursor = str(initial_cursor) if initial_cursor else None
+    restart_count = 0
+
+    while True:
+        added: list[dict] = []
+        modified: list[dict] = []
+        removed: list[dict] = []
+        cursor_for_page = cursor
+        next_cursor = cursor
+        update_status = None
+        try:
+            while True:
+                response = _plaid_request(
+                    "/transactions/sync",
+                    token,
+                    payload={"cursor": cursor_for_page, "count": 500},
+                    timeout=90,
+                )
+                error_code = _plaid_error_code(response)
+                if response.status_code >= 400 and error_code == "TRANSACTIONS_SYNC_MUTATION_DURING_PAGINATION":
+                    if restart_count >= 1:
+                        response.raise_for_status()
+                    restart_count += 1
+                    raise RuntimeError("restart_transactions_sync")
+                # Transactions is optional for an investment Item. Do not make
+                # its absence block core NAV or investment activity retrieval.
+                if response.status_code >= 400 and error_code in {
+                    "PRODUCT_NOT_READY",
+                    "PRODUCT_NOT_SUPPORTED",
+                    "PRODUCT_NOT_ENABLED",
+                    "INVALID_PRODUCT",
+                }:
+                    metadata["plaid_cash_transactions_status"] = error_code.lower()
+                    connection.metadata_json = metadata
+                    db.commit()
+                    return 0
+                response.raise_for_status()
+                payload = response.json()
+                added.extend(item for item in payload.get("added") or [] if isinstance(item, dict))
+                modified.extend(item for item in payload.get("modified") or [] if isinstance(item, dict))
+                removed.extend(item for item in payload.get("removed") or [] if isinstance(item, dict))
+                next_cursor = payload.get("next_cursor") or next_cursor
+                update_status = payload.get("transactions_update_status") or update_status
+                if not payload.get("has_more"):
+                    break
+                cursor_for_page = next_cursor
+        except RuntimeError as exc:
+            if str(exc) != "restart_transactions_sync":
+                raise
+            cursor = str(initial_cursor) if initial_cursor else None
+            continue
+
+        changes = 0
+        for item in [*added, *modified]:
+            transaction_id = str(item.get("transaction_id") or "")
+            posted_raw = str(item.get("date") or "")
+            if not transaction_id or not posted_raw:
+                continue
+            try:
+                posted_date = date.fromisoformat(posted_raw)
+            except ValueError:
+                continue
+            category = item.get("personal_finance_category") or {}
+            if not isinstance(category, dict):
+                category = {}
+            external_id = f"cash:{transaction_id}"
+            values = {
+                "user_id": account.user_id,
+                "provider_account_id": str(item.get("account_id") or ""),
+                "security_id": None,
+                "posted_date": posted_date,
+                "transaction_datetime": _parse_aware_datetime(item.get("datetime")),
+                "name": str(item.get("merchant_name") or item.get("name") or "Cash activity"),
+                "symbol": None,
+                "transaction_type": "cash",
+                "subtype": str(category.get("primary") or item.get("payment_channel") or "cash"),
+                "quantity": 0.0,
+                "price": 0.0,
+                "amount": _finite(item.get("amount")),
+                "fees": 0.0,
+                "currency": item.get("iso_currency_code") or item.get("unofficial_currency_code"),
+                "cancelled": False,
+                "raw_event_reference": {
+                    "source": "transactions",
+                    "pending": bool(item.get("pending")),
+                    "category_primary": category.get("primary"),
+                    "category_detailed": category.get("detailed"),
+                },
+            }
+            row = (
+                db.query(PortfolioInvestmentTransaction)
+                .filter_by(account_id=account.id, provider="plaid", external_id=external_id)
+                .one_or_none()
+            )
+            if row:
+                for key, value in values.items():
+                    setattr(row, key, value)
+            else:
+                db.add(
+                    PortfolioInvestmentTransaction(
+                        account_id=account.id,
+                        provider="plaid",
+                        external_id=external_id,
+                        **values,
+                    )
+                )
+            changes += 1
+        for item in removed:
+            transaction_id = str(item.get("transaction_id") or "")
+            if transaction_id:
+                db.query(PortfolioInvestmentTransaction).filter_by(
+                    account_id=account.id,
+                    provider="plaid",
+                    external_id=f"cash:{transaction_id}",
+                ).delete(synchronize_session=False)
+
+        metadata["plaid_transactions_cursor"] = next_cursor
+        metadata["plaid_cash_transactions_status"] = str(update_status or "unknown").lower()
+        connection.metadata_json = metadata
+        db.commit()
+        return changes
+
+
+def _sync_plaid(db: Session, account: TradingAccount, *, include_transactions: bool = True) -> None:
     connection = _connection(db, account)
     token = decrypt_token(connection.credential_ciphertext or "")
-    response = requests.post(f"https://{settings.plaid_env}.plaid.com/investments/holdings/get", json={"client_id": settings.plaid_client_id, "secret": settings.plaid_secret, "access_token": token}, timeout=30)
+    _update_plaid_webhook(connection, token)
+    response = _plaid_request("/investments/holdings/get", token, timeout=45)
     response.raise_for_status()
     data = response.json()
-    securities = {item["security_id"]: item for item in data.get("securities", [])}
+    securities = {str(item["security_id"]): item for item in data.get("securities", []) if item.get("security_id")}
     positions = []
+    holdings_value_by_account: dict[str, float] = {}
+    cash_value_by_account: dict[str, float] = {}
+    daily_pnl = 0.0
     for holding in data.get("holdings", []):
-        security = securities.get(holding.get("security_id"), {})
-        positions.append({"symbol": security.get("ticker_symbol") or security.get("name") or "UNKNOWN", "quantity": holding.get("quantity", 0), "price": holding.get("institution_price", 0), "value": holding.get("institution_value", 0), "cost": holding.get("cost_basis", 0)})
-    equity = sum(float(item.get("balances", {}).get("current") or 0) for item in data.get("accounts", []))
-    available = sum(float(item.get("balances", {}).get("available") or 0) for item in data.get("accounts", []))
-    _save_snapshot(db, account, equity, available, {"request_id": data.get("request_id")}, positions, "plaid")
+        security = securities.get(str(holding.get("security_id") or ""), {})
+        provider_account_id = str(holding.get("account_id") or "")
+        quantity = _finite(holding.get("quantity"))
+        price = _finite(holding.get("institution_price"))
+        value = _finite(holding.get("institution_value"))
+        prior_close = _finite(security.get("close_price"))
+        if value <= 0 and quantity and price:
+            value = quantity * price
+        holdings_value_by_account[provider_account_id] = holdings_value_by_account.get(provider_account_id, 0.0) + max(value, 0.0)
+        if _plaid_asset_class(security) == "cash":
+            cash_value_by_account[provider_account_id] = cash_value_by_account.get(provider_account_id, 0.0) + max(value, 0.0)
+        change = quantity * (price - prior_close) if quantity and price > 0 and prior_close > 0 else 0.0
+        daily_pnl += change
+        symbol = str(security.get("ticker_symbol") or security.get("name") or "UNKNOWN")
+        positions.append(
+            {
+                "symbol": symbol,
+                "quantity": quantity,
+                "price": price,
+                "value": value,
+                "cost": _finite(holding.get("cost_basis")),
+                "meta": {
+                    "name": security.get("name") or symbol,
+                    "provider_account_id": provider_account_id,
+                    "security_id": holding.get("security_id"),
+                    "asset_class": _plaid_asset_class(security),
+                    "security_type": security.get("type"),
+                    "security_subtype": security.get("subtype"),
+                    "priced": price > 0 and value >= 0,
+                    "cost_basis": _finite(holding.get("cost_basis")),
+                    "change_24h": change,
+                    "change_24h_pct": ((price - prior_close) / prior_close * 100) if prior_close > 0 else 0.0,
+                },
+            }
+        )
+    equity = 0.0
+    available = 0.0
+    account_summaries = []
+    for item in data.get("accounts", []):
+        provider_account_id = str(item.get("account_id") or "")
+        balances = item.get("balances") or {}
+        current = balances.get("current")
+        current_value = _finite(current) if current is not None else holdings_value_by_account.get(provider_account_id, 0.0)
+        account_equity = max(current_value, holdings_value_by_account.get(provider_account_id, 0.0))
+        available_value = balances.get("available")
+        account_available = _finite(available_value) if available_value is not None else cash_value_by_account.get(provider_account_id, 0.0)
+        equity += account_equity
+        available += account_available
+        account_summaries.append(
+            {
+                "account_id": provider_account_id,
+                "name": item.get("name"),
+                "subtype": item.get("subtype"),
+                "current": current_value,
+                "available": account_available,
+                "margin_loan_amount": _finite(balances.get("margin_loan_amount")),
+            }
+        )
+    _save_snapshot(
+        db,
+        account,
+        equity,
+        available,
+        {
+            "request_id": data.get("request_id"),
+            "item_id": (connection.metadata_json or {}).get("item_id"),
+            "accounts": account_summaries,
+            "holding_count": len(positions),
+        },
+        positions,
+        "plaid",
+        daily_pnl=daily_pnl,
+    )
+    if include_transactions:
+        _sync_plaid_investment_transactions(db, account, token, securities)
+        if bool((connection.metadata_json or {}).get("plaid_cash_transactions_requested")):
+            _sync_plaid_cash_transactions(db, account, token)
+
+
+def request_plaid_investments_refresh(db: Session, user: User, account: TradingAccount) -> dict:
+    """Request a billable on-demand extraction without exposing Item credentials."""
+    if account.user_id != user.id or account.venue != "PLAID" or account.account_type != "READ_ONLY":
+        raise LookupError("Plaid portfolio account not found")
+    connection = _connection(db, account)
+    metadata = dict(connection.metadata_json or {})
+    last_requested = _parse_aware_datetime(metadata.get("plaid_refresh_requested_at"))
+    minimum_minutes = max(1, int(getattr(get_settings(), "plaid_investments_refresh_min_minutes", 15) or 15))
+    if last_requested and datetime.now(timezone.utc) - last_requested < timedelta(minutes=minimum_minutes):
+        raise PlaidRefreshRateLimited(
+            f"Plaid Investments Refresh can be requested once every {minimum_minutes} minutes for this account"
+        )
+    token = decrypt_token(connection.credential_ciphertext or "")
+    response = _plaid_request("/investments/refresh", token, timeout=55)
+    if response.status_code >= 400 and _plaid_error_code(response) == "PRODUCT_NOT_SUPPORTED":
+        metadata["plaid_refresh_supported"] = False
+        connection.metadata_json = metadata
+        db.commit()
+        raise PlaidRefreshUnsupported("This institution does not support Plaid Investments Refresh")
+    response.raise_for_status()
+    payload = response.json()
+    metadata.update(
+        {
+            "plaid_refresh_requested_at": utcnow().isoformat(),
+            "plaid_refresh_request_id": payload.get("request_id"),
+            "plaid_refresh_supported": True,
+        }
+    )
+    connection.metadata_json = metadata
+    connection.status = "PENDING_REFRESH"
+    connection.error_code = None
+    connection.error_message = None
+    db.commit()
+    return {
+        "account_id": account.id,
+        "status": "refresh_requested",
+        "request_id": payload.get("request_id"),
+        "retry_after_seconds": minimum_minutes * 60,
+    }
+
+
+def portfolio_account_for_plaid_item(db: Session, item_id: str) -> TradingAccount | None:
+    """Resolve an Item only through the server-side connection catalog."""
+    for connection in db.query(ExchangeConnection).filter_by(adapter="plaid").all():
+        if str((connection.metadata_json or {}).get("item_id") or "") != item_id:
+            continue
+        account = db.get(TradingAccount, connection.account_id)
+        if account and account.venue == "PLAID" and account.status == "ACTIVE":
+            return account
+    return None
+
+
+def verify_plaid_webhook(raw_body: bytes, signed_jwt: str | None) -> None:
+    """Verify Plaid's ES256 signature, body hash, and five-minute replay window."""
+    if not signed_jwt:
+        raise PlaidWebhookVerificationError("Missing Plaid-Verification header")
+    try:
+        header = jwt.get_unverified_header(signed_jwt)
+        if header.get("alg") != "ES256" or not header.get("kid"):
+            raise ValueError("unexpected algorithm or key id")
+        response = _plaid_request(
+            "/webhook_verification_key/get",
+            payload={"key_id": str(header["kid"])},
+            timeout=15,
+        )
+        response.raise_for_status()
+        key = response.json()["key"]
+        public_key = jwt.algorithms.ECAlgorithm.from_jwk(json.dumps(key))
+        claims = jwt.decode(
+            signed_jwt,
+            public_key,
+            algorithms=["ES256"],
+            options={"require": ["iat", "request_body_sha256"]},
+            leeway=10,
+        )
+        issued_at = int(claims["iat"])
+        if abs(int(datetime.now(timezone.utc).timestamp()) - issued_at) > 300:
+            raise ValueError("webhook is outside the replay window")
+        expected_hash = str(claims["request_body_sha256"])
+        actual_hash = hashlib.sha256(raw_body).hexdigest()
+        if not hmac.compare_digest(actual_hash, expected_hash):
+            raise ValueError("webhook body hash mismatch")
+    except Exception as exc:
+        raise PlaidWebhookVerificationError("Plaid webhook verification failed") from exc
+
+
+def process_plaid_webhook(db: Session, payload: dict) -> TradingAccount | None:
+    """Record webhook state quickly; the worker performs the slower API sync."""
+    environment = str(payload.get("environment") or "").lower()
+    if environment and environment != get_settings().plaid_env.strip().lower():
+        raise PlaidWebhookVerificationError("Plaid webhook environment does not match this deployment")
+    account = portfolio_account_for_plaid_item(db, str(payload.get("item_id") or ""))
+    if not account:
+        return None
+    connection = _connection(db, account)
+    metadata = dict(connection.metadata_json or {})
+    webhook_type = str(payload.get("webhook_type") or "")
+    metadata["plaid_last_webhook_at"] = utcnow().isoformat()
+    metadata["plaid_last_webhook"] = {
+        "type": webhook_type,
+        "code": payload.get("webhook_code"),
+    }
+    error = payload.get("error") or {}
+    if error:
+        connection.status = "ERROR"
+        connection.error_code = str(error.get("error_code") or "PLAID_ITEM_ERROR")[:120]
+        connection.error_message = str(error.get("error_message") or "Plaid reported an Item error")[:500]
+    else:
+        connection.status = "PENDING_REFRESH"
+        connection.error_code = None
+        connection.error_message = None
+    connection.metadata_json = metadata
+    db.commit()
+    return account if not error and webhook_type in {"HOLDINGS", "INVESTMENTS_TRANSACTIONS", "TRANSACTIONS"} else None
+
+
+def plaid_investment_transactions(
+    db: Session,
+    user: User,
+    *,
+    account_id: str | None = None,
+    limit: int = 100,
+) -> list[dict]:
+    query = db.query(PortfolioInvestmentTransaction).filter_by(user_id=user.id, provider="plaid")
+    if account_id:
+        account = db.query(TradingAccount).filter_by(id=account_id, user_id=user.id, venue="PLAID").one_or_none()
+        if not account:
+            raise LookupError("Plaid portfolio account not found")
+        query = query.filter_by(account_id=account.id)
+    rows = query.order_by(PortfolioInvestmentTransaction.posted_date.desc(), PortfolioInvestmentTransaction.created_at.desc()).limit(max(1, min(limit, 250))).all()
+    return [
+        {
+            "id": row.id,
+            "account_id": row.account_id,
+            "provider_account_id": row.provider_account_id,
+            "date": row.posted_date.isoformat(),
+            "transaction_datetime": row.transaction_datetime.isoformat() if row.transaction_datetime else None,
+            "name": row.name,
+            "symbol": row.symbol,
+            "type": row.transaction_type,
+            "subtype": row.subtype,
+            "quantity": row.quantity,
+            "price": row.price,
+            "amount": row.amount,
+            "fees": row.fees,
+            "currency": row.currency,
+            "cancelled": row.cancelled,
+        }
+        for row in rows
+    ]
 
 
 def _sync_ibkr(db: Session, account: TradingAccount) -> None:
@@ -602,11 +1181,21 @@ def _asset_class(symbol: str, raw: dict) -> str:
 
 
 def _latest_positions(db: Session, user_id: str, account: TradingAccount, snapshot: AccountSnapshot) -> list[PositionSnapshot]:
+    exact = db.query(PositionSnapshot).filter_by(
+        user_id=user_id,
+        account_id=account.id,
+        captured_at=snapshot.captured_at,
+    ).all()
+    if exact:
+        return exact
+    # Older snapshots created before captured_at was consistently shared by the
+    # account and position rows may have database precision drift. Keep a small
+    # compatibility window without double-counting newer repeated syncs.
     return db.query(PositionSnapshot).filter(
         PositionSnapshot.user_id == user_id,
         PositionSnapshot.account_id == account.id,
-        PositionSnapshot.captured_at >= snapshot.captured_at - timedelta(minutes=1),
-        PositionSnapshot.captured_at <= snapshot.captured_at + timedelta(minutes=1),
+        PositionSnapshot.captured_at >= snapshot.captured_at - timedelta(seconds=2),
+        PositionSnapshot.captured_at <= snapshot.captured_at + timedelta(seconds=2),
     ).all()
 
 
@@ -703,7 +1292,19 @@ def portfolio_view(db: Session, user: User) -> dict:
         connection = _connection(db, account)
         snapshot = next((row for row in latest if row.account_id == account.id), None)
         effective_status = "STALE" if snapshot and _snapshot_is_stale(account, snapshot) else connection.status
-        connections.append({"id": account.id, "provider": account.venue.lower(), "name": account.name, "status": effective_status, "last_sync": connection.last_health_at.isoformat() if connection.last_health_at else None, "error": connection.error_message})
+        metadata = connection.metadata_json or {}
+        connections.append(
+            {
+                "id": account.id,
+                "provider": account.venue.lower(),
+                "name": account.name,
+                "status": effective_status,
+                "last_sync": connection.last_health_at.isoformat() if connection.last_health_at else None,
+                "error": connection.error_message,
+                "can_refresh": account.venue == "PLAID" and plaid_configured and metadata.get("plaid_refresh_supported") is not False,
+                "refresh_requested_at": metadata.get("plaid_refresh_requested_at"),
+            }
+        )
         account_summaries.append({
             "id": account.id,
             "provider": account.venue.lower(),
@@ -734,6 +1335,9 @@ def portfolio_view(db: Session, user: User) -> dict:
         "connections": connections,
         "providers": {
             "plaid": plaid_configured,
+            "plaid_refresh": plaid_configured,
+            "plaid_cash_transactions": plaid_configured and bool(getattr(settings, "plaid_cash_transactions_enabled", False)),
+            "plaid_webhooks": bool(getattr(settings, "plaid_webhook_url", "")),
             "ibkr": bool(
                 getattr(settings, "ibkr_oauth_authorize_url", "")
                 and getattr(settings, "ibkr_oauth_token_url", "")

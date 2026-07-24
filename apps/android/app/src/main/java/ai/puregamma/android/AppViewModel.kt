@@ -7,19 +7,19 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
-import ai.puregamma.android.core.ApiClient
-import ai.puregamma.android.core.ErrorMessages
-import ai.puregamma.android.core.MobileOAuth
-import ai.puregamma.android.core.SecureTokenStore
-import ai.puregamma.android.core.ServerEvent
+import ai.puregamma.android.data.local.SecureTokenStore
+import ai.puregamma.android.data.remote.*
+import ai.puregamma.android.data.remote.dto.*
+import ai.puregamma.android.data.repository.*
 import ai.puregamma.android.model.*
+import com.google.gson.Gson
+import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import org.json.JSONArray
-import org.json.JSONObject
 import java.util.UUID
 
 sealed interface SessionState {
@@ -40,17 +40,30 @@ enum class ThemeMode { SYSTEM, LIGHT, DARK }
 class AppViewModel(application: Application) : AndroidViewModel(application) {
     private val preferences = application.getSharedPreferences("pg_settings", 0)
     private val tokenStore = SecureTokenStore(application)
-    private val api = ApiClient(
-        tokenStore = tokenStore,
-        localeProvider = { language },
-        onUnauthorized = { viewModelScope.launch(Dispatchers.Main) { forceSignOut() } },
+
+    private val oauthPending = application.getSharedPreferences("pg_oauth_pending", 0)
+    private var oauthVerifier: String = ""
+    private var oauthState: String = ""
+    private var oauthNonce: String = ""
+
+    private var onUnauthorized: () -> Unit = {
+        viewModelScope.launch(Dispatchers.Main) { forceSignOut() }
+    }
+
+    val api: PureGammaApi = ApiProvider.create(tokenStore, { language }, onUnauthorized)
+    private val sseClient = SseClient(
+        ApiProvider.createStreamOkHttpClient(tokenStore, { language }, onUnauthorized),
     )
-    private val oauth = MobileOAuth(application, api, tokenStore)
+
+    val todayRepo = TodayRepository(api)
+    val agentRepo = AgentRepository(api)
+    val researchRepo = ResearchRepository(api)
+    val portfolioRepo = PortfolioRepository(api)
+    val accountRepo = AccountRepository(api)
+
     private var streamJob: Job? = null
 
     var session: SessionState by mutableStateOf(SessionState.Checking)
-        private set
-    var webProductUrl: String? by mutableStateOf(null)
         private set
     var globalError: String? by mutableStateOf(null)
         private set
@@ -88,6 +101,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var agentActivity by mutableStateOf<String?>(null)
         private set
+    var selectedModel: String? by mutableStateOf(null)
+        private set
     private var activeRunId: String? by mutableStateOf(null)
 
     init {
@@ -100,73 +115,120 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             session = SessionState.SignedOut
             return@launch
         }
-        runCatching { api.get("/me").getJSONObject("user").toUser() }
-            .onSuccess { user ->
+        runCatching { api.getUser() }
+            .onSuccess { envelope ->
+                val dto = envelope.user
+                val user = User(
+                    id = dto.id,
+                    email = dto.email,
+                    name = dto.name,
+                    role = dto.role,
+                    plan = dto.plan,
+                    credits = dto.creditBalance,
+                    avatarUrl = dto.avatarUrl,
+                )
                 session = SessionState.SignedIn(user)
                 loadAll()
-                createWebProductSession()
             }
             .onFailure { forceSignOut() }
     }
 
-    private fun resolveError(error: Throwable, fallback: String): String =
-        ErrorMessages.resolve(getApplication(), error, fallback)
+    private fun resolveError(error: Throwable, fallback: String): String {
+        val api = error as? RetrofitApiException
+        if (api != null) {
+            val resId = ErrorMessages.messageResFor(api.code, api.status)
+            if (resId != null) return getApplication<Application>().getString(resId)
+        }
+        return error.message?.takeIf { it.isNotBlank() } ?: fallback
+    }
 
     fun beginGoogleSignIn(openBrowser: (Uri) -> Unit) = viewModelScope.launch {
         signingIn = true
         globalError = null
-        runCatching { oauth.beginGoogle() }
-            .onSuccess(openBrowser)
-            .onFailure { globalError = resolveError(it, "Unable to start Google sign-in") }
+        try {
+            oauthVerifier = MobileOAuth.random(48)
+            oauthState = MobileOAuth.random(32)
+            oauthNonce = MobileOAuth.random(32)
+            oauthPending.edit()
+                .putString("verifier", oauthVerifier)
+                .putString("state", oauthState)
+                .putString("nonce", oauthNonce)
+                .commit()
+            val response = api.googleOAuthStart(
+                GoogleOAuthStartRequest(
+                    redirectUri = MobileOAuth.CALLBACK_URL,
+                    codeChallenge = MobileOAuth.challenge(oauthVerifier),
+                    clientState = oauthState,
+                    nonce = oauthNonce,
+                ),
+            )
+            openBrowser(Uri.parse(response.authUrl))
+        } catch (e: Exception) {
+            globalError = resolveError(e, "Unable to start Google sign-in")
+        }
         signingIn = false
     }
 
     fun emailLogin(email: String, password: String) = viewModelScope.launch {
         signingIn = true
         globalError = null
-        val body = JSONObject().put("email", email.trim()).put("password", password)
-        runCatching { api.post("/auth/mobile/email/login", body) }
-            .onSuccess { response ->
-                tokenStore.save(response.getString("access_token"))
-                val user = response.getJSONObject("user").toUser()
-                session = SessionState.SignedIn(user)
-                loadAll()
-                createWebProductSession()
-            }
-            .onFailure { globalError = resolveError(it, "Unable to sign in") }
+        try {
+            val response = api.emailLogin(EmailLoginRequest(email.trim(), password))
+            tokenStore.save(response.accessToken)
+            val dto = response.user
+            session = SessionState.SignedIn(
+                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.creditBalance, dto.avatarUrl),
+            )
+            loadAll()
+        } catch (e: Exception) {
+            globalError = resolveError(e, "Unable to sign in")
+        }
         signingIn = false
     }
 
     fun emailRegister(email: String, password: String, name: String) = viewModelScope.launch {
         signingIn = true
         globalError = null
-        val body = JSONObject()
-            .put("email", email.trim())
-            .put("password", password)
-            .put("name", name.trim())
-            .put("locale", language)
-        runCatching { api.post("/auth/mobile/email/register", body) }
-            .onSuccess { response ->
-                tokenStore.save(response.getString("access_token"))
-                val user = response.getJSONObject("user").toUser()
-                session = SessionState.SignedIn(user)
-                loadAll()
-                createWebProductSession()
-            }
-            .onFailure { globalError = resolveError(it, "Unable to create account") }
+        try {
+            val response = api.emailRegister(
+                EmailRegisterRequest(email.trim(), password, name.trim(), language),
+            )
+            tokenStore.save(response.accessToken)
+            val dto = response.user
+            session = SessionState.SignedIn(
+                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.creditBalance, dto.avatarUrl),
+            )
+            loadAll()
+        } catch (e: Exception) {
+            globalError = resolveError(e, "Unable to create account")
+        }
         signingIn = false
     }
 
     fun handleOAuth(uri: Uri) = viewModelScope.launch {
         signingIn = true
         globalError = null
-        runCatching { oauth.exchange(uri) }
-            .onSuccess { user ->
-                session = SessionState.SignedIn(user)
-                loadAll()
-                createWebProductSession()
-            }
-            .onFailure { globalError = resolveError(it, "Unable to complete Google sign-in") }
+        try {
+            require(uri.scheme == "puregamma" && uri.host == "oauth" && uri.path == "/callback")
+            val state = oauthPending.getString("state", null) ?: error("OAuth session expired")
+            val verifier = oauthPending.getString("verifier", null) ?: error("OAuth session expired")
+            val nonce = oauthPending.getString("nonce", null) ?: error("OAuth session expired")
+            require(uri.getQueryParameter("state") == state) { "OAuth state verification failed" }
+            uri.getQueryParameter("error")?.let { error("Google sign-in was canceled") }
+            val code = uri.getQueryParameter("code") ?: error("OAuth callback did not contain a code")
+            val response = api.googleOAuthExchange(
+                GoogleOAuthExchangeRequest(code = code, codeVerifier = verifier, nonce = nonce),
+            )
+            tokenStore.save(response.accessToken)
+            oauthPending.edit().clear().apply()
+            val dto = response.user
+            session = SessionState.SignedIn(
+                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.creditBalance, dto.avatarUrl),
+            )
+            loadAll()
+        } catch (e: Exception) {
+            globalError = resolveError(e, "Unable to complete Google sign-in")
+        }
         signingIn = false
     }
 
@@ -180,58 +242,26 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         markets = LoadState.Loading
         reports = LoadState.Loading
         billing = LoadState.Loading
-        launch {
-            markets = load { api.get("/market/snapshot").optJSONArray("assets").objects().map(JSONObject::toMarketAsset) }
-        }
-        launch {
-            reports = load { api.get("/reports").optJSONArray("reports").objects().map(JSONObject::toReport) }
-        }
-        launch {
-            billing = load {
-                val value = api.get("/billing/subscription")
-                BillingSummary(value.string("plan"), value.string("subscription_status"), value.optInt("credit_balance"))
-            }
-        }
+        launch { markets = load { todayRepo.getMarketSnapshot() } }
+        launch { reports = load { todayRepo.getReports() } }
+        launch { billing = load { todayRepo.getBillingSummary() } }
     }
 
     fun loadPortfolio() = viewModelScope.launch {
         portfolio = LoadState.Loading
         autopilot = LoadState.Loading
-        launch { portfolio = load { api.get("/portfolio").toPortfolio() } }
-        launch { autopilot = load { api.get("/portfolio/autopilot").toAutopilot() } }
+        launch { portfolio = load { portfolioRepo.getPortfolio() } }
+        launch { autopilot = load { portfolioRepo.getAutopilot() } }
     }
 
     fun loadAgent() = viewModelScope.launch {
         capabilities = LoadState.Loading
         conversations = LoadState.Loading
         launch {
-            capabilities = load {
-                val root = api.get("/api/agent/capabilities")
-                val access = root.getJSONObject("capabilities")
-                val quota = root.getJSONObject("quota")
-                AgentCapabilities(
-                    plan = access.string("plan"),
-                    dataSources = access.optJSONArray("allowed_data_sources").strings(),
-                    dailyRuns = access.optInt("agent_daily_runs"),
-                    concurrentRuns = access.optInt("agent_concurrent_runs"),
-                    credits = quota.optInt("credit_balance"),
-                    remaining = quota.optInt("remaining"),
-                    models = root.optJSONArray("models").objects().map {
-                        AgentModel(
-                            id = it.string("id"),
-                            name = it.string("display_name"),
-                            provider = it.string("provider"),
-                            available = it.optBoolean("available"),
-                            reason = it.nullableString("reason"),
-                        )
-                    },
-                )
-            }
+            capabilities = load { agentRepo.getCapabilities() }
         }
         launch {
-            conversations = load {
-                api.get("/api/agent/conversations").optJSONArray("conversations").objects().map(JSONObject::toConversation)
-            }
+            conversations = load { agentRepo.getConversations() }
             val rows = (conversations as? LoadState.Ready)?.value.orEmpty()
             if (selectedConversation == null && rows.isNotEmpty()) openConversation(rows.first())
             if (rows.isEmpty()) messages = LoadState.Ready(emptyList())
@@ -239,10 +269,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun createConversation() = viewModelScope.launch {
-        val result = runCatching {
-            api.post("/api/agent/conversations", JSONObject().put("title", JSONObject.NULL))
-                .getJSONObject("conversation").toConversation()
-        }
+        val result = runCatching { agentRepo.createConversation() }
         result.onSuccess {
             selectedConversation = it
             messages = LoadState.Ready(emptyList())
@@ -254,8 +281,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         selectedConversation = conversation
         messages = LoadState.Loading
         messages = load {
-            api.get("/api/agent/conversations/${conversation.id}")
-                .optJSONArray("messages").objects().map(JSONObject::toMessage)
+            val (_, msgs) = agentRepo.getConversation(conversation.id)
+            msgs
         }
     }
 
@@ -264,10 +291,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         if (prompt.isEmpty() || isStreaming) return
         streamJob = viewModelScope.launch {
             if (selectedConversation == null) {
-                val created = runCatching {
-                    api.post("/api/agent/conversations", JSONObject().put("title", JSONObject.NULL))
-                        .getJSONObject("conversation").toConversation()
-                }.getOrElse { globalError = it.message; return@launch }
+                val created = runCatching { agentRepo.createConversation() }
+                    .getOrElse { globalError = it.message; return@launch }
                 selectedConversation = created
             }
             val conversation = selectedConversation ?: return@launch
@@ -280,16 +305,16 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             activeRunId = null
             globalError = null
             try {
-                val request = JSONObject()
-                    .put("content", prompt)
-                    .put("locale", language)
-                    .put("data_sources", JSONArray(listOf("market", "rss")))
-                    .put("skills", JSONArray(listOf("market_research", "news_research")))
-                    .put("skill_refs", JSONArray())
-                    .put("custom_prompt", "")
-                    .put("attachments", JSONArray())
-                    .put("model", defaultModel())
-                api.stream("/api/agent/conversations/${conversation.id}/messages", request) { event ->
+                val chosenModel = effectiveModel()
+                val body = agentRepo.buildAgentMessageRequest(
+                    content = prompt,
+                    locale = language,
+                    dataSources = listOf("market", "rss"),
+                    skills = listOf("market_research", "news_research"),
+                    customPrompt = "",
+                    model = chosenModel,
+                )
+                sseClient.stream("/api/agent/conversations/${conversation.id}/messages", body) { event ->
                     withContext(Dispatchers.Main) { applyAgentEvent(event, assistantId) }
                 }
             } catch (_: CancellationException) {
@@ -311,7 +336,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         streamJob?.cancel()
         if (runId != null) {
             viewModelScope.launch {
-                runCatching { api.post("/api/agent/runs/$runId/cancel") }
+                runCatching { agentRepo.cancelRun(runId) }
                     .onFailure { globalError = it.message ?: "Unable to cancel Agent run" }
             }
         }
@@ -322,27 +347,33 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun applyAgentEvent(event: ServerEvent, assistantId: String) {
         when (event.name) {
-            "run.started" -> activeRunId = event.data.optString(
-                "run_id",
-                event.data.optString("runId", event.data.optString("id")),
-            ).takeIf(String::isNotBlank)
+            "run.started" -> activeRunId = event.data.get("run_id")?.asString
+                ?: event.data.get("runId")?.asString
+                ?: event.data.get("id")?.asString
             "message.delta" -> updateMessage(assistantId) { message ->
-                message.copy(content = message.content + event.data.optString("delta", event.data.optString("content")))
+                val delta = event.data.get("delta")?.asString
+                    ?: event.data.get("content")?.asString ?: ""
+                message.copy(content = message.content + delta)
             }
-            "tool.started" -> agentActivity = event.data.optString("tool", event.data.optString("name", "Working"))
+            "tool.started" -> agentActivity = event.data.get("tool")?.asString
+                ?: event.data.get("name")?.asString ?: "Working"
             "tool.completed" -> agentActivity = null
             "citation" -> updateMessage(assistantId) { message ->
                 val source = AgentSource(
-                    index = event.data.optInt("index"),
-                    provider = event.data.optString("provider"),
-                    title = event.data.optString("title"),
-                    url = event.data.nullableString("url"),
+                    index = event.data.get("index")?.asInt ?: 0,
+                    provider = event.data.get("provider")?.asString ?: "",
+                    title = event.data.get("title")?.asString ?: "",
+                    url = event.data.get("url")?.asString,
                 )
                 message.copy(sources = (message.sources + source).distinctBy { it.index to it.url })
             }
             "message.completed" -> updateMessage(assistantId) { it.copy(status = "completed") }
             "run.failed" -> updateMessage(assistantId) {
-                it.copy(status = "failed", error = event.data.optString("message", event.data.optString("error")))
+                it.copy(
+                    status = "failed",
+                    error = event.data.get("message")?.asString
+                        ?: event.data.get("error")?.asString,
+                )
             }
         }
     }
@@ -354,30 +385,27 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     fun connectHyperliquid(address: String) = viewModelScope.launch {
         globalError = null
-        runCatching {
-            api.post("/portfolio/hyperliquid/connect", JSONObject().put("address", address.trim()))
-        }.onSuccess { loadPortfolio() }.onFailure { globalError = it.message }
+        runCatching { portfolioRepo.connectHyperliquid(address.trim()) }
+            .onSuccess { portfolio = LoadState.Ready(it); loadPortfolio() }
+            .onFailure { globalError = it.message }
     }
 
     fun syncConnection(id: String) = viewModelScope.launch {
-        runCatching { api.post("/portfolio/accounts/$id/sync") }
+        runCatching { portfolioRepo.syncConnection(id) }
             .onSuccess { loadPortfolio() }
             .onFailure { globalError = it.message }
     }
 
     fun runAutopilotReview() = viewModelScope.launch {
-        runCatching { api.post("/portfolio/autopilot/run") }
-            .onSuccess { loadPortfolio() }
+        runCatching { portfolioRepo.runAutopilotReview() }
+            .onSuccess { autopilot = LoadState.Ready(it); loadPortfolio() }
             .onFailure { globalError = it.message }
     }
 
     fun updateLanguage(value: String) {
         language = value
         preferences.edit().putString("language", value).apply()
-        if (session is SessionState.SignedIn) {
-            loadAll()
-            createWebProductSession()
-        }
+        if (session is SessionState.SignedIn) loadAll()
     }
 
     fun setTheme(value: ThemeMode) {
@@ -389,16 +417,31 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         globalError = null
     }
 
+    fun setModel(modelId: String?) {
+        selectedModel = modelId
+    }
+
+    private fun effectiveModel(): String = selectedModel ?: (capabilities as? LoadState.Ready)
+        ?.value?.models?.firstOrNull { it.available }?.id ?: "default"
+
     fun signOut() = viewModelScope.launch {
-        runCatching { api.post("/auth/logout") }
+        runCatching { api.logout() }
         forceSignOut()
+    }
+
+    fun deleteAccount() = viewModelScope.launch {
+        try {
+            accountRepo.deleteAccount()
+            forceSignOut()
+        } catch (e: Exception) {
+            globalError = resolveError(e, "Unable to delete account")
+        }
     }
 
     private fun forceSignOut() {
         streamJob?.cancel()
         tokenStore.clear()
-        oauth.clearPending()
-        webProductUrl = null
+        oauthPending.edit().clear().apply()
         session = SessionState.SignedOut
         markets = LoadState.Idle
         reports = LoadState.Idle
@@ -409,23 +452,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private suspend fun <T> load(block: suspend () -> T): LoadState<T> =
         runCatching { block() }.fold(
             onSuccess = { LoadState.Ready(it) },
-            onFailure = { LoadState.Failed(it.message ?: "Request failed") },
+            onFailure = { LoadState.Failed(resolveError(it, "Request failed")) },
         )
-
-    private fun createWebProductSession() = viewModelScope.launch {
-        webProductUrl = null
-        runCatching {
-            val response = api.post(
-                "/auth/mobile/web-session",
-                JSONObject().put("locale", language),
-            )
-            "${BuildConfig.API_BASE_URL.trimEnd('/')}${response.getString("handoff_path")}"
-        }.onSuccess { url ->
-            webProductUrl = url
-        }.onFailure { error ->
-            globalError = error.message ?: "Unable to start the PureGamma web session"
-        }
-    }
 
     private fun defaultModel(): String = (capabilities as? LoadState.Ready)
         ?.value?.models?.firstOrNull { it.available }?.id ?: "default"

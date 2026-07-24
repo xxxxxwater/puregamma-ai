@@ -10,7 +10,7 @@ from apps.api.services.notification_service import send_notification
 from apps.api.services.report_service import create_daily_report
 from apps.api.services.signal_service import scan_signals
 from apps.api.services.runtime_sync_service import sync_runtime_account
-from apps.api.services.portfolio_service import run_autopilot_review, sync_account
+from apps.api.services.portfolio_service import PlaidDataPending, run_autopilot_review, sync_account
 from apps.api.services.data_source_service import sync_all_providers, sync_provider
 from apps.api.services.daily_push_service import next_delivery, render_daily_brief_delivery
 from apps.api.services.entitlement_service import get_user_entitlement
@@ -226,6 +226,26 @@ def execute_unified_backtest(self, run_id: str) -> dict:
             finish_module_skill_invocation(db, invocation_id, status="failed", credits_used=0, error_code="BACKTEST_EXECUTION_FAILED")
             db.commit()
         raise
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.sync_plaid_investments_account", bind=True, max_retries=8)
+def sync_plaid_investments_account(self, account_id: str) -> dict:
+    """Fetch holdings and investment activity after Link, refresh, or webhook."""
+    db = SessionLocal()
+    try:
+        account = db.get(TradingAccount, account_id)
+        if not account or account.venue != "PLAID" or account.status != "ACTIVE":
+            return {"account_id": account_id, "status": "ignored"}
+        user = db.get(User, account.user_id)
+        if not user:
+            return {"account_id": account_id, "status": "missing_user"}
+        sync_account(db, user, account, include_transactions=True)
+        return {"account_id": account_id, "status": "synced"}
+    except PlaidDataPending as exc:
+        delay = min(600, 30 * (self.request.retries + 1))
+        raise self.retry(exc=exc, countdown=delay)
     finally:
         db.close()
 

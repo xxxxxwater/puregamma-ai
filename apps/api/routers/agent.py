@@ -131,6 +131,16 @@ def delete_conversation(conversation_id: str, db: Session = Depends(get_db), use
     return {"ok": True}
 
 
+@router.delete("/conversations")
+def delete_all_conversations(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    count = db.query(AgentConversation).filter(
+        AgentConversation.user_id == user.id,
+        AgentConversation.status != "deleted"
+    ).update({"status": "deleted", "archived_at": utcnow()}, synchronize_session=False)
+    db.commit()
+    return {"ok": True, "deleted": count}
+
+
 @router.get("/conversations/{conversation_id}/messages")
 def messages(conversation_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     owned_conversation(db, user, conversation_id)

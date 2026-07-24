@@ -54,4 +54,9 @@
     <string name="error_captcha">Verification failed. Please try again.</string>
     <string name="error_google_sign_in">Google sign-in failed. Please try again.</string>
     <string name="error_insufficient_credits">Not enough credits. Please upgrade or top up on the website.</string>
+    <string name="delete_account">Delete account</string>
+    <string name="delete_account_confirm_title">Delete account</string>
+    <string name="delete_account_confirm_message">This permanently deletes your account and all associated data. This action cannot be undone.</string>
+    <string name="delete_account_confirm">Permanently delete</string>
+    <string name="cancel">Cancel</string>
 </resources>

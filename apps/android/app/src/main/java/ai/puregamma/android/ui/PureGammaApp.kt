@@ -49,6 +49,7 @@ import androidx.core.view.WindowCompat
 import ai.puregamma.android.*
 import ai.puregamma.android.R
 import ai.puregamma.android.model.*
+import ai.puregamma.android.ui.component.NavHistoryChart
 import java.text.NumberFormat
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -116,12 +117,7 @@ fun PureGammaApp(model: AppViewModel, openBrowser: (Uri) -> Unit) {
                 when (model.session) {
                     SessionState.Checking -> LoadingScreen()
                     SessionState.SignedOut -> LoginScreen(model, openBrowser)
-                    is SessionState.SignedIn -> model.webProductUrl?.let { productUrl ->
-                        WebProductScreen(
-                            entryUrl = productUrl,
-                            onSignOut = model::signOut,
-                        )
-                    } ?: LoadingScreen()
+                    is SessionState.SignedIn -> SignedInApp(model)
                 }
             }
         }
@@ -444,14 +440,19 @@ private fun ReportRow(report: Report) {
 @Composable
 private fun AgentScreen(model: AppViewModel) {
     var prompt by remember { mutableStateOf("") }
+    var showContext by remember { mutableStateOf(false) }
     val rows = (model.messages as? LoadState.Ready)?.value.orEmpty()
     val listState = rememberLazyListState()
+    val caps = model.capabilities as? LoadState.Ready
     LaunchedEffect(rows.size, rows.lastOrNull()?.content) {
         if (rows.isNotEmpty()) listState.scrollToItem(rows.lastIndex)
     }
     Column(Modifier.fillMaxSize()) {
         ScreenHeader(model.selectedConversation?.title ?: stringResource(R.string.agent), if (model.isStreaming) "RUNNING" else "READY", model::loadAgent)
         ConversationBar(model)
+        if (showContext && caps != null) {
+            AgentContextPanel(caps.value, model.selectedModel, { model.setModel(it) }, onDismiss = { showContext = false })
+        }
         when (val state = model.messages) {
             LoadState.Idle, LoadState.Loading -> LoadingBlock(Modifier.weight(1f))
             is LoadState.Failed -> ErrorBlock(state.message, model::loadAgent, Modifier.weight(1f))
@@ -473,6 +474,9 @@ private fun AgentScreen(model: AppViewModel) {
         }
         HorizontalDivider()
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Bottom) {
+            IconButton(onClick = { showContext = !showContext }) {
+                Icon(Icons.Default.Tune, contentDescription = "Context", tint = if (showContext) BrandGold else MaterialTheme.colorScheme.onSurfaceVariant)
+            }
             OutlinedTextField(
                 value = prompt,
                 onValueChange = { prompt = it },
@@ -504,6 +508,34 @@ private fun AgentScreen(model: AppViewModel) {
                 Icon(if (model.isStreaming) Icons.Default.Stop else Icons.AutoMirrored.Filled.Send, contentDescription = stringResource(if (model.isStreaming) R.string.stop else R.string.send))
             }
         }
+    }
+}
+
+@Composable
+private fun AgentContextPanel(caps: AgentCapabilities, selectedModel: String?, setModel: (String) -> Unit, onDismiss: () -> Unit) {
+    Column(
+        Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp)).padding(12.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+            Text("Context", style = MaterialTheme.typography.labelSmall, color = BrandGold)
+            Text("${caps.credits} CREDITS / ${caps.remaining} REMAINING", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            IconButton(onClick = onDismiss, modifier = Modifier.size(24.dp)) {
+                Icon(Icons.Default.Close, contentDescription = "Close", modifier = Modifier.size(16.dp))
+            }
+        }
+        Text("Models", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            caps.models.take(4).forEach { md ->
+                FilterChip(
+                    selected = md.id == (selectedModel ?: caps.models.firstOrNull { it.available }?.id),
+                    onClick = { if (md.available) setModel(md.id) },
+                    label = { Text(md.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                    enabled = md.available,
+                )
+            }
+        }
+        Text(caps.dataSources.joinToString(" / "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 
@@ -553,12 +585,38 @@ private fun AgentMessageRow(message: AgentMessage) {
 
 @Composable
 private fun ResearchScreen(model: AppViewModel) {
+    var typeFilter by remember { mutableStateOf<String?>(null) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item { ScreenHeader(stringResource(R.string.research), "REPORTS / OPTIONS / SOURCES", model::loadToday) }
         when (val state = model.reports) {
             LoadState.Idle, LoadState.Loading -> item { LoadingBlock() }
             is LoadState.Failed -> item { ErrorBlock(state.message, model::loadToday) }
-            is LoadState.Ready -> if (state.value.isEmpty()) item { EmptyBlock() } else items(state.value, key = { it.id }) { ReportRow(it) }
+            is LoadState.Ready -> {
+                val types = state.value.map { it.type }.distinct().sorted()
+                val filtered = if (typeFilter == null) state.value else state.value.filter { it.type == typeFilter }
+                if (types.size > 1) {
+                    item {
+                        LazyRow(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                            item {
+                                FilterChip(
+                                    selected = typeFilter == null,
+                                    onClick = { typeFilter = null },
+                                    label = { Text("ALL") },
+                                )
+                            }
+                            items(types) { type ->
+                                FilterChip(
+                                    selected = typeFilter == type,
+                                    onClick = { typeFilter = if (typeFilter == type) null else type },
+                                    label = { Text(type.uppercase()) },
+                                )
+                            }
+                        }
+                    }
+                }
+                if (filtered.isEmpty()) item { EmptyBlock() }
+                else items(filtered, key = { it.id }) { ReportRow(it) }
+            }
         }
         item { Disclosure() }
     }
@@ -567,12 +625,23 @@ private fun ResearchScreen(model: AppViewModel) {
 @Composable
 private fun PortfolioScreen(model: AppViewModel) {
     var wallet by remember { mutableStateOf("") }
+    var navPoints by remember { mutableStateOf<List<NavPoint>>(emptyList()) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item { ScreenHeader(stringResource(R.string.portfolio), "READ-ONLY / NO EXECUTION", model::loadPortfolio) }
         when (val state = model.portfolio) {
             LoadState.Idle, LoadState.Loading -> item { LoadingBlock() }
             is LoadState.Failed -> item { ErrorBlock(state.message, model::loadPortfolio) }
             is LoadState.Ready -> {
+                if (state.value.navHistory.isNotEmpty()) {
+                    item {
+                        LaunchedEffect(state.value) { navPoints = state.value.navHistory }
+                        NavHistoryChart(
+                            points = navPoints,
+                            modifier = Modifier.padding(vertical = 12.dp),
+                        )
+                    }
+                    item { HorizontalDivider(Modifier.padding(horizontal = 16.dp)) }
+                }
                 item {
                     Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(16.dp)) {
                         Metric(stringResource(R.string.nav), money(state.value.nav), Modifier.weight(1f))
@@ -644,6 +713,7 @@ private fun AutopilotBlock(state: LoadState<Autopilot>, run: () -> Unit) {
 @Composable
 private fun AccountScreen(model: AppViewModel) {
     val user = (model.session as? SessionState.SignedIn)?.user ?: return
+    var showDeleteDialog by remember { mutableStateOf(false) }
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenHeader(stringResource(R.string.account), "SECURITY / PREFERENCES") }
         item {
@@ -685,7 +755,40 @@ private fun AccountScreen(model: AppViewModel) {
                 Text(stringResource(R.string.sign_out), color = Negative)
             }
         }
+        item {
+            TextButton(
+                onClick = { showDeleteDialog = true },
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp),
+            ) {
+                Icon(Icons.Default.Delete, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text(stringResource(R.string.delete_account), color = Negative)
+            }
+        }
         item { Disclosure() }
+    }
+
+    if (showDeleteDialog) {
+        AlertDialog(
+            onDismissRequest = { showDeleteDialog = false },
+            title = { Text(stringResource(R.string.delete_account_confirm_title)) },
+            text = { Text(stringResource(R.string.delete_account_confirm_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showDeleteDialog = false
+                        model.deleteAccount()
+                    },
+                ) {
+                    Text(stringResource(R.string.delete_account_confirm), color = Negative)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            },
+        )
     }
 }
 

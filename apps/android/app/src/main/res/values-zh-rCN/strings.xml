@@ -54,4 +54,9 @@
     <string name="error_captcha">验证失败，请重试。</string>
     <string name="error_google_sign_in">Google 登录失败，请重试。</string>
     <string name="error_insufficient_credits">Credits 不足，请前往网站升级或充值。</string>
+    <string name="delete_account">删除账户</string>
+    <string name="delete_account_confirm_title">删除账户</string>
+    <string name="delete_account_confirm_message">这将永久删除你的账户及所有相关数据。此操作不可撤销。</string>
+    <string name="delete_account_confirm">永久删除</string>
+    <string name="cancel">取消</string>
 </resources>
