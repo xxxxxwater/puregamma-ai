@@ -1,7 +1,10 @@
 from __future__ import annotations
 
+import json
+import threading
+
 from fastapi import APIRouter, Depends, HTTPException
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -24,6 +27,7 @@ from apps.api.services.credit_service import InsufficientCreditsError
 from apps.api.services.entitlement_service import EntitlementDeniedError
 from packages.backtest.daily_data import LAB_SYMBOLS, refresh_daily_candles
 from packages.database.models import BacktestArtifact, BacktestLabRun, BacktestRun, User
+from apps.api.redis_client import get_redis
 
 router = APIRouter(prefix="/backtest-lab", tags=["backtest-lab"])
 
@@ -140,3 +144,65 @@ def download_artifact(artifact_id: str, db: Session = Depends(get_db), user: Use
 def refresh_data(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     stats = refresh_daily_candles(db, list(LAB_SYMBOLS))
     return {"stats": stats, **lab_status(db)}
+
+
+@router.get("/runs/{run_id}/stream")
+def stream_run(
+    run_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> StreamingResponse:
+    """SSE stream of per-bar/trade progress events for the terminal backtest UI."""
+    channel = f"backtest:logs:{run_id}"
+    shutdown = threading.Event()
+
+    def event_generator():
+        try:
+            redis = get_redis()
+            redis.ping()
+        except Exception:
+            yield f"data: {json.dumps({'t': 'error', 'line': 'Redis unavailable — terminal output disabled'})}\n\n"
+            yield f"data: {json.dumps({'t': 'close'})}\n\n"
+            return
+
+        pubsub = redis.pubsub()
+        pubsub.subscribe(channel)
+        try:
+            msg = pubsub.get_message(timeout=0.1)
+            while msg is not None and not shutdown.is_set():
+                if msg["type"] == "message":
+                    data = msg["data"]
+                    yield f"data: {data}\n\n"
+                    if json.loads(data).get("t") == "close":
+                        break
+                msg = pubsub.get_message(timeout=0.05)
+            while not shutdown.is_set():
+                msg = pubsub.get_message(timeout=2.0)
+                if msg is None:
+                    yield f": keepalive\n\n"
+                    continue
+                if msg["type"] == "message":
+                    data = msg["data"]
+                    yield f"data: {data}\n\n"
+                    if json.loads(data).get("t") == "close":
+                        break
+        except GeneratorExit:
+            pass
+        except Exception:
+            yield f"data: {json.dumps({'t': 'error', 'line': 'stream error'})}\n\n"
+        finally:
+            try:
+                pubsub.unsubscribe(channel)
+            except Exception:
+                pass
+            shutdown.set()
+
+    return StreamingResponse(
+        event_generator(),
+        media_type="text/event-stream",
+        headers={
+            "Cache-Control": "no-cache",
+            "Connection": "keep-alive",
+            "X-Accel-Buffering": "no",
+        },
+    )

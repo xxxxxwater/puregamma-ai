@@ -6,6 +6,7 @@ and test environments functional while preserving the same result contract.
 
 from __future__ import annotations
 
+import time
 from datetime import datetime
 from typing import Any
 
@@ -75,9 +76,12 @@ def _charts(
     }
 
 
-def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial_cash: float = 100_000.0) -> dict:
-    native = _run_native_vectorbt(spec, window, initial_cash=initial_cash)
+def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial_cash: float = 100_000.0, logger: Any | None = None) -> dict:
+    t0 = time.monotonic()
+    native = _run_native_vectorbt(spec, window, initial_cash=initial_cash, logger=logger)
     if native is not None:
+        if logger:
+            logger.metric("engine", 1)  # native
         return native
     assets = [str(item).upper() for item in spec.get("assets", [])]
     fast = max(2, int(spec.get("fast_window", 12)))
@@ -86,27 +90,42 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     signal = str(spec.get("signal", "momentum"))
     threshold = float(spec.get("entry_threshold", 0.0))
     long_short = bool(spec.get("long_short", False))
+    total_bars = sum(len([row for row in window.get(asset, []) if float(row.get("close", 0)) > 0]) for asset in assets)
+    if logger:
+        logger.metric("engine", 0)  # compatible
+        for asset in assets:
+            bars = [row for row in window.get(asset, []) if float(row.get("close", 0)) > 0]
+            logger.data_loaded(asset, len(bars), (spec.get("data_sources") or {}).get(asset, "store"))
     series: list[tuple[datetime, float, float]] = []
     trades: list[dict] = []
     positions: list[dict] = []
     all_returns: list[float] = []
+    global_bar = 0
     for asset in assets:
         bars = [row for row in window.get(asset, []) if float(row.get("close", 0)) > 0]
         if len(bars) < slow + 2:
             raise ValueError(f"insufficient candle history for {asset}")
         closes = [float(row["close"]) for row in bars]
         previous = 0.0
+        equity_sofar = initial_cash
         for index in range(1, len(bars)):
             target = _signal(closes, index, fast, slow, signal, threshold, long_short)
             change = target - previous
             asset_return = closes[index] / closes[index - 1] - 1
             period_return = previous * asset_return - abs(change) * fee_bps / 10_000
             all_returns.append(period_return)
+            equity_sofar *= 1 + period_return
             series.append((bars[index]["ts"], period_return, asset_return))
             positions.append({"ts": bars[index]["ts"].isoformat(), "asset": asset, "weight": round(target, 6)})
             if change:
+                direction = "buy" if target > previous else "sell"
                 trades.append({"ts": bars[index]["ts"].isoformat(), "asset": asset, "from": previous, "to": target, "turnover": abs(change)})
+                if logger:
+                    logger.trade(asset, bars[index]["ts"], direction, closes[index], target, equity_sofar)
             previous = target
+            global_bar += 1
+            if logger and global_bar % max(1, total_bars // 50) == 0:
+                logger.progress(global_bar, total_bars, asset, closes[index], equity_sofar)
     series.sort(key=lambda item: item[0])
     equity = []
     value = 1.0
@@ -124,14 +143,19 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
         benchmark_value *= 1 + sum(benchmark_by_ts[ts]) / len(benchmark_by_ts[ts])
         benchmark.append({"ts": ts, "equity": round(benchmark_value, 6)})
     drawdown = _drawdown_curve(equity)
-    return {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt" if _vectorbt_available() else "vectorbt_compatible", "is_live": False}
+    result = {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt" if _vectorbt_available() else "vectorbt_compatible", "is_live": False}
+    if logger:
+        ret = metrics.get("total_return", 0.0)
+        logger.complete(len(trades), metrics.get("final_equity", 0.0), ret, int((time.monotonic() - t0) * 1000))
+    return result
 
 
-def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial_cash: float) -> dict[str, Any] | None:
+def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial_cash: float, logger: Any | None = None) -> dict[str, Any] | None:
     """Use native VectorBT for the simple single-asset path when dependencies exist."""
     assets = [str(item).upper() for item in spec.get("assets", [])]
     if len(assets) != 1:
         return None
+    t0 = time.monotonic()
     try:
         import numpy as np
         import pandas as pd
@@ -141,13 +165,16 @@ def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *,
         fast = max(2, int(spec.get("fast_window", 12)))
         slow = max(fast + 1, int(spec.get("slow_window", 26)))
         if len(rows) < slow + 2:
+            if logger:
+                logger.warning(f"insufficient candle history for native {assets[0]} ({len(rows)} bars, need {slow + 2})")
             return None
         close = pd.Series([float(row["close"]) for row in rows], index=pd.to_datetime([row["ts"] for row in rows]))
         fast_ma = close.rolling(fast).mean()
         slow_ma = close.rolling(slow).mean()
         entries = (fast_ma > slow_ma).fillna(False)
         exits = (fast_ma <= slow_ma).fillna(False)
-        pf = vbt.Portfolio.from_signals(close, entries, exits, init_cash=initial_cash, fees=max(0.0, float(spec.get("fee_bps", 10.0))) / 10_000)
+        pf = vbt.Portfolio.from_signals(close, entries, exits, init_cash=initial_cash,
+                                         fees=max(0.0, float(spec.get("fee_bps", 10.0)) + max(0.0, float(spec.get("slippage_bps", 0.0)))) / 10_000)
         values = pf.value()
         returns = [float(item) for item in pf.returns().fillna(0).tolist()]
         metrics = enrich_metrics(calculate_metrics(returns), returns)
@@ -157,15 +184,25 @@ def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *,
         positions = []
         trades = []
         previous = 0.0
-        for index, entry, exit in zip(close.index, entries, exits):
+        total_bars = len(close)
+        for bar_idx, (index, entry, exit, price, eq_val) in enumerate(zip(close.index, entries, exits, close.values, values.values)):
             target = 1.0 if entry else 0.0 if exit else previous
             ts = index.isoformat()
             positions.append({"ts": ts, "asset": assets[0], "weight": target})
             if target != previous:
+                direction = "buy" if target > previous else "sell"
                 trades.append({"ts": ts, "asset": assets[0], "from": previous, "to": target, "turnover": abs(target - previous)})
+                if logger:
+                    logger.trade(assets[0], ts, direction, price, target, eq_val)
             previous = target
+            if logger and bar_idx % max(1, total_bars // 50) == 0:
+                logger.progress(bar_idx, total_bars, assets[0], price, eq_val)
         drawdown = _drawdown_curve(equity)
-        return {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt", "is_live": False}
+        result = {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt", "is_live": False}
+        if logger:
+            ret = metrics.get("total_return", 0.0)
+            logger.complete(len(trades), metrics.get("final_equity", 0.0), ret, int((time.monotonic() - t0) * 1000))
+        return result
     except (ImportError, ValueError, TypeError, AttributeError, KeyError):
         return None
 

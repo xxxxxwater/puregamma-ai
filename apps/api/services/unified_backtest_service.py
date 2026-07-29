@@ -13,8 +13,12 @@ from sqlalchemy.orm import Session
 
 from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
 from apps.api.services.entitlement_service import assert_action_allowed
+from apps.api.redis_client import get_redis
 from packages.backtest.artifacts import artifact_path, write_json_artifact
-from packages.backtest.daily_data import candle_coverage, load_candle_window, refresh_daily_candles
+from packages.backtest.daily_data import candle_coverage, is_crypto_asset, load_candle_window, provider_for_asset, refresh_daily_candles
+from packages.backtest.engines import assert_synthetic_allowed
+from packages.backtest.equity_daily import EquityDailyLoader, EquityDataUnavailable
+from packages.backtest.logger import BacktestLogger
 from packages.backtest.strategy_spec import parse_spec
 from packages.backtest.vectorbt_engine import run_vectorbt
 from packages.billing.metering import CreditReservation
@@ -71,6 +75,7 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
     reservation = CreditReservation(idempotency_key=reservation_key, credits=row.credits_reserved or BACKTEST_CREDITS)
     row.status = "running"
     db.commit()
+    bl: BacktestLogger | None = None
     try:
         spec = parse_spec((row.spec_json or {}).get("spec") or row.params_json).model_dump()
         window_days = int((row.spec_json or {}).get("window_days", 365 * 3))
@@ -92,7 +97,20 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
         start = end - timedelta(days=max(30, min(window_days, 365 * 3)))
         if window is None:
             window = load_candle_window(db, spec["assets"], start, end)
-        result = run_vectorbt(spec, window)
+        # Real-time terminal logger (Redis pub/sub → SSE).  Degrades
+        # silently when Redis is unavailable (no-op logger).
+        bl: BacktestLogger | None = None
+        try:
+            redis = get_redis()
+            redis.ping()
+            bl = BacktestLogger(row.id, redis)
+            bl.start(spec["assets"], sum(len(window.get(asset, [])) for asset in spec["assets"]),
+                     "vectorbt", freshness)
+        except Exception:
+            pass
+        result = run_vectorbt(spec, window, logger=bl)
+        if bl:
+            bl.close()
         coverage = candle_coverage(db)
         result["data_freshness"] = freshness
         result["bar_count"] = sum(len(window.get(asset, [])) for asset in spec["assets"])
@@ -106,6 +124,9 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
         row.completed_at = _now()
         db.commit()
     except Exception as exc:
+        if bl:
+            bl.error(str(exc)[:300])
+            bl.close()
         db.rollback()
         row = db.get(BacktestRun, run_id)
         row.status = "failed"

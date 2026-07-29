@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Download, FlaskConical, Loader2, Play, RefreshCw, Sparkles } from "lucide-react";
+import { BacktestTerminal } from "@/components/backtest-terminal";
 import { type Locale, withLocale } from "@/i18n/routing";
 import { API_URL, BacktestLabRun, BacktestLabSpec, BacktestLabStatus, exportBacktestLabRun, generateBacktestLabSpec, getBacktestLabRuns, getBacktestLabStatus, refreshBacktestLabData, runBacktestLab } from "@/lib/api";
 import { PlotlyChart } from "@/components/plotly-chart";
@@ -213,6 +214,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
 
       {selected && perf ? (
         <section className="space-y-5 border border-border-pg bg-bg-panel p-5">
+          <BacktestTerminal run={{ id: selected.id, status: selected.status }} localeStr={locale} />
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">{copy.performance.title}: {selected.spec?.name}</h2>
             {isActive ? <span className="flex items-center gap-1 text-[11px] text-text-pg-muted"><Loader2 className="h-3 w-3 animate-spin" />{selected.status}</span> : null}
