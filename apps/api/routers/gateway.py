@@ -6,7 +6,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
 from ipaddress import ip_address
-from typing import Any, Generator
+from typing import Any, Generator, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, StreamingResponse
@@ -17,6 +17,7 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db, require_admin
 from packages.database.models import (
+    GatewayAccount,
     GatewayApiKey,
     GatewayIPBlock,
     GatewayModel,
@@ -80,6 +81,13 @@ class IPBlockRequest(BaseModel):
 
 class ProviderEnableRequest(BaseModel):
     enabled: bool
+
+
+class GatewayAccountUpdateRequest(BaseModel):
+    """An administrator-controlled account guardrail, not a payment mutation."""
+
+    status: Literal["active", "suspended"] | None = None
+    monthly_spend_limit_usd: Decimal | None = Field(default=None, ge=0, le=1_000_000)
 
 
 class ChatCompletionsRequest(BaseModel):
@@ -196,6 +204,29 @@ def _serialize_request(row: GatewayRequestLog) -> dict[str, Any]:
         "provider_cost_usd": str(row.provider_cost_usd),
         "error_code": row.error_code,
         "created_at": row.created_at.isoformat(),
+    }
+
+
+def _serialize_gateway_account(
+    user: User,
+    account: GatewayAccount | None,
+    *,
+    active_key_count: int,
+    lifetime_spend_usd: Decimal | int | float,
+) -> dict[str, Any]:
+    """Return only the account data an administrator needs to operate the gateway."""
+
+    return {
+        "user_id": user.id,
+        "email": user.email,
+        "name": user.name,
+        "plan": user.plan,
+        "account_status": account.status if account else "active",
+        "monthly_spend_limit_usd": str(account.monthly_spend_limit_usd) if account else "0",
+        "current_month_spend_usd": str(account.current_month_spend_usd) if account else "0",
+        "lifetime_spend_usd": str(lifetime_spend_usd or 0),
+        "active_key_count": active_key_count,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
     }
 
 
@@ -560,6 +591,109 @@ def metrics(db: Session = Depends(get_db), _: User = Depends(_admin)) -> dict[st
     cost = db.query(func.coalesce(func.sum(GatewayRequestLog.provider_cost_usd), 0)).filter_by(status="success").scalar()
     requests = db.query(func.count(GatewayRequestLog.id)).scalar()
     return {"revenue_usd": str(revenue), "provider_cost_usd": str(cost), "profit_usd": str(Decimal(str(revenue)) - Decimal(str(cost))), "requests": requests}
+
+
+@admin_router.get("/accounts")
+def gateway_accounts(
+    limit: int = Query(default=100, ge=1, le=300),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    _: User = Depends(_admin),
+) -> dict[str, Any]:
+    """List users alongside their gateway limits and metered spend.
+
+    The system deliberately does not create an account row merely because an
+    administrator opens this view. A missing row represents the default active,
+    unlimited guardrail until an administrator chooses to set one.
+    """
+
+    total = db.query(User).count()
+    rows = (
+        db.query(User, GatewayAccount)
+        .outerjoin(GatewayAccount, GatewayAccount.user_id == User.id)
+        .order_by(User.created_at.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    user_ids = [user.id for user, _account in rows]
+    if not user_ids:
+        return {"accounts": [], "total": total, "limit": limit, "offset": offset}
+
+    key_counts = dict(
+        db.query(GatewayApiKey.user_id, func.count(GatewayApiKey.id))
+        .filter(GatewayApiKey.user_id.in_(user_ids), GatewayApiKey.status.in_(("active", "paused")))
+        .group_by(GatewayApiKey.user_id)
+        .all()
+    )
+    lifetime_spend = dict(
+        db.query(GatewayRequestLog.user_id, func.coalesce(func.sum(GatewayRequestLog.retail_cost_usd), 0))
+        .filter(GatewayRequestLog.user_id.in_(user_ids), GatewayRequestLog.status == "success")
+        .group_by(GatewayRequestLog.user_id)
+        .all()
+    )
+    return {
+        "accounts": [
+            _serialize_gateway_account(
+                user,
+                account,
+                active_key_count=int(key_counts.get(user.id, 0)),
+                lifetime_spend_usd=lifetime_spend.get(user.id, Decimal("0")),
+            )
+            for user, account in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@admin_router.patch("/accounts/{user_id}")
+def update_gateway_account(
+    user_id: str,
+    payload: GatewayAccountUpdateRequest,
+    db: Session = Depends(get_db),
+    _: User = Depends(_admin),
+) -> dict[str, Any]:
+    """Set a reversible gateway access guardrail for one user.
+
+    This endpoint never changes a Stripe subscription, a payment method, or a
+    user's historical ledger. Those remain managed by the existing billing
+    system and webhook flow.
+    """
+
+    user = db.get(User, user_id)
+    if not user:
+        raise HTTPException(status_code=404, detail={"code": "GATEWAY_USER_NOT_FOUND"})
+    if payload.status is None and payload.monthly_spend_limit_usd is None:
+        raise HTTPException(status_code=422, detail={"code": "GATEWAY_ACCOUNT_UPDATE_EMPTY"})
+
+    account = gateway_account(db, user.id)
+    if payload.status is not None:
+        account.status = payload.status
+    if payload.monthly_spend_limit_usd is not None:
+        account.monthly_spend_limit_usd = payload.monthly_spend_limit_usd
+    db.commit()
+    db.refresh(account)
+
+    active_key_count = (
+        db.query(GatewayApiKey)
+        .filter(GatewayApiKey.user_id == user.id, GatewayApiKey.status.in_(("active", "paused")))
+        .count()
+    )
+    lifetime_spend = (
+        db.query(func.coalesce(func.sum(GatewayRequestLog.retail_cost_usd), 0))
+        .filter(GatewayRequestLog.user_id == user.id, GatewayRequestLog.status == "success")
+        .scalar()
+    )
+    return {
+        "account": _serialize_gateway_account(
+            user,
+            account,
+            active_key_count=active_key_count,
+            lifetime_spend_usd=lifetime_spend,
+        )
+    }
 
 
 @admin_router.post("/ip-blocks", status_code=201)

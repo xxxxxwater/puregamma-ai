@@ -4,7 +4,7 @@ import { isChinaIP } from "@/lib/geoip";
 
 const PUBLIC_FILE = /\.(.*)$/;
 const INITIAL_LAUNCH_HIDDEN = ["/signals", "/playbooks", "/strategies", "/trading", "/nautilus", "/data-sources", "/integrations", "/daily-push", "/billing/mock-checkout"];
-const AUTHENTICATED_ROUTES = ["/account", "/admin", "/billing", "/chat", "/dashboard", "/options", "/portfolio", "/reports"];
+const AUTHENTICATED_ROUTES = ["/account", "/admin", "/billing", "/chat", "/dashboard", "/gateway", "/options", "/portfolio", "/reports"];
 
 async function resolveLocale(request: NextRequest, useGeo: boolean): Promise<string> {
   const cookieLocale = request.cookies.get(localeCookieName)?.value;

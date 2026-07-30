@@ -1,11 +1,11 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { AdminCreditConsole } from "@/components/admin-credit-console";
-import { GatewayAdminConsole } from "@/components/gateway-admin-console";
 import { Badge, DataSourceStatusBadge, ErrorState, MetricCard, PageHeader, ResearchCard, StatusDot } from "@/components/puregamma";
 import { api, fallbackDataSourcesForLocale, fallbackSignalsForLocale } from "@/lib/api";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace } from "@/lib/translations";
-import { isLocale, type Locale } from "@/i18n/routing";
+import { isLocale, type Locale, withLocale } from "@/i18n/routing";
 
 function maskEmail(email: string) {
   const [local, domain = "masked"] = email.split("@");
@@ -45,7 +45,10 @@ export default async function AdminPage({ params }: { params: { locale: Locale }
       <ResearchCard className="border-border-pg-strong bg-bg-panel-muted"><p className="text-sm text-text-pg-muted">{copy.sensitiveNotice}</p></ResearchCard>
       {users.unauthorized ? <ErrorState title={copy.unauthorizedTitle} description={copy.unauthorizedDescription} /> : null}
       <AdminCreditConsole locale={locale} />
-      <GatewayAdminConsole locale={locale} />
+      <ResearchCard className="flex flex-wrap items-center justify-between gap-3">
+        <div><div className="text-eyebrow uppercase text-text-pg-muted">PureGamma API</div><h2 className="mt-1 font-semibold">{locale === "zh" ? "API Gateway 管理" : "API Gateway administration"}</h2><p className="mt-1 text-sm text-text-pg-muted">{locale === "zh" ? "管理 Provider、价格审批、用户访问和消费限额。" : "Manage providers, price approvals, user access, and spend limits."}</p></div>
+        <Link href={withLocale(locale, "/admin/gateway")} className="border border-border-pg bg-text-pg px-3 py-2 text-sm font-semibold text-bg-panel">{locale === "zh" ? "打开管理台" : "Open console"}</Link>
+      </ResearchCard>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label={copy.modules.users} value={String(users.users.length)} detail={copy.details.maskedAuditView} tone="info" />
         <MetricCard label={copy.modules.reports} value={String(reports.reports.length)} detail={copy.details.generatedResearch} tone="emerald" />

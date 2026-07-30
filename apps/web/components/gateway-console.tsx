@@ -36,7 +36,7 @@ export function GatewayConsole({ locale, dashboard, initialKeys, initialRequests
     try {
       if (action === "rotate") {
         const replacement = await rotateGatewayKey(key.id);
-        setKeys((current) => [replacement.api_key, ...current.map((item) => item.id === key.id ? { ...item, status: "revoked" } : item)]);
+        setKeys((current) => [replacement.api_key, ...current.map((item) => item.id === key.id ? { ...item, status: "revoked" as const } : item)]);
         setOneTimeKey(replacement.key);
       } else {
         await changeGatewayKeyStatus(key.id, action);
@@ -49,10 +49,11 @@ export function GatewayConsole({ locale, dashboard, initialKeys, initialRequests
 
   return <div className="space-y-5">
     {dashboard.unavailable ? <div className="border border-status-warning bg-bg-panel p-4 text-sm text-text-pg-muted">{zh ? "Gateway 数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Gateway data is unavailable. Confirm that the gateway is enabled and you are signed in."}</div> : null}
-    <div className="grid gap-3 md:grid-cols-3">
+    <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <MetricCard label={zh ? "今日消费" : "Today"} value={money(dashboard.spend_usd.today)} detail={zh ? "按确认后的零售价计费" : "At approved retail pricing"} tone="cyan" />
       <MetricCard label={zh ? "本月消费" : "This month"} value={money(dashboard.spend_usd.month)} detail={`${dashboard.subscription.plan || "—"} plan`} tone="amber" />
       <MetricCard label={zh ? "累计消费" : "Lifetime"} value={money(dashboard.spend_usd.lifetime)} detail={`${keys.length} / 10 ${zh ? "个密钥" : "keys"}`} tone="emerald" />
+      <MetricCard label={zh ? "月度限额" : "Monthly limit"} value={Number(dashboard.account.monthly_spend_limit_usd) > 0 ? money(dashboard.account.monthly_spend_limit_usd) : (zh ? "不限额" : "Unlimited")} detail={dashboard.account.status === "active" ? (zh ? "Gateway 已启用" : "Gateway active") : (zh ? "Gateway 已暂停" : "Gateway suspended")} tone="neutral" />
     </div>
 
     <ResearchCard>

@@ -37,6 +37,36 @@ def test_gateway_key_limit_is_ten(api_client, pro_user):
     assert response.json()["detail"]["code"] == "GATEWAY_API_KEY_LIMIT"
 
 
+def test_gateway_admin_can_set_user_access_and_monthly_limit(api_client, pro_user, admin_user):
+    response = api_client.get("/admin/gateway/accounts", headers=auth_headers(admin_user))
+    assert response.status_code == 200
+    account = next(row for row in response.json()["accounts"] if row["user_id"] == pro_user.id)
+    assert account["account_status"] == "active"
+    assert account["monthly_spend_limit_usd"] == "0"
+
+    updated = api_client.patch(
+        f"/admin/gateway/accounts/{pro_user.id}",
+        headers=auth_headers(admin_user),
+        json={"status": "suspended", "monthly_spend_limit_usd": "25.50"},
+    )
+    assert updated.status_code == 200
+    payload = updated.json()["account"]
+    assert payload["account_status"] == "suspended"
+    assert payload["monthly_spend_limit_usd"] == "25.50000000"
+
+
+def test_gateway_admin_account_guardrails_require_admin(api_client, normal_user, pro_user):
+    response = api_client.get("/admin/gateway/accounts", headers=auth_headers(normal_user))
+    assert response.status_code == 403
+
+    response = api_client.patch(
+        f"/admin/gateway/accounts/{pro_user.id}",
+        headers=auth_headers(normal_user),
+        json={"status": "suspended", "monthly_spend_limit_usd": 10},
+    )
+    assert response.status_code == 403
+
+
 def test_pricing_applies_markup_to_every_supported_sku():
     official = {
         "input": {"usd": "1", "unit": "per_million_tokens"},

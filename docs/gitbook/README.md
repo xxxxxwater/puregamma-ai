@@ -21,6 +21,8 @@ PureGamma AI 是面向活跃加密、股票与期权个人投资者的 AI 投研
 | [移动应用](mobile-apps.md) | Android / iOS 安装与登录 |
 | [常见问题](faq.md) | 语音、登录、数据延迟等故障排查 |
 | [产品路线图](roadmap.md) | 隐藏功能与未来设计 |
+| [PureGamma API 中转站](api-gateway.md) | OpenAI 兼容 API、Key、安全、用量与管理员运营 |
+| [PureGamma API Gateway (English)](api-gateway-en.md) | OpenAI-compatible API, key security, usage, and operations |
 | [English](english/README.md) | English documentation |
 
 ## 免责与合规

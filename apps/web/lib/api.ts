@@ -605,6 +605,18 @@ export function rotateGatewayKey(keyId: string) {
 export type GatewayAdminProvider = { id: string; name: string; display_name: string; enabled: boolean; health_status: string; last_health_at: string | null; last_error: string | null; models: number };
 export type GatewayPriceRevision = { id: string; model_id: string; status: string; currency: string; markup_bps: number; official_prices: Record<string, unknown>; final_prices: Record<string, unknown>; source_type: string; source_reference: string | null; synced_at: string; approved_at: string | null };
 export type GatewayMetrics = { revenue_usd: string; provider_cost_usd: string; profit_usd: string; requests: number };
+export type GatewayAdminAccount = {
+  user_id: string;
+  email: string;
+  name: string;
+  plan: string;
+  account_status: "active" | "suspended";
+  monthly_spend_limit_usd: string;
+  current_month_spend_usd: string;
+  lifetime_spend_usd: string;
+  active_key_count: number;
+  last_login_at: string | null;
+};
 
 export function getGatewayAdminProviders() { return requestStrict<{ providers: GatewayAdminProvider[]; registered_plugins: string[] }>("/admin/gateway/providers"); }
 export function getGatewayPendingPrices() { return requestStrict<{ revisions: GatewayPriceRevision[] }>("/admin/gateway/prices/pending"); }
@@ -613,6 +625,10 @@ export function getGatewayPricingPolicy() { return requestStrict<{ policy: { mar
 export function syncGatewayProviders() { return requestStrict<{ syncs: unknown[] }>("/admin/gateway/sync", { method: "POST" }); }
 export function approveGatewayPrice(revisionId: string) { return requestStrict<{ revision: GatewayPriceRevision }>(`/admin/gateway/prices/${revisionId}/approve`, { method: "POST" }); }
 export function updateGatewayMarkup(markupBps: number) { return requestStrict<{ policy: { markup_bps: number } }>("/admin/gateway/pricing/markup", { method: "PUT", body: JSON.stringify({ markup_bps: markupBps }) }); }
+export function setGatewayProviderEnabled(providerName: string, enabled: boolean) { return requestStrict<{ id: string; name: string; enabled: boolean }>(`/admin/gateway/providers/${providerName}`, { method: "PUT", body: JSON.stringify({ enabled }) }); }
+export function healthcheckGatewayProviders() { return requestStrict<{ providers: Array<{ provider: string; healthy: boolean; status: string; error?: string | null }> }>("/admin/gateway/providers/healthcheck", { method: "POST" }); }
+export function getGatewayAdminAccounts() { return requestStrict<{ accounts: GatewayAdminAccount[]; total: number; limit: number; offset: number }>("/admin/gateway/accounts?limit=100"); }
+export function updateGatewayAccount(userId: string, payload: { status: "active" | "suspended"; monthly_spend_limit_usd: number }) { return requestStrict<{ account: GatewayAdminAccount }>(`/admin/gateway/accounts/${userId}`, { method: "PATCH", body: JSON.stringify(payload) }); }
 
 export function getMarketSnapshot(locale: Locale = defaultLocale) {
   return api<MarketSnapshotResponse>("/market/snapshot", { fallback: { mockMode: false, live_assets: 0, source_summary: [], assets: [] }, locale });
