@@ -14,6 +14,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
 export default async function DailyPushPage({ params }: { params: { locale: Locale } }) {
   const locale = params.locale;
   const copy = getMessageNamespace(locale, "daily-push");
+  // Keep this page aligned with the single-channel preference schema exposed by the API.
   const [data, subscription] = await Promise.all([getDailyPushPreferences(locale), getBillingSubscription(locale)]);
   return <div className="space-y-5"><PageHeader eyebrow={copy.eyebrow} title={copy.title} description={copy.subtitle} sectionNumber="06" /><DailyPushSettings initial={data.preference} initialHistory={data.history} locale={locale} plan={subscription.plan} /></div>;
 }
