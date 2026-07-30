@@ -17,7 +17,49 @@ You need a verified PureGamma account, an active Pro, Max, or Enterprise subscri
 
 > **The model list is authoritative.** A model appears only after its Provider is enabled and healthy and its pricing has been approved. Do not treat a model name in an example as an availability guarantee.
 
-The backend APIs for keys, usage, and request history are deployed; the customer self-service Gateway page is still being delivered. Until that page is available, use only a key issued through the verified PureGamma account-provisioning process. Store a new key immediately in a password manager or secret manager, and never expose it in browser code, mobile apps, repositories, screenshots, or support tickets. Pause or rotate a key immediately if exposure is suspected.
+Use the [PureGamma API Console](https://app.puregamma.ai/en/gateway) to create, pause, delete, or rotate keys and to view your monthly limit, model usage, and recent requests. A new key is displayed only at creation or rotation. Store it immediately in a password manager or secret manager, and never expose it in browser code, mobile apps, repositories, screenshots, or support tickets. Pause or rotate a key immediately if exposure is suspected.
+
+### Gateway configuration card
+
+Whether you use the OpenAI SDK, Dify, LangChain, Cursor, Continue, or your own backend, configure these values. Use **your own `sk-pg-...` key only**—never a DeepSeek, Kimi, or GLM provider key.
+
+| Setting | Value |
+| --- | --- |
+| API type | OpenAI Compatible / OpenAI API |
+| Base URL | `https://api.puregamma.ai/v1` |
+| API key | `sk-pg-...` (kept in an environment variable) |
+| Chat endpoint | `POST /chat/completions` (added automatically by an SDK) |
+| Model | The exact `id` returned by `/v1/models` |
+
+Suggested server-side `.env` values:
+
+```bash
+PUREGAMMA_API_KEY=sk-pg-...
+PUREGAMMA_BASE_URL=https://api.puregamma.ai/v1
+PUREGAMMA_MODEL=deepseek-v4-flash
+```
+
+Keep the `/v1` suffix in the Base URL. Do not use `https://app.puregamma.ai`, do not append `/chat/completions` to an SDK `base_url`, and never expose a key in browser code.
+
+### Choose a model quickly
+
+These are the Gateway's public model IDs and intended routing. A model appears in your `/v1/models` response only when its Provider is enabled and healthy and its official pricing has been approved. **Only call an ID actually returned by that endpoint.**
+
+| Public model ID | Official Provider model | Good default for | Primary capabilities |
+| --- | --- | --- | --- |
+| `deepseek-v4-flash` | DeepSeek V4 Flash | Default selection, low-latency chat, and higher-volume tasks | Chat, streaming, JSON, tools, reasoning, cache |
+| `deepseek-v4-pro` | DeepSeek V4 Pro | More complex analysis, code, and longer answers | Chat, streaming, JSON, tools, reasoning, cache |
+| `kimi-k3-max` | Moonshot Kimi K3 | Long context and complex tool workflows | Chat, streaming, JSON, tools, reasoning, cache |
+| `glm-5.2` | Zhipu GLM 5.2 | General Chinese/English tasks and tool calling | Chat, streaming, JSON, tools, cache |
+
+Query the models once, then copy one returned `id` into your client configuration:
+
+```bash
+curl -sS https://api.puregamma.ai/v1/models \
+  -H "Authorization: Bearer $PUREGAMMA_API_KEY"
+```
+
+The response uses the OpenAI model-list shape. In addition to `id`, `object`, `created`, and `owned_by`, PureGamma returns `display_name` and `capabilities`. Treat `capabilities` as the source of truth before enabling optional JSON, tools, or streaming behavior.
 
 ## 2. OpenAI SDK compatibility
 
@@ -62,6 +104,18 @@ console.log(completion.choices[0].message.content);
 ```bash
 curl -sS https://api.puregamma.ai/v1/models \
   -H "Authorization: Bearer $PUREGAMMA_API_KEY"
+```
+
+Minimal working request:
+
+```bash
+curl -sS https://api.puregamma.ai/v1/chat/completions \
+  -H "Authorization: Bearer $PUREGAMMA_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "deepseek-v4-flash",
+    "messages": [{"role": "user", "content": "Introduce the PureGamma API in one sentence."}]
+  }'
 ```
 
 ## 3. Chat, streaming, JSON, and tools
@@ -123,9 +177,29 @@ Success and Gateway error responses include `X-Request-ID`. For support, supply 
 
 Administrator access is based on the PureGamma user record with `role=admin`; users cannot promote themselves. Administrators sign in through `https://app.puregamma.ai` with their own email or Google account and must use a protected management session. Never extract or share browser JWTs.
 
-The first phase has protected Gateway administration APIs for Providers, syncs, pending pricing, markup, metrics, and IP blocks, but a complete graphical Gateway administration console is **not yet delivered**. Until that console is available, do not expose internal administration endpoints to customers or manage production through shared tokens.
+Use the [Gateway Admin Console](https://app.puregamma.ai/en/admin/gateway) for Provider enablement and health checks, catalog synchronization, pending-price approvals, unified markup, revenue/cost/profit metrics, and user spend caps or suspension. It is available only to accounts with `role=admin`; never share a browser session or token.
 
-The management API responsibilities are: `/admin/gateway/providers` lists and enables Providers; `/admin/gateway/sync` synchronizes the catalog; `/admin/gateway/prices/pending` reviews price revisions; `/admin/gateway/prices/{revision_id}/approve` approves one; `/admin/gateway/pricing/markup` updates markup; and `/admin/gateway/metrics` returns revenue, cost, profit, and request count. The future customer page uses `/gateway/keys`, `/gateway/dashboard`, and `/gateway/requests`.
+The management API responsibilities are: `/admin/gateway/providers` lists and enables Providers; `/admin/gateway/sync` synchronizes the catalog; `/admin/gateway/prices/pending` reviews price revisions; `/admin/gateway/prices/{revision_id}/approve` approves one; `/admin/gateway/pricing/markup` updates markup; `/admin/gateway/metrics` returns revenue, cost, profit, and request count; and `/admin/gateway/accounts` manages account state and monthly caps. The deployed customer console uses `/gateway/keys`, `/gateway/dashboard`, and `/gateway/requests`.
+
+### Gateway deployment configuration (administrators only)
+
+The Gateway does not run models. Each provider key must come from that provider's official platform and belongs only in production `.env` or a secret manager. This is a field template: replace angle-bracket values securely and never commit them to Git.
+
+```bash
+GATEWAY_ENABLED=true
+GATEWAY_API_KEY_PEPPER=<separate random secret, at least 32 characters>
+
+GATEWAY_DEEPSEEK_API_KEY=<DeepSeek official key>
+GATEWAY_DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
+
+GATEWAY_MOONSHOT_API_KEY=<Moonshot official key>
+GATEWAY_MOONSHOT_BASE_URL=<Moonshot official endpoint matching account region>
+
+GATEWAY_GLM_API_KEY=<Zhipu official key>
+GATEWAY_GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+```
+
+After saving, restart API, worker, and scheduler. Then synchronize the catalog in the Admin Console, review every price, enable the Provider, run its health check, and verify `/v1/models` plus a low-cost call with a real `sk-pg-...` key. A provider key alone never bypasses price approval.
 
 The operating sequence is: securely configure a Provider key; verify region, currency, and official pricing source; sync its catalog; review every pending price snapshot; explicitly approve the snapshot; health-check the Provider; then test `/v1/models` and a low-cost request with a real customer key. The scheduler performs a metadata sync daily at 03:00 Asia/Shanghai.
 
