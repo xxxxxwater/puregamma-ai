@@ -57,6 +57,42 @@ def recover_stale_credit_reservations() -> dict:
         db.close()
 
 
+@celery_app.task(name="puregamma.sync_gateway_provider_metadata")
+def sync_gateway_provider_metadata() -> dict:
+    """Daily official catalog refresh; new price snapshots remain pending review."""
+    from packages.gateway.metadata import sync_all_provider_metadata
+
+    if not get_settings().gateway_enabled:
+        return {"status": "disabled"}
+
+    db = SessionLocal()
+    try:
+        rows = sync_all_provider_metadata(db, triggered_by="scheduler")
+        return {"synced": len(rows), "pending_review": sum(row.status == "pending_review" for row in rows)}
+    except Exception:
+        logger.exception("gateway_provider_metadata_sync_failed")
+        raise
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.healthcheck_gateway_providers")
+def healthcheck_gateway_providers() -> dict:
+    from packages.gateway.metadata import health_check_providers
+
+    if not get_settings().gateway_enabled:
+        return {"status": "disabled"}
+
+    db = SessionLocal()
+    try:
+        return {"providers": health_check_providers(db)}
+    except Exception:
+        logger.exception("gateway_provider_healthcheck_failed")
+        raise
+    finally:
+        db.close()
+
+
 @celery_app.task(name="puregamma.retry_notification_deliveries")
 def retry_notification_deliveries() -> dict:
     db = SessionLocal()

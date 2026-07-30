@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AdminCreditConsole } from "@/components/admin-credit-console";
+import { GatewayAdminConsole } from "@/components/gateway-admin-console";
 import { Badge, DataSourceStatusBadge, ErrorState, MetricCard, PageHeader, ResearchCard, StatusDot } from "@/components/puregamma";
 import { api, fallbackDataSourcesForLocale, fallbackSignalsForLocale } from "@/lib/api";
 import { localizedMetadata } from "@/lib/metadata";
@@ -44,6 +45,7 @@ export default async function AdminPage({ params }: { params: { locale: Locale }
       <ResearchCard className="border-border-pg-strong bg-bg-panel-muted"><p className="text-sm text-text-pg-muted">{copy.sensitiveNotice}</p></ResearchCard>
       {users.unauthorized ? <ErrorState title={copy.unauthorizedTitle} description={copy.unauthorizedDescription} /> : null}
       <AdminCreditConsole locale={locale} />
+      <GatewayAdminConsole locale={locale} />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label={copy.modules.users} value={String(users.users.length)} detail={copy.details.maskedAuditView} tone="info" />
         <MetricCard label={copy.modules.reports} value={String(reports.reports.length)} detail={copy.details.generatedResearch} tone="emerald" />

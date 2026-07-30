@@ -351,6 +351,169 @@ class LLMCallLog(Base):
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
+class GatewayProvider(Base, TimestampMixin):
+    """A configured official upstream provider, never a user-supplied URL."""
+
+    __tablename__ = "gateway_providers"
+
+    id = Column(String, primary_key=True, default=new_id)
+    name = Column(String, nullable=False, unique=True, index=True)
+    display_name = Column(String, nullable=False)
+    base_url = Column(String, nullable=False)
+    enabled = Column(Boolean, nullable=False, default=True, index=True)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    health_status = Column(String, nullable=False, default="unknown", index=True)
+    last_health_at = Column(DateTime(timezone=True), nullable=True)
+    last_error = Column(String, nullable=True)
+    consecutive_failures = Column(Integer, nullable=False, default=0)
+
+
+class GatewayModel(Base, TimestampMixin):
+    __tablename__ = "gateway_models"
+
+    id = Column(String, primary_key=True, default=new_id)
+    public_id = Column(String, nullable=False, unique=True, index=True)
+    provider_id = Column(String, ForeignKey("gateway_providers.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider_model_id = Column(String, nullable=False)
+    display_name = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending", index=True)
+    capabilities_json = Column("capabilities", JSON, default=dict, nullable=False)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    routing_json = Column("routing", JSON, default=dict, nullable=False)
+    active_pricing_id = Column(String, nullable=True, index=True)
+    last_synced_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class GatewayPricingPolicy(Base, TimestampMixin):
+    __tablename__ = "gateway_pricing_policies"
+
+    id = Column(String, primary_key=True, default=new_id)
+    name = Column(String, nullable=False, unique=True, default="default")
+    markup_bps = Column(Integer, nullable=False, default=3000)
+    active = Column(Boolean, nullable=False, default=True, index=True)
+    updated_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+
+
+class GatewayPriceRevision(Base):
+    """An immutable provider-pricing snapshot awaiting or receiving approval."""
+
+    __tablename__ = "gateway_price_revisions"
+
+    id = Column(String, primary_key=True, default=new_id)
+    model_id = Column(String, ForeignKey("gateway_models.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String, nullable=False, default="pending", index=True)
+    currency = Column(String, nullable=False, default="USD")
+    markup_bps = Column(Integer, nullable=False, default=3000)
+    official_prices_json = Column("official_prices", JSON, default=dict, nullable=False)
+    final_prices_json = Column("final_prices", JSON, default=dict, nullable=False)
+    source_type = Column(String, nullable=False, default="config")
+    source_reference = Column(String, nullable=True)
+    source_hash = Column(String, nullable=True, index=True)
+    synced_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    approved_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    notes = Column(String, nullable=True)
+
+
+class GatewayAccount(Base, TimestampMixin):
+    __tablename__ = "gateway_accounts"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    status = Column(String, nullable=False, default="active", index=True)
+    monthly_spend_limit_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    current_month_spend_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    current_month_started_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class GatewayApiKey(Base, TimestampMixin):
+    __tablename__ = "gateway_api_keys"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    key_hint = Column(String, nullable=False, index=True)
+    key_hash = Column(String, nullable=False, unique=True, index=True)
+    last_four = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="active", index=True)
+    rate_limit_rpm = Column(Integer, nullable=False, default=60)
+    scopes_json = Column("scopes", JSON, default=lambda: ["chat"], nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    rotated_from_key_id = Column(String, ForeignKey("gateway_api_keys.id"), nullable=True)
+
+
+class GatewayRequestLog(Base):
+    __tablename__ = "gateway_request_logs"
+
+    id = Column(String, primary_key=True, default=new_id)
+    request_id = Column(String, nullable=False, unique=True, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    api_key_id = Column(String, ForeignKey("gateway_api_keys.id", ondelete="SET NULL"), nullable=True, index=True)
+    provider_id = Column(String, ForeignKey("gateway_providers.id", ondelete="SET NULL"), nullable=True, index=True)
+    model_id = Column(String, ForeignKey("gateway_models.id", ondelete="SET NULL"), nullable=True, index=True)
+    public_model = Column(String, nullable=False, index=True)
+    status = Column(String, nullable=False, index=True)
+    http_status = Column(Integer, nullable=False)
+    latency_ms = Column(Integer, nullable=False, default=0)
+    input_tokens = Column(Integer, nullable=False, default=0)
+    output_tokens = Column(Integer, nullable=False, default=0)
+    cache_tokens = Column(Integer, nullable=False, default=0)
+    reasoning_tokens = Column(Integer, nullable=False, default=0)
+    long_context_tokens = Column(Integer, nullable=False, default=0)
+    image_units = Column(Integer, nullable=False, default=0)
+    audio_units = Column(Integer, nullable=False, default=0)
+    search_units = Column(Integer, nullable=False, default=0)
+    upload_units = Column(Integer, nullable=False, default=0)
+    download_units = Column(Integer, nullable=False, default=0)
+    batch_units = Column(Integer, nullable=False, default=0)
+    provider_cost_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    retail_cost_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    ip_address = Column(String, nullable=True, index=True)
+    error_code = Column(String, nullable=True, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class GatewayProviderSync(Base):
+    __tablename__ = "gateway_provider_syncs"
+
+    id = Column(String, primary_key=True, default=new_id)
+    provider_id = Column(String, ForeignKey("gateway_providers.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String, nullable=False, default="pending_review", index=True)
+    triggered_by = Column(String, nullable=False, default="scheduler")
+    triggered_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    models_seen = Column(Integer, nullable=False, default=0)
+    prices_seen = Column(Integer, nullable=False, default=0)
+    summary_json = Column("summary", JSON, default=dict, nullable=False)
+    error_message = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class GatewayIPBlock(Base, TimestampMixin):
+    __tablename__ = "gateway_ip_blocks"
+
+    id = Column(String, primary_key=True, default=new_id)
+    ip_address = Column(String, nullable=False, unique=True, index=True)
+    active = Column(Boolean, nullable=False, default=True, index=True)
+    reason = Column(String, nullable=False)
+    created_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+class GatewaySecurityEvent(Base):
+    __tablename__ = "gateway_security_events"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    api_key_id = Column(String, ForeignKey("gateway_api_keys.id", ondelete="SET NULL"), nullable=True, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    severity = Column(String, nullable=False, default="warning", index=True)
+    ip_address = Column(String, nullable=True, index=True)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
 class Asset(Base):
     __tablename__ = "assets"
 

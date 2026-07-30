@@ -193,6 +193,26 @@ def build_scheduler() -> BlockingScheduler:
         max_instances=1,
         coalesce=True,
     )
+    scheduler.add_job(
+        enqueue,
+        # The product requirement is 03:00 China Standard Time, not the
+        # scheduler container's UTC clock.  Make the business timezone
+        # explicit so a host/image timezone change cannot silently shift the
+        # provider catalog and pricing sync.
+        CronTrigger(hour=3, minute=0, timezone="Asia/Shanghai"),
+        args=["puregamma.sync_gateway_provider_metadata"],
+        id="gateway_provider_metadata_sync",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        IntervalTrigger(minutes=5),
+        args=["puregamma.healthcheck_gateway_providers"],
+        id="gateway_provider_healthcheck",
+        max_instances=1,
+        coalesce=True,
+    )
     return scheduler
 
 

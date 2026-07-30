@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from apps.api.config import get_settings, validate_production_settings
 from apps.api.dependencies import ensure_bootstrap
-from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, email_auth, google_auth, hyperliquid_stream, imessage_agent, mobile_auth, internal, market, notifications, options, playbooks, portfolio, reports, secretary, signals, skills, strategies, stripe_webhook, trading
+from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, email_auth, gateway, google_auth, hyperliquid_stream, imessage_agent, mobile_auth, internal, market, notifications, options, playbooks, portfolio, reports, secretary, signals, skills, strategies, stripe_webhook, trading
 
 
 settings = get_settings()
@@ -172,6 +172,9 @@ app.include_router(options.router)
 app.include_router(reports.router)
 app.include_router(backtest.router)
 app.include_router(backtest_lab.router)
+app.include_router(gateway.router)
+app.include_router(gateway.openai_router)
+app.include_router(gateway.admin_router)
 app.include_router(portfolio.router)
 app.include_router(billing.router)
 app.include_router(internal.router)

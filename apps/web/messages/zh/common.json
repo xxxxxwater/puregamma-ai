@@ -30,6 +30,7 @@
     "dataSources": "数据源",
     "nautilus": "NautilusTrader",
     "billing": "订阅",
+    "gateway": "API 网关",
     "admin": "管理",
     "account": "账户",
     "docs": "帮助文档",

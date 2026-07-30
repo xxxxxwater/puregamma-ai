@@ -30,6 +30,7 @@
     "dataSources": "Data Sources",
     "nautilus": "NautilusTrader",
     "billing": "Billing",
+    "gateway": "API Gateway",
     "admin": "Admin",
     "account": "Account",
     "docs": "Docs",

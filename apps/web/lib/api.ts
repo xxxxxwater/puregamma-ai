@@ -531,6 +531,89 @@ export async function getDashboard(locale: Locale = defaultLocale) {
   return { market, subscription, reports, mockMode: Boolean((market as { mockMode?: boolean }).mockMode) };
 }
 
+export type GatewayKey = {
+  id: string;
+  name: string;
+  prefix: string;
+  last_four: string;
+  status: "active" | "paused" | "revoked";
+  rate_limit_rpm: number;
+  scopes: string[];
+  last_used_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};
+
+export type GatewayDashboard = {
+  account: { status: string; monthly_spend_limit_usd: string; current_month_spend_usd: string; month_started_at: string };
+  subscription: { plan: string; stripe_customer_id: string | null };
+  spend_usd: { today: string; month: string; lifetime: string };
+  models: Array<{ model: string; requests: number; input_tokens: number; output_tokens: number; cost_usd: string }>;
+  unavailable?: boolean;
+};
+
+export type GatewayRequest = {
+  id: string;
+  request_id: string;
+  model: string;
+  status: string;
+  http_status: number;
+  latency_ms: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_tokens: number;
+  reasoning_tokens: number;
+  cost_usd: string;
+  provider_cost_usd: string;
+  error_code: string | null;
+  created_at: string;
+};
+
+const emptyGatewayDashboard: GatewayDashboard = {
+  account: { status: "unavailable", monthly_spend_limit_usd: "0", current_month_spend_usd: "0", month_started_at: "" },
+  subscription: { plan: "", stripe_customer_id: null },
+  spend_usd: { today: "0", month: "0", lifetime: "0" },
+  models: [],
+  unavailable: true
+};
+
+export function getGatewayDashboard(locale: Locale = defaultLocale) {
+  return api<GatewayDashboard>("/gateway/dashboard", { fallback: emptyGatewayDashboard, locale });
+}
+
+export function getGatewayKeys(locale: Locale = defaultLocale) {
+  return api<{ keys: GatewayKey[]; limit: number; unavailable?: boolean }>("/gateway/keys", { fallback: { keys: [], limit: 10, unavailable: true }, locale });
+}
+
+export function getGatewayRequests(locale: Locale = defaultLocale) {
+  return api<{ requests: GatewayRequest[]; total: number; unavailable?: boolean }>("/gateway/requests?limit=20", { fallback: { requests: [], total: 0, unavailable: true }, locale });
+}
+
+export function createGatewayKey(name: string) {
+  return requestStrict<{ key: string; api_key: GatewayKey }>("/gateway/keys", { method: "POST", body: JSON.stringify({ name }) });
+}
+
+export function changeGatewayKeyStatus(keyId: string, status: "active" | "paused" | "revoked") {
+  if (status === "revoked") return requestStrict<{ ok: boolean }>(`/gateway/keys/${keyId}`, { method: "DELETE" });
+  return requestStrict<{ api_key: GatewayKey }>(`/gateway/keys/${keyId}/${status === "active" ? "resume" : "pause"}`, { method: "POST" });
+}
+
+export function rotateGatewayKey(keyId: string) {
+  return requestStrict<{ key: string; api_key: GatewayKey }>(`/gateway/keys/${keyId}/rotate`, { method: "POST" });
+}
+
+export type GatewayAdminProvider = { id: string; name: string; display_name: string; enabled: boolean; health_status: string; last_health_at: string | null; last_error: string | null; models: number };
+export type GatewayPriceRevision = { id: string; model_id: string; status: string; currency: string; markup_bps: number; official_prices: Record<string, unknown>; final_prices: Record<string, unknown>; source_type: string; source_reference: string | null; synced_at: string; approved_at: string | null };
+export type GatewayMetrics = { revenue_usd: string; provider_cost_usd: string; profit_usd: string; requests: number };
+
+export function getGatewayAdminProviders() { return requestStrict<{ providers: GatewayAdminProvider[]; registered_plugins: string[] }>("/admin/gateway/providers"); }
+export function getGatewayPendingPrices() { return requestStrict<{ revisions: GatewayPriceRevision[] }>("/admin/gateway/prices/pending"); }
+export function getGatewayMetrics() { return requestStrict<GatewayMetrics>("/admin/gateway/metrics"); }
+export function getGatewayPricingPolicy() { return requestStrict<{ policy: { markup_bps: number } }>("/admin/gateway/pricing/policy"); }
+export function syncGatewayProviders() { return requestStrict<{ syncs: unknown[] }>("/admin/gateway/sync", { method: "POST" }); }
+export function approveGatewayPrice(revisionId: string) { return requestStrict<{ revision: GatewayPriceRevision }>(`/admin/gateway/prices/${revisionId}/approve`, { method: "POST" }); }
+export function updateGatewayMarkup(markupBps: number) { return requestStrict<{ policy: { markup_bps: number } }>("/admin/gateway/pricing/markup", { method: "PUT", body: JSON.stringify({ markup_bps: markupBps }) }); }
+
 export function getMarketSnapshot(locale: Locale = defaultLocale) {
   return api<MarketSnapshotResponse>("/market/snapshot", { fallback: { mockMode: false, live_assets: 0, source_summary: [], assets: [] }, locale });
 }

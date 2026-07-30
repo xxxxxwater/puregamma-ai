@@ -5,6 +5,9 @@ The versioned declarative Skills Library is documented in
 
 Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), and [implementation report](docs/IMPLEMENTATION_REPORT.md).
 
+The first-party OpenAI-compatible API Gateway is documented in
+[`docs/AI_API_GATEWAY.md`](docs/AI_API_GATEWAY.md).
+
 PureGamma AI is an AI-native crypto and equity investment research SaaS. It combines market data, sentiment, portfolio context, strategy playbooks, simulated backtests, billing entitlements, credit controls, and notification delivery into one research console.
 
 PureGamma AI is research software only. It does not place trades, custody funds, automate execution, give tax advice, or promise investment returns. Every report, signal, playbook, backtest, portfolio view, and push notification must include or preserve the disclaimer: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`

@@ -114,6 +114,29 @@ class Settings:
     deepseek_timeout_seconds: int = int(
         os.getenv("DEEPSEEK_TIMEOUT_SECONDS", "60") or 60
     )
+    # The public AI gateway is opt-in so existing PureGamma deployments do not
+    # begin serving third-party API traffic before provider credentials and a
+    # dedicated key pepper have been provisioned.
+    gateway_enabled: bool = os.getenv("GATEWAY_ENABLED", "false").lower() == "true"
+    gateway_api_key_pepper: str = os.getenv("GATEWAY_API_KEY_PEPPER", "")
+    gateway_default_rate_limit_rpm: int = int(
+        os.getenv("GATEWAY_DEFAULT_RATE_LIMIT_RPM", "60") or 60
+    )
+    gateway_catalog_path: str = os.getenv(
+        "GATEWAY_CATALOG_PATH", "config/gateway/providers.yaml"
+    )
+    gateway_deepseek_api_key: str = os.getenv("GATEWAY_DEEPSEEK_API_KEY", "")
+    gateway_deepseek_base_url: str = os.getenv(
+        "GATEWAY_DEEPSEEK_BASE_URL", "https://api.deepseek.com/v1"
+    )
+    gateway_moonshot_api_key: str = os.getenv("GATEWAY_MOONSHOT_API_KEY", "")
+    gateway_moonshot_base_url: str = os.getenv(
+        "GATEWAY_MOONSHOT_BASE_URL", "https://api.moonshot.ai/v1"
+    )
+    gateway_glm_api_key: str = os.getenv("GATEWAY_GLM_API_KEY", "")
+    gateway_glm_base_url: str = os.getenv(
+        "GATEWAY_GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"
+    )
     agent_provider: str = os.getenv("AGENT_PROVIDER", os.getenv("LLM_PROVIDER", ""))
     agent_model: str = os.getenv("AGENT_MODEL", os.getenv("LLM_MODEL", ""))
     agent_max_output_tokens: int = int(
@@ -428,6 +451,29 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("OPENAI_API_KEY and OPENAI_MODEL are required for the production OpenAI provider")
     elif settings.llm_provider.lower() == "deepseek" and not settings.deepseek_api_key:
         errors.append("DEEPSEEK_API_KEY is required for the production DeepSeek provider")
+    if settings.gateway_enabled:
+        if len(settings.gateway_api_key_pepper) < 32:
+            errors.append("GATEWAY_API_KEY_PEPPER must be at least 32 characters when GATEWAY_ENABLED=true")
+        configured_gateway_keys = [
+            name
+            for name, value in {
+                "GATEWAY_DEEPSEEK_API_KEY": settings.gateway_deepseek_api_key,
+                "GATEWAY_MOONSHOT_API_KEY": settings.gateway_moonshot_api_key,
+                "GATEWAY_GLM_API_KEY": settings.gateway_glm_api_key,
+            }.items()
+            if value
+        ]
+        required_gateway_keys = {
+            "GATEWAY_DEEPSEEK_API_KEY",
+            "GATEWAY_MOONSHOT_API_KEY",
+            "GATEWAY_GLM_API_KEY",
+        }
+        missing_gateway_keys = sorted(required_gateway_keys.difference(configured_gateway_keys))
+        if missing_gateway_keys:
+            errors.append(
+                "All phase-1 gateway provider API keys are required when "
+                "GATEWAY_ENABLED=true: " + ", ".join(missing_gateway_keys)
+            )
     if settings.enable_mock_agent or settings.enable_mock_market_data or settings.enable_mock_data_sources:
         errors.append("Mock Agent, market data, and data-source providers must be disabled in production")
     if settings.imessage_provider == "mock":
