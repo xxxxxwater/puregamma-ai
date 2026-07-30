@@ -426,6 +426,61 @@ class GatewayAccount(Base, TimestampMixin):
     current_month_started_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
+class GatewayWallet(Base, TimestampMixin):
+    """Prepaid USD balance dedicated to API Gateway usage.
+
+    This is intentionally separate from ``User.credit_balance``. The latter
+    pays for the PureGamma product; it must never be changed by Gateway
+    purchases or metered API requests.
+    """
+
+    __tablename__ = "gateway_wallets"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    currency = Column(String(3), nullable=False, default="USD")
+    available_balance_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    lifetime_credited_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    lifetime_debited_usd = Column(Numeric(18, 8), nullable=False, default=0)
+
+
+class GatewayTopupIntent(Base):
+    """One user-selected Stripe Checkout payment for a Gateway wallet."""
+
+    __tablename__ = "gateway_topup_intents"
+
+    id = Column(String, primary_key=True, default=new_id)
+    public_reference = Column(String, nullable=False, unique=True, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount_cents = Column(Integer, nullable=False)
+    currency = Column(String(3), nullable=False, default="USD")
+    status = Column(String, nullable=False, default="created", index=True)
+    stripe_checkout_session_id = Column(String, nullable=True, unique=True, index=True)
+    stripe_payment_intent_id = Column(String, nullable=True, unique=True, index=True)
+    stripe_customer_id = Column(String, nullable=True, index=True)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class GatewayWalletLedger(Base):
+    """Immutable Gateway wallet credits and usage debits."""
+
+    __tablename__ = "gateway_wallet_ledger"
+
+    id = Column(String, primary_key=True, default=new_id)
+    wallet_id = Column(String, ForeignKey("gateway_wallets.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_type = Column(String, nullable=False, index=True)
+    amount_usd = Column(Numeric(18, 8), nullable=False)
+    balance_after_usd = Column(Numeric(18, 8), nullable=False)
+    idempotency_key = Column(String, nullable=False, unique=True, index=True)
+    topup_intent_id = Column(String, ForeignKey("gateway_topup_intents.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+    gateway_request_log_id = Column(String, ForeignKey("gateway_request_logs.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
 class GatewayApiKey(Base, TimestampMixin):
     __tablename__ = "gateway_api_keys"
 

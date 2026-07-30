@@ -546,9 +546,12 @@ export type GatewayKey = {
 
 export type GatewayDashboard = {
   account: { status: string; monthly_spend_limit_usd: string; current_month_spend_usd: string; month_started_at: string };
+  wallet: { currency: string; available_balance_usd: string; lifetime_credited_usd: string; lifetime_debited_usd: string; topup_min_usd: string; topup_max_usd: string };
   subscription: { plan: string; stripe_customer_id: string | null };
   spend_usd: { today: string; month: string; lifetime: string };
   models: Array<{ model: string; requests: number; input_tokens: number; output_tokens: number; cost_usd: string }>;
+  wallet_ledger: Array<{ id: string; entry_type: string; amount_usd: string; balance_after_usd: string; topup_intent_id: string | null; gateway_request_log_id: string | null; metadata: Record<string, unknown>; created_at: string }>;
+  topups: Array<{ id: string; public_reference: string; amount_usd: string; currency: string; status: string; created_at: string; completed_at: string | null }>;
   unavailable?: boolean;
 };
 
@@ -571,9 +574,12 @@ export type GatewayRequest = {
 
 const emptyGatewayDashboard: GatewayDashboard = {
   account: { status: "unavailable", monthly_spend_limit_usd: "0", current_month_spend_usd: "0", month_started_at: "" },
+  wallet: { currency: "USD", available_balance_usd: "0", lifetime_credited_usd: "0", lifetime_debited_usd: "0", topup_min_usd: "5.00", topup_max_usd: "10000.00" },
   subscription: { plan: "", stripe_customer_id: null },
   spend_usd: { today: "0", month: "0", lifetime: "0" },
   models: [],
+  wallet_ledger: [],
+  topups: [],
   unavailable: true
 };
 
@@ -602,9 +608,16 @@ export function rotateGatewayKey(keyId: string) {
   return requestStrict<{ key: string; api_key: GatewayKey }>(`/gateway/keys/${keyId}/rotate`, { method: "POST" });
 }
 
+export function createGatewayTopup(amount_usd: string, locale: Locale) {
+  return requestStrict<{ checkout_url: string; mode: "stripe" | "mock"; checkout_mode: "gateway_topup"; topup: { id: string; amount_usd: string; currency: string; status: string } }>("/gateway/topups", {
+    method: "POST",
+    body: JSON.stringify({ amount_usd, locale })
+  });
+}
+
 export type GatewayAdminProvider = { id: string; name: string; display_name: string; enabled: boolean; health_status: string; last_health_at: string | null; last_error: string | null; models: number };
 export type GatewayPriceRevision = { id: string; model_id: string; status: string; currency: string; markup_bps: number; official_prices: Record<string, unknown>; final_prices: Record<string, unknown>; source_type: string; source_reference: string | null; synced_at: string; approved_at: string | null };
-export type GatewayMetrics = { revenue_usd: string; provider_cost_usd: string; profit_usd: string; requests: number };
+export type GatewayMetrics = { revenue_usd: string; provider_cost_usd: string; profit_usd: string; prepaid_liability_usd: string; requests: number };
 export type GatewayAdminAccount = {
   user_id: string;
   email: string;
@@ -614,6 +627,7 @@ export type GatewayAdminAccount = {
   monthly_spend_limit_usd: string;
   current_month_spend_usd: string;
   lifetime_spend_usd: string;
+  wallet_balance_usd: string;
   active_key_count: number;
   last_login_at: string | null;
 };

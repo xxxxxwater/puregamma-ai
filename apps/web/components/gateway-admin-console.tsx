@@ -129,10 +129,11 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
         </div>
         {error ? <p className="mt-3 text-sm text-status-negative">{error}</p> : null}
         {notice ? <p className="mt-3 text-sm text-status-positive">{notice}</p> : null}
-        <div className="mt-4 grid gap-3 md:grid-cols-4">
+        <div className="mt-4 grid gap-3 md:grid-cols-5">
           <Metric label={zh ? "收入" : "Revenue"} value={money(metrics?.revenue_usd || "0")} />
           <Metric label={zh ? "官方成本" : "Provider cost"} value={money(metrics?.provider_cost_usd || "0")} />
           <Metric label={zh ? "毛利" : "Gross profit"} value={money(metrics?.profit_usd || "0")} />
+          <Metric label={zh ? "用户预付余额" : "Prepaid balance liability"} value={money(metrics?.prepaid_liability_usd || "0")} />
           <Metric label={zh ? "成功及失败请求" : "Requests"} value={String(metrics?.requests || 0)} />
         </div>
       </ResearchCard>
@@ -184,14 +185,14 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
       <ResearchCard>
         <div>
           <h3 className="text-sm font-semibold">{zh ? "用户访问与消费限额" : "User access and spending limits"}</h3>
-          <p className="mt-1 text-xs text-text-pg-muted">{zh ? "暂停会立即阻断该用户的 Gateway 请求；0 USD 表示月度不限额。此处不修改 Stripe 订阅或历史账本。" : "Suspending immediately blocks Gateway requests. A monthly limit of 0 USD means unlimited. This never changes Stripe subscriptions or historical ledgers."}</p>
+          <p className="mt-1 text-xs text-text-pg-muted">{zh ? "暂停会立即阻断该用户的 Gateway 请求；0 USD 表示月度不限额。预付余额独立于 PureGamma 订阅和 Credits，仅通过已验证的 Stripe 回调入账。" : "Suspending immediately blocks Gateway requests. A monthly limit of 0 USD means unlimited. Prepaid balance is independent from PureGamma subscriptions and Credits, and is credited only by verified Stripe webhooks."}</p>
         </div>
         <div className="mt-3 overflow-x-auto">
           <table className="w-full min-w-[960px] text-sm">
-            <thead className="text-left text-xs uppercase tracking-[0.1em] text-text-pg-muted"><tr><th className="pb-2">{zh ? "用户" : "User"}</th><th>{zh ? "套餐" : "Plan"}</th><th>{zh ? "状态" : "Status"}</th><th>{zh ? "本月 / 累计" : "Month / lifetime"}</th><th>{zh ? "活跃密钥" : "Active keys"}</th><th>{zh ? "月度限额（USD）" : "Monthly limit (USD)"}</th><th /></tr></thead>
+            <thead className="text-left text-xs uppercase tracking-[0.1em] text-text-pg-muted"><tr><th className="pb-2">{zh ? "用户" : "User"}</th><th>{zh ? "套餐" : "Plan"}</th><th>{zh ? "状态" : "Status"}</th><th>{zh ? "API 余额" : "API balance"}</th><th>{zh ? "本月 / 累计" : "Month / lifetime"}</th><th>{zh ? "活跃密钥" : "Active keys"}</th><th>{zh ? "月度限额（USD）" : "Monthly limit (USD)"}</th><th /></tr></thead>
             <tbody>{accounts.map((account) => {
               const edit = accountEdits[account.user_id] || { status: account.account_status, monthlyLimit: account.monthly_spend_limit_usd };
-              return <tr key={account.user_id} className="border-t border-border-pg align-middle"><td className="py-3"><div className="font-medium">{account.name || "—"}</div><div className="max-w-[220px] truncate text-xs text-text-pg-muted">{account.email}</div></td><td><Badge tone="neutral">{account.plan}</Badge></td><td><select value={edit.status} onChange={(event) => setAccountEdits((current) => ({ ...current, [account.user_id]: { ...edit, status: event.target.value as AccountEdit["status"] } }))} className="border border-border-pg bg-bg-panel-muted px-2 py-1 text-xs"><option value="active">{zh ? "启用" : "Active"}</option><option value="suspended">{zh ? "暂停" : "Suspended"}</option></select></td><td className="text-xs"><div>{money(account.current_month_spend_usd)}</div><div className="text-text-pg-muted">{money(account.lifetime_spend_usd)}</div></td><td>{account.active_key_count} / 10</td><td><input value={edit.monthlyLimit} onChange={(event) => setAccountEdits((current) => ({ ...current, [account.user_id]: { ...edit, monthlyLimit: event.target.value } }))} inputMode="decimal" className="w-28 border border-border-pg bg-bg-panel-muted px-2 py-1 text-sm" aria-label={`${account.email} monthly spend limit`} /></td><td><button type="button" disabled={busy} onClick={() => void saveAccount(account)} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-xs disabled:opacity-50"><Save className="h-3 w-3" />{zh ? "保存" : "Save"}</button></td></tr>;
+              return <tr key={account.user_id} className="border-t border-border-pg align-middle"><td className="py-3"><div className="font-medium">{account.name || "—"}</div><div className="max-w-[220px] truncate text-xs text-text-pg-muted">{account.email}</div></td><td><Badge tone="neutral">{account.plan}</Badge></td><td><select value={edit.status} onChange={(event) => setAccountEdits((current) => ({ ...current, [account.user_id]: { ...edit, status: event.target.value as AccountEdit["status"] } }))} className="border border-border-pg bg-bg-panel-muted px-2 py-1 text-xs"><option value="active">{zh ? "启用" : "Active"}</option><option value="suspended">{zh ? "暂停" : "Suspended"}</option></select></td><td className="font-mono text-xs">{money(account.wallet_balance_usd)}</td><td className="text-xs"><div>{money(account.current_month_spend_usd)}</div><div className="text-text-pg-muted">{money(account.lifetime_spend_usd)}</div></td><td>{account.active_key_count} / 10</td><td><input value={edit.monthlyLimit} onChange={(event) => setAccountEdits((current) => ({ ...current, [account.user_id]: { ...edit, monthlyLimit: event.target.value } }))} inputMode="decimal" className="w-28 border border-border-pg bg-bg-panel-muted px-2 py-1 text-sm" aria-label={`${account.email} monthly spend limit`} /></td><td><button type="button" disabled={busy} onClick={() => void saveAccount(account)} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-xs disabled:opacity-50"><Save className="h-3 w-3" />{zh ? "保存" : "Save"}</button></td></tr>;
             })}</tbody>
           </table>
         </div>

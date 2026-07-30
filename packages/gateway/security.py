@@ -42,15 +42,16 @@ def _now() -> datetime:
 
 
 def _ensure_gateway_entitlement(db: Session, user: User) -> None:
-    if user.plan not in {"Pro", "Max", "Enterprise"}:
-        raise HTTPException(status_code=403, detail={"code": "GATEWAY_PAID_PLAN_REQUIRED"})
-    from apps.api.services.billing_service import current_subscription
+    """Keep the API Gateway financially independent from PureGamma plans.
 
-    settings = get_settings()
-    if settings.app_environment.lower() == "production" and settings.billing_mode == "stripe":
-        subscription = current_subscription(db, user.id)
-        if not subscription or subscription.status not in {"active", "trialing"}:
-            raise HTTPException(status_code=403, detail={"code": "GATEWAY_SUBSCRIPTION_INACTIVE"})
+    A user may have any PureGamma plan (including Free) and can create a
+    Gateway key. Actual inference remains prepaid by the dedicated Gateway
+    wallet, checked immediately before each request in ``gateway.service``.
+    ``db`` remains part of this boundary for future account-level eligibility
+    checks without coupling it to subscription entitlement again.
+    """
+
+    del db, user
 
 
 def create_api_key(

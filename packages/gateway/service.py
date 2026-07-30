@@ -20,6 +20,10 @@ from packages.database.models import (
 from packages.gateway.contracts import GatewayChatResult, GatewayProvider as GatewayProviderAdapter, GatewayProviderError, GatewayStreamEvent, GatewayUsage
 from packages.gateway.pricing import usage_cost
 from packages.gateway.registry import provider_registry
+from apps.api.services.gateway_wallet_service import (
+    assert_gateway_wallet_available,
+    debit_gateway_wallet_for_request,
+)
 
 
 def _now() -> datetime:
@@ -166,7 +170,14 @@ def gateway_account(db: Session, user_id: str) -> GatewayAccount:
         account = GatewayAccount(user_id=user_id, current_month_started_at=_month_start())
         db.add(account)
         db.flush()
-    if account.current_month_started_at < _month_start():
+    # SQLite test databases may round-trip a timezone-aware value as naive,
+    # while PostgreSQL preserves it. Normalize the legacy/test representation
+    # before comparing it to the UTC accounting month boundary.
+    started_at = account.current_month_started_at
+    if started_at.tzinfo is None:
+        started_at = started_at.replace(tzinfo=timezone.utc)
+        account.current_month_started_at = started_at
+    if started_at < _month_start():
         account.current_month_started_at = _month_start()
         account.current_month_spend_usd = Decimal("0")
     return account
@@ -180,6 +191,9 @@ def assert_gateway_account_available(db: Session, user_id: str) -> GatewayAccoun
     spent = Decimal(str(account.current_month_spend_usd or 0))
     if limit > 0 and spent >= limit:
         raise GatewayProviderError("GATEWAY_MONTHLY_LIMIT_REACHED", "Monthly gateway spend limit reached", status_code=402, retryable=False)
+    # PureGamma subscriptions and credits are unrelated to Gateway access.
+    # Gateway API traffic is instead prepaid from this dedicated USD wallet.
+    assert_gateway_wallet_available(db, user_id)
     return account
 
 
@@ -227,9 +241,16 @@ def record_request(
         error_code=error_code,
     )
     db.add(row)
+    db.flush()
     if status == "success":
         account = gateway_account(db, api_key.user_id)
         account.current_month_spend_usd = Decimal(str(account.current_month_spend_usd or 0)) + retail_cost
+        debit_gateway_wallet_for_request(
+            db,
+            user_id=api_key.user_id,
+            request_log=row,
+            amount_usd=retail_cost,
+        )
     db.commit()
     return row
 

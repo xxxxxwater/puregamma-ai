@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import Settings, get_settings
 from packages.billing.stripe import price_id_for_plan
-from packages.database.models import BillingCheckoutIntent, User
+from packages.database.models import BillingCheckoutIntent, GatewayTopupIntent, User
 
 
 class StripeService:
@@ -79,6 +79,68 @@ class StripeService:
             "checkout_intent_id": intent.id if intent else None,
             "client_reference_id": intent.public_reference if intent else None,
             "price_id": price_id,
+        }
+
+    def create_gateway_topup_session(self, db: Session, user: User, intent: GatewayTopupIntent, *, locale: str) -> dict:
+        """Create a one-time, exact-amount Checkout Session for API credit.
+
+        This deliberately uses ``mode=payment`` rather than the existing
+        subscription flow. The shared Stripe Customer is useful for receipts
+        and payment methods, but no subscription is created or modified.
+        """
+
+        customer_id = self.create_customer_if_needed(db, user)
+        if self.settings.billing_mode == "mock":
+            session_id = f"cs_mock_gateway_{uuid.uuid4().hex}"
+            intent.stripe_checkout_session_id = session_id
+            intent.stripe_customer_id = customer_id
+            db.flush()
+            return {
+                "checkout_url": f"{self.settings.site_url.rstrip('/')}/{locale}/gateway?topup=mock",
+                "mode": "mock",
+                "checkout_mode": "gateway_topup",
+                "stripe_checkout_session_id": session_id,
+            }
+
+        metadata = {
+            "purpose": "gateway_topup",
+            "gateway_topup_intent_id": intent.id,
+            "user_id": user.id,
+            "amount_cents": str(intent.amount_cents),
+            "currency": intent.currency,
+        }
+        redirect_base = f"{self.settings.site_url.rstrip('/')}/{locale}/gateway"
+        stripe = self._client()
+        session = stripe.checkout.Session.create(
+            customer=customer_id,
+            mode="payment",
+            line_items=[
+                {
+                    "price_data": {
+                        "currency": intent.currency.lower(),
+                        "product_data": {
+                            "name": "PureGamma API Gateway prepaid balance",
+                            "description": "Prepaid USD balance for PureGamma API Gateway usage",
+                        },
+                        "unit_amount": intent.amount_cents,
+                    },
+                    "quantity": 1,
+                }
+            ],
+            success_url=f"{redirect_base}?topup=success&session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{redirect_base}?topup=cancelled",
+            client_reference_id=intent.public_reference,
+            metadata=metadata,
+            payment_intent_data={"metadata": metadata},
+        )
+        intent.stripe_checkout_session_id = session["id"]
+        intent.stripe_customer_id = customer_id
+        db.flush()
+        return {
+            "checkout_url": session["url"],
+            "mode": "stripe",
+            "checkout_mode": "gateway_topup",
+            "stripe_checkout_session_id": session["id"],
         }
 
     def create_portal_session(self, user: User) -> dict:

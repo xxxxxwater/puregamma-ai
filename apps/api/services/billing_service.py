@@ -15,6 +15,12 @@ from apps.api.services.notification_service import send_notification
 from apps.api.services.stripe_service import StripeService
 from apps.api.services.stripe_payment_link_service import create_payment_link_checkout as create_payment_link_checkout_for_user
 from apps.api.services.stripe_payment_link_service import new_public_reference
+from apps.api.services.gateway_wallet_service import (
+    GatewayTopupError,
+    expire_gateway_topup_from_checkout,
+    is_gateway_topup_checkout,
+    settle_gateway_topup_from_checkout,
+)
 from packages.billing.plans import get_plan
 from packages.billing.stripe import allowed_checkout_plan, plan_for_price_id_or_none, price_id_for_plan
 from packages.database.models import BillingCheckoutIntent, CreditLedger, StripeWebhookEvent, Subscription, SubscriptionPlan, User
@@ -728,8 +734,11 @@ def process_stripe_event(db: Session, event: dict, raw_payload: bytes) -> dict:
         db.flush()
     obj = (event.get("data") or {}).get("object") or {}
     try:
-        if event_type == "checkout.session.completed":
-            _handle_checkout_completed(db, obj)
+        if event_type in {"checkout.session.completed", "checkout.session.async_payment_succeeded"}:
+            if is_gateway_topup_checkout(db, obj):
+                settle_gateway_topup_from_checkout(db, obj)
+            elif event_type == "checkout.session.completed":
+                _handle_checkout_completed(db, obj)
         elif event_type in {"customer.subscription.created", "customer.subscription.updated"}:
             _handle_subscription_upsert(db, obj)
         elif event_type == "customer.subscription.deleted":
@@ -739,9 +748,12 @@ def process_stripe_event(db: Session, event: dict, raw_payload: bytes) -> dict:
         elif event_type == "invoice.payment_failed":
             _handle_invoice_payment_failed(db, obj)
         elif event_type == "checkout.session.expired":
-            intent = _intent_by_session(db, obj)
-            if intent:
-                intent.status = "expired"
+            if is_gateway_topup_checkout(db, obj):
+                expire_gateway_topup_from_checkout(db, obj)
+            else:
+                intent = _intent_by_session(db, obj)
+                if intent:
+                    intent.status = "expired"
         elif event_type in {"price.created", "price.updated"}:
             _handle_price_upsert(db, obj)
         elif event_type in {"product.created", "product.updated"}:
@@ -762,6 +774,14 @@ def process_stripe_event(db: Session, event: dict, raw_payload: bytes) -> dict:
         row.error_message = str(exc)
         row.processed_at = datetime.now(timezone.utc)
         _mark_intent_manual_review(db, exc.intent, str(exc))
+    except GatewayTopupError as exc:
+        # A signed Stripe event that fails our stored-intent checks must never
+        # credit money automatically. Preserve it for an administrator to
+        # reconcile while acknowledging the event to avoid duplicate retries.
+        row.processed = True
+        row.requires_manual_review = True
+        row.error_message = str(exc)
+        row.processed_at = datetime.now(timezone.utc)
     except Exception as exc:
         row.error_message = str(exc)
         raise

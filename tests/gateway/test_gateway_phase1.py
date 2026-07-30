@@ -9,6 +9,7 @@ from packages.gateway.pricing import final_prices, usage_cost
 from packages.gateway.providers.deepseek import DeepSeekGatewayProvider
 from packages.gateway.security import create_api_key
 from packages.gateway.service import GatewayRoute
+from apps.api.services.gateway_wallet_service import gateway_wallet
 from tests.conftest import auth_headers
 
 
@@ -121,6 +122,9 @@ def test_openai_completion_shape_and_request_metering(api_client, pro_user, db, 
     import apps.api.routers.gateway as gateway_router
 
     monkeypatch.setattr(gateway_router, "_gateway_enabled", lambda: None)
+    wallet = gateway_wallet(db, pro_user.id)
+    wallet.available_balance_usd = 1
+    db.commit()
     key, raw_key = create_api_key(db, pro_user, name="Gateway test")
     provider = GatewayProvider(name="test-provider", display_name="Test", base_url="https://official.example")
     db.add(provider)

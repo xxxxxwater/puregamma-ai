@@ -1,6 +1,6 @@
 # PureGamma API Gateway
 
-> An OpenAI-compatible API for paid PureGamma users. Requests are routed only to enabled, reviewed official Provider APIs. PureGamma does not host local models and is not a model marketplace.
+> An independent, prepaid OpenAI-compatible API for PureGamma users. Requests are routed only to enabled, reviewed official Provider APIs. PureGamma does not host local models and is not a model marketplace.
 
 中文版：[PureGamma API 中转站](api-gateway.md)
 
@@ -13,11 +13,20 @@
 | Available models | `GET /v1/models` |
 | Chat API | `POST /v1/chat/completions` |
 
-You need a verified PureGamma account, an active Pro, Max, or Enterprise subscription, and an API key beginning with `sk-pg-`. A user may keep up to ten active or paused keys.
+You need a verified PureGamma account, an API key beginning with `sk-pg-`, and sufficient **Gateway prepaid USD balance**. A user may keep up to ten active or paused keys. PureGamma Pro/Max/Enterprise subscriptions, plans, and Credits serve the PureGamma product only: they are **not** Gateway balance and do not determine whether a Gateway API request can run.
 
 > **The model list is authoritative.** A model appears only after its Provider is enabled and healthy and its pricing has been approved. Do not treat a model name in an example as an availability guarantee.
 
 Use the [PureGamma API Console](https://app.puregamma.ai/en/gateway) to create, pause, delete, or rotate keys and to view your monthly limit, model usage, and recent requests. A new key is displayed only at creation or rotation. Store it immediately in a password manager or secret manager, and never expose it in browser code, mobile apps, repositories, screenshots, or support tickets. Pause or rotate a key immediately if exposure is suspected.
+
+### Add Gateway prepaid balance
+
+In the API Console, enter any USD amount in **Add API balance** (currently **$5.00–$10,000.00**, configurable by the operator), then complete the one-time Stripe payment. Once the verified Stripe webhook receives the successful payment, the **exact payment amount is credited 1:1** to your Gateway USD balance and appears in wallet activity.
+
+- This is not a subscription and never creates, upgrades, cancels, or changes a PureGamma plan.
+- This is not a Credits purchase and never changes `credit_balance` or PureGamma feature quota.
+- A balance is credited only after the verified Stripe webhook; the payment-success redirect itself never credits it.
+- Gateway usage is charged only to this balance at approved retail pricing. Insufficient balance returns `402 GATEWAY_INSUFFICIENT_BALANCE`; the wallet never overdrafts.
 
 ### Gateway configuration card
 
@@ -156,17 +165,18 @@ Tool definitions (`tools`, `tool_choice`) and legacy function fields are forward
 
 Each request records its request ID, model, Provider, latency, input/output/cache/reasoning tokens, additional billable units, official cost, and retail cost. Retail pricing is calculated from an approved official price snapshot plus the active markup; the default markup is 30%.
 
-Gateway accounts expose daily, monthly, and lifetime spend; model-level usage; request history; and API-key state. Reaching a configured monthly spend limit returns `402 GATEWAY_MONTHLY_LIMIT_REACHED`.
+Gateway accounts expose available prepaid balance, daily/monthly/lifetime spend, model-level usage, request history, API-key state, and an immutable wallet activity record. Each successful Gateway request is debited from the prepaid balance at the approved retail price. Insufficient funds return `402 GATEWAY_INSUFFICIENT_BALANCE`; reaching a configured monthly spend cap returns `402 GATEWAY_MONTHLY_LIMIT_REACHED`.
 
-Subscription eligibility uses the existing Stripe Customer, Subscription, and Webhook flows. This phase provides **usage metering, a cost ledger, and monthly-limit protection**. Before advertising usage-based collection, prepaid balance, or automatic top-ups, the operator must configure and accept the corresponding Stripe billing and settlement implementation.
+The Gateway can reuse the existing Stripe Customer for payment and receipts, but uses its own one-time `mode=payment` Checkout and its own ledger. It never reads or changes Subscription state, PureGamma Credits, or plan entitlement.
 
 ## 5. Error handling
 
 | HTTP | Code | Recommended action |
 | --- | --- | --- |
 | 401 | `GATEWAY_INVALID_API_KEY` | Check the Bearer header; the key may be invalid, paused, or revoked. |
+| 402 | `GATEWAY_INSUFFICIENT_BALANCE` | Add prepaid USD in the API Console through Stripe, then retry. |
 | 402 | `GATEWAY_MONTHLY_LIMIT_REACHED` | A monthly limit was reached; contact the account administrator. |
-| 403 | `GATEWAY_PAID_PLAN_REQUIRED` / `GATEWAY_SUBSCRIPTION_INACTIVE` | Activate an eligible paid subscription. |
+| 403 | `GATEWAY_ACCOUNT_INACTIVE` | The Gateway account was suspended by an administrator; contact support. |
 | 404 | `GATEWAY_MODEL_NOT_AVAILABLE` | Query `/v1/models`; the model may be disabled or awaiting price approval. |
 | 429 | Rate limited | Reduce concurrency and retry with exponential backoff. |
 | 503 | `GATEWAY_PROVIDER_UNHEALTHY` / `GATEWAY_PRICING_NOT_APPROVED` | Retry later or select an available model. |
@@ -179,7 +189,7 @@ Administrator access is based on the PureGamma user record with `role=admin`; us
 
 Use the [Gateway Admin Console](https://app.puregamma.ai/en/admin/gateway) for Provider enablement and health checks, catalog synchronization, pending-price approvals, unified markup, revenue/cost/profit metrics, and user spend caps or suspension. It is available only to accounts with `role=admin`; never share a browser session or token.
 
-The management API responsibilities are: `/admin/gateway/providers` lists and enables Providers; `/admin/gateway/sync` synchronizes the catalog; `/admin/gateway/prices/pending` reviews price revisions; `/admin/gateway/prices/{revision_id}/approve` approves one; `/admin/gateway/pricing/markup` updates markup; `/admin/gateway/metrics` returns revenue, cost, profit, and request count; and `/admin/gateway/accounts` manages account state and monthly caps. The deployed customer console uses `/gateway/keys`, `/gateway/dashboard`, and `/gateway/requests`.
+The management API responsibilities are: `/admin/gateway/providers` lists and enables Providers; `/admin/gateway/sync` synchronizes the catalog; `/admin/gateway/prices/pending` reviews price revisions; `/admin/gateway/prices/{revision_id}/approve` approves one; `/admin/gateway/pricing/markup` updates markup; `/admin/gateway/metrics` returns revenue, cost, profit, request count, and prepaid-balance liability; and `/admin/gateway/accounts` manages account state, monthly caps, and read-only API balance. The deployed customer console uses `/gateway/keys`, `/gateway/topups`, `/gateway/wallet`, `/gateway/dashboard`, and `/gateway/requests`.
 
 ### Gateway deployment configuration (administrators only)
 
@@ -188,6 +198,8 @@ The Gateway does not run models. Each provider key must come from that provider'
 ```bash
 GATEWAY_ENABLED=true
 GATEWAY_API_KEY_PEPPER=<separate random secret, at least 32 characters>
+GATEWAY_TOPUP_MIN_USD_CENTS=500
+GATEWAY_TOPUP_MAX_USD_CENTS=1000000
 
 GATEWAY_DEEPSEEK_API_KEY=<DeepSeek official key>
 GATEWAY_DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
@@ -198,6 +210,8 @@ GATEWAY_MOONSHOT_BASE_URL=<Moonshot official endpoint matching account region>
 GATEWAY_GLM_API_KEY=<Zhipu official key>
 GATEWAY_GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
 ```
+
+Keep the existing production `BILLING_MODE=stripe`, `STRIPE_SECRET_KEY`, and `STRIPE_WEBHOOK_SECRET` configuration. Configure the Stripe Endpoint to deliver `checkout.session.completed`, `checkout.session.async_payment_succeeded`, and `checkout.session.expired` to `POST https://api.puregamma.ai/stripe/webhook`. Never credit a wallet from a success URL, browser parameter, or an admin page: automated crediting must come from a signature-verified webhook whose amount, currency, Customer, and internal top-up intent all match.
 
 After saving, restart API, worker, and scheduler. Then synchronize the catalog in the Admin Console, review every price, enable the Provider, run its health check, and verify `/v1/models` plus a low-cost call with a real `sk-pg-...` key. A provider key alone never bypasses price approval.
 

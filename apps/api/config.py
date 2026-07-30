@@ -137,6 +137,14 @@ class Settings:
     gateway_glm_base_url: str = os.getenv(
         "GATEWAY_GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"
     )
+    # Gateway credit is a separate USD prepaid wallet, never a conversion of
+    # PureGamma subscription credits. Values are expressed in Stripe cents.
+    gateway_topup_min_usd_cents: int = int(
+        os.getenv("GATEWAY_TOPUP_MIN_USD_CENTS", "500") or 500
+    )
+    gateway_topup_max_usd_cents: int = int(
+        os.getenv("GATEWAY_TOPUP_MAX_USD_CENTS", "1000000") or 1_000_000
+    )
     agent_provider: str = os.getenv("AGENT_PROVIDER", os.getenv("LLM_PROVIDER", ""))
     agent_model: str = os.getenv("AGENT_MODEL", os.getenv("LLM_MODEL", ""))
     agent_max_output_tokens: int = int(
@@ -454,6 +462,8 @@ def validate_production_settings(settings: Settings) -> None:
     if settings.gateway_enabled:
         if len(settings.gateway_api_key_pepper) < 32:
             errors.append("GATEWAY_API_KEY_PEPPER must be at least 32 characters when GATEWAY_ENABLED=true")
+        if settings.gateway_topup_min_usd_cents <= 0 or settings.gateway_topup_max_usd_cents < settings.gateway_topup_min_usd_cents:
+            errors.append("GATEWAY_TOPUP_MIN_USD_CENTS and GATEWAY_TOPUP_MAX_USD_CENTS must define a positive valid range")
         configured_gateway_keys = [
             name
             for name, value in {

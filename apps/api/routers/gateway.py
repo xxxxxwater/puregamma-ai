@@ -25,6 +25,7 @@ from packages.database.models import (
     GatewayProvider,
     GatewayProviderSync,
     GatewayRequestLog,
+    GatewayWallet,
     User,
 )
 from packages.gateway.contracts import GatewayProviderError, GatewayUsage
@@ -55,6 +56,16 @@ from packages.gateway.service import (
     model_list,
     record_request,
     stream_chat,
+)
+from apps.api.services.gateway_wallet_service import (
+    GatewayTopupError,
+    create_gateway_topup_checkout,
+    gateway_topup_history,
+    gateway_wallet,
+    gateway_wallet_history,
+    serialize_gateway_topup_intent,
+    serialize_gateway_wallet,
+    serialize_gateway_wallet_ledger,
 )
 
 
@@ -88,6 +99,11 @@ class GatewayAccountUpdateRequest(BaseModel):
 
     status: Literal["active", "suspended"] | None = None
     monthly_spend_limit_usd: Decimal | None = Field(default=None, ge=0, le=1_000_000)
+
+
+class GatewayTopupRequest(BaseModel):
+    amount_usd: Decimal = Field(gt=0)
+    locale: Literal["zh", "en"] = "en"
 
 
 class ChatCompletionsRequest(BaseModel):
@@ -210,6 +226,7 @@ def _serialize_request(row: GatewayRequestLog) -> dict[str, Any]:
 def _serialize_gateway_account(
     user: User,
     account: GatewayAccount | None,
+    wallet: GatewayWallet | None,
     *,
     active_key_count: int,
     lifetime_spend_usd: Decimal | int | float,
@@ -225,6 +242,7 @@ def _serialize_gateway_account(
         "monthly_spend_limit_usd": str(account.monthly_spend_limit_usd) if account else "0",
         "current_month_spend_usd": str(account.current_month_spend_usd) if account else "0",
         "lifetime_spend_usd": str(lifetime_spend_usd or 0),
+        "wallet_balance_usd": str(wallet.available_balance_usd) if wallet else "0",
         "active_key_count": active_key_count,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
     }
@@ -278,6 +296,7 @@ def rotate_key(key_id: str, db: Session = Depends(get_db), user: User = Depends(
 @router.get("/dashboard")
 def dashboard(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict[str, Any]:
     account = gateway_account(db, user.id)
+    wallet = gateway_wallet(db, user.id)
     now = datetime.now(timezone.utc)
     day_start = now.replace(hour=0, minute=0, second=0, microsecond=0)
     month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
@@ -304,6 +323,11 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(get_current_us
             "current_month_spend_usd": str(account.current_month_spend_usd),
             "month_started_at": account.current_month_started_at.isoformat(),
         },
+        "wallet": {
+            **serialize_gateway_wallet(wallet),
+            "topup_min_usd": f"{Decimal(get_settings().gateway_topup_min_usd_cents) / Decimal('100'):.2f}",
+            "topup_max_usd": f"{Decimal(get_settings().gateway_topup_max_usd_cents) / Decimal('100'):.2f}",
+        },
         "subscription": {"plan": user.plan, "stripe_customer_id": user.stripe_customer_id},
         "spend_usd": {"today": str(today), "month": str(month), "lifetime": str(total)},
         "models": [
@@ -316,6 +340,35 @@ def dashboard(db: Session = Depends(get_db), user: User = Depends(get_current_us
             }
             for row in models
         ],
+        "wallet_ledger": [serialize_gateway_wallet_ledger(row) for row in gateway_wallet_history(db, user.id, limit=10)],
+        "topups": [serialize_gateway_topup_intent(row) for row in gateway_topup_history(db, user.id, limit=10)],
+    }
+
+
+@router.post("/topups", status_code=201)
+def create_topup(
+    payload: GatewayTopupRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Start a user-selected, one-time Stripe Checkout payment for Gateway USD."""
+
+    _gateway_enabled()
+    try:
+        return create_gateway_topup_checkout(db, user, payload.amount_usd, locale=payload.locale)
+    except GatewayTopupError as exc:
+        raise HTTPException(status_code=422, detail={"code": exc.code, "message": str(exc)}) from exc
+
+
+@router.get("/wallet")
+def wallet_history(
+    db: Session = Depends(get_db), user: User = Depends(get_current_user)
+) -> dict[str, Any]:
+    wallet = gateway_wallet(db, user.id)
+    return {
+        "wallet": serialize_gateway_wallet(wallet),
+        "ledger": [serialize_gateway_wallet_ledger(row) for row in gateway_wallet_history(db, user.id)],
+        "topups": [serialize_gateway_topup_intent(row) for row in gateway_topup_history(db, user.id)],
     }
 
 
@@ -590,7 +643,14 @@ def metrics(db: Session = Depends(get_db), _: User = Depends(_admin)) -> dict[st
     revenue = db.query(func.coalesce(func.sum(GatewayRequestLog.retail_cost_usd), 0)).filter_by(status="success").scalar()
     cost = db.query(func.coalesce(func.sum(GatewayRequestLog.provider_cost_usd), 0)).filter_by(status="success").scalar()
     requests = db.query(func.count(GatewayRequestLog.id)).scalar()
-    return {"revenue_usd": str(revenue), "provider_cost_usd": str(cost), "profit_usd": str(Decimal(str(revenue)) - Decimal(str(cost))), "requests": requests}
+    prepaid_liability = db.query(func.coalesce(func.sum(GatewayWallet.available_balance_usd), 0)).scalar()
+    return {
+        "revenue_usd": str(revenue),
+        "provider_cost_usd": str(cost),
+        "profit_usd": str(Decimal(str(revenue)) - Decimal(str(cost))),
+        "prepaid_liability_usd": str(prepaid_liability),
+        "requests": requests,
+    }
 
 
 @admin_router.get("/accounts")
@@ -632,11 +692,16 @@ def gateway_accounts(
         .group_by(GatewayRequestLog.user_id)
         .all()
     )
+    wallets = {
+        row.user_id: row
+        for row in db.query(GatewayWallet).filter(GatewayWallet.user_id.in_(user_ids)).all()
+    }
     return {
         "accounts": [
             _serialize_gateway_account(
                 user,
                 account,
+                wallets.get(user.id),
                 active_key_count=int(key_counts.get(user.id, 0)),
                 lifetime_spend_usd=lifetime_spend.get(user.id, Decimal("0")),
             )
@@ -690,6 +755,7 @@ def update_gateway_account(
         "account": _serialize_gateway_account(
             user,
             account,
+            db.query(GatewayWallet).filter_by(user_id=user.id).one_or_none(),
             active_key_count=active_key_count,
             lifetime_spend_usd=lifetime_spend,
         )
