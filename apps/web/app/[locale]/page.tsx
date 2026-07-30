@@ -32,6 +32,9 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
               <Link href={withLocale(locale, "/chat")} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-3 text-sm font-semibold text-pg-black">
                 {copy.hero.primaryCta} <ArrowRight className="h-4 w-4" />
               </Link>
+              <Link href={withLocale(locale, "/api")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong">
+                {locale === "zh" ? "API 快速接入" : "API Quickstart"} <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
           <PGResearchCard>

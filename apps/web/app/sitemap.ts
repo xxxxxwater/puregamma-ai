@@ -6,6 +6,7 @@ const locales = ["en", "zh"] as const;
 
 const localizedPages = [
   { path: "/", changeFrequency: "daily" as const, priority: 1.0 },
+  { path: "/api", changeFrequency: "weekly" as const, priority: 0.9 },
   { path: "/login", changeFrequency: "monthly" as const, priority: 0.6 },
   { path: "/signup", changeFrequency: "monthly" as const, priority: 0.7 },
   { path: "/forgot-password", changeFrequency: "monthly" as const, priority: 0.3 },
