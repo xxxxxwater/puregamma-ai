@@ -1,9 +1,8 @@
 from __future__ import annotations
 
 import json
-import threading
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -146,56 +145,143 @@ def refresh_data(db: Session = Depends(get_db), user: User = Depends(get_current
     return {"stats": stats, **lab_status(db)}
 
 
+def _decode_terminal_event(raw: object) -> dict | None:
+    """Decode one retained Redis event without letting malformed data kill SSE."""
+    try:
+        if isinstance(raw, bytes):
+            raw = raw.decode("utf-8")
+        payload = json.loads(str(raw))
+        return payload if isinstance(payload, dict) else None
+    except (TypeError, UnicodeDecodeError, json.JSONDecodeError):
+        return None
+
+
+def _event_sequence(payload: dict) -> int:
+    try:
+        return int(payload.get("seq", 0))
+    except (TypeError, ValueError):
+        return 0
+
+
+def _sse_event(payload: dict) -> str:
+    """Render a safe SSE message and expose its sequence for reconnection."""
+    sequence = _event_sequence(payload)
+    event_id = f"id: {sequence}\n" if sequence else ""
+    return f"{event_id}event: message\ndata: {json.dumps(payload, default=str, separators=(',', ':'))}\n\n"
+
+
 @router.get("/runs/{run_id}/stream")
 def stream_run(
     run_id: str,
+    request: Request,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> StreamingResponse:
-    """SSE stream of per-bar/trade progress events for the terminal backtest UI."""
+    """Replay and stream an authenticated run's terminal events over SSE."""
+    row = db.get(BacktestRun, run_id)
+    if not row or row.user_id != user.id:
+        # Do not reveal whether an arbitrary UUID exists for a different user.
+        raise HTTPException(status_code=404, detail="Backtest run not found")
+
     channel = f"backtest:logs:{run_id}"
-    shutdown = threading.Event()
+    history_key = f"{channel}:history"
+    try:
+        last_sequence = max(0, int(request.headers.get("last-event-id", "0")))
+    except ValueError:
+        last_sequence = 0
 
     def event_generator():
+        nonlocal last_sequence
         try:
             redis = get_redis()
             redis.ping()
         except Exception:
-            yield f"data: {json.dumps({'t': 'error', 'line': 'Redis unavailable — terminal output disabled'})}\n\n"
-            yield f"data: {json.dumps({'t': 'close'})}\n\n"
+            yield _sse_event({"t": "error", "line": "Redis unavailable — terminal output disabled"})
+            yield _sse_event({"t": "close", "line": "── stream unavailable ──"})
             return
 
-        pubsub = redis.pubsub()
-        pubsub.subscribe(channel)
+        # Subscribe first, then replay persisted events.  The logger writes to
+        # the list before publishing, so any event emitted in this small race
+        # is either in the replay or queued by Pub/Sub; `seq` de-duplicates it.
+        pubsub = redis.pubsub(ignore_subscribe_messages=True)
         try:
-            msg = pubsub.get_message(timeout=0.1)
-            while msg is not None and not shutdown.is_set():
-                if msg["type"] == "message":
-                    data = msg["data"]
-                    yield f"data: {data}\n\n"
-                    if json.loads(data).get("t") == "close":
-                        break
-                msg = pubsub.get_message(timeout=0.05)
-            while not shutdown.is_set():
+            pubsub.subscribe(channel)
+            history = redis.lrange(history_key, 0, -1)
+            replayed_any = False
+            for raw in history:
+                payload = _decode_terminal_event(raw)
+                if payload is None:
+                    continue
+                sequence = _event_sequence(payload)
+                if sequence and sequence <= last_sequence:
+                    continue
+                if sequence:
+                    last_sequence = sequence
+                replayed_any = True
+                yield _sse_event(payload)
+                if payload.get("t") == "close":
+                    return
+
+            # A completed historic run may legitimately have outlived its
+            # retained transcript.  Finish immediately instead of holding an
+            # EventSource open forever.
+            if row.status in {"completed", "failed", "cancelled"} and not replayed_any:
+                yield _sse_event({"t": "close", "line": "── terminal transcript is no longer available ──"})
+                return
+
+            idle_polls = 0
+            while True:
                 msg = pubsub.get_message(timeout=2.0)
                 if msg is None:
+                    idle_polls += 1
+                    # A worker can fail before it initializes its logger (for
+                    # example while loading data).  Check infrequently so the
+                    # browser receives a conclusive terminal state instead of
+                    # an endless keepalive stream.
+                    if idle_polls >= 5:
+                        idle_polls = 0
+                        # StreamingResponse may iterate in a different worker
+                        # thread from the request dependency.  Use a short-
+                        # lived session for this watchdog rather than sharing
+                        # the request's SQLAlchemy Session across threads.
+                        from packages.database.session import SessionLocal
+
+                        status_db = SessionLocal()
+                        try:
+                            current = status_db.get(BacktestRun, run_id)
+                        finally:
+                            status_db.close()
+                        if current and current.status in {"completed", "failed", "cancelled"}:
+                            if current.status != "completed":
+                                yield _sse_event({"t": "error", "line": "✗ Backtest ended before terminal output was available"})
+                            yield _sse_event({"t": "close", "line": "── stream ended ──"})
+                            return
                     yield f": keepalive\n\n"
                     continue
-                if msg["type"] == "message":
-                    data = msg["data"]
-                    yield f"data: {data}\n\n"
-                    if json.loads(data).get("t") == "close":
-                        break
+                idle_polls = 0
+                if msg.get("type") != "message":
+                    continue
+                payload = _decode_terminal_event(msg.get("data"))
+                if payload is None:
+                    continue
+                sequence = _event_sequence(payload)
+                if sequence and sequence <= last_sequence:
+                    continue
+                if sequence:
+                    last_sequence = sequence
+                yield _sse_event(payload)
+                if payload.get("t") == "close":
+                    return
         except GeneratorExit:
             pass
         except Exception:
-            yield f"data: {json.dumps({'t': 'error', 'line': 'stream error'})}\n\n"
+            yield _sse_event({"t": "error", "line": "Terminal stream interrupted"})
         finally:
             try:
                 pubsub.unsubscribe(channel)
+                pubsub.close()
             except Exception:
                 pass
-            shutdown.set()
 
     return StreamingResponse(
         event_generator(),

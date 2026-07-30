@@ -212,9 +212,17 @@ export function BacktestLab({ locale }: { locale: Locale }) {
         </section>
       </div>
 
+      {selected ? (
+        <section className="border border-border-pg bg-bg-panel p-5">
+          <BacktestTerminal
+            run={{ id: selected.id, status: selected.status, isLegacy: selected.is_legacy }}
+            localeStr={locale}
+          />
+        </section>
+      ) : null}
+
       {selected && perf ? (
         <section className="space-y-5 border border-border-pg bg-bg-panel p-5">
-          <BacktestTerminal run={{ id: selected.id, status: selected.status }} localeStr={locale} />
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">{copy.performance.title}: {selected.spec?.name}</h2>
             {isActive ? <span className="flex items-center gap-1 text-[11px] text-text-pg-muted"><Loader2 className="h-3 w-3 animate-spin" />{selected.status}</span> : null}

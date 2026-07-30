@@ -45,3 +45,34 @@ def test_vectorbt_result_includes_all_plotly_research_figures():
     assert {"equity", "drawdown", "benchmark_comparison", "trades", "positions"} <= set(result["charts"])
     assert result["benchmark_curve"]
     assert all("data" in figure and "layout" in figure for figure in result["charts"].values())
+
+
+def test_compatible_engine_terminal_progress_finishes_at_100_percent(monkeypatch):
+    class TerminalRecorder:
+        def __init__(self):
+            self.calls: list[tuple[str, tuple]] = []
+
+        def __getattr__(self, name):
+            def record(*args):
+                self.calls.append((name, args))
+            return record
+
+    monkeypatch.setattr("packages.backtest.vectorbt_engine._run_native_vectorbt", lambda *_args, **_kwargs: None)
+    start = datetime(2025, 1, 1, tzinfo=timezone.utc)
+    terminal = TerminalRecorder()
+    run_vectorbt(
+        {
+            "name": "BTC trend",
+            "assets": ["BTC"],
+            "signal": "momentum",
+            "fast_window": 4,
+            "slow_window": 10,
+            "fee_bps": 10,
+        },
+        {"BTC": [{"ts": start + timedelta(days=index), "close": 100 + index} for index in range(75)]},
+        logger=terminal,
+    )
+
+    progress = [args for name, args in terminal.calls if name == "progress"]
+    assert progress[-1][0:2] == (74, 74)
+    assert {args[0] for name, args in terminal.calls if name == "metric"} >= {"sharpe", "max_drawdown", "win_rate"}

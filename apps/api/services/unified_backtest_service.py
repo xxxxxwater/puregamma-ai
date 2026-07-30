@@ -97,9 +97,8 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
         start = end - timedelta(days=max(30, min(window_days, 365 * 3)))
         if window is None:
             window = load_candle_window(db, spec["assets"], start, end)
-        # Real-time terminal logger (Redis pub/sub → SSE).  Degrades
+        # Real-time terminal logger (retained Redis events → SSE). Degrades
         # silently when Redis is unavailable (no-op logger).
-        bl: BacktestLogger | None = None
         try:
             redis = get_redis()
             redis.ping()
@@ -107,7 +106,9 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
             bl.start(spec["assets"], sum(len(window.get(asset, [])) for asset in spec["assets"]),
                      "vectorbt", freshness)
         except Exception:
-            pass
+            # The run remains valid without a terminal, but operators still
+            # need a clear signal that observability is degraded.
+            logger.warning("backtest_terminal_logger_unavailable run_id=%s", run_id, exc_info=True)
         result = run_vectorbt(spec, window, logger=bl)
         if bl:
             bl.close()
@@ -124,8 +125,11 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
         row.completed_at = _now()
         db.commit()
     except Exception as exc:
+        logger.exception("unified_backtest_execution_failed run_id=%s", run_id)
         if bl:
-            bl.error(str(exc)[:300])
+            # Keep internal exception detail in server logs; terminal output
+            # is customer-facing and must not leak infrastructure details.
+            bl.error("Backtest failed. Credits will be refunded automatically.")
             bl.close()
         db.rollback()
         row = db.get(BacktestRun, run_id)

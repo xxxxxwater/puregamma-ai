@@ -13,6 +13,18 @@ from typing import Any
 from packages.backtest.metrics import calculate_metrics
 from packages.backtest.quantstats_adapter import enrich_metrics
 
+PROGRESS_INTERVAL_BARS = 50
+
+
+def _log_summary_metrics(logger: Any | None, metrics: dict[str, Any]) -> None:
+    """Emit the compact set of figures useful in a terminal transcript."""
+    if not logger:
+        return
+    for name in ("sharpe", "max_drawdown", "win_rate"):
+        value = metrics.get(name)
+        if isinstance(value, (int, float)):
+            logger.metric(name, float(value))
+
 
 def _signal(closes: list[float], index: int, fast: int, slow: int, signal: str, threshold: float, long_short: bool) -> float:
     if index < slow:
@@ -80,8 +92,6 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     t0 = time.monotonic()
     native = _run_native_vectorbt(spec, window, initial_cash=initial_cash, logger=logger)
     if native is not None:
-        if logger:
-            logger.metric("engine", 1)  # native
         return native
     assets = [str(item).upper() for item in spec.get("assets", [])]
     fast = max(2, int(spec.get("fast_window", 12)))
@@ -90,11 +100,16 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     signal = str(spec.get("signal", "momentum"))
     threshold = float(spec.get("entry_threshold", 0.0))
     long_short = bool(spec.get("long_short", False))
-    total_bars = sum(len([row for row in window.get(asset, []) if float(row.get("close", 0)) > 0]) for asset in assets)
+    bars_by_asset = {
+        asset: [row for row in window.get(asset, []) if float(row.get("close", 0)) > 0]
+        for asset in assets
+    }
+    # A signal is evaluated from bar 1 onward; report progress against the
+    # actual number of evaluations so the final update always reaches 100%.
+    total_bars = sum(max(0, len(bars) - 1) for bars in bars_by_asset.values())
     if logger:
-        logger.metric("engine", 0)  # compatible
         for asset in assets:
-            bars = [row for row in window.get(asset, []) if float(row.get("close", 0)) > 0]
+            bars = bars_by_asset[asset]
             logger.data_loaded(asset, len(bars), (spec.get("data_sources") or {}).get(asset, "store"))
     series: list[tuple[datetime, float, float]] = []
     trades: list[dict] = []
@@ -102,7 +117,7 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     all_returns: list[float] = []
     global_bar = 0
     for asset in assets:
-        bars = [row for row in window.get(asset, []) if float(row.get("close", 0)) > 0]
+        bars = bars_by_asset[asset]
         if len(bars) < slow + 2:
             raise ValueError(f"insufficient candle history for {asset}")
         closes = [float(row["close"]) for row in bars]
@@ -124,7 +139,7 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
                     logger.trade(asset, bars[index]["ts"], direction, closes[index], target, equity_sofar)
             previous = target
             global_bar += 1
-            if logger and global_bar % max(1, total_bars // 50) == 0:
+            if logger and (global_bar % PROGRESS_INTERVAL_BARS == 0 or global_bar == total_bars):
                 logger.progress(global_bar, total_bars, asset, closes[index], equity_sofar)
     series.sort(key=lambda item: item[0])
     equity = []
@@ -145,6 +160,7 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     drawdown = _drawdown_curve(equity)
     result = {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt" if _vectorbt_available() else "vectorbt_compatible", "is_live": False}
     if logger:
+        _log_summary_metrics(logger, metrics)
         ret = metrics.get("total_return", 0.0)
         logger.complete(len(trades), metrics.get("final_equity", 0.0), ret, int((time.monotonic() - t0) * 1000))
     return result
@@ -168,6 +184,8 @@ def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *,
             if logger:
                 logger.warning(f"insufficient candle history for native {assets[0]} ({len(rows)} bars, need {slow + 2})")
             return None
+        if logger:
+            logger.data_loaded(assets[0], len(rows), (spec.get("data_sources") or {}).get(assets[0], "store"))
         close = pd.Series([float(row["close"]) for row in rows], index=pd.to_datetime([row["ts"] for row in rows]))
         fast_ma = close.rolling(fast).mean()
         slow_ma = close.rolling(slow).mean()
@@ -195,11 +213,13 @@ def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *,
                 if logger:
                     logger.trade(assets[0], ts, direction, price, target, eq_val)
             previous = target
-            if logger and bar_idx % max(1, total_bars // 50) == 0:
-                logger.progress(bar_idx, total_bars, assets[0], price, eq_val)
+            completed = bar_idx + 1
+            if logger and (completed % PROGRESS_INTERVAL_BARS == 0 or completed == total_bars):
+                logger.progress(completed, total_bars, assets[0], price, eq_val)
         drawdown = _drawdown_curve(equity)
         result = {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt", "is_live": False}
         if logger:
+            _log_summary_metrics(logger, metrics)
             ret = metrics.get("total_return", 0.0)
             logger.complete(len(trades), metrics.get("final_equity", 0.0), ret, int((time.monotonic() - t0) * 1000))
         return result

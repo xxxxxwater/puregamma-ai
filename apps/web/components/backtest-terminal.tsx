@@ -1,28 +1,30 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Terminal, ChevronDown, ChevronUp } from "lucide-react";
+import { ChevronDown, ChevronUp, Terminal } from "lucide-react";
 import { API_URL } from "@/lib/api";
+
+const MAX_TERMINAL_LINES = 2_000;
 
 interface LogEvent {
   t: string;
   ts?: string;
+  seq?: number;
   line?: string;
   bar?: number;
   total?: number;
   pct?: number;
-  trades?: number;
   direction?: string;
   price?: number;
   equity?: number;
   position?: number;
   asset?: string;
-  message?: string;
 }
 
 interface StreamRun {
   id: string;
   status: string;
+  isLegacy?: boolean;
 }
 
 function fmtLite(value: number | undefined, decimals = 2): string {
@@ -44,9 +46,11 @@ interface Props {
 
 export function BacktestTerminal({ run, localeStr }: Props) {
   const zh = localeStr === "zh";
+  const runId = run?.id ?? null;
   const [lines, setLines] = useState<LogEvent[]>([]);
   const [open, setOpen] = useState(false);
   const [connected, setConnected] = useState(false);
+  const [streamEnded, setStreamEnded] = useState(false);
   const containerRef = useRef<HTMLDivElement>(null);
   const eventSourceRef = useRef<EventSource | null>(null);
 
@@ -55,60 +59,62 @@ export function BacktestTerminal({ run, localeStr }: Props) {
     [run]
   );
 
-  // Auto-open when streaming, auto-close idle when terminal + 10s
+  // A new run opens immediately.  A finished run remains readable for 30
+  // seconds, then folds back into its compact header.
   useEffect(() => {
-    if (streaming) {
+    if (!run) return;
+    if (!isTerminal(run.status)) {
       setOpen(true);
-    }
-  }, [streaming]);
-
-  // Connect / disconnect SSE
-  useEffect(() => {
-    if (!run || isTerminal(run.status)) {
-      // When the run is terminal, close the existing connection after a grace
-      // period so the user can read the final output.
-      const timer = window.setTimeout(() => {
-        eventSourceRef.current?.close();
-        eventSourceRef.current = null;
-        setConnected(false);
-      }, 30_000);
-      return () => window.clearTimeout(timer);
-    }
-
-    // Don't reconnect if already listening to the same run.
-    if (
-      eventSourceRef.current &&
-      !isTerminal(run.status)
-    ) {
       return;
     }
+    const timer = window.setTimeout(() => setOpen(false), 30_000);
+    return () => window.clearTimeout(timer);
+  }, [runId, run?.status]);
+
+  // Each run has one EventSource.  Redis retains a bounded transcript, so a
+  // late mount or a reconnect can replay the missing lines without duplicate
+  // React effects reconnecting to the same stream.
+  useEffect(() => {
+    if (!runId || run?.isLegacy) return;
 
     setLines([]);
-    const url = `${API_URL}/backtest-lab/runs/${run.id}/stream`;
-    const evt = new EventSource(url, { withCredentials: true });
-    evt.addEventListener("message", (msg) => {
-      try {
-        const parsed: LogEvent = JSON.parse(msg.data);
-        setLines((prev) => [...prev, parsed]);
-        if (!connected) setConnected(true);
-      } catch {
-        // Ignore malformed lines.
-      }
-    });
-    evt.addEventListener("open", () => setConnected(true));
-    evt.addEventListener("error", () => {
-      setConnected(false);
-      // EventSource auto-reconnects; if the run is terminal the parent
-      // will close us.
+    setConnected(false);
+    setStreamEnded(false);
+
+    const evt = new EventSource(`${API_URL}/backtest-lab/runs/${runId}/stream`, {
+      withCredentials: true,
     });
     eventSourceRef.current = evt;
+
+    evt.addEventListener("open", () => setConnected(true));
+    evt.addEventListener("message", (message) => {
+      try {
+        const parsed: LogEvent = JSON.parse((message as MessageEvent<string>).data);
+        setLines((previous) => [...previous, parsed].slice(-MAX_TERMINAL_LINES));
+        setConnected(true);
+        if (parsed.t === "close") {
+          setStreamEnded(true);
+          setConnected(false);
+          evt.close();
+          if (eventSourceRef.current === evt) eventSourceRef.current = null;
+        }
+      } catch {
+        // Ignore a malformed message and keep the stream available for the
+        // next valid event.
+      }
+    });
+    evt.addEventListener("error", () => {
+      // EventSource retries transient network faults by itself.  A terminal
+      // `close` event above intentionally disables that reconnect behavior.
+      setConnected(false);
+    });
+
     return () => {
       evt.close();
-      eventSourceRef.current = null;
+      if (eventSourceRef.current === evt) eventSourceRef.current = null;
     };
-  }, [run, connected]);
+  }, [runId, run?.isLegacy]);
 
-  // Auto-scroll when new lines appear.
   useEffect(() => {
     if (!containerRef.current) return;
     containerRef.current.scrollTop = containerRef.current.scrollHeight;
@@ -128,7 +134,8 @@ export function BacktestTerminal({ run, localeStr }: Props) {
   const header = (
     <button
       type="button"
-      onClick={() => setOpen((prev) => !prev)}
+      onClick={() => setOpen((previous) => !previous)}
+      aria-expanded={open}
       className="flex w-full items-center justify-between border border-border-pg bg-bg-panel px-4 py-2.5 text-left text-xs font-semibold"
     >
       <span className="flex items-center gap-2">
@@ -139,10 +146,10 @@ export function BacktestTerminal({ run, localeStr }: Props) {
             <span className="inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-status-positive" />
             {zh ? "运行中" : "Running"}
           </span>
+        ) : streamEnded ? (
+          <span className="text-text-pg-dim">{zh ? "已结束" : "Finished"}</span>
         ) : connected ? (
-          <span className="text-text-pg-dim">
-            {zh ? "已结束" : "Finished"}
-          </span>
+          <span className="text-text-pg-dim">{zh ? "连接中" : "Connected"}</span>
         ) : null}
       </span>
       {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
@@ -156,22 +163,24 @@ export function BacktestTerminal({ run, localeStr }: Props) {
       {header}
       <div
         ref={containerRef}
+        role="log"
+        aria-live="polite"
         className="max-h-96 overflow-y-auto border-x border-b border-border-pg bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] leading-[1.55]"
       >
         {lines.length === 0 ? (
           <span className="text-neutral-600">
             {streaming
-              ? `\u2588 ${zh ? "等待工作进程..." : "Waiting for worker..."}`
+              ? `█ ${zh ? "等待工作进程..." : "Waiting for worker..."}`
               : zh
-              ? "无输出"
-              : "No output"}
+                ? "无可用终端输出"
+                : "No terminal output available"}
           </span>
         ) : (
           lines.map((event, index) => (
-            <TerminalLine key={`${index}-${event.t}`} event={event} />
+            <TerminalLine key={`${event.seq ?? "event"}-${index}`} event={event} />
           ))
         )}
-        {streaming ? (
+        {streaming && !streamEnded ? (
           <span className="ml-1 inline-block h-[1.15em] w-[0.55em] animate-pulse bg-neutral-500 align-middle" />
         ) : null}
       </div>
@@ -191,7 +200,7 @@ function TerminalLine({ event }: { event: LogEvent }) {
       case "metric":
         return "text-cyan-300";
       case "complete":
-        return "text-green-300 font-semibold";
+        return "font-semibold text-green-300";
       case "start":
         return "text-white";
       case "data":
@@ -203,31 +212,28 @@ function TerminalLine({ event }: { event: LogEvent }) {
     }
   }, [event.t]);
 
-  const line = event.line;
-  if (!line) {
-    // Render raw event for trade/progress without a pre-formatted line.
-    if (event.t === "trade" && event.direction && event.asset && event.price) {
-      const arrow = event.direction === "buy" ? "\u2191" : "\u2193";
-      return (
-        <div className="text-yellow-300">
-          {`  ${arrow} ${event.direction.toUpperCase()} ${event.asset} @ $${fmtLite(event.price, 2)}`}
-          {event.position !== undefined ? `  pos=${fmtLite(event.position, 2)}` : ""}
-          {event.equity !== undefined ? `  equity=$${fmtLite(event.equity, 0)}` : ""}
-        </div>
-      );
-    }
-    if (event.t === "progress" && event.pct !== undefined) {
-      const pct = Math.round(event.pct);
-      const bar = "\u2588".repeat(Math.round(pct / 5));
-      const space = "\u2591".repeat(20 - bar.length);
-      return (
-        <div className="text-neutral-300">
-          {`  [${bar}${space}] ${fmtLite(event.pct, 1)}%  bar ${event.bar || 0}/${event.total || 0}  equity=$${fmtLite(event.equity, 0)}`}
-        </div>
-      );
-    }
-    return null;
-  }
+  if (event.line) return <div className={colorClass}>{event.line}</div>;
 
-  return <div className={colorClass}>{line}</div>;
+  // Structured fallback keeps the terminal useful if a newer worker omits a
+  // pre-formatted line while this client is still deployed.
+  if (event.t === "trade" && event.direction && event.asset && event.price !== undefined) {
+    const arrow = event.direction === "buy" ? "↑" : "↓";
+    return (
+      <div className="text-yellow-300">
+        {`  ${arrow} ${event.direction.toUpperCase()} ${event.asset} @ $${fmtLite(event.price, 2)}`}
+        {event.position !== undefined ? `  pos=${fmtLite(event.position, 2)}` : ""}
+        {event.equity !== undefined ? `  equity=$${fmtLite(event.equity, 0)}` : ""}
+      </div>
+    );
+  }
+  if (event.t === "progress" && event.pct !== undefined) {
+    const pct = Math.round(event.pct);
+    const filled = Math.min(20, Math.max(0, Math.round(pct / 5)));
+    return (
+      <div className="text-neutral-300">
+        {`  [${"█".repeat(filled)}${"░".repeat(20 - filled)}] ${fmtLite(event.pct, 1)}%  bar ${event.bar || 0}/${event.total || 0}  equity=$${fmtLite(event.equity, 0)}`}
+      </div>
+    );
+  }
+  return null;
 }
