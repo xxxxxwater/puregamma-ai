@@ -39,11 +39,25 @@ def bootstrap_gateway_catalog(db: Session) -> dict[str, int]:
     settings = get_settings()
     pricing_policy(db)
     added_providers = added_models = 0
+    enabled_provider_names = {
+        name.strip().lower()
+        for name in settings.gateway_enabled_providers
+        if name.strip()
+    }
+    # A provider omitted from the deployment allow-list must not remain
+    # routable because of an older bootstrap run.
+    for existing in db.query(GatewayProvider).all():
+        if existing.name not in enabled_provider_names:
+            existing.enabled = False
     for provider_name in provider_registry.names():
+        if provider_name not in enabled_provider_names:
+            continue
         catalog = provider_catalog(provider_name)
         if not catalog:
             continue
         adapter = provider_registry.create(provider_name, settings, catalog)
+        if not adapter.api_key:
+            continue
         provider = db.query(GatewayProvider).filter_by(name=provider_name).one_or_none()
         if provider is None:
             provider = GatewayProvider(

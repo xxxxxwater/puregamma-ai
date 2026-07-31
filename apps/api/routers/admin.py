@@ -1,18 +1,66 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import cast, func, or_, String
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db, require_admin
 from apps.api.routers.auth import serialize_user
 from apps.api.services.billing_service import resolve_checkout_intent, serialize_checkout_intent, stripe_products_status, sync_stripe_products
 from apps.api.services.notification_service import serialize_delivery
-from apps.api.services.data_source_service import provider_registry, serialize_run, serialize_source, sync_all_providers, sync_provider
+from apps.api.services.data_source_service import provider_registry, redact_error, serialize_run, serialize_source, sync_all_providers, sync_provider
 from apps.api.services.report_service import serialize_report
 from apps.api.config import get_settings
 from packages.agents.llm.provider_factory import llm_status
-from packages.database.models import AgentRun, AgentToolCall, BillingCheckoutIntent, CreditLedger, CreditRefundEvent, CreditReservationRecord, CreditRewardGrant, CreditSettlementRecord, DataSource, DataSourceSyncRun, FinTwitAccount, LLMCallLog, NormalizedDocument, NotificationDelivery, ProviderSyncLog, RawDocument, Report, StripeWebhookEvent, Subscription, User
+from packages.database.models import (
+    AccountSnapshot,
+    AgentRun,
+    AgentToolCall,
+    Alert,
+    AssetImpact,
+    BacktestRun,
+    BillingCheckoutIntent,
+    CreditLedger,
+    CreditRefundEvent,
+    CreditReservationRecord,
+    CreditRewardGrant,
+    CreditSettlementRecord,
+    CustodyAccount,
+    CustodyDeposit,
+    CustodyLedgerEntry,
+    CustodyReconciliation,
+    CustodySubAccount,
+    CustodyWithdrawal,
+    DataSource,
+    DataSourceSyncRun,
+    ExchangeConnection,
+    FinTwitAccount,
+    LLMCallLog,
+    MarketEvent,
+    NormalizedDocument,
+    NotificationDelivery,
+    OrderIntent,
+    OrderJournal,
+    PositionSnapshot,
+    ProviderSyncLog,
+    RawDocument,
+    ReconciliationRecord,
+    Report,
+    ResearchAction,
+    ResearchSnapshot,
+    RiskDecision,
+    Skill,
+    SkillRun,
+    StrategyRun,
+    StripeWebhookEvent,
+    Subscription,
+    TradingStrategy,
+    User,
+    UserPortfolioImpact,
+)
 
 
 router = APIRouter(prefix="/admin", tags=["admin"])
@@ -42,6 +90,17 @@ class AdminCreditGrantRequest(BaseModel):
 class AdminCreditRefundRequest(BaseModel):
     reason: str = Field(min_length=3, max_length=300)
     reference: str = Field(min_length=3, max_length=120)
+
+
+class AdminPlanUpdateRequest(BaseModel):
+    plan: str = Field(min_length=2, max_length=20)
+
+
+class AdminCreditAdjustRequest(BaseModel):
+    credits: int = Field(ge=-5000, le=5000)
+    reason: str = Field(min_length=3, max_length=300)
+    reference: str = Field(min_length=3, max_length=120)
+    idempotency_key: str = Field(min_length=8, max_length=200)
 
 
 class DataSourceControlRequest(BaseModel):
@@ -291,6 +350,103 @@ def grant_account_credits(
         raise HTTPException(status_code=400, detail=str(exc)) from exc
 
 
+@router.patch("/users/{user_id}/plan")
+def update_user_plan(
+    user_id: str,
+    payload: AdminPlanUpdateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    allowed_plans = {"Free", "Pro", "Max", "Enterprise"}
+    if payload.plan not in allowed_plans:
+        raise HTTPException(status_code=400, detail=f"Plan must be one of: {', '.join(sorted(allowed_plans))}")
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.id == user.id:
+        raise HTTPException(status_code=400, detail="Cannot change your own plan")
+    old_plan = target.plan
+    target.plan = payload.plan
+    db.commit()
+    return {
+        "user_id": target.id,
+        "email": target.email,
+        "plan": target.plan,
+        "previous_plan": old_plan,
+    }
+
+
+@router.post("/users/{user_id}/credits/adjust")
+def adjust_user_credits(
+    user_id: str,
+    payload: AdminCreditAdjustRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if payload.credits == 0:
+        raise HTTPException(status_code=400, detail="Credits must be non-zero")
+
+    amount = payload.credits
+    action = "admin_credit_grant" if amount > 0 else "admin_credit_deduction"
+    abs_amount = abs(amount)
+
+    if amount < 0 and target.credit_balance + amount < 0:
+        raise HTTPException(status_code=400, detail=f"Insufficient balance. Current: {target.credit_balance}, attempted deduction: {abs_amount}")
+
+    existing = db.query(CreditLedger).filter_by(idempotency_key=payload.idempotency_key).one_or_none()
+    if existing:
+        if existing.user_id != user_id:
+            raise HTTPException(status_code=400, detail="Idempotency key belongs to another user")
+        return {
+            "adjustment": {
+                "id": existing.id,
+                "action": existing.action,
+                "credits_delta": existing.credits_delta,
+                "balance_after": existing.balance_after,
+                "reason": existing.metadata_json.get("reason"),
+                "reference": existing.metadata_json.get("reference"),
+                "created_at": existing.created_at.isoformat(),
+            },
+            "credit_balance": existing.balance_after,
+        }
+
+    try:
+        target.credit_balance = int(target.credit_balance) + amount
+        ledger_entry = CreditLedger(
+            user_id=user_id,
+            action=action,
+            credits_delta=amount,
+            balance_after=target.credit_balance,
+            metadata_json={
+                "source": "admin_user_manager",
+                "reason": payload.reason,
+                "reference": payload.reference,
+                "granted_by_user_id": user.id,
+            },
+            idempotency_key=payload.idempotency_key,
+        )
+        db.add(ledger_entry)
+        db.commit()
+        return {
+            "adjustment": {
+                "id": ledger_entry.id,
+                "action": action,
+                "credits_delta": amount,
+                "balance_after": ledger_entry.balance_after,
+                "reason": payload.reason,
+                "reference": payload.reference,
+                "created_at": ledger_entry.created_at.isoformat(),
+            },
+            "credit_balance": ledger_entry.balance_after,
+        }
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+
+
 @router.post("/billing/reservations/{reservation_id}/refund")
 def refund_credit_reservation(
     reservation_id: str,
@@ -422,8 +578,28 @@ def grant_billing_reward(
 
 
 @router.get("/reports")
-def reports(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    return {"reports": [serialize_report(row) for row in db.query(Report).order_by(Report.created_at.desc()).limit(200).all()]}
+def reports(
+    status: str | None = Query(default=None, max_length=40),
+    user_id: str | None = Query(default=None, max_length=64),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    query = db.query(Report)
+    if status:
+        query = query.filter(Report.status == status)
+    if user_id:
+        query = query.filter(Report.user_id == user_id)
+    if date_from:
+        query = query.filter(Report.created_at >= date_from)
+    if date_to:
+        query = query.filter(Report.created_at <= date_to)
+    total = query.count()
+    rows = query.order_by(Report.created_at.desc(), Report.id.desc()).offset(offset).limit(limit).all()
+    return {"reports": [serialize_report(row) for row in rows], "total": total, "limit": limit, "offset": offset}
 
 
 @router.get("/data-sources")
@@ -629,8 +805,50 @@ def subscriptions(db: Session = Depends(get_db), user: User = Depends(admin_user
 
 
 @router.get("/llm-calls")
-def llm_calls(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    rows = db.query(LLMCallLog).order_by(LLMCallLog.created_at.desc()).limit(200).all()
+def llm_calls(
+    provider: str | None = Query(default=None, max_length=60),
+    model: str | None = Query(default=None, max_length=120),
+    task_type: str | None = Query(default=None, max_length=60),
+    status: str | None = Query(default=None, max_length=40),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    filters = []
+    if provider:
+        filters.append(LLMCallLog.provider == provider)
+    if model:
+        filters.append(LLMCallLog.model == model)
+    if task_type:
+        filters.append(LLMCallLog.task_type == task_type)
+    if status:
+        filters.append(LLMCallLog.status == status)
+    if date_from:
+        filters.append(LLMCallLog.created_at >= date_from)
+    if date_to:
+        filters.append(LLMCallLog.created_at <= date_to)
+    query = db.query(LLMCallLog).filter(*filters)
+    total = query.count()
+    rows = query.order_by(LLMCallLog.created_at.desc(), LLMCallLog.id.desc()).offset(offset).limit(limit).all()
+    aggregate_rows = (
+        db.query(
+            LLMCallLog.provider,
+            LLMCallLog.model,
+            func.count().label("calls"),
+            func.avg(LLMCallLog.latency_ms).label("avg_latency_ms"),
+            func.coalesce(func.sum(LLMCallLog.prompt_tokens), 0).label("prompt_tokens"),
+            func.coalesce(func.sum(LLMCallLog.completion_tokens), 0).label("completion_tokens"),
+            func.coalesce(func.sum(LLMCallLog.total_tokens), 0).label("total_tokens"),
+            func.coalesce(func.sum(LLMCallLog.estimated_cost_usd), 0.0).label("estimated_cost_usd"),
+        )
+        .filter(*filters)
+        .group_by(LLMCallLog.provider, LLMCallLog.model)
+        .order_by(LLMCallLog.provider, LLMCallLog.model)
+        .all()
+    )
     return {
         "llm_calls": [
             {
@@ -648,10 +866,27 @@ def llm_calls(db: Session = Depends(get_db), user: User = Depends(admin_user)) -
                 "cache_hit": row.cache_hit,
                 "status": row.status,
                 "error_message": row.error_message,
-                "created_at": row.created_at.isoformat(),
+                "latency_ms": row.latency_ms,
+                "created_at": _iso(row.created_at),
             }
             for row in rows
-        ]
+        ],
+        "aggregates": [
+            {
+                "provider": row.provider,
+                "model": row.model,
+                "calls": int(row.calls),
+                "avg_latency_ms": round(float(row.avg_latency_ms), 1) if row.avg_latency_ms is not None else None,
+                "prompt_tokens": int(row.prompt_tokens or 0),
+                "completion_tokens": int(row.completion_tokens or 0),
+                "total_tokens": int(row.total_tokens or 0),
+                "estimated_cost_usd": float(row.estimated_cost_usd or 0.0),
+            }
+            for row in aggregate_rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
     }
 
 
@@ -706,3 +941,1029 @@ def agent_run(run_id: str, db: Session = Depends(get_db), user: User = Depends(a
         raise HTTPException(status_code=404, detail="Agent run not found")
     tool_calls = db.query(AgentToolCall).filter_by(run_id=row.id).order_by(AgentToolCall.created_at).all()
     return {"run": _serialize_agent_run(db, row), "tool_calls": [{"id": call.id, "tool_name": call.tool_name, "status": call.status, "result_summary": call.result_summary, "latency_ms": call.latency_ms, "error": call.error_message, "created_at": call.created_at.isoformat()} for call in tool_calls]}
+
+
+# ---------------------------------------------------------------------------
+# P0-12 admin console: read-only operational observation surfaces.
+# Every payload is built from whitelisted columns only — credential material
+# (api keys, ciphertext, tokens) is never serialized. Timestamps are UTC ISO.
+# ---------------------------------------------------------------------------
+
+
+def _iso(value: datetime | None) -> str | None:
+    if value is None:
+        return None
+    if value.tzinfo is None:
+        return value.replace(tzinfo=timezone.utc).isoformat()
+    return value.astimezone(timezone.utc).isoformat()
+
+
+def _num(value) -> float | None:
+    if value is None:
+        return None
+    return float(value)
+
+
+def _latest_completed_snapshot(db: Session) -> ResearchSnapshot | None:
+    return (
+        db.query(ResearchSnapshot)
+        .filter(ResearchSnapshot.status == "completed")
+        .order_by(ResearchSnapshot.as_of.desc())
+        .first()
+    )
+
+
+def _source_health(db: Session, snapshot: ResearchSnapshot | None) -> list[dict]:
+    """Per-source health: DataSource rows merged with the latest research snapshot health."""
+    health: dict[str, dict] = {}
+    for row in db.query(DataSource).order_by(DataSource.category, DataSource.name).all():
+        health[row.id] = {
+            "id": row.id,
+            "name": row.name,
+            "category": row.category,
+            "provider": row.provider,
+            "status": row.status,
+            "enabled": row.enabled,
+            "last_sync_at": _iso(row.last_sync_at),
+            "last_success_at": _iso(row.last_success_at),
+            "error": redact_error(row.last_error),
+            "items": row.item_count,
+            "research": None,
+        }
+    if snapshot and isinstance(snapshot.health_json, dict):
+        for name, raw_info in snapshot.health_json.items():
+            info = raw_info if isinstance(raw_info, dict) else {}
+            research = {
+                "status": info.get("status"),
+                "last_success_at": info.get("last_success_at"),
+                "error": info.get("error"),
+                "items": info.get("items", 0),
+            }
+            entry = health.get(name)
+            if entry is None:
+                entry = {
+                    "id": name,
+                    "name": name,
+                    "category": "research",
+                    "provider": name,
+                    "status": "NOT_CONNECTED",
+                    "enabled": True,
+                    "last_sync_at": None,
+                    "last_success_at": None,
+                    "error": None,
+                    "items": 0,
+                    "research": None,
+                }
+                health[name] = entry
+            entry["research"] = research
+            if not entry["last_success_at"] and research["last_success_at"]:
+                entry["last_success_at"] = research["last_success_at"]
+            if not entry["error"] and research["error"]:
+                entry["error"] = research["error"]
+            if not entry["items"] and research["items"]:
+                entry["items"] = research["items"]
+    return sorted(health.values(), key=lambda item: item["id"])
+
+
+def _serialize_snapshot_brief(snapshot: ResearchSnapshot | None) -> dict | None:
+    if snapshot is None:
+        return None
+    return {
+        "id": snapshot.id,
+        "kind": snapshot.kind,
+        "as_of": _iso(snapshot.as_of),
+        "data_cutoff_at": _iso(snapshot.data_cutoff_at),
+        "status": snapshot.status,
+        "source_counts": snapshot.source_counts_json,
+    }
+
+
+def _serialize_admin_delivery(row: NotificationDelivery) -> dict:
+    payload = row.payload if isinstance(row.payload, dict) else {}
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "channel": row.channel,
+        "status": row.status,
+        "locale": row.locale,
+        "retry_count": row.retry_count,
+        "attempt_count": row.attempt_count,
+        "last_attempt_at": _iso(row.last_attempt_at),
+        "next_retry_at": _iso(row.next_retry_at),
+        "last_error": row.last_error,
+        "idempotency_key": row.idempotency_key,
+        "report_id": payload.get("report_id"),
+        "created_at": _iso(row.created_at),
+        "sent_at": _iso(row.sent_at),
+    }
+
+
+def _serialize_connection(row: ExchangeConnection) -> dict:
+    """Whitelist only — never credential_reference / credential_ciphertext."""
+    return {
+        "id": row.id,
+        "user_id": row.user_id,
+        "account_id": row.account_id,
+        "adapter": row.adapter,
+        "environment": row.environment,
+        "status": row.status,
+        "last_health_at": _iso(row.last_health_at),
+        "error_code": row.error_code,
+        "error_message": row.error_message,
+        "created_at": _iso(row.created_at),
+        "updated_at": _iso(row.updated_at),
+    }
+
+
+@router.get("/overview")
+def admin_overview(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
+    now = datetime.now(timezone.utc)
+    day_ago = now - timedelta(hours=24)
+    snapshot = _latest_completed_snapshot(db)
+    return {
+        "generated_at": now.isoformat(),
+        "counts": {
+            "users": db.query(User).count(),
+            "reports": db.query(Report).count(),
+            "events": db.query(MarketEvent).count(),
+            "alerts": db.query(Alert).count(),
+            "deliveries_failed_24h": db.query(NotificationDelivery)
+            .filter(NotificationDelivery.status == "failed", NotificationDelivery.created_at >= day_ago)
+            .count(),
+            "llm_calls_24h": db.query(LLMCallLog).filter(LLMCallLog.created_at >= day_ago).count(),
+            "active_strategies": db.query(TradingStrategy).filter(TradingStrategy.status == "ACTIVE").count(),
+            "custody_accounts": db.query(CustodyAccount).count(),
+        },
+        "snapshot": _serialize_snapshot_brief(snapshot),
+        "source_health": _source_health(db, snapshot),
+    }
+
+
+@router.get("/users/{user_id}")
+def admin_user_detail(user_id: str, db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
+    account = db.get(User, user_id)
+    if not account:
+        raise HTTPException(status_code=404, detail="User not found")
+    ledger = (
+        db.query(CreditLedger)
+        .filter(CreditLedger.user_id == user_id)
+        .order_by(CreditLedger.created_at.desc(), CreditLedger.id.desc())
+        .limit(20)
+        .all()
+    )
+    subscriptions = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == user_id)
+        .order_by(Subscription.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    connections = (
+        db.query(ExchangeConnection)
+        .filter(ExchangeConnection.user_id == user_id)
+        .order_by(ExchangeConnection.updated_at.desc())
+        .limit(20)
+        .all()
+    )
+    reports = (
+        db.query(Report)
+        .filter(Report.user_id == user_id)
+        .order_by(Report.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    deliveries = (
+        db.query(NotificationDelivery)
+        .filter(NotificationDelivery.user_id == user_id)
+        .order_by(NotificationDelivery.created_at.desc())
+        .limit(10)
+        .all()
+    )
+    agent_runs = (
+        db.query(AgentRun)
+        .filter(AgentRun.user_id == user_id)
+        .order_by(AgentRun.started_at.desc())
+        .limit(10)
+        .all()
+    )
+    return {
+        "user": serialize_user(account),
+        "plan": account.plan,
+        "credits": {
+            "balance": account.credit_balance,
+            "recent_ledger": [_serialize_admin_ledger(row) for row in ledger],
+        },
+        "subscriptions": [
+            {
+                "id": row.id,
+                "plan_name": row.plan_name,
+                "status": row.status,
+                "stripe_customer_id": row.stripe_customer_id,
+                "stripe_subscription_id": row.stripe_subscription_id,
+                "current_period_start": _iso(row.current_period_start),
+                "current_period_end": _iso(row.current_period_end),
+                "cancel_at_period_end": row.cancel_at_period_end,
+                "created_at": _iso(row.created_at),
+            }
+            for row in subscriptions
+        ],
+        "connections": [_serialize_connection(row) for row in connections],
+        "reports": [serialize_report(row) for row in reports],
+        "deliveries": [_serialize_admin_delivery(row) for row in deliveries],
+        "agent_runs": [_serialize_agent_run(db, row) for row in agent_runs],
+    }
+
+
+@router.get("/deliveries")
+def admin_deliveries(
+    status: str | None = Query(default=None, max_length=40),
+    channel: str | None = Query(default=None, max_length=40),
+    user_id: str | None = Query(default=None, max_length=64),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    query = db.query(NotificationDelivery)
+    if status:
+        query = query.filter(NotificationDelivery.status == status)
+    if channel:
+        query = query.filter(NotificationDelivery.channel == channel)
+    if user_id:
+        query = query.filter(NotificationDelivery.user_id == user_id)
+    if date_from:
+        query = query.filter(NotificationDelivery.created_at >= date_from)
+    if date_to:
+        query = query.filter(NotificationDelivery.created_at <= date_to)
+    total = query.count()
+    rows = (
+        query.order_by(NotificationDelivery.created_at.desc(), NotificationDelivery.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return {
+        "deliveries": [_serialize_admin_delivery(row) for row in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/data-sources/health")
+def data_source_health(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
+    snapshot = _latest_completed_snapshot(db)
+    return {
+        "snapshot": _serialize_snapshot_brief(snapshot),
+        "sources": _source_health(db, snapshot),
+    }
+
+
+def _serialize_admin_event(row: MarketEvent) -> dict:
+    return {
+        "id": row.id,
+        "event_type": row.event_type,
+        "title": row.title,
+        "summary": row.summary,
+        "source_provider": row.source_provider,
+        "source_url": row.source_url,
+        "source_published_at": _iso(row.source_published_at),
+        "collected_at": _iso(row.collected_at),
+        "data_cutoff_at": _iso(row.data_cutoff_at),
+        "assets": row.assets,
+        "direction": row.direction,
+        "time_horizon": row.time_horizon,
+        "confidence": row.confidence,
+        "status": row.status,
+        "research_snapshot_id": row.research_snapshot_id,
+        "created_at": _iso(row.created_at),
+    }
+
+
+@router.get("/research/events")
+def admin_research_events(
+    event_type: str | None = Query(default=None, max_length=60),
+    status: str | None = Query(default=None, max_length=40),
+    symbol: str | None = Query(default=None, max_length=40),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    query = db.query(MarketEvent)
+    if event_type:
+        query = query.filter(MarketEvent.event_type == event_type)
+    if status:
+        query = query.filter(MarketEvent.status == status)
+    if symbol:
+        normalized = symbol.upper().strip()
+        query = query.filter(
+            or_(
+                cast(MarketEvent.assets, String).ilike(f'%"{normalized}"%'),
+                MarketEvent.id.in_(db.query(AssetImpact.event_id).filter(AssetImpact.symbol == normalized)),
+            )
+        )
+    if date_from:
+        query = query.filter(MarketEvent.created_at >= date_from)
+    if date_to:
+        query = query.filter(MarketEvent.created_at <= date_to)
+    total = query.count()
+    rows = query.order_by(MarketEvent.created_at.desc(), MarketEvent.id.desc()).offset(offset).limit(limit).all()
+    seven_days_ago = datetime.now(timezone.utc) - timedelta(days=7)
+    counts_by_day = (
+        db.query(func.date(MarketEvent.created_at).label("day"), MarketEvent.event_type, func.count().label("count"))
+        .filter(MarketEvent.created_at >= seven_days_ago)
+        .group_by("day", MarketEvent.event_type)
+        .order_by("day")
+        .all()
+    )
+    impacts_by_relation = (
+        db.query(AssetImpact.relation_type, func.count().label("count"))
+        .group_by(AssetImpact.relation_type)
+        .all()
+    )
+    actions_by_status = (
+        db.query(ResearchAction.status, func.count().label("count"))
+        .group_by(ResearchAction.status)
+        .all()
+    )
+    return {
+        "events": [_serialize_admin_event(row) for row in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "counts_by_day": [{"day": str(day), "event_type": event_type, "count": int(count)} for day, event_type, count in counts_by_day],
+        "impacts_by_relation_type": [{"relation_type": relation_type, "count": int(count)} for relation_type, count in impacts_by_relation],
+        "actions_by_status": [{"status": status, "count": int(count)} for status, count in actions_by_status],
+    }
+
+
+@router.get("/research/impacts")
+def admin_research_impacts(
+    symbol: str | None = Query(default=None, max_length=40),
+    relation_type: str | None = Query(default=None, max_length=60),
+    date_from: datetime | None = Query(default=None),
+    date_to: datetime | None = Query(default=None),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    query = db.query(AssetImpact, MarketEvent.title).join(MarketEvent, MarketEvent.id == AssetImpact.event_id)
+    count_query = db.query(AssetImpact)
+    if symbol:
+        query = query.filter(AssetImpact.symbol == symbol.upper().strip())
+        count_query = count_query.filter(AssetImpact.symbol == symbol.upper().strip())
+    if relation_type:
+        query = query.filter(AssetImpact.relation_type == relation_type)
+        count_query = count_query.filter(AssetImpact.relation_type == relation_type)
+    if date_from:
+        query = query.filter(AssetImpact.created_at >= date_from)
+        count_query = count_query.filter(AssetImpact.created_at >= date_from)
+    if date_to:
+        query = query.filter(AssetImpact.created_at <= date_to)
+        count_query = count_query.filter(AssetImpact.created_at <= date_to)
+    total = count_query.count()
+    rows = query.order_by(AssetImpact.created_at.desc(), AssetImpact.id.desc()).offset(offset).limit(limit).all()
+    counts_by_relation = (
+        db.query(AssetImpact.relation_type, func.count().label("count"))
+        .group_by(AssetImpact.relation_type)
+        .all()
+    )
+    return {
+        "impacts": [
+            {
+                "id": impact.id,
+                "event_id": impact.event_id,
+                "event_title": title,
+                "symbol": impact.symbol,
+                "relation_type": impact.relation_type,
+                "direction": impact.direction,
+                "magnitude": impact.magnitude,
+                "confidence": impact.confidence,
+                "horizon": impact.horizon,
+                "rationale": impact.rationale,
+                "created_at": _iso(impact.created_at),
+            }
+            for impact, title in rows
+        ],
+        "counts_by_relation_type": [{"relation_type": relation, "count": int(count)} for relation, count in counts_by_relation],
+        "user_portfolio_impacts": db.query(UserPortfolioImpact).count(),
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/alerts")
+def admin_alerts(
+    status: str | None = Query(default=None, max_length=40),
+    channel: str | None = Query(default=None, max_length=40),
+    user_id: str | None = Query(default=None, max_length=64),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    query = db.query(Alert)
+    if status:
+        query = query.filter(Alert.status == status)
+    if channel:
+        query = query.filter(Alert.channel == channel)
+    if user_id:
+        query = query.filter(Alert.user_id == user_id)
+    total = query.count()
+    rows = query.order_by(Alert.created_at.desc(), Alert.id.desc()).offset(offset).limit(limit).all()
+    user_ids = sorted({row.user_id for row in rows})
+    deliveries_by_pair: dict[tuple[str, str], list[NotificationDelivery]] = {}
+    if user_ids:
+        deliveries = (
+            db.query(NotificationDelivery)
+            .filter(NotificationDelivery.user_id.in_(user_ids))
+            .order_by(NotificationDelivery.created_at.desc())
+            .limit(500)
+            .all()
+        )
+        for delivery in deliveries:
+            deliveries_by_pair.setdefault((delivery.user_id, delivery.channel), []).append(delivery)
+    return {
+        "alerts": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "asset": row.asset,
+                "message": row.message,
+                "severity": row.severity,
+                "channel": row.channel,
+                "status": row.status,
+                "sent_at": _iso(row.sent_at),
+                "created_at": _iso(row.created_at),
+                "deliveries": [
+                    _serialize_admin_delivery(delivery)
+                    for delivery in deliveries_by_pair.get((row.user_id, row.channel), [])[:3]
+                ],
+            }
+            for row in rows
+        ],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+def _serialize_skill_run(row: SkillRun, slug: str | None) -> dict:
+    evidence = row.evidence_json if isinstance(row.evidence_json, dict) else {}
+    workflow = evidence.get("workflow") if isinstance(evidence.get("workflow"), dict) else None
+    workflow_summary = None
+    if workflow is not None:
+        steps = workflow.get("steps") if isinstance(workflow.get("steps"), list) else []
+        workflow_summary = {
+            "status": workflow.get("status"),
+            "latency_ms": workflow.get("latency_ms"),
+            "step_count": len(steps),
+            "degraded_steps": workflow.get("degraded_steps") or [],
+            "steps": [
+                {
+                    "id": step.get("id") if isinstance(step, dict) else None,
+                    "tool": step.get("tool") if isinstance(step, dict) else None,
+                    "status": step.get("status") if isinstance(step, dict) else None,
+                    "latency_ms": step.get("latency_ms") if isinstance(step, dict) else None,
+                    "error": step.get("error") if isinstance(step, dict) else None,
+                }
+                for step in steps[:20]
+            ],
+        }
+    return {
+        "id": row.id,
+        "skill_id": row.skill_id,
+        "skill_slug": slug,
+        "user_id": row.user_id,
+        "status": row.status,
+        "trigger_source": row.trigger_source,
+        "credits_reserved": row.credits_reserved,
+        "credits_used": row.credits_used,
+        "error_code": row.error_code,
+        "error_message": row.error_message,
+        "trace_id": row.trace_id,
+        "output_summary": row.output_summary,
+        "workflow": workflow_summary,
+        "started_at": _iso(row.started_at),
+        "completed_at": _iso(row.completed_at),
+    }
+
+
+@router.get("/skill-runs")
+def admin_skill_runs(
+    slug: str | None = Query(default=None, max_length=120),
+    status: str | None = Query(default=None, max_length=40),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    query = db.query(SkillRun, Skill.slug).outerjoin(Skill, Skill.id == SkillRun.skill_id)
+    if slug:
+        query = query.filter(Skill.slug == slug)
+    if status:
+        query = query.filter(SkillRun.status == status)
+    total = query.count()
+    rows = query.order_by(SkillRun.started_at.desc(), SkillRun.id.desc()).offset(offset).limit(limit).all()
+    return {
+        "skill_runs": [_serialize_skill_run(run, skill_slug) for run, skill_slug in rows],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+    }
+
+
+@router.get("/stripe/events")
+def stripe_events_slash(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
+    return stripe_events(db=db, user=user)
+
+
+@router.get("/stripe/summary")
+def stripe_summary(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
+    intents_by_status = (
+        db.query(BillingCheckoutIntent.status, func.count().label("count"))
+        .group_by(BillingCheckoutIntent.status)
+        .all()
+    )
+    subs_by_status = (
+        db.query(Subscription.status, func.count().label("count"))
+        .group_by(Subscription.status)
+        .all()
+    )
+    subs_by_plan = (
+        db.query(Subscription.plan_name, Subscription.status, func.count().label("count"))
+        .group_by(Subscription.plan_name, Subscription.status)
+        .all()
+    )
+    webhook_errors = (
+        db.query(StripeWebhookEvent)
+        .filter(StripeWebhookEvent.error_message.isnot(None))
+        .order_by(StripeWebhookEvent.created_at.desc())
+        .limit(20)
+        .all()
+    )
+    return {
+        "checkout_intents_by_status": [{"status": status, "count": int(count)} for status, count in intents_by_status],
+        "subscriptions_by_status": [{"status": status, "count": int(count)} for status, count in subs_by_status],
+        "subscriptions_by_plan": [{"plan_name": plan, "status": status, "count": int(count)} for plan, status, count in subs_by_plan],
+        "recent_webhook_errors": [
+            {
+                "id": row.id,
+                "stripe_event_id": row.stripe_event_id,
+                "event_type": row.event_type,
+                "error_message": row.error_message,
+                "requires_manual_review": row.requires_manual_review,
+                "created_at": _iso(row.created_at),
+            }
+            for row in webhook_errors
+        ],
+    }
+
+
+@router.get("/portfolio-sync")
+def admin_portfolio_sync(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    total = db.query(ExchangeConnection).count()
+    connections = (
+        db.query(ExchangeConnection)
+        .order_by(ExchangeConnection.updated_at.desc(), ExchangeConnection.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    sync_runs = (
+        db.query(DataSourceSyncRun)
+        .order_by(DataSourceSyncRun.started_at.desc())
+        .limit(20)
+        .all()
+    )
+    provider_logs = (
+        db.query(ProviderSyncLog)
+        .order_by(ProviderSyncLog.started_at.desc())
+        .limit(20)
+        .all()
+    )
+    return {
+        "connections": [_serialize_connection(row) for row in connections],
+        "total": total,
+        "limit": limit,
+        "offset": offset,
+        "recent_sync_runs": [serialize_run(row) for row in sync_runs],
+        "recent_provider_logs": [serialize_run(row) for row in provider_logs],
+    }
+
+
+@router.get("/backtests")
+def admin_backtests(
+    status: str | None = Query(default=None, max_length=40),
+    engine: str | None = Query(default=None, max_length=60),
+    asset: str | None = Query(default=None, max_length=40),
+    user_id: str | None = Query(default=None, max_length=64),
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    query = db.query(BacktestRun)
+    if status:
+        query = query.filter(BacktestRun.status == status)
+    if engine:
+        query = query.filter(BacktestRun.engine == engine)
+    if asset:
+        query = query.filter(BacktestRun.asset == asset.upper().strip())
+    if user_id:
+        query = query.filter(BacktestRun.user_id == user_id)
+    total = query.count()
+    rows = query.order_by(BacktestRun.created_at.desc(), BacktestRun.id.desc()).offset(offset).limit(limit).all()
+
+    def _serialize(row: BacktestRun) -> dict:
+        duration_seconds = None
+        if row.completed_at and row.created_at:
+            duration_seconds = round((row.completed_at - row.created_at).total_seconds(), 3)
+        error = row.error_json if isinstance(row.error_json, dict) else {}
+        return {
+            "id": row.id,
+            "user_id": row.user_id,
+            "status": row.status,
+            "engine": row.engine,
+            "strategy_id": row.strategy_id,
+            "strategy_name": row.strategy_name,
+            "asset": row.asset,
+            "credits_spent": row.credits_spent,
+            "credits_reserved": row.credits_reserved,
+            "duration_seconds": duration_seconds,
+            "error": error.get("message") or error.get("code") or None,
+            "created_at": _iso(row.created_at),
+            "completed_at": _iso(row.completed_at),
+        }
+
+    return {"backtests": [_serialize(row) for row in rows], "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/trading")
+def admin_trading(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    strategies_total = db.query(TradingStrategy).count()
+    strategies = (
+        db.query(TradingStrategy)
+        .order_by(TradingStrategy.updated_at.desc(), TradingStrategy.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    runs = db.query(StrategyRun).order_by(StrategyRun.updated_at.desc()).limit(20).all()
+    order_intents = db.query(OrderIntent).order_by(OrderIntent.created_at.desc()).limit(20).all()
+    risk_decisions = db.query(RiskDecision).order_by(RiskDecision.created_at.desc()).limit(20).all()
+    position_snapshots = db.query(PositionSnapshot).order_by(PositionSnapshot.captured_at.desc()).limit(20).all()
+    account_snapshots = db.query(AccountSnapshot).order_by(AccountSnapshot.captured_at.desc()).limit(10).all()
+    order_journal = db.query(OrderJournal).order_by(OrderJournal.created_at.desc()).limit(20).all()
+    reconciliations = db.query(ReconciliationRecord).order_by(ReconciliationRecord.created_at.desc()).limit(20).all()
+    return {
+        "strategies": {
+            "items": [
+                {
+                    "id": row.id,
+                    "user_id": row.user_id,
+                    "name": row.name,
+                    "status": row.status,
+                    "execution_mode": row.execution_mode,
+                    "current_version": row.current_version,
+                    "error_code": row.error_code,
+                    "error_message": row.error_message,
+                    "created_at": _iso(row.created_at),
+                    "updated_at": _iso(row.updated_at),
+                }
+                for row in strategies
+            ],
+            "total": strategies_total,
+            "limit": limit,
+            "offset": offset,
+        },
+        "runs": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "strategy_id": row.strategy_id,
+                "strategy_version": row.strategy_version,
+                "runtime_run_id": row.runtime_run_id,
+                "execution_mode": row.execution_mode,
+                "status": row.status,
+                "error_code": row.error_code,
+                "error_message": row.error_message,
+                "started_at": _iso(row.started_at),
+                "stopped_at": _iso(row.stopped_at),
+                "created_at": _iso(row.created_at),
+            }
+            for row in runs
+        ],
+        "order_intents": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "strategy_id": row.strategy_id,
+                "account_id": row.account_id,
+                "instrument": row.instrument,
+                "venue": row.venue,
+                "direction": row.direction,
+                "quantity": row.quantity,
+                "notional": row.notional,
+                "order_type": row.order_type,
+                "execution_mode": row.execution_mode,
+                "status": row.status,
+                "approval_status": row.approval_status,
+                "error_message": row.error_message,
+                "created_at": _iso(row.created_at),
+                "expires_at": _iso(row.expires_at),
+            }
+            for row in order_intents
+        ],
+        "risk_decisions": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "strategy_id": row.strategy_id,
+                "order_intent_id": row.order_intent_id,
+                "decision": row.decision,
+                "reasons": row.reasons,
+                "created_at": _iso(row.created_at),
+            }
+            for row in risk_decisions
+        ],
+        "position_snapshots": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "account_id": row.account_id,
+                "strategy_id": row.strategy_id,
+                "instrument": row.instrument,
+                "quantity": row.quantity,
+                "side": row.side,
+                "average_price": row.average_price,
+                "mark_price": row.mark_price,
+                "unrealized_pnl": row.unrealized_pnl,
+                "realized_pnl": row.realized_pnl,
+                "leverage": row.leverage,
+                "captured_at": _iso(row.captured_at),
+            }
+            for row in position_snapshots
+        ],
+        "account_snapshots": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "account_id": row.account_id,
+                "balance": row.balance,
+                "equity": row.equity,
+                "available_margin": row.available_margin,
+                "daily_pnl": row.daily_pnl,
+                "drawdown": row.drawdown,
+                "exposure": row.exposure,
+                "stale": row.stale,
+                "captured_at": _iso(row.captured_at),
+            }
+            for row in account_snapshots
+        ],
+        "order_journal": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "account_id": row.account_id,
+                "client_order_id": row.client_order_id,
+                "exchange_order_id": row.exchange_order_id,
+                "state": row.state,
+                "instrument": row.instrument,
+                "side": row.side,
+                "quantity": row.quantity,
+                "filled_quantity": row.filled_quantity,
+                "average_price": row.average_price,
+                "error_message": row.error_message,
+                "created_at": _iso(row.created_at),
+            }
+            for row in order_journal
+        ],
+        "reconciliations": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "account_id": row.account_id,
+                "strategy_id": row.strategy_id,
+                "status": row.status,
+                "differences": row.differences_json,
+                "error_message": row.error_message,
+                "created_at": _iso(row.created_at),
+                "completed_at": _iso(row.completed_at),
+            }
+            for row in reconciliations
+        ],
+    }
+
+
+@router.get("/custody")
+def admin_custody(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    accounts = db.query(CustodyAccount).order_by(CustodyAccount.created_at.desc()).limit(50).all()
+    sub_total = db.query(CustodySubAccount).count()
+    sub_accounts = (
+        db.query(CustodySubAccount)
+        .order_by(CustodySubAccount.updated_at.desc(), CustodySubAccount.id.desc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    ledger = db.query(CustodyLedgerEntry).order_by(CustodyLedgerEntry.created_at.desc()).limit(30).all()
+    deposits_by_status = (
+        db.query(CustodyDeposit.status, func.count().label("count"))
+        .group_by(CustodyDeposit.status)
+        .all()
+    )
+    withdrawals_by_status = (
+        db.query(CustodyWithdrawal.status, func.count().label("count"))
+        .group_by(CustodyWithdrawal.status)
+        .all()
+    )
+    recent_deposits = db.query(CustodyDeposit).order_by(CustodyDeposit.created_at.desc()).limit(10).all()
+    recent_withdrawals = db.query(CustodyWithdrawal).order_by(CustodyWithdrawal.created_at.desc()).limit(10).all()
+    reconciliations = db.query(CustodyReconciliation).order_by(CustodyReconciliation.created_at.desc()).limit(10).all()
+    return {
+        "accounts": [
+            {
+                "id": row.id,
+                "venue": row.venue,
+                "environment": row.environment,
+                "status": row.status,
+                "deposit_address": row.deposit_address,
+                "provider_ref": row.provider_ref,
+                "created_at": _iso(row.created_at),
+            }
+            for row in accounts
+        ],
+        "sub_accounts": {
+            "items": [
+                {
+                    "id": row.id,
+                    "custody_account_id": row.custody_account_id,
+                    "user_id": row.user_id,
+                    "asset": row.asset,
+                    "available": _num(row.available),
+                    "frozen": _num(row.frozen),
+                    "created_at": _iso(row.created_at),
+                    "updated_at": _iso(row.updated_at),
+                }
+                for row in sub_accounts
+            ],
+            "total": sub_total,
+            "limit": limit,
+            "offset": offset,
+        },
+        "recent_ledger": [
+            {
+                "id": row.id,
+                "sub_account_id": row.sub_account_id,
+                "entry_type": row.entry_type,
+                "amount": _num(row.amount),
+                "available_after": _num(row.available_after),
+                "frozen_after": _num(row.frozen_after),
+                "ref_type": row.ref_type,
+                "ref_id": row.ref_id,
+                "created_at": _iso(row.created_at),
+            }
+            for row in ledger
+        ],
+        "deposits_by_status": [{"status": status, "count": int(count)} for status, count in deposits_by_status],
+        "withdrawals_by_status": [{"status": status, "count": int(count)} for status, count in withdrawals_by_status],
+        "recent_deposits": [
+            {
+                "id": row.id,
+                "sub_account_id": row.sub_account_id,
+                "asset": row.asset,
+                "amount": _num(row.amount),
+                "tx_ref": row.tx_ref,
+                "confirmations": row.confirmations,
+                "status": row.status,
+                "created_at": _iso(row.created_at),
+                "confirmed_at": _iso(row.confirmed_at),
+            }
+            for row in recent_deposits
+        ],
+        "recent_withdrawals": [
+            {
+                "id": row.id,
+                "sub_account_id": row.sub_account_id,
+                "asset": row.asset,
+                "amount": _num(row.amount),
+                "address": row.address,
+                "status": row.status,
+                "tx_ref": row.tx_ref,
+                "error": row.error,
+                "created_at": _iso(row.created_at),
+            }
+            for row in recent_withdrawals
+        ],
+        "reconciliations": [
+            {
+                "id": row.id,
+                "custody_account_id": row.custody_account_id,
+                "asset": row.asset,
+                "local_available": _num(row.local_available),
+                "local_frozen": _num(row.local_frozen),
+                "external_balance": _num(row.external_balance),
+                "difference": _num(row.difference),
+                "status": row.status,
+                "created_at": _iso(row.created_at),
+            }
+            for row in reconciliations
+        ],
+    }
+
+
+def _celery_worker_payload() -> dict:
+    """Introspect the Celery cluster; degrade to an explicit unavailable state."""
+    try:
+        from packages.workers.celery_app import celery_app
+    except Exception as exc:
+        return {"status": "unavailable", "reason": f"celery_import_failed: {exc}", "workers": {}}
+    try:
+        inspector = celery_app.control.inspect(timeout=1.0)
+        active = inspector.active() or {}
+        scheduled = inspector.scheduled() or {}
+        reserved = inspector.reserved() or {}
+    except Exception as exc:
+        return {"status": "unavailable", "reason": f"{type(exc).__name__}: {exc}"[:300], "workers": {}}
+    names = sorted(set(active) | set(scheduled) | set(reserved))
+    if not names:
+        return {"status": "unavailable", "reason": "no_workers_online", "workers": {}}
+    return {
+        "status": "ok",
+        "reason": None,
+        "workers": {
+            name: {
+                "active": len(active.get(name) or []),
+                "scheduled": len(scheduled.get(name) or []),
+                "reserved": len(reserved.get(name) or []),
+                "active_tasks": [str(task.get("name")) for task in (active.get(name) or []) if isinstance(task, dict)][:20],
+            }
+            for name in names
+        },
+    }
+
+
+def _celery_queue_lengths() -> dict:
+    try:
+        from apps.api.redis_client import get_redis
+
+        client = get_redis()
+        queue_names = {"celery"}
+        try:
+            from packages.workers.celery_app import celery_app
+
+            inspector = celery_app.control.inspect(timeout=1.0)
+            for _, queues in (inspector.active_queues() or {}).items():
+                for queue in queues or []:
+                    if isinstance(queue, dict) and queue.get("name"):
+                        queue_names.add(str(queue["name"]))
+        except Exception:
+            pass
+        lengths: dict[str, int | None] = {}
+        for name in sorted(queue_names):
+            try:
+                lengths[name] = int(client.llen(name))
+            except Exception:
+                lengths[name] = None
+        return lengths
+    except Exception:
+        return {}
+
+
+@router.get("/workers")
+def admin_workers(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
+    recent_failures = (
+        db.query(DataSourceSyncRun)
+        .filter(DataSourceSyncRun.status == "FAILED")
+        .order_by(DataSourceSyncRun.started_at.desc())
+        .limit(10)
+        .all()
+    )
+    return {
+        "celery": _celery_worker_payload(),
+        "queues": _celery_queue_lengths(),
+        "recent_sync_failures": [serialize_run(row) for row in recent_failures],
+    }

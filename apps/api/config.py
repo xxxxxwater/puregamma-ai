@@ -137,6 +137,13 @@ class Settings:
     gateway_glm_base_url: str = os.getenv(
         "GATEWAY_GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"
     )
+    # Production can enable a verified subset first. Unlisted plugins stay
+    # unavailable until their credential and region-specific pricing catalog
+    # have both been reviewed.
+    gateway_enabled_providers: tuple[str, ...] = tuple(
+        item.lower()
+        for item in _csv(os.getenv("GATEWAY_ENABLED_PROVIDERS", "deepseek,moonshot,glm"))
+    )
     # Gateway credit is a separate USD prepaid wallet, never a conversion of
     # PureGamma subscription credits. Values are expressed in Stripe cents.
     gateway_topup_min_usd_cents: int = int(
@@ -464,24 +471,37 @@ def validate_production_settings(settings: Settings) -> None:
             errors.append("GATEWAY_API_KEY_PEPPER must be at least 32 characters when GATEWAY_ENABLED=true")
         if settings.gateway_topup_min_usd_cents <= 0 or settings.gateway_topup_max_usd_cents < settings.gateway_topup_min_usd_cents:
             errors.append("GATEWAY_TOPUP_MIN_USD_CENTS and GATEWAY_TOPUP_MAX_USD_CENTS must define a positive valid range")
-        configured_gateway_keys = [
-            name
-            for name, value in {
-                "GATEWAY_DEEPSEEK_API_KEY": settings.gateway_deepseek_api_key,
-                "GATEWAY_MOONSHOT_API_KEY": settings.gateway_moonshot_api_key,
-                "GATEWAY_GLM_API_KEY": settings.gateway_glm_api_key,
-            }.items()
-            if value
-        ]
-        required_gateway_keys = {
-            "GATEWAY_DEEPSEEK_API_KEY",
-            "GATEWAY_MOONSHOT_API_KEY",
-            "GATEWAY_GLM_API_KEY",
+        configured_gateway_keys = {
+            "GATEWAY_DEEPSEEK_API_KEY": settings.gateway_deepseek_api_key,
+            "GATEWAY_MOONSHOT_API_KEY": settings.gateway_moonshot_api_key,
+            "GATEWAY_GLM_API_KEY": settings.gateway_glm_api_key,
         }
-        missing_gateway_keys = sorted(required_gateway_keys.difference(configured_gateway_keys))
+        enabled_gateway_providers = tuple(
+            dict.fromkeys(
+                provider.strip().lower()
+                for provider in settings.gateway_enabled_providers
+                if provider.strip()
+            )
+        )
+        if not enabled_gateway_providers:
+            errors.append("GATEWAY_ENABLED_PROVIDERS must name at least one provider when GATEWAY_ENABLED=true")
+        unknown_gateway_providers = sorted(
+            set(enabled_gateway_providers) - {"deepseek", "moonshot", "glm"}
+        )
+        if unknown_gateway_providers:
+            errors.append(
+                "GATEWAY_ENABLED_PROVIDERS contains unsupported providers: "
+                + ", ".join(unknown_gateway_providers)
+            )
+        missing_gateway_keys = sorted(
+            f"GATEWAY_{provider.upper()}_API_KEY"
+            for provider in enabled_gateway_providers
+            if f"GATEWAY_{provider.upper()}_API_KEY" in configured_gateway_keys
+            and not configured_gateway_keys[f"GATEWAY_{provider.upper()}_API_KEY"]
+        )
         if missing_gateway_keys:
             errors.append(
-                "All phase-1 gateway provider API keys are required when "
+                "Configured gateway provider API keys are required when "
                 "GATEWAY_ENABLED=true: " + ", ".join(missing_gateway_keys)
             )
     if settings.enable_mock_agent or settings.enable_mock_market_data or settings.enable_mock_data_sources:

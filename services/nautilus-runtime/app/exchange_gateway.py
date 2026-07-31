@@ -177,7 +177,7 @@ class MockExchangeGateway(ExchangeGateway):
                 "unrealized_pnl": 0.0,
                 "realized_pnl": realized_pnl,
                 "leverage": order.get("leverage", 1),
-                "mode": "PAPER",
+                "mode": order.get("mode", "PAPER"),
                 "strategy_id": order.get("strategy_id"),
                 "run_id": order.get("run_id"),
                 "updated_at": order.get("source_timestamp") or order.get("created_at"),

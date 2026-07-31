@@ -3,6 +3,7 @@ from __future__ import annotations
 from apps.api.config import Settings, get_settings
 from packages.agents.llm.base import LLMProvider
 from packages.agents.llm.deepseek_provider import DeepSeekProvider
+from packages.agents.llm.kimi_provider import KimiProvider
 from packages.agents.llm.mock_provider import MockLLMProvider
 from packages.agents.llm.openai_provider import OpenAIProvider
 
@@ -20,6 +21,11 @@ def get_llm_provider(settings: Settings | None = None) -> LLMProvider:
         if not openai.configured:
             return MockLLMProvider(status="fallback_mock", last_error=openai.last_error)
         return openai
+    if provider == "kimi":
+        kimi = KimiProvider(settings)
+        if not kimi.configured:
+            return MockLLMProvider(status="fallback_mock", last_error=kimi.last_error)
+        return kimi
     return MockLLMProvider()
 
 

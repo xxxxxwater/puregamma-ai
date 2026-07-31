@@ -29,6 +29,7 @@ from packages.database.models import (
     User,
 )
 from packages.gateway.contracts import GatewayProviderError, GatewayUsage
+from packages.gateway.catalog import public_model_catalog
 from packages.gateway.metadata import (
     approve_price_revision,
     bootstrap_gateway_catalog,
@@ -251,6 +252,26 @@ def _serialize_gateway_account(
 @router.get("/keys")
 def keys(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict[str, Any]:
     return {"keys": [serialize_api_key(row) for row in list_api_keys(db, user.id)], "limit": 10}
+
+
+@router.get("/catalog")
+def public_catalog(db: Session = Depends(get_db)) -> dict[str, Any]:
+    """Return a secret-free, price-source-aware model catalog for the website.
+
+    This intentionally stays available while the request gateway itself is
+    disabled: the product page can explain planned models and show their
+    official-source quotes, but each row carries an explicit availability and
+    pricing-review status so the UI never implies that an unapproved price is
+    billable or callable.
+    """
+    policy = pricing_policy(db)
+    db.commit()
+    return {
+        "gateway_enabled": get_settings().gateway_enabled,
+        "markup_bps": policy.markup_bps,
+        "updated_at": policy.updated_at.isoformat(),
+        "models": public_model_catalog(db, markup_bps=policy.markup_bps),
+    }
 
 
 @router.post("/keys", status_code=201)

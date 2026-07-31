@@ -9,8 +9,10 @@ each configured Provider plugin calls only its official API.
 1. Deploy the database migration (`python -m scripts.db_migrate upgrade` is
    already the API container entrypoint).
 2. Set `GATEWAY_ENABLED=true`, a separate random
-   `GATEWAY_API_KEY_PEPPER` of at least 32 characters, and the three official
-   provider API keys in the production `.env`.
+   `GATEWAY_API_KEY_PEPPER` of at least 32 characters, and an explicit
+   `GATEWAY_ENABLED_PROVIDERS` allow-list. Every listed provider needs its
+   official API key and a matching regional pricing catalog. A staged launch
+   may begin with `GATEWAY_ENABLED_PROVIDERS=deepseek`.
 3. Deploy with `docker compose -f docker-compose.production.yml up -d --build`.
 4. Sign in as an admin and call `POST /admin/gateway/bootstrap`, then
    `POST /admin/gateway/sync`.
@@ -36,10 +38,15 @@ auditable CNY-to-USD conversion policy before adding a GLM billable price
 snapshot. This avoids silently treating a CNY number as USD.
 
 The existing Caddy edge proxy is retained instead of introducing a second
-reverse proxy. Before enabling the gateway, restrict the Ubuntu origin's
-ports 80/443 to Cloudflare IP ranges; Caddy then forwards `CF-Connecting-IP`
-as `X-Real-IP` for IP blocks and rate-limit audits. Cloudflare terminates at
-the public edge and Caddy obtains/renews the origin TLS certificate.
+reverse proxy. This release does **not** treat `CF-Connecting-IP` as trusted:
+the current Caddy configuration forwards the direct peer IP, which is a
+Cloudflare edge address when the proxy is enabled. Before enabling the
+gateway, restrict the Ubuntu origin's ports 80/443 to Cloudflare IP ranges
+and configure Caddy's trusted-proxy handling so it forwards a verified
+`CF-Connecting-IP` as `X-Real-IP`. Until then, do not use IP blocks or
+IP-based anomaly decisions as a customer-identity control. Cloudflare
+terminates at the public edge and Caddy obtains/renews the origin TLS
+certificate.
 
 ## Pricing catalog
 

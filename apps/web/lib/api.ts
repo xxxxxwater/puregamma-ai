@@ -544,6 +544,50 @@ export type GatewayKey = {
   created_at: string;
 };
 
+export type GatewayCatalogPrice = {
+  amount: string;
+  unit: string;
+  description?: string;
+};
+
+export type GatewayCatalogModel = {
+  id: string;
+  display_name: string;
+  provider: string;
+  provider_display_name: string;
+  provider_model_id: string;
+  capabilities: Record<string, boolean | number | string>;
+  metadata: Record<string, string>;
+  availability: "available" | "pending_approval" | "provider_disabled" | "setup_required";
+  pricing: {
+    currency: string;
+    official: Record<string, GatewayCatalogPrice>;
+    final: Record<string, GatewayCatalogPrice>;
+    status: "active" | "pending" | "catalog_unapproved" | "requires_currency_policy" | string;
+  } | null;
+  source_reference: string | null;
+};
+
+export type GatewayCatalog = {
+  gateway_enabled: boolean;
+  markup_bps: number | null;
+  updated_at: string | null;
+  models: GatewayCatalogModel[];
+  unavailable?: boolean;
+};
+
+const emptyGatewayCatalog: GatewayCatalog = {
+  gateway_enabled: false,
+  markup_bps: null,
+  updated_at: null,
+  models: [],
+  unavailable: true,
+};
+
+export function getGatewayCatalog(locale: Locale = defaultLocale) {
+  return api<GatewayCatalog>("/gateway/catalog", { fallback: emptyGatewayCatalog, locale });
+}
+
 export type GatewayDashboard = {
   account: { status: string; monthly_spend_limit_usd: string; current_month_spend_usd: string; month_started_at: string };
   wallet: { currency: string; available_balance_usd: string; lifetime_credited_usd: string; lifetime_debited_usd: string; topup_min_usd: string; topup_max_usd: string };

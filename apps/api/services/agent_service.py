@@ -501,6 +501,26 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             "clarificationRecommended": runtime_plan.get("clarification_recommended", False),
             "evidenceRequirements": runtime_plan.get("evidence_requirements", []),
         })
+        # Unified conversational entry (P0-4): native intents are answered from
+        # deterministic stored facts with the LLM only phrasing the evidence.
+        # Everything else falls through to the existing tool chain unchanged.
+        from apps.api.services import agent_answer_service
+
+        fast_path_intent = agent_answer_service.classify_intent(user_message.content, db=db, user_id=user.id)
+        if fast_path_intent:
+            yield from agent_answer_service.stream_fast_path(
+                db,
+                user,
+                run=run,
+                conversation=conversation,
+                user_message=user_message,
+                assistant=assistant,
+                intent=fast_path_intent,
+                started=started,
+                locale=locale,
+                runtime_plan=runtime_plan,
+            )
+            return
         selected_skills = skill_registry(db, user).resolve_many(
             run_context.get("skills", []),
             trigger_source="agent_chat",

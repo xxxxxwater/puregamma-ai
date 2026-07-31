@@ -1,6 +1,7 @@
 """Signed inbound iMessage bridge for the self-hosted macOS relay."""
 from __future__ import annotations
 
+import base64
 import hashlib
 import hmac
 import json
@@ -21,8 +22,13 @@ from apps.api.services.agent_service import (
     start_run,
     stream_run,
 )
+from apps.api.services import imessage_voice_service
 from apps.api.services.credit_service import InsufficientCreditsError
 from apps.api.services.imessage_verification_service import normalize_e164
+from apps.api.services.imessage_voice_service import (
+    TranscriptionUnavailable,
+    VoiceSynthesisUnavailable,
+)
 from packages.database.models import AgentConversation, AgentMessage, IMessageInboundEvent, User, UserPreference
 from packages.skills.registry import SkillResolutionError
 
@@ -42,7 +48,11 @@ TEMPORARY_REPLY = "PureGamma AI: The Agent is temporarily unavailable. Please tr
 class InboundMessage(BaseModel):
     message_id: str = Field(min_length=1, max_length=128)
     sender: str = Field(min_length=8, max_length=32)
-    content: str = Field(min_length=1, max_length=3000)
+    # Text path stays as-is; voice messages carry audio_base64 + audio_mime
+    # (backward compatible: text-only payloads keep working unchanged).
+    content: str = Field(default="", max_length=3000)
+    audio_base64: str | None = Field(default=None)
+    audio_mime: str | None = Field(default=None)
 
 
 def _signature(timestamp: str, body: bytes) -> str:
@@ -91,6 +101,71 @@ async def _raw_body(request: Request) -> bytes:
     return await request.body()
 
 
+def _voice_inbound(db: Session, user: User, preference: UserPreference, payload: InboundMessage) -> dict:
+    """Voice message: STT -> the same main-agent answer chain as the user's
+    iMessage text thread (fast-path included) -> TTS. Falls back to a text-only
+    reply when transcription or synthesis is unavailable."""
+    locale = preference.locale or "en"
+    try:
+        audio, extension = imessage_voice_service.decode_audio(payload.audio_base64 or "", payload.audio_mime)
+    except TranscriptionUnavailable as exc:
+        return {"reply": f"PureGamma AI: I could not read that voice message ({exc}). Please try again or send text.", "status": "failed"}
+    try:
+        text = imessage_voice_service.transcribe_audio(db, user, audio, extension, locale)
+    except InsufficientCreditsError:
+        db.rollback()
+        return {"reply": SUBSCRIPTION_REPLY, "status": "subscription_required"}
+    except TranscriptionUnavailable as exc:
+        return {"reply": f"PureGamma AI: I could not transcribe that voice message ({exc}). Please try again or send text.", "status": "failed"}
+    event = IMessageInboundEvent(relay_message_id=payload.message_id, user_id=user.id)
+    db.add(event)
+    db.flush()
+    try:
+        run = start_run(
+            db,
+            user,
+            _conversation(db, user),
+            text,
+            context={"imessage_source_id": payload.message_id, "channel": "imessage", "input_modality": "voice"},
+        )
+        for _ in stream_run(db, user, run.id, locale):
+            pass
+    except (
+        InsufficientCreditsError,
+        AgentLimitError,
+        AgentModelPlanError,
+        AgentModelUnavailableError,
+        SkillResolutionError,
+    ):
+        db.rollback()
+        return {"reply": SUBSCRIPTION_REPLY, "status": "subscription_required"}
+    except (AgentModelInvalidError, ValueError):
+        db.rollback()
+        return {"reply": TEMPORARY_REPLY, "status": "failed"}
+    assistant = db.get(AgentMessage, run.assistant_message_id)
+    if not assistant or assistant.status != "completed":
+        event.status = "failed"
+        db.commit()
+        return {"reply": TEMPORARY_REPLY, "status": "failed"}
+    reply_text = _reply_text(assistant.content)
+    event.status = "completed"
+    event.assistant_message_id = assistant.id
+    try:
+        reply_audio = imessage_voice_service.synthesize_voice(db, user, reply_text, locale)
+    except (VoiceSynthesisUnavailable, InsufficientCreditsError):
+        # TTS is best-effort: the completed answer still goes out as text.
+        db.commit()
+        return {"reply": reply_text, "status": "completed", "reply_text": reply_text}
+    db.commit()
+    return {
+        "reply": reply_text,
+        "status": "completed",
+        "reply_text": reply_text,
+        "reply_audio_base64": base64.b64encode(reply_audio).decode(),
+        "reply_audio_mime": "audio/mpeg",
+    }
+
+
 @router.post("/inbound")
 def inbound(
     body: bytes = Depends(_raw_body),
@@ -123,6 +198,10 @@ def inbound(
     duplicate = _duplicate_reply(db, payload.message_id)
     if duplicate is not None:
         return {"reply": duplicate, "status": "duplicate"}
+    if payload.audio_base64:
+        return _voice_inbound(db, user, preference, payload)
+    if not payload.content.strip():
+        return {"reply": TEMPORARY_REPLY, "status": "failed"}
     try:
         event = IMessageInboundEvent(relay_message_id=payload.message_id, user_id=user.id)
         db.add(event)

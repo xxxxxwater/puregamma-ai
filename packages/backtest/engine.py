@@ -67,6 +67,21 @@ def _nautilus_available() -> bool:
         return False
 
 
+def _in_production() -> bool:
+    from apps.api.config import get_settings
+
+    return get_settings().app_environment.lower() == "production"
+
+
+def _assert_no_mock_catalog_in_production(what: str) -> None:
+    """Hard fail on any mock/synthetic catalog path in production (dev/test only)."""
+    if _in_production():
+        raise RuntimeError(
+            f"MOCK_BACKTEST_DATA_DISABLED_IN_PRODUCTION: {what} is only available "
+            "in development/test environments"
+        )
+
+
 class BacktestEngine:
     """Research-only backtest engine backed by NautilusTrader data catalog."""
 
@@ -88,7 +103,14 @@ class BacktestEngine:
         if use_real_data and db is not None:
             catalog = catalog_from_db(db, symbols, lookback_days=lookback)
         else:
+            _assert_no_mock_catalog_in_production("nautilus mock catalog")
             catalog = mock_catalog(symbols, bar_count=lookback * 24)
+
+        if _in_production() and (catalog.get("bar_count", 0) <= 0 or catalog.get("data_freshness") == "mock"):
+            raise RuntimeError(
+                "REAL_BACKTEST_DATA_UNAVAILABLE_IN_PRODUCTION: the market data "
+                f"catalog has no real bars for {asset}; refusing to emit synthetic results"
+            )
 
         # ── Run Backtest ──
         if _nautilus_available() and use_real_data and catalog["bar_count"] > 0:
@@ -277,6 +299,7 @@ class BacktestEngine:
                 close_prices.append(float(bar["close"]))
 
         if not close_prices:
+            _assert_no_mock_catalog_in_production("synthetic return series")
             import random
 
             random.seed(42)

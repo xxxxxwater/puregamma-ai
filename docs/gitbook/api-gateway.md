@@ -1,6 +1,6 @@
 # PureGamma API 中转站
 
-> 面向 PureGamma 用户的独立预付 OpenAI 兼容 API。所有请求只会转发至已审核、已启用的官方 Provider；PureGamma 不运行本地模型，也不是模型市场。
+> 面向 PureGamma 付费用户的 OpenAI 兼容 API。所有请求只会转发至已审核、已启用的官方 Provider；PureGamma 不运行本地模型，也不是模型市场。
 
 English version: [PureGamma API Gateway](api-gateway-en.md)
 
@@ -15,66 +15,15 @@ English version: [PureGamma API Gateway](api-gateway-en.md)
 | 可用模型 | `GET /v1/models` |
 | 对话接口 | `POST /v1/chat/completions` |
 
-访问条件：拥有已验证的 PureGamma 账户、一个 `sk-pg-...` API Key，以及足够的 **Gateway 预付 USD 余额**。每个用户最多可保留 10 个处于 active 或 paused 状态的 Key。PureGamma 的 Pro/Max/Enterprise 订阅、套餐与 Credits 只服务 PureGamma 产品，**不会**作为 Gateway 余额，也不会决定 Gateway API 是否可调用。
+访问条件：拥有已验证的 PureGamma 账户、处于有效状态的 Pro、Max 或 Enterprise 订阅，以及一个 `sk-pg-...` API Key。每个用户最多可保留 10 个处于 active 或 paused 状态的 Key。
 
 > **以模型列表为准。** 模型只有在 Provider 已启用、健康检查通过且价格已获管理员确认后才会出现在 `GET /v1/models`。请不要把文档或演示中出现的模型名称当作可用性承诺。
 
 ### 创建与保护 API Key
 
-登录 [PureGamma API 控制台](https://app.puregamma.ai/zh/gateway) 后创建、暂停、删除或轮换 Key，并查看月度限额、模型用量和最近请求。新 Key 仅在创建或轮换时显示一次；请立即存入密码管理器或部署平台的密钥库。
+Gateway 的 Key、用量与请求历史后端接口已经部署；面向客户的自助 Gateway 页面仍在交付中。在该页面上线前，只有通过 PureGamma 已验证的账户开通流程取得的 Key 才能使用。新 Key 仅在创建或轮换时显示一次；请立即存入密码管理器或部署平台的密钥库。
 
 不要把 Key 放入前端代码、移动应用、浏览器扩展、Git 仓库、截图或工单。怀疑泄露时请立刻暂停或轮换 Key；轮换会生成新 Key 并使旧 Key 失效。
-
-### 充值 Gateway 预付余额
-
-在 API 控制台的“充值 API 余额”中输入任意美元金额（当前范围为 **$5.00–$10,000.00**，可由运营方配置），然后前往 Stripe 完成一次性付款。Stripe 已验证的 Webhook 收到成功付款后，**付款金额 1:1 计入 Gateway USD 余额**，并显示在余额记录中。
-
-- 这不是订阅，不会创建、升级、取消或变更 PureGamma 套餐。
-- 这不是 Credits 充值，不会改变 `credit_balance` 或 PureGamma 功能额度。
-- 余额只在已验证的 Stripe Webhook 回调后生效；支付成功跳转页本身不会入账。
-- Gateway 调用仅从此余额按已确认的最终价格扣费。余额不足时 API 返回 `402 GATEWAY_INSUFFICIENT_BALANCE`，不会透支。
-
-### 中转站配置卡（复制填写）
-
-无论使用 OpenAI SDK、Dify、LangChain、Cursor、Continue，还是自己的后端服务，均填写以下四项；**不要使用 DeepSeek、Kimi 或 GLM 的官方 Key**，只能使用您自己的 `sk-pg-...` Key。
-
-| 配置项 | 值 |
-| --- | --- |
-| API 类型 | OpenAI Compatible / OpenAI API |
-| Base URL | `https://api.puregamma.ai/v1` |
-| API Key | `sk-pg-...`（保存在环境变量中） |
-| Chat endpoint | `POST /chat/completions`（SDK 会自动补全） |
-| 模型 | `/v1/models` 返回的精确 `id` |
-
-建议在服务端 `.env` 中保存：
-
-```bash
-PUREGAMMA_API_KEY=sk-pg-...
-PUREGAMMA_BASE_URL=https://api.puregamma.ai/v1
-PUREGAMMA_MODEL=deepseek-v4-flash
-```
-
-`Base URL` 必须保留结尾的 `/v1`。不要写成 `https://app.puregamma.ai`、不要把 `/chat/completions` 拼进 SDK 的 `base_url`，也不要在浏览器端暴露 Key。
-
-### 模型快速选择
-
-下面是 Gateway 的公共模型 ID 与路由设计。它们只有在 Provider 启用、健康检查通过、官方价格获管理员确认后才会出现在您的 `/v1/models` 返回中；**请求只可使用实际返回的 ID**。
-
-| 公共模型 ID | 官方 Provider 模型 | 适合场景 | 主要能力 |
-| --- | --- | --- | --- |
-| `deepseek-v4-flash` | DeepSeek V4 Flash | 默认选项、低延迟对话与批量任务 | Chat、流式、JSON、工具、推理、缓存 |
-| `deepseek-v4-pro` | DeepSeek V4 Pro | 更复杂的分析、代码与长回答 | Chat、流式、JSON、工具、推理、缓存 |
-| `kimi-k3-max` | Moonshot Kimi K3 | 长上下文和复杂工具工作流 | Chat、流式、JSON、工具、推理、缓存 |
-| `glm-5.2` | Zhipu GLM 5.2 | 通用中文/英文任务和工具调用 | Chat、流式、JSON、工具、缓存 |
-
-先查询一次可用模型，再把其中一个 `id` 写入客户端配置：
-
-```bash
-curl -sS https://api.puregamma.ai/v1/models \
-  -H "Authorization: Bearer $PUREGAMMA_API_KEY"
-```
-
-返回格式兼容 OpenAI 模型列表；除标准 `id`、`object`、`created`、`owned_by` 外，PureGamma 还会提供 `display_name` 与 `capabilities`。`capabilities` 是客户端是否启用 JSON、工具调用或流式等可选功能的唯一依据。
 
 ## 2. 五分钟接入
 
@@ -130,18 +79,6 @@ console.log(result.choices[0].message.content);
 ```bash
 curl -sS https://api.puregamma.ai/v1/models \
   -H "Authorization: Bearer $PUREGAMMA_API_KEY"
-```
-
-最小可用请求：
-
-```bash
-curl -sS https://api.puregamma.ai/v1/chat/completions \
-  -H "Authorization: Bearer $PUREGAMMA_API_KEY" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "model": "deepseek-v4-flash",
-    "messages": [{"role": "user", "content": "你好，请用一句话介绍 PureGamma API。"}]
-  }'
 ```
 
 ## 3. Chat Completions
@@ -200,18 +137,17 @@ response = client.chat.completions.create(
 
 每次请求都会记录请求 ID、模型、Provider、延迟、输入/输出/缓存/推理 Token、扩展计费单位、官方成本和最终成本。最终价格由已审核的官方价格和当前 markup 计算；默认 markup 为 30%。
 
-用户可在 Gateway 用量页查看：可用预付余额、今日/本月/累计消费、按模型统计、请求历史、Key 最近使用状态，以及不可修改的余额记录。每笔成功 API 调用会从 Gateway 预付余额扣除最终价格；余额不足会返回 `402 GATEWAY_INSUFFICIENT_BALANCE`。当前月度消费上限到达后，接口会返回 `402 GATEWAY_MONTHLY_LIMIT_REACHED`。
+用户可在 Gateway 用量页查看：今日、本月、累计消费；按模型统计；请求历史；Key 最近使用时间和状态。当前月度消费上限到达后，接口会返回 `402 GATEWAY_MONTHLY_LIMIT_REACHED`。
 
-Gateway 预付余额与现有 Stripe Customer 复用以方便支付和收据，但它使用独立的一次性 `mode=payment` Checkout 和独立账本；它不读取或修改 Subscription、PureGamma Credits 或套餐权益。
+订阅资格由现有 Stripe Customer、Subscription 与 Webhook 流程决定。Gateway 目前提供**用量计量、成本账本与月度限额保护**；在对外公布按量扣费、预付余额或自动充值前，运营方必须先配置并验收对应的 Stripe 计费产品与结算流程。
 
 ## 5. 常见错误
 
 | HTTP | 代码 | 含义与处理 |
 | --- | --- | --- |
 | 401 | `GATEWAY_INVALID_API_KEY` | Key 缺失、错误、已撤销或已暂停；检查 `Authorization: Bearer ...`。 |
-| 402 | `GATEWAY_INSUFFICIENT_BALANCE` | Gateway 预付余额不足；在 API 控制台使用 Stripe 充值后重试。 |
 | 402 | `GATEWAY_MONTHLY_LIMIT_REACHED` | 已达到 Gateway 月度限额；联系账户管理员调整。 |
-| 403 | `GATEWAY_ACCOUNT_INACTIVE` | Gateway 账户被管理员暂停；联系管理员。 |
+| 403 | `GATEWAY_PAID_PLAN_REQUIRED` / `GATEWAY_SUBSCRIPTION_INACTIVE` | 需要有效的付费订阅。 |
 | 404 | `GATEWAY_MODEL_NOT_AVAILABLE` | 模型未启用、未批准定价，或模型 ID 错误；先查询 `/v1/models`。 |
 | 429 | Rate limited | 已超过该 Key 的 RPM；降低并发并使用退避重试。 |
 | 503 | `GATEWAY_PROVIDER_UNHEALTHY` / `GATEWAY_PRICING_NOT_APPROVED` | 上游不可用或价格仍在审核；稍后重试或选择可用模型。 |
@@ -222,33 +158,9 @@ Gateway 预付余额与现有 Stripe Customer 复用以方便支付和收据，�
 
 管理员资格由 PureGamma 用户记录的 `role=admin` 控制，用户不能自行提升权限。管理员应先以自己的邮箱或 Google 账户登录 `app.puregamma.ai`，并使用受保护的管理会话；不要从浏览器开发者工具复制或分发 JWT。
 
-管理员可使用 [Gateway 管理台](https://app.puregamma.ai/zh/admin/gateway)。它提供 Provider 启停和健康检查、目录同步、待审价格确认、统一 markup、收入/成本/利润指标，以及用户月度消费上限和暂停/恢复。只有 `role=admin` 的账户可以访问；不要共享浏览器会话或 token。
+当前第一阶段已部署受权限保护的 Gateway 管理 API（Provider、同步、待审价格、markup、运营指标与 IP Block），但**完整的图形化 Gateway 管理台尚未交付**。在管理台上线前，不应让普通用户使用内部管理接口，也不应通过共享 token 管理生产环境。
 
-管理 API 的职责如下：`/admin/gateway/providers` 查看与启停 Provider；`/admin/gateway/sync` 同步目录；`/admin/gateway/prices/pending` 审核价格；`/admin/gateway/prices/{revision_id}/approve` 确认价格；`/admin/gateway/pricing/markup` 调整 markup；`/admin/gateway/metrics` 查看收入、成本、利润、请求数和用户预付余额负债；`/admin/gateway/accounts` 管理用户 Gateway 状态、月度限额及只读 API 余额。用户侧 Key、充值、余额账本、用量和请求记录由 `/gateway/keys`、`/gateway/topups`、`/gateway/wallet`、`/gateway/dashboard`、`/gateway/requests` 提供给已上线的自助页面。
-
-### 中转站部署配置（仅管理员）
-
-Gateway 不运行模型；每个 Provider Key 必须来自相应官方平台，并且只能写入生产环境的 `.env` 或密钥管理服务。以下是字段模板，尖括号内容必须由管理员替换，绝不能提交到 Git：
-
-```bash
-GATEWAY_ENABLED=true
-GATEWAY_API_KEY_PEPPER=<至少32字符的独立随机密钥>
-GATEWAY_TOPUP_MIN_USD_CENTS=500
-GATEWAY_TOPUP_MAX_USD_CENTS=1000000
-
-GATEWAY_DEEPSEEK_API_KEY=<DeepSeek官方Key>
-GATEWAY_DEEPSEEK_BASE_URL=https://api.deepseek.com/v1
-
-GATEWAY_MOONSHOT_API_KEY=<Moonshot官方Key>
-GATEWAY_MOONSHOT_BASE_URL=<与账户区域匹配的Moonshot官方端点>
-
-GATEWAY_GLM_API_KEY=<Zhipu官方Key>
-GATEWAY_GLM_BASE_URL=https://open.bigmodel.cn/api/paas/v4
-```
-
-Stripe 必须保持现有生产 `BILLING_MODE=stripe`、`STRIPE_SECRET_KEY` 和 `STRIPE_WEBHOOK_SECRET` 配置。Stripe Endpoint 应投递 `checkout.session.completed`、`checkout.session.async_payment_succeeded` 与 `checkout.session.expired` 到 `POST https://api.puregamma.ai/stripe/webhook`。不要通过成功跳转 URL、浏览器参数或管理员页面直接增加用户余额；所有自动入账必须来自已验证签名且与内部充值 intent 的金额、币种、Customer 相符的 Webhook。
-
-保存后重启 API、worker 与 scheduler；随后在管理台同步目录、逐项审核价格、启用 Provider、运行健康检查，并用真实的 `sk-pg-...` Key 验证 `/v1/models` 和低成本请求。不能因为 `.env` 有 Key 就跳过价格确认。
+管理 API 的职责如下：`/admin/gateway/providers` 查看与启停 Provider；`/admin/gateway/sync` 同步目录；`/admin/gateway/prices/pending` 审核价格；`/admin/gateway/prices/{revision_id}/approve` 确认价格；`/admin/gateway/pricing/markup` 调整 markup；`/admin/gateway/metrics` 查看收入、成本、利润与请求数。用户侧 Key、用量和请求记录分别由 `/gateway/keys`、`/gateway/dashboard`、`/gateway/requests` 提供给未来的自助页面。
 
 管理员的标准变更流程：
 

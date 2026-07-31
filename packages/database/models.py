@@ -156,6 +156,10 @@ class DailyBriefPreference(Base, TimestampMixin):
     next_delivery_at = Column(DateTime(timezone=True), nullable=True, index=True)
     recipient = Column(String, nullable=True)
     recipient_verified_at = Column(DateTime(timezone=True), nullable=True)
+    channels = Column(JSON, nullable=True)  # multi-select: email|telegram|slack|imessage (web inbox always on)
+    report_types = Column(JSON, nullable=True)  # subset of crypto_daily|us_daily|week_ahead_events|portfolio_daily; null = all
+    failure_count = Column(Integer, nullable=False, default=0)
+    last_error = Column(String, nullable=True)
 
 
 class Subscription(Base, TimestampMixin):
@@ -348,6 +352,7 @@ class LLMCallLog(Base):
     cache_hit = Column(Boolean, nullable=False, default=False)
     status = Column(String, nullable=False, default="success", index=True)
     error_message = Column(Text, nullable=True)
+    latency_ms = Column(Integer, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
@@ -424,61 +429,6 @@ class GatewayAccount(Base, TimestampMixin):
     monthly_spend_limit_usd = Column(Numeric(18, 8), nullable=False, default=0)
     current_month_spend_usd = Column(Numeric(18, 8), nullable=False, default=0)
     current_month_started_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
-
-
-class GatewayWallet(Base, TimestampMixin):
-    """Prepaid USD balance dedicated to API Gateway usage.
-
-    This is intentionally separate from ``User.credit_balance``. The latter
-    pays for the PureGamma product; it must never be changed by Gateway
-    purchases or metered API requests.
-    """
-
-    __tablename__ = "gateway_wallets"
-
-    id = Column(String, primary_key=True, default=new_id)
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
-    currency = Column(String(3), nullable=False, default="USD")
-    available_balance_usd = Column(Numeric(18, 8), nullable=False, default=0)
-    lifetime_credited_usd = Column(Numeric(18, 8), nullable=False, default=0)
-    lifetime_debited_usd = Column(Numeric(18, 8), nullable=False, default=0)
-
-
-class GatewayTopupIntent(Base):
-    """One user-selected Stripe Checkout payment for a Gateway wallet."""
-
-    __tablename__ = "gateway_topup_intents"
-
-    id = Column(String, primary_key=True, default=new_id)
-    public_reference = Column(String, nullable=False, unique=True, index=True)
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    amount_cents = Column(Integer, nullable=False)
-    currency = Column(String(3), nullable=False, default="USD")
-    status = Column(String, nullable=False, default="created", index=True)
-    stripe_checkout_session_id = Column(String, nullable=True, unique=True, index=True)
-    stripe_payment_intent_id = Column(String, nullable=True, unique=True, index=True)
-    stripe_customer_id = Column(String, nullable=True, index=True)
-    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
-    completed_at = Column(DateTime(timezone=True), nullable=True)
-
-
-class GatewayWalletLedger(Base):
-    """Immutable Gateway wallet credits and usage debits."""
-
-    __tablename__ = "gateway_wallet_ledger"
-
-    id = Column(String, primary_key=True, default=new_id)
-    wallet_id = Column(String, ForeignKey("gateway_wallets.id", ondelete="CASCADE"), nullable=False, index=True)
-    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
-    entry_type = Column(String, nullable=False, index=True)
-    amount_usd = Column(Numeric(18, 8), nullable=False)
-    balance_after_usd = Column(Numeric(18, 8), nullable=False)
-    idempotency_key = Column(String, nullable=False, unique=True, index=True)
-    topup_intent_id = Column(String, ForeignKey("gateway_topup_intents.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
-    gateway_request_log_id = Column(String, ForeignKey("gateway_request_logs.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
-    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
-    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
 
 class GatewayApiKey(Base, TimestampMixin):
@@ -766,6 +716,30 @@ class BacktestLabRun(Base, TimestampMixin):
     context_used_json = Column(JSON, default=dict, nullable=False)
     error = Column(String, nullable=True)
     credits_spent = Column(Integer, nullable=False, default=0)
+
+
+class ResearchRun(Base):
+    """Isolated Python research run executed inside an ephemeral container."""
+
+    __tablename__ = "research_runs"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    idempotency_key = Column(String, nullable=True, unique=True, index=True)
+    status = Column(String, nullable=False, default="queued", index=True)
+    code_hash = Column(String, nullable=False, index=True)
+    code = Column(Text, nullable=False)
+    dataset_refs_json = Column(JSON, default=list, nullable=False)
+    limits_json = Column(JSON, default=dict, nullable=False)
+    metrics_json = Column(JSON, default=dict, nullable=False)
+    figures_json = Column(JSON, default=list, nullable=False)
+    logs = Column(Text, nullable=False, default="")
+    error = Column(Text, nullable=True)
+    credits_reserved = Column(Integer, nullable=False, default=0)
+    credits_spent = Column(Integer, nullable=False, default=0)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
 
 
 class DataSource(Base, TimestampMixin):
@@ -1636,4 +1610,258 @@ class TradingAuditLog(Base):
     idempotency_key = Column(String, nullable=False)
     error_code = Column(String, nullable=True)
     error_message = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class ResearchSnapshot(Base):
+    """One shared research build per cycle: market facts are produced once and
+    then personalized per user. kind: overnight | crypto_daily | us_daily | intraday."""
+
+    __tablename__ = "research_snapshots"
+
+    id = Column(String, primary_key=True, default=new_id)
+    kind = Column(String, nullable=False, index=True)
+    as_of = Column(DateTime(timezone=True), nullable=False, index=True)
+    data_cutoff_at = Column(DateTime(timezone=True), nullable=False)
+    window_start = Column(DateTime(timezone=True), nullable=True)
+    window_end = Column(DateTime(timezone=True), nullable=True)
+    summary_markdown = Column(Text, nullable=False, default="")
+    source_counts_json = Column(JSON, default=dict, nullable=False)
+    health_json = Column(JSON, default=dict, nullable=False)
+    status = Column(String, nullable=False, default="completed", index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class MarketEvent(Base):
+    """A deduplicated, evidence-backed market event.
+
+    Every event records source provenance, collection and data-cutoff times,
+    a dedup fingerprint, related assets, possible direction/horizon, confidence,
+    supporting evidence and evidence gaps. Facts never come from an LLM; an LLM
+    may only interpret already-stored evidence.
+    """
+
+    __tablename__ = "market_events"
+    __table_args__ = (UniqueConstraint("fingerprint", name="uq_market_event_fingerprint"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    event_type = Column(String, nullable=False, index=True)  # price_move | news | earnings_confirmed | macro_scheduled | options_regime | funding_oi
+    title = Column(String, nullable=False)
+    summary = Column(Text, nullable=False, default="")
+    source_provider = Column(String, nullable=False, index=True)
+    source_url = Column(String, nullable=True)
+    source_published_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    collected_at = Column(DateTime(timezone=True), nullable=False)
+    data_cutoff_at = Column(DateTime(timezone=True), nullable=False)
+    fingerprint = Column(String, nullable=False)
+    assets = Column(JSON, default=list, nullable=False)
+    direction = Column(String, nullable=True)  # up | down | mixed | unknown
+    time_horizon = Column(String, nullable=True)  # intraday | days | weeks
+    confidence = Column(Float, nullable=False, default=0.0)
+    evidence_json = Column(JSON, default=list, nullable=False)
+    evidence_gaps = Column(JSON, default=list, nullable=False)
+    research_snapshot_id = Column(String, ForeignKey("research_snapshots.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String, nullable=False, default="active", index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class AssetImpact(Base):
+    """Event -> asset impact. relation_type distinguishes direct causation from
+    industry/macro/counterparty linkage and pure statistical correlation."""
+
+    __tablename__ = "asset_impacts"
+    __table_args__ = (UniqueConstraint("event_id", "symbol", "relation_type", name="uq_asset_impact_event_symbol_relation"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    event_id = Column(String, ForeignKey("market_events.id", ondelete="CASCADE"), nullable=False, index=True)
+    symbol = Column(String, nullable=False, index=True)
+    relation_type = Column(String, nullable=False, default="direct")  # direct | industry | macro | counterparty | statistical
+    direction = Column(String, nullable=True)
+    magnitude = Column(Float, nullable=True)
+    confidence = Column(Float, nullable=False, default=0.0)
+    horizon = Column(String, nullable=True)
+    rationale = Column(Text, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class UserPortfolioImpact(Base):
+    """Per-user mapping of an asset impact onto actual holdings."""
+
+    __tablename__ = "user_portfolio_impacts"
+    __table_args__ = (UniqueConstraint("user_id", "event_id", "symbol", name="uq_user_portfolio_impact"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    event_id = Column(String, ForeignKey("market_events.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset_impact_id = Column(String, ForeignKey("asset_impacts.id", ondelete="SET NULL"), nullable=True)
+    symbol = Column(String, nullable=False)
+    exposure_value = Column(Float, nullable=False, default=0.0)
+    exposure_weight = Column(Float, nullable=True)
+    direction = Column(String, nullable=True)
+    confidence = Column(Float, nullable=False, default=0.0)
+    computed_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class ResearchAction(Base):
+    """A recommended next step derived from events/impacts."""
+
+    __tablename__ = "research_actions"
+    __table_args__ = (UniqueConstraint("dedup_key", name="uq_research_action_dedup"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    event_id = Column(String, ForeignKey("market_events.id", ondelete="SET NULL"), nullable=True, index=True)
+    action_type = Column(String, nullable=False, index=True)  # ask_agent | add_alert | add_to_report | generate_report | create_strategy | run_backtest
+    title = Column(String, nullable=False)
+    payload_json = Column(JSON, default=dict, nullable=False)
+    status = Column(String, nullable=False, default="open", index=True)
+    dedup_key = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class CustodyAccount(Base, TimestampMixin):
+    """A real custody venue account (testnet/sandbox first). Distinct from
+    TradingAccount: this is the funds-custody domain, not a trading handle."""
+
+    __tablename__ = "custody_accounts"
+
+    id = Column(String, primary_key=True, default=new_id)
+    venue = Column(String, nullable=False, index=True)
+    environment = Column(String, nullable=False, default="testnet")
+    status = Column(String, nullable=False, default="ACTIVE", index=True)
+    deposit_address = Column(String, nullable=True)
+    provider_ref = Column(String, nullable=True)
+    metadata_json = Column(JSON, default=dict, nullable=False)
+
+
+class CustodySubAccount(Base, TimestampMixin):
+    """Per-user, per-asset sub-ledger with available/frozen balances."""
+
+    __tablename__ = "custody_sub_accounts"
+    __table_args__ = (UniqueConstraint("custody_account_id", "user_id", "asset", name="uq_custody_sub_account"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    custody_account_id = Column(String, ForeignKey("custody_accounts.id", ondelete="CASCADE"), nullable=False)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset = Column(String, nullable=False)
+    available = Column(Numeric(38, 18), nullable=False, default=0)
+    frozen = Column(Numeric(38, 18), nullable=False, default=0)
+
+
+class CustodyLedgerEntry(Base):
+    """Append-only custody ledger; every balance mutation is an entry."""
+
+    __tablename__ = "custody_ledger_entries"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_custody_ledger_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    sub_account_id = Column(String, ForeignKey("custody_sub_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_type = Column(String, nullable=False, index=True)  # deposit_confirm | freeze | unfreeze | trade_debit | trade_credit | withdrawal_hold | withdrawal_release | reconcile_adjust
+    amount = Column(Numeric(38, 18), nullable=False)
+    available_after = Column(Numeric(38, 18), nullable=False)
+    frozen_after = Column(Numeric(38, 18), nullable=False)
+    ref_type = Column(String, nullable=True)
+    ref_id = Column(String, nullable=True)
+    idempotency_key = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class CustodyDeposit(Base):
+    __tablename__ = "custody_deposits"
+    __table_args__ = (UniqueConstraint("external_ref", name="uq_custody_deposit_external_ref"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    sub_account_id = Column(String, ForeignKey("custody_sub_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset = Column(String, nullable=False)
+    amount = Column(Numeric(38, 18), nullable=False)
+    tx_ref = Column(String, nullable=False)
+    confirmations = Column(Integer, nullable=False, default=0)
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | confirmed | credited
+    external_ref = Column(String, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    confirmed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class CustodyWithdrawal(Base, TimestampMixin):
+    __tablename__ = "custody_withdrawals"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_custody_withdrawal_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    sub_account_id = Column(String, ForeignKey("custody_sub_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset = Column(String, nullable=False)
+    amount = Column(Numeric(38, 18), nullable=False)
+    address = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="intent", index=True)  # intent | approved | submitted | confirmed | failed | rejected
+    idempotency_key = Column(String, nullable=False)
+    tx_ref = Column(String, nullable=True)
+    error = Column(String, nullable=True)
+
+
+class CustodyReconciliation(Base):
+    __tablename__ = "custody_reconciliations"
+
+    id = Column(String, primary_key=True, default=new_id)
+    custody_account_id = Column(String, ForeignKey("custody_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    asset = Column(String, nullable=False)
+    local_available = Column(Numeric(38, 18), nullable=False)
+    local_frozen = Column(Numeric(38, 18), nullable=False)
+    external_balance = Column(Numeric(38, 18), nullable=True)
+    difference = Column(Numeric(38, 18), nullable=True)
+    status = Column(String, nullable=False, default="PENDING")
+    details_json = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class GatewayWallet(Base, TimestampMixin):
+    """Prepaid USD balance dedicated to API Gateway usage.
+
+    This is intentionally separate from ``User.credit_balance``. The latter
+    pays for the PureGamma product; it must never be changed by Gateway
+    purchases or metered API requests.
+    """
+
+    __tablename__ = "gateway_wallets"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    currency = Column(String(3), nullable=False, default="USD")
+    available_balance_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    lifetime_credited_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    lifetime_debited_usd = Column(Numeric(18, 8), nullable=False, default=0)
+
+
+class GatewayTopupIntent(Base):
+    """One user-selected Stripe Checkout payment for a Gateway wallet."""
+
+    __tablename__ = "gateway_topup_intents"
+
+    id = Column(String, primary_key=True, default=new_id)
+    public_reference = Column(String, nullable=False, unique=True, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount_cents = Column(Integer, nullable=False)
+    currency = Column(String(3), nullable=False, default="USD")
+    status = Column(String, nullable=False, default="created", index=True)
+    stripe_checkout_session_id = Column(String, nullable=True, unique=True, index=True)
+    stripe_payment_intent_id = Column(String, nullable=True, unique=True, index=True)
+    stripe_customer_id = Column(String, nullable=True, index=True)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class GatewayWalletLedger(Base):
+    """Immutable Gateway wallet credits and usage debits."""
+
+    __tablename__ = "gateway_wallet_ledger"
+
+    id = Column(String, primary_key=True, default=new_id)
+    wallet_id = Column(String, ForeignKey("gateway_wallets.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    entry_type = Column(String, nullable=False, index=True)
+    amount_usd = Column(Numeric(18, 8), nullable=False)
+    balance_after_usd = Column(Numeric(18, 8), nullable=False)
+    idempotency_key = Column(String, nullable=False, unique=True, index=True)
+    topup_intent_id = Column(String, ForeignKey("gateway_topup_intents.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+    gateway_request_log_id = Column(String, ForeignKey("gateway_request_logs.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)

@@ -172,6 +172,17 @@ class RuntimeStateStore:
             ).fetchone()
             return self._order_row(row) if row else None
 
+    def order_journal(self, client_order_id: str) -> list[dict]:
+        """Full append-only transition history for one order, oldest first."""
+        with self._connect() as db:
+            return [
+                self._order_row(row)
+                for row in db.execute(
+                    "SELECT * FROM orders WHERE client_order_id=? ORDER BY sequence",
+                    (client_order_id,),
+                ).fetchall()
+            ]
+
     def open_orders(self, account_id: str | None = None) -> list[dict]:
         terminal = ("FILLED", "CANCELED", "REJECTED", "EXPIRED")
         sql = "SELECT * FROM orders WHERE state NOT IN (?,?,?,?)"
@@ -283,9 +294,23 @@ class RuntimeStateStore:
             return [json.loads(row["payload"]) for row in db.execute(sql, params)]
 
     def recover_uncertain_orders(self) -> int:
+        """Mark orders whose LATEST state is uncertain as RECONCILIATION_REQUIRED.
+
+        Only the latest journal row per order is rewritten so historical
+        transitions of orders that later reached a terminal state stay intact.
+        """
         with self._lock, self._connect() as db:
             rows = db.execute(
-                "SELECT * FROM orders WHERE state IN ('SUBMITTING','SUBMITTED','CANCEL_PENDING')"
+                """
+                SELECT current.* FROM orders current
+                JOIN (
+                  SELECT client_order_id, MAX(sequence) AS sequence
+                  FROM orders GROUP BY client_order_id
+                ) latest
+                ON current.client_order_id=latest.client_order_id
+                AND current.sequence=latest.sequence
+                WHERE current.state IN ('SUBMITTING','SUBMITTED','CANCEL_PENDING')
+                """
             ).fetchall()
             for row in rows:
                 payload = json.loads(row["payload"])

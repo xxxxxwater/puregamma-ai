@@ -51,9 +51,14 @@ def test_due_daily_push_reuses_report_and_is_idempotent(monkeypatch, db, pro_use
     second = tasks.dispatch_due_daily_briefs.run()
 
     assert first["due"] == 1
+    assert first["failed"] == 0
     assert second["due"] == 0
-    assert db.query(Report).filter_by(user_id=user_id, report_type="daily_market_report").count() == 1
-    assert db.query(NotificationDelivery).filter_by(user_id=user_id, channel="email").count() == 1
+    # The orchestrator generates one cached report per default type per local
+    # day and dispatches each to the channel exactly once.
+    assert db.query(Report).filter_by(user_id=user_id).count() == 4
+    assert {report.report_type for report in db.query(Report).filter_by(user_id=user_id)} == {"crypto_daily", "us_daily", "week_ahead_events", "portfolio_daily"}
+    assert db.query(NotificationDelivery).filter_by(user_id=user_id, channel="email").count() == 4
+    assert db.query(NotificationDelivery).filter_by(user_id=user_id, channel="web").count() == 4
 
 
 def test_daily_push_content_controls_change_delivery_body(db, pro_user):

@@ -31,6 +31,8 @@ class DailyBriefPreferenceRequest(BaseModel):
     timezone: str | None = None
     local_time: str | None = None
     channel: str | None = None
+    channels: list[str] | None = None
+    report_types: list[str] | None = None
     locale: str | None = None
     include_portfolio: bool | None = None
     include_market: bool | None = None

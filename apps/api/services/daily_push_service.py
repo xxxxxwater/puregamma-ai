@@ -13,6 +13,11 @@ from packages.reports.templates import disclaimer_for
 
 CHANNELS = {"email", "telegram", "imessage", "push"}
 
+# Multi-channel daily brief: web inbox is always on and needs no recipient.
+MULTI_CHANNELS = {"email", "telegram", "slack", "imessage"}
+REPORT_TYPES = {"crypto_daily", "us_daily", "week_ahead_events", "portfolio_daily"}
+DEFAULT_REPORT_TYPES = ["crypto_daily", "us_daily", "week_ahead_events", "portfolio_daily"]
+
 
 def next_delivery(timezone_name: str, local_time: str, now: datetime | None = None) -> datetime:
     try:
@@ -63,12 +68,30 @@ def get_or_create_preference(db: Session, user: User) -> DailyBriefPreference:
 
 def update_preference(db: Session, user: User, payload: dict) -> DailyBriefPreference:
     row = get_or_create_preference(db, user)
-    channel = str(payload.get("channel", row.channel)).lower()
-    if channel not in CHANNELS:
-        raise ValueError("UNSUPPORTED_CHANNEL")
     entitlement = get_user_entitlement(db, user.id)
-    if channel not in entitlement["notification_channels"]:
-        raise PermissionError("CHANNEL_ENTITLEMENT_DENIED")
+    channels_payload = payload.get("channels")
+    if channels_payload is not None:
+        channels = [str(value).lower() for value in channels_payload]
+        if not channels or any(channel not in MULTI_CHANNELS for channel in channels):
+            raise ValueError("UNSUPPORTED_CHANNEL")
+        for channel in channels:
+            if channel not in entitlement["notification_channels"]:
+                raise PermissionError("CHANNEL_ENTITLEMENT_DENIED")
+        channels = list(dict.fromkeys(channels))
+        row.channels = channels
+        channel = channels[0]  # keep legacy single channel in sync for back-compat
+    else:
+        channel = str(payload.get("channel", row.channel)).lower()
+        if channel not in CHANNELS:
+            raise ValueError("UNSUPPORTED_CHANNEL")
+        if channel not in entitlement["notification_channels"]:
+            raise PermissionError("CHANNEL_ENTITLEMENT_DENIED")
+    report_types_payload = payload.get("report_types")
+    if report_types_payload is not None:
+        report_types = [str(value) for value in report_types_payload]
+        if any(report_type not in REPORT_TYPES for report_type in report_types):
+            raise ValueError("UNSUPPORTED_REPORT_TYPE")
+        row.report_types = list(dict.fromkeys(report_types)) or None
     timezone_name = str(payload.get("timezone", row.timezone))
     local_time = str(payload.get("local_time", row.local_time))
     scheduled = next_delivery(timezone_name, local_time)
@@ -89,7 +112,7 @@ def update_preference(db: Session, user: User, payload: dict) -> DailyBriefPrefe
 
 
 def serialize_preference(row: DailyBriefPreference) -> dict:
-    return {"enabled": row.enabled, "timezone": row.timezone, "local_time": row.local_time, "channel": row.channel, "locale": row.locale, "include_portfolio": row.include_portfolio, "include_market": row.include_market, "include_signals": row.include_signals, "include_risk": row.include_risk, "include_sentiment": row.include_sentiment, "quiet_hours": row.quiet_hours or {}, "max_length": row.max_length, "next_delivery_at": row.next_delivery_at.isoformat() if row.next_delivery_at else None, "recipient": row.recipient, "recipient_verified_at": row.recipient_verified_at.isoformat() if row.recipient_verified_at else None}
+    return {"enabled": row.enabled, "timezone": row.timezone, "local_time": row.local_time, "channel": row.channel, "channels": list(row.channels) if row.channels else [row.channel], "report_types": list(row.report_types) if row.report_types else list(DEFAULT_REPORT_TYPES), "failure_count": row.failure_count or 0, "last_error": row.last_error, "locale": row.locale, "include_portfolio": row.include_portfolio, "include_market": row.include_market, "include_signals": row.include_signals, "include_risk": row.include_risk, "include_sentiment": row.include_sentiment, "quiet_hours": row.quiet_hours or {}, "max_length": row.max_length, "next_delivery_at": row.next_delivery_at.isoformat() if row.next_delivery_at else None, "recipient": row.recipient, "recipient_verified_at": row.recipient_verified_at.isoformat() if row.recipient_verified_at else None}
 
 
 def delivery_history(db: Session, user_id: str, channel: str | None = None) -> list[NotificationDelivery]:

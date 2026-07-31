@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.skill_service import serialize_installation, skill_registry
+from apps.api.services.skill_workflow_service import invoke_workflow_skill
 from packages.database.models import Skill, SkillInstallation, SkillRun, SkillSource, SkillVersion, User
 from packages.skills.manifest import validate_github_source, validate_skill_bundle
 from packages.skills.registry import SkillResolutionError
@@ -81,6 +82,67 @@ def runs(
         "started_at": row.started_at.isoformat(),
         "completed_at": row.completed_at.isoformat() if row.completed_at else None,
     } for row in rows]}
+
+
+class SkillRunRequest(BaseModel):
+    inputs: dict[str, Any] = Field(default_factory=dict)
+    estimated_credits: int = Field(default=0, ge=0, le=10_000)
+
+
+def _serialize_run(row: SkillRun) -> dict:
+    workflow = (row.evidence_json or {}).get("workflow") or {}
+    return {
+        "id": row.id,
+        "skill_id": row.skill_id,
+        "skill_version_id": row.skill_version_id,
+        "installation_id": row.installation_id,
+        "agent_run_id": row.agent_run_id,
+        "trigger_source": row.trigger_source,
+        "status": row.status,
+        "input_summary": row.input_summary_json or {},
+        "output_summary": row.output_summary,
+        "output": workflow.get("output"),
+        "workflow_status": workflow.get("status"),
+        "degraded_steps": workflow.get("degraded_steps") or [],
+        "evidence": row.evidence_json or {},
+        "usage": row.usage_json or {},
+        "credits_reserved": row.credits_reserved,
+        "credits_used": row.credits_used,
+        "error_code": row.error_code,
+        "error_message": row.error_message,
+        "trace_id": row.trace_id,
+        "started_at": row.started_at.isoformat() if row.started_at else None,
+        "completed_at": row.completed_at.isoformat() if row.completed_at else None,
+    }
+
+
+@router.post("/{slug}/run")
+def run_skill(
+    slug: str,
+    payload: SkillRunRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    try:
+        run = invoke_workflow_skill(
+            db,
+            user=user,
+            slug=slug,
+            inputs=payload.inputs,
+            trigger_source="api",
+            estimated_credits=payload.estimated_credits or None,
+        )
+    except SkillResolutionError as exc:
+        _raise_skill_error(exc)
+    return {"run": _serialize_run(run)}
+
+
+@router.get("/runs/{run_id}")
+def skill_run_detail(run_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    row = db.get(SkillRun, run_id)
+    if not row or (row.user_id != user.id and user.role != "admin"):
+        raise HTTPException(status_code=404, detail={"code": "SKILL_RUN_NOT_FOUND", "message": "Skill run not found"})
+    return {"run": _serialize_run(row)}
 
 
 @router.post("/import")

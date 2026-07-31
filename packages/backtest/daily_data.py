@@ -16,13 +16,37 @@ from sqlalchemy.orm import Session
 
 from packages.database.models import BacktestCandle
 
-LAB_SYMBOLS: dict[str, str] = {"BTC": "BTCUSDT", "ETH": "ETHUSDT"}
+LAB_SYMBOLS: dict[str, str] = {
+    "BTC": "BTCUSDT",
+    "ETH": "ETHUSDT",
+    "SOL": "SOLUSDT",
+    "HYPE": "HYPEUSDT",
+}
+# Assets whose daily candles come from the Hyperliquid info API (Binance spot
+# does not list them); everything else in LAB_SYMBOLS uses Binance spot.
+HYPERLIQUID_ASSETS: dict[str, str] = {
+    "HYPE": "HYPE",
+}
 KLINES_LIMIT = 1000
 DEFAULT_LOOKBACK_DAYS = 365 * 3
 
 
+def is_crypto_asset(asset: str) -> bool:
+    """True when the asset is served by the shared daily candle store."""
+    return asset.upper().strip() in LAB_SYMBOLS
+
+
+def provider_for_asset(asset: str) -> str:
+    """Real upstream venue for an asset's daily candles."""
+    return "hyperliquid" if asset.upper().strip() in HYPERLIQUID_ASSETS else "binance"
+
+
 def _base_url() -> str:
     return (os.getenv("BINANCE_REST_BASE_URL") or "https://api.binance.com").rstrip("/")
+
+
+def _hyperliquid_url() -> str:
+    return (os.getenv("HYPERLIQUID_REST_BASE_URL") or "https://api.hyperliquid.xyz").rstrip("/")
 
 
 def _fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list]:
@@ -52,6 +76,52 @@ def _fetch_klines(symbol: str, start_ms: int, end_ms: int) -> list[list]:
     return rows
 
 
+def _fetch_hyperliquid_daily(coin: str, start_ms: int, end_ms: int) -> list[list]:
+    """Daily candles from the Hyperliquid info API, shaped like Binance klines.
+
+    Response rows are ``{t, T, s, i, o, c, h, l, v, n}``; we map them onto the
+    Binance kline positions used by the upsert path (open time, o/h/l/c, volume).
+    """
+    rows: list[list] = []
+    cursor = start_ms
+    with httpx.Client(timeout=15.0) as client:
+        while cursor < end_ms:
+            response = client.post(
+                f"{_hyperliquid_url()}/info",
+                json={
+                    "type": "candleSnapshot",
+                    "req": {"coin": coin, "interval": "1d", "startTime": cursor, "endTime": end_ms},
+                },
+            )
+            response.raise_for_status()
+            batch = response.json()
+            if not batch:
+                break
+            for item in batch:
+                rows.append([
+                    int(item["t"]),
+                    item["o"],
+                    item["h"],
+                    item["l"],
+                    item["c"],
+                    item["v"],
+                ])
+            last_open_time = int(batch[-1]["t"])
+            cursor = last_open_time + 86_400_000
+            if len(batch) < 2:
+                break
+    rows.sort(key=lambda item: int(item[0]))
+    # De-duplicate by open time (overlapping pages).
+    seen: set[int] = set()
+    unique: list[list] = []
+    for item in rows:
+        if int(item[0]) in seen:
+            continue
+        seen.add(int(item[0]))
+        unique.append(item)
+    return unique
+
+
 def refresh_daily_candles(
     db: Session,
     assets: list[str] | None = None,
@@ -79,7 +149,11 @@ def refresh_daily_candles(
         if start_ms >= end_ms - 86_400_000:
             stats[symbol] = {"fetched": 0, "upserted": 0}
             continue
-        raw = _fetch_klines(symbol, start_ms, end_ms)
+        provider = provider_for_asset(asset)
+        if provider == "hyperliquid":
+            raw = _fetch_hyperliquid_daily(HYPERLIQUID_ASSETS[asset.upper()], start_ms, end_ms)
+        else:
+            raw = _fetch_klines(symbol, start_ms, end_ms)
         upserted = 0
         for item in raw:
             ts = datetime.fromtimestamp(int(item[0]) / 1000, tz=timezone.utc)
@@ -92,7 +166,7 @@ def refresh_daily_candles(
                 "low": float(item[3]),
                 "close": float(item[4]),
                 "volume": float(item[5]),
-                "provider": "binance",
+                "provider": provider,
                 "fetched_at": now,
             }
             if db.bind and db.bind.dialect.name == "postgresql":

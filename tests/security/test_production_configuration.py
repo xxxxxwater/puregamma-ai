@@ -61,13 +61,13 @@ def test_production_allows_disabled_apple_auth_without_credentials():
     validate_production_settings(settings)
 
 
-def test_gateway_requires_all_phase_one_provider_keys():
+def test_gateway_requires_each_enabled_provider_key():
     settings = replace(
         valid_production_settings(),
         gateway_enabled=True,
         gateway_api_key_pepper="p" * 32,
+        gateway_enabled_providers=("deepseek", "glm"),
         gateway_deepseek_api_key="deepseek-key",
-        gateway_moonshot_api_key="moonshot-key",
     )
     with pytest.raises(RuntimeError, match="GATEWAY_GLM_API_KEY"):
         validate_production_settings(settings)
@@ -83,6 +83,28 @@ def test_gateway_with_all_phase_one_provider_keys_passes():
         gateway_glm_api_key="glm-key",
     )
     validate_production_settings(settings)
+
+
+def test_gateway_allows_a_verified_subset_of_providers():
+    settings = replace(
+        valid_production_settings(),
+        gateway_enabled=True,
+        gateway_api_key_pepper="p" * 32,
+        gateway_enabled_providers=("deepseek",),
+        gateway_deepseek_api_key="deepseek-key",
+    )
+    validate_production_settings(settings)
+
+
+def test_gateway_rejects_unknown_enabled_provider():
+    settings = replace(
+        valid_production_settings(),
+        gateway_enabled=True,
+        gateway_api_key_pepper="p" * 32,
+        gateway_enabled_providers=("unregistered",),
+    )
+    with pytest.raises(RuntimeError, match="unsupported providers"):
+        validate_production_settings(settings)
 
 
 @pytest.mark.parametrize(

@@ -1,18 +1,21 @@
 from __future__ import annotations
 
+from datetime import date as date_type
+
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query
 from pydantic import BaseModel, Field
+from sqlalchemy import String, cast
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
-from apps.api.i18n import resolve_locale
+from apps.api.i18n import normalize_locale, resolve_locale
 from apps.api.services.credit_service import InsufficientCreditsError
 from apps.api.services.cost_control_service import DailyLimitExceededError
 from apps.api.services.entitlement_service import EntitlementDeniedError
 from apps.api.services.report_service import create_daily_report, create_event_report, serialize_report
 from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from packages.billing.credits import cost_for
-from packages.database.models import Report, User
+from packages.database.models import NotificationDelivery, Report, User
 from packages.skills.registry import SkillResolutionError
 
 
@@ -78,28 +81,74 @@ def event_report(
 
 @router.get("")
 def list_reports(
+    type: str | None = Query(default=None),
+    date: str | None = Query(default=None),
+    asset: str | None = Query(default=None),
+    language: str | None = Query(default=None),
+    limit: int = Query(default=20),
+    offset: int = Query(default=0),
     locale: str | None = Query(default=None),
     x_pg_locale: str | None = Header(default=None),
     pg_locale: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    language = resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
-    rows = db.query(Report).filter(Report.user_id == user.id, Report.language == language).order_by(Report.created_at.desc()).limit(100).all()
-    return {"reports": [serialize_report(row) for row in rows]}
+    # Back-compat: without an explicit `language` filter the library keeps the
+    # legacy resolved-locale behavior.
+    effective_language = normalize_locale(language) if language else resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
+    limit = max(1, min(100, limit))
+    offset = max(0, offset)
+    query = db.query(Report).filter(Report.user_id == user.id, Report.language == effective_language)
+    if type:
+        query = query.filter(Report.report_type == type)
+    if date:
+        try:
+            report_date = date_type.fromisoformat(date)
+        except ValueError as exc:
+            raise HTTPException(status_code=400, detail={"code": "INVALID_DATE"}) from exc
+        query = query.filter(Report.report_date == report_date)
+    if asset:
+        query = query.filter(cast(Report.assets, String).ilike(f'%"{asset.strip().upper()}"%'))
+    total = query.count()
+    rows = query.order_by(Report.created_at.desc()).limit(limit).offset(offset).all()
+    return {"reports": [serialize_report(row) for row in rows], "total": total, "limit": limit, "offset": offset}
+
+
+def _report_deliveries(db: Session, report: Report) -> list[dict]:
+    rows = (
+        db.query(NotificationDelivery)
+        .filter(
+            NotificationDelivery.user_id == report.user_id,
+            NotificationDelivery.payload["report_id"].as_string() == report.id,
+        )
+        .order_by(NotificationDelivery.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return [
+        {
+            "channel": row.channel,
+            "status": row.status,
+            "sent_at": row.sent_at.isoformat() if row.sent_at else None,
+            "retry_count": row.retry_count,
+            "last_error": row.last_error,
+        }
+        for row in rows
+    ]
 
 
 @router.get("/{report_id}")
 def get_report(
     report_id: str,
+    language: str | None = Query(default=None),
     locale: str | None = Query(default=None),
     x_pg_locale: str | None = Header(default=None),
     pg_locale: str | None = Cookie(default=None),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    language = resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
+    effective_language = normalize_locale(language) if language else resolve_locale(query_locale=locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
     row = db.get(Report, report_id)
-    if not row or row.user_id != user.id or row.language != language:
+    if not row or row.user_id != user.id or row.language != effective_language:
         raise HTTPException(status_code=404, detail="Report not found")
-    return {"report": serialize_report(row)}
+    return {"report": serialize_report(row), "deliveries": _report_deliveries(db, row)}

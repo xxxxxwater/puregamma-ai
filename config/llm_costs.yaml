@@ -13,6 +13,14 @@ providers:
     input_per_1m_tokens_usd: 0.0
     output_per_1m_tokens_usd: 0.0
     notes: "Configure model-specific pricing before using production cost reporting."
+  kimi:
+    default_model: kimi-k3
+    base_url: https://api.moonshot.ai/v1
+    cost_estimation_enabled: true
+    # Estimated placeholder, mirroring the deepseek entry's magnitude; confirm official Moonshot pricing.
+    input_per_1m_tokens_usd: 0.0
+    output_per_1m_tokens_usd: 0.0
+    notes: "Estimated pricing placeholder; update with official Moonshot rates before production cost reporting."
   mock:
     default_model: mock-model
     base_url: ""

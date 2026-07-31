@@ -10,11 +10,22 @@ Signals are computed strictly on data available before the current bar
 
 from __future__ import annotations
 
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 
-SUPPORTED_ASSETS = ("BTC", "ETH")
+SUPPORTED_CRYPTO_ASSETS = ("BTC", "ETH", "SOL", "HYPE")
+# Backwards-compatible alias: crypto assets served by the shared candle store.
+SUPPORTED_ASSETS = SUPPORTED_CRYPTO_ASSETS
+
+_EQUITY_TICKER = re.compile(r"^[A-Z][A-Z0-9.\-]{0,9}$")
+
+
+def is_equity_asset(asset: str) -> bool:
+    """US equity tickers are served by the keyed equity daily loader (never synthetic)."""
+    normalized = asset.upper().strip()
+    return normalized not in SUPPORTED_CRYPTO_ASSETS and bool(_EQUITY_TICKER.match(normalized))
 
 
 class StrategySpec(BaseModel):
@@ -30,6 +41,7 @@ class StrategySpec(BaseModel):
     long_short: bool = Field(default=False)
     max_position: float = Field(default=1.0, gt=0.0, le=1.0)
     fee_bps: float = Field(default=10.0, ge=0.0, le=100.0)
+    slippage_bps: float = Field(default=0.0, ge=0.0, le=100.0)
     stop_loss_pct: float | None = Field(default=None, ge=0.01, le=0.5)
     thesis: str = Field(default="", max_length=600)
 
@@ -37,7 +49,11 @@ class StrategySpec(BaseModel):
     @classmethod
     def _assets_supported(cls, value: list[str]) -> list[str]:
         normalized = [item.upper().strip() for item in value if item.strip()]
-        unsupported = [item for item in normalized if item not in SUPPORTED_ASSETS]
+        unsupported = [
+            item
+            for item in normalized
+            if item not in SUPPORTED_CRYPTO_ASSETS and not is_equity_asset(item)
+        ]
         if unsupported:
             raise ValueError(f"unsupported assets: {', '.join(unsupported)}")
         return normalized
@@ -47,7 +63,7 @@ class StrategySpec(BaseModel):
         if self.slow_window <= self.fast_window:
             raise ValueError("slow_window must be greater than fast_window")
         if self.mode == "cross_sectional" and len(self.assets) < 2:
-            raise ValueError("cross_sectional mode requires both BTC and ETH")
+            raise ValueError("cross_sectional mode requires two assets")
         return self
 
 

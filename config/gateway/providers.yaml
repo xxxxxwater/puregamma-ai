@@ -114,15 +114,28 @@ providers:
           context_cache: true
           max_context_tokens: 1048576
           max_output_tokens: 131072
+        # The official China-region SKU is CNY-denominated. Keep these values
+        # separate from `official_prices`: the Gateway wallet is USD-only and
+        # must not accidentally bill CNY values as USD before an operator has
+        # approved an auditable FX / regional pricing policy.
+        display_prices:
+          currency: CNY
+          input:
+            amount: "8"
+            unit: per_million_tokens
+            description: cache-miss input
+          output:
+            amount: "28"
+            unit: per_million_tokens
+          cache:
+            amount: "2"
+            unit: per_million_tokens
+            description: cache-hit input
         # Zhipu's official public price is CNY. The current Gateway ledger is
         # USD-denominated, so do not create a billable price snapshot until an
         # operator approves an auditable CNY-to-USD conversion policy.
         metadata:
           official_currency: CNY
           pricing_status: requires_usd_conversion_approval
-          official_price_reference:
-            input_per_million_cny: "8"
-            output_per_million_cny: "28"
-            cache_hit_per_million_cny: "2"
-            cache_storage: limited_time_free
+          cache_storage: limited_time_free
         source_reference: https://bigmodel.cn/pricing

@@ -175,8 +175,8 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
   }, [refreshUser]);
   return (
     <header className="sticky top-0 z-20 border-b border-border-pg bg-bg-app/95 backdrop-blur">
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-4 py-3">
-        <Link href={withLocale(locale, "/")} className="flex items-center gap-2 font-semibold text-text-pg lg:hidden">
+      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
+        <Link href={withLocale(locale, "/")} className="min-w-0 shrink flex items-center gap-2 truncate font-semibold text-text-pg lg:hidden">
           <Image src="/logo.png" alt="PureGamma" width={20} height={20} />
           PureGamma AI
         </Link>
@@ -198,13 +198,13 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
             </>
           )}
         </div>
-        <div className="flex items-center gap-3 text-xs text-text-pg-muted">
-          <div className="flex items-center gap-2 md:hidden"><LanguageSwitcher compact /><AppearanceControls locale={locale} /></div>
+        <div className="flex shrink-0 items-center gap-3 text-xs text-text-pg-muted">
+          <div className="flex items-center gap-1.5 md:hidden"><LanguageSwitcher compact /><AppearanceControls locale={locale} showFontScale={false} /></div>
         </div>
       </div>
-      <nav className="flex gap-1 overflow-x-auto border-t border-border-pg px-3 py-2 lg:hidden">
+      <nav className="flex snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain border-t border-border-pg px-3 py-2 lg:hidden">
         {groups.flatMap((group) => group.items).map((item) => (
-          <Link key={item.href} href={withLocale(locale, item.href)} className="whitespace-nowrap border border-transparent px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted">
+          <Link key={item.href} href={withLocale(locale, item.href)} className="inline-flex min-h-11 shrink-0 snap-start items-center whitespace-nowrap border border-transparent px-3 text-sm text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted">
             {t(locale, item.labelKey)}
           </Link>
         ))}

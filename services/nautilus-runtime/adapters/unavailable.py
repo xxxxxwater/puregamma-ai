@@ -64,3 +64,36 @@ class DisabledLiveExchangeAdapter:
 
     def reconcile(self, account_id: str) -> dict:
         return self._disabled()
+
+
+class UnavailableAdapter(DisabledLiveExchangeAdapter):
+    """Fail-closed adapter for venue/environment pairs without a registered adapter.
+
+    Never silently falls back to mock execution: every order-path call raises
+    with the explicit unavailability reason, and health reports UNAVAILABLE.
+    """
+
+    name = "unavailable"
+
+    def __init__(self, reason: str, *, venue: str = "UNKNOWN", environment: str = "UNKNOWN"):
+        super().__init__(configured=False)
+        self.reason = reason
+        self.venue = venue
+        self.environment = environment
+
+    def health_check(self) -> dict:
+        return {
+            "adapter": self.name,
+            "venue": self.venue,
+            "environment": self.environment,
+            "status": "UNAVAILABLE",
+            "reason": self.reason,
+            "configured": False,
+            "live": False,
+            "orders": False,
+            "withdrawal": False,
+            "transfer": False,
+        }
+
+    def _disabled(self):
+        raise RuntimeError(f"Exchange adapter unavailable: {self.reason}")

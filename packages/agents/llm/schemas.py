@@ -23,6 +23,7 @@ class LLMResponse:
     cache_hit: bool = False
     error_message: str | None = None
     raw: dict[str, Any] = field(default_factory=dict)
+    metadata: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass

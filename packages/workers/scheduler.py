@@ -22,20 +22,12 @@ def build_scheduler() -> BlockingScheduler:
         args=["puregamma.generate_shared_daily_market_intelligence"],
         id="shared_daily_market_intelligence",
     )
-    scheduler.add_job(
-        enqueue,
-        CronTrigger(hour=0, minute=0),
-        args=["puregamma.send_unified_daily_brief_to_all"],
-        id="unified_daily_brief_broadcast",
-        max_instances=1,
-        coalesce=True,
-    )
-    scheduler.add_job(
-        enqueue,
-        CronTrigger(hour=0, minute=10),
-        args=["puregamma.generate_personalized_daily_reports"],
-        id="personalized_daily_reports",
-    )
+    # SINGLE-ORCHESTRATOR INVARIANT: puregamma.dispatch_due_daily_briefs is the
+    # only per-user daily dispatch path. The legacy parallel chains
+    # (unified_daily_brief_broadcast, personalized_daily_reports) were removed
+    # from the schedule; their Celery task names remain registered as thin
+    # wrappers that delegate to the orchestrator. Keeping both the 00:00 warm
+    # and the every-minute orchestrator is sufficient.
     scheduler.add_job(
         enqueue,
         IntervalTrigger(minutes=15),
@@ -195,10 +187,41 @@ def build_scheduler() -> BlockingScheduler:
     )
     scheduler.add_job(
         enqueue,
-        # The product requirement is 03:00 China Standard Time, not the
-        # scheduler container's UTC clock.  Make the business timezone
-        # explicit so a host/image timezone change cannot silently shift the
-        # provider catalog and pricing sync.
+        IntervalTrigger(minutes=5),
+        args=["puregamma.refresh_mstr_btc_dashboard"],
+        id="mstr_btc_dashboard_refresh",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        IntervalTrigger(minutes=15),
+        args=["puregamma.build_research_events"],
+        id="research_events_build",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        CronTrigger(hour=10, minute=5),
+        args=["puregamma.sync_earnings_calendar"],
+        id="research_earnings_calendar_morning",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        CronTrigger(hour=22, minute=5),
+        args=["puregamma.sync_earnings_calendar"],
+        id="research_earnings_calendar_evening",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        # 03:00 is a product/business-time requirement, not UTC. Making the
+        # timezone explicit prevents a container or host timezone change from
+        # shifting provider-price approval windows.
         CronTrigger(hour=3, minute=0, timezone="Asia/Shanghai"),
         args=["puregamma.sync_gateway_provider_metadata"],
         id="gateway_provider_metadata_sync",

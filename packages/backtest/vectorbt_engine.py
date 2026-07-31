@@ -97,6 +97,7 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     fast = max(2, int(spec.get("fast_window", 12)))
     slow = max(fast + 1, int(spec.get("slow_window", 26)))
     fee_bps = max(0.0, float(spec.get("fee_bps", 10.0)))
+    cost_bps = fee_bps + max(0.0, float(spec.get("slippage_bps", 0.0)))
     signal = str(spec.get("signal", "momentum"))
     threshold = float(spec.get("entry_threshold", 0.0))
     long_short = bool(spec.get("long_short", False))
@@ -122,12 +123,15 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
             raise ValueError(f"insufficient candle history for {asset}")
         closes = [float(row["close"]) for row in bars]
         previous = 0.0
+        # The signal at ``index`` only sees closes strictly before that bar.
+        # The resulting position is applied to the following bar, preventing
+        # same-bar execution / look-ahead bias in the compatible engine.
         equity_sofar = initial_cash
         for index in range(1, len(bars)):
             target = _signal(closes, index, fast, slow, signal, threshold, long_short)
             change = target - previous
             asset_return = closes[index] / closes[index - 1] - 1
-            period_return = previous * asset_return - abs(change) * fee_bps / 10_000
+            period_return = previous * asset_return - abs(change) * cost_bps / 10_000
             all_returns.append(period_return)
             equity_sofar *= 1 + period_return
             series.append((bars[index]["ts"], period_return, asset_return))
@@ -189,10 +193,17 @@ def _run_native_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *,
         close = pd.Series([float(row["close"]) for row in rows], index=pd.to_datetime([row["ts"] for row in rows]))
         fast_ma = close.rolling(fast).mean()
         slow_ma = close.rolling(slow).mean()
-        entries = (fast_ma > slow_ma).fillna(False)
-        exits = (fast_ma <= slow_ma).fillna(False)
-        pf = vbt.Portfolio.from_signals(close, entries, exits, init_cash=initial_cash,
-                                         fees=max(0.0, float(spec.get("fee_bps", 10.0)) + max(0.0, float(spec.get("slippage_bps", 0.0)))) / 10_000)
+        # VectorBT fills at the close of the signal bar by default. Shift the
+        # signal one bar to preserve the same no-look-ahead contract as the
+        # pure-Python engine.
+        entries = (fast_ma > slow_ma).shift(1, fill_value=False)
+        exits = (fast_ma <= slow_ma).shift(1, fill_value=False)
+        cost_bps = max(0.0, float(spec.get("fee_bps", 10.0))) + max(
+            0.0, float(spec.get("slippage_bps", 0.0))
+        )
+        pf = vbt.Portfolio.from_signals(
+            close, entries, exits, init_cash=initial_cash, fees=cost_bps / 10_000
+        )
         values = pf.value()
         returns = [float(item) for item in pf.returns().fillna(0).tolist()]
         metrics = enrich_metrics(calculate_metrics(returns), returns)

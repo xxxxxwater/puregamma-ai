@@ -1160,33 +1160,65 @@ class AgentToolRegistry:
     def run_nautilus_backtest(
         self, symbols: list[str], lookback_days: int = 90
     ) -> ToolResult:
-        """Run NautilusTrader backtest using PureGamma data catalog."""
-        from packages.backtest.engine import run_backtest_for_agent
+        """Queue a unified async research backtest per symbol.
+
+        Returns ``{run_id, status: "queued"}`` handles; the frontend/agent UI
+        polls ``GET /backtest-lab/runs/{run_id}`` for status, metrics, figures,
+        trades, and exports. Nothing runs inline in the agent process.
+        """
+        from apps.api.services.unified_backtest_service import (
+            create_unified_run,
+            queue_unified_run,
+        )
 
         results = []
         sources: list[ToolSource] = []
         for symbol in symbols[:3]:
-            result = run_backtest_for_agent(
-                self.db,
-                strategy_name=f"{symbol} momentum breakout",
-                asset=symbol,
-                params={"lookback_days": lookback_days},
+            asset = str(symbol).upper().strip()
+            spec = {
+                "name": f"{asset} momentum breakout",
+                "mode": "daily",
+                "signal": "momentum",
+                "assets": [asset],
+                "thesis": f"Agent-requested research backtest for {asset}.",
+            }
+            try:
+                row = create_unified_run(
+                    self.db,
+                    self.user_id,
+                    spec,
+                    window_days=max(30, min(int(lookback_days), 365 * 3)),
+                    context_meta={"source": "agent_tool", "tool": "run_nautilus_backtest"},
+                )
+                queue_unified_run(self.db, row.id)
+                self.db.refresh(row)
+            except Exception as exc:
+                results.append({"asset": asset, "status": "rejected", "error": str(exc)[:300]})
+                continue
+            results.append(
+                {
+                    "run_id": row.id,
+                    "status": row.status,
+                    "asset": asset,
+                    "poll_url": f"/backtest-lab/runs/{row.id}",
+                    "disclaimer": "Hypothetical research backtest. Past performance does not predict future results.",
+                }
             )
-            results.append(result)
             sources.append(
                 ToolSource(
-                    "nautilus_trader",
-                    f"{symbol} backtest ({result.get('engine', 'unknown')})",
+                    "unified_backtest",
+                    f"{asset} backtest queued (run {row.id})",
                     None,
                     None,
                     None,
                     datetime.now(timezone.utc),
                 )
             )
+        queued = [item for item in results if item.get("status") == "queued"]
         summary = (
-            f"Ran NautilusTrader backtests for {len(results)} assets"
-            if results
-            else "No backtest results available"
+            f"Queued {len(queued)} research backtest run(s); reference the run_id values and poll /backtest-lab/runs/{{run_id}} for status and metrics"
+            if queued
+            else "No backtest could be queued (see per-asset errors)"
         )
         return ToolResult("run_nautilus_backtest", results, summary, sources)
 

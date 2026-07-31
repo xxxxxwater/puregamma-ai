@@ -21,6 +21,7 @@ class RuntimeStrategyRunner:
             "strategy_id": command["strategy_id"],
             "strategy_version": command["strategy_version"],
             "account_id": command.get("account_id"),
+            "account": command.get("account") or {},
             "mode": mode,
             "status": "RUNNING",
             "strategy": command["strategy"],
@@ -90,6 +91,7 @@ class RuntimeStrategyRunner:
                     self.store.upsert_run(run)
                     continue
                 signal = {
+                    "signal_id": f"{run['id']}:{asset}:{direction}:{quote['timestamp']}",
                     "run_id": run["id"],
                     "strategy_id": run["strategy_id"],
                     "strategy_version": run["strategy_version"],

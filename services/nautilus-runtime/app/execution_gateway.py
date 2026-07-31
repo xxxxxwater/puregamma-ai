@@ -7,6 +7,27 @@ from collections import defaultdict
 from packages.trading.states.order_state import transition_order
 
 
+def apply_transition(store, current: dict, state: str, **updates) -> dict:
+    """Validate and append one journal transition; raises on illegal transitions."""
+    transition_order(current["state"], state)
+    result = {
+        **current,
+        **updates,
+        "state": state,
+        "sequence": int(current["sequence"]) + 1,
+    }
+    result["idempotency_key"] = (
+        updates.get("idempotency_key")
+        or f"{current['client_order_id']}:{result['sequence']}:{state}"
+    )
+    if "filled_quantity" in updates:
+        result["remaining_quantity"] = max(
+            0.0, float(result["quantity"]) - float(updates["filled_quantity"])
+        )
+    store.append_order(result)
+    return result
+
+
 class TokenBucket:
     def __init__(self, capacity: int = 20, refill_per_second: float = 2.0):
         self.capacity = capacity
@@ -73,12 +94,14 @@ class RuntimeExecutionGateway:
         submitted = self._next(
             submitting, "SUBMITTED", exchange_order_id=response.get("exchange_order_id")
         )
+        extras = {"shadow": True} if response.get("shadow") else {}
         accepted = self._next(
             submitted,
             response.get("state", "ACCEPTED"),
             exchange_order_id=response.get("exchange_order_id"),
             filled_quantity=float(response.get("filled_quantity", 0)),
             average_price=response.get("average_price"),
+            **extras,
         )
         return {**accepted, "risk_decision": decision}
 
@@ -96,20 +119,4 @@ class RuntimeExecutionGateway:
         return self._next(pending, response.get("state", "UNKNOWN"))
 
     def _next(self, current: dict, state: str, **updates) -> dict:
-        transition_order(current["state"], state)
-        result = {
-            **current,
-            **updates,
-            "state": state,
-            "sequence": int(current["sequence"]) + 1,
-        }
-        result["idempotency_key"] = (
-            updates.get("idempotency_key")
-            or f"{current['client_order_id']}:{result['sequence']}:{state}"
-        )
-        if "filled_quantity" in updates:
-            result["remaining_quantity"] = max(
-                0.0, float(result["quantity"]) - float(updates["filled_quantity"])
-            )
-        self.store.append_order(result)
-        return result
+        return apply_transition(self.store, current, state, **updates)

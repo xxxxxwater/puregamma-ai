@@ -76,23 +76,26 @@ def create_run(payload: RunLabRequest, db: Session = Depends(get_db), user: User
 
 
 @router.get("/runs")
-def runs(limit: int = 20, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+def runs(limit: int = 20, offset: int = 0, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     requested_limit = min(limit, 50)
-    unified = [serialize_unified_run(row) for row in db.query(BacktestRun).filter_by(user_id=user.id).order_by(BacktestRun.created_at.desc()).limit(requested_limit).all()]
+    requested_offset = max(0, offset)
+    unified = [serialize_unified_run(row) for row in db.query(BacktestRun).filter_by(user_id=user.id).order_by(BacktestRun.created_at.desc()).offset(requested_offset).limit(requested_limit).all()]
     legacy = []
-    for row in db.query(BacktestLabRun).filter_by(user_id=user.id).order_by(BacktestLabRun.created_at.desc()).limit(requested_limit).all():
-        payload = serialize_lab_run(row)
-        payload.update({"engine": "legacy_backtest_lab", "run_spec": {"legacy": True}, "drawdown_curve": [], "benchmark_curve": [], "trades": [], "positions": [], "charts": {}, "error": {"message": row.error} if row.error else {}, "credits_reserved": 0, "completed_at": row.updated_at.isoformat() if row.updated_at else None, "is_legacy": True})
-        legacy.append(payload)
+    if requested_offset == 0:
+        for row in db.query(BacktestLabRun).filter_by(user_id=user.id).order_by(BacktestLabRun.created_at.desc()).limit(requested_limit).all():
+            payload = serialize_lab_run(row)
+            payload.update({"engine": "legacy_backtest_lab", "run_spec": {"legacy": True}, "drawdown_curve": [], "benchmark_curve": [], "trades": [], "positions": [], "charts": {}, "error": {"message": row.error} if row.error else {}, "credits_reserved": 0, "completed_at": row.updated_at.isoformat() if row.updated_at else None, "is_legacy": True})
+            legacy.append(payload)
     merged = sorted([*unified, *legacy], key=lambda item: item.get("created_at") or "", reverse=True)[:requested_limit]
-    return {"runs": merged}
+    return {"runs": merged, "limit": requested_limit, "offset": requested_offset}
 
 
 @router.get("/runs/{run_id}")
 def run_detail(run_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     row = db.get(BacktestRun, run_id)
     if row and row.user_id == user.id:
-        return {"run": serialize_unified_run(row)}
+        artifacts = db.query(BacktestArtifact).filter_by(backtest_id=row.id, user_id=user.id).order_by(BacktestArtifact.created_at.asc()).all()
+        return {"run": serialize_unified_run(row, artifacts=artifacts)}
     legacy = db.get(BacktestLabRun, run_id)
     if not legacy or legacy.user_id != user.id:
         raise HTTPException(status_code=404, detail="Backtest run not found")

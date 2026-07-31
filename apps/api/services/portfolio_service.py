@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.services.entitlement_service import get_user_entitlement
-from packages.database.models import AccountSnapshot, ExchangeConnection, PortfolioAutopilotReview, PortfolioInvestmentTransaction, PositionSnapshot, TradingAccount, User, UserPreference, utcnow
+from packages.database.models import AccountSnapshot, ExchangeConnection, PortfolioAutopilotReview, PortfolioInvestmentTransaction, PositionSnapshot, Report, TradingAccount, User, UserPreference, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -325,6 +325,44 @@ def connect_ibkr_token(db: Session, user: User, token_payload: dict) -> TradingA
     return _account(db, user, "IBKR", "Interactive Brokers", metadata, json.dumps(token_payload))
 
 
+def _maybe_create_first_portfolio_brief(db: Session, user: User, account: TradingAccount) -> None:
+    """Create the user's first deterministic portfolio brief after a sync.
+
+    Fires once per (user, account) for ANY provider: the render is the
+    non-LLM ``portfolio_daily`` renderer, so onboarding personalization never
+    consumes LLM credits. Idempotent via
+    ``first-portfolio-brief:{user}:{account}`` and never allowed to break the
+    sync itself (isolated in a SAVEPOINT).
+    """
+    try:
+        from apps.api.services.daily_report_renderers import render_daily_report
+
+        idempotency_key = f"first-portfolio-brief:{user.id}:{account.id}"
+        with db.begin_nested():
+            if db.query(Report).filter_by(idempotency_key=idempotency_key).one_or_none():
+                return
+            preference = db.query(UserPreference).filter_by(user_id=user.id).one_or_none()
+            language = "zh" if (preference and preference.locale == "zh") else "en"
+            today = datetime.now(timezone.utc).date()
+            rendered = render_daily_report(db, user.id, "portfolio_daily", language, today)
+            db.add(
+                Report(
+                    user_id=user.id,
+                    title=rendered["title"],
+                    report_type="portfolio_daily",
+                    language=language,
+                    content_markdown=rendered["content_markdown"],
+                    assets=rendered.get("assets") or [],
+                    source_intelligence_id=rendered.get("source_intelligence_id"),
+                    report_date=today,
+                    status="completed",
+                    idempotency_key=idempotency_key,
+                )
+            )
+    except Exception:
+        logger.exception("first_portfolio_brief_failed user_id=%s account_id=%s", user.id, account.id)
+
+
 def sync_account(db: Session, user: User, account: TradingAccount, *, include_transactions: bool = True) -> None:
     if account.user_id != user.id:
         raise LookupError("Account not found")
@@ -337,6 +375,11 @@ def sync_account(db: Session, user: User, account: TradingAccount, *, include_tr
             _sync_plaid(db, account, include_transactions=include_transactions)
         elif account.venue == "IBKR":
             _sync_ibkr(db, account)
+        elif account.venue in {"BINANCE", "OKX", "BYBIT"}:
+            # Lazy import: cex_connection_service depends on this module.
+            from apps.api.services.cex_connection_service import sync_cex_account
+
+            sync_cex_account(db, account)
         else:
             raise ValueError("Unsupported portfolio provider")
         from packages.billing.rewards import grant_reward
@@ -350,6 +393,7 @@ def sync_account(db: Session, user: User, account: TradingAccount, *, include_tr
             source="first_successful_portfolio_sync",
             metadata={"account_id": account.id, "provider": account.venue},
         )
+        _maybe_create_first_portfolio_brief(db, user, account)
         db.commit()
     except PlaidDataPending:
         db.rollback()
@@ -1346,6 +1390,11 @@ def portfolio_view(db: Session, user: User) -> dict:
             ),
             "hyperliquid": True,
             "evm": bool(settings.moralis_api_key),
+            # Private CEX connectors use per-user read-only keys, so they are
+            # always offerable (no server-side credential is required).
+            "binance": True,
+            "okx": True,
+            "bybit": True,
         },
     }
 

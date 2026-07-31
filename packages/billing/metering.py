@@ -22,6 +22,7 @@ TASK_LIMITS = {
     "event_report": (5, 20), "sentiment_scan": (8, 40),
     "x_sentiment_scan": (20, 80), "onchain_scan": (12, 80),
     "backtest": (50, 50), "backtest_export": (50, 50), "playbook_generation": (30, 100),
+    "research_run": (20, 60),
     "daily_combined_imessage": (15, 40),
     "deepseek_report_generation": (10, 80),
     "deepseek_playbook_generation": (30, 100),

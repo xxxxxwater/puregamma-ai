@@ -44,7 +44,9 @@ def test_generate_unified_brief_survives_empty_database(db):
     assert len(brief.encode("utf-8")) <= MAX_IMESSAGE_BYTES
 
 
-def test_broadcast_is_idempotent_and_free(monkeypatch, db, demo_user):
+def test_broadcast_wrapper_delegates_to_orchestrator_idempotently(monkeypatch, db, demo_user):
+    """send_unified_daily_brief_to_all is now a thin wrapper: no separate
+    broadcast chain, no unified-brief deliveries — exactly one dispatch path."""
     db.add(
         DailyBriefPreference(
             user_id=demo_user.id,
@@ -53,7 +55,7 @@ def test_broadcast_is_idempotent_and_free(monkeypatch, db, demo_user):
             locale="en",
             timezone="UTC",
             local_time="08:00",
-            next_delivery_at=datetime.now(timezone.utc) + timedelta(days=1),
+            next_delivery_at=utcnow() - timedelta(minutes=1),
             recipient=demo_user.email,
         )
     )
@@ -63,13 +65,14 @@ def test_broadcast_is_idempotent_and_free(monkeypatch, db, demo_user):
     first = tasks.send_unified_daily_brief_to_all.run()
     second = tasks.send_unified_daily_brief_to_all.run()
 
-    assert first["sent"] >= 1
-    assert first["users"] >= 1
+    assert first["due"] == 1
+    assert first["failed"] == 0
+    assert second["due"] == 0  # no re-dispatch on rerun
     deliveries = db.query(NotificationDelivery).filter(
+        NotificationDelivery.idempotency_key.like("daily-brief:%")
+    ).all()
+    assert deliveries  # orchestrator deliveries exist
+    assert len({row.idempotency_key for row in deliveries}) == len(deliveries)
+    assert db.query(NotificationDelivery).filter(
         NotificationDelivery.idempotency_key.like("unified-brief:%")
-    ).count()
-    assert deliveries >= 1
-    second_deliveries = db.query(NotificationDelivery).filter(
-        NotificationDelivery.idempotency_key.like("unified-brief:%")
-    ).count()
-    assert second_deliveries == deliveries  # no duplicates on rerun
+    ).count() == 0  # the legacy broadcast chain is gone

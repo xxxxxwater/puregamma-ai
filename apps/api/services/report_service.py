@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 import re
 import uuid
 
@@ -11,6 +11,7 @@ from apps.api.config import get_settings
 from apps.api.services.cost_control_service import assert_daily_report_limit, cached_daily_report
 from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
 from apps.api.services.daily_brief_service import generate_daily_brief
+from apps.api.services.daily_report_renderers import LLM_REPORT_TYPES, REPORT_TYPES, render_daily_report
 from apps.api.services.entitlement_service import assert_action_allowed
 from apps.api.services.market_intelligence_service import latest_or_create_intelligence
 from apps.api.services.portfolio_service import portfolio_context
@@ -95,6 +96,111 @@ def create_daily_report(
         output_tokens=usage.completion_tokens if usage else 0,
     )
     settle_task(db, user_id, reservation, actual_quote.credits, metadata={"report_id": report.id, "usage_log_id": usage.id if usage else None})
+    db.commit()
+    db.refresh(report)
+    return report
+
+
+def create_typed_daily_report(
+    db: Session,
+    user_id: str,
+    report_type: str,
+    language: str = "en",
+    *,
+    local_date: date,
+    scheduled: bool = False,
+    automation_key: str | None = None,
+) -> Report:
+    """Generate-once-per-user-per-local-day for one typed daily report.
+
+    Generalized form of :func:`create_daily_report` keyed by
+    ``daily-report:{user}:{lang}:{report_type}:{local_date}`` (LOCAL date in the
+    preference timezone, supplied by the caller).
+
+    ``scheduled=True`` is used by the unified daily orchestrator: it SKIPS
+    ``assert_daily_report_limit`` so scheduled dispatch never consumes the
+    manual daily-report allowance, but it KEEPS the entitlement check and the
+    credit reserve/settle/refund flow for the LLM-backed renderer
+    (``crypto_daily`` → ``daily_market_report`` / ``portfolio_daily_brief``
+    billing, same as today). Deterministic renderers (``us_daily``,
+    ``week_ahead_events``, ``portfolio_daily``) never reserve credits.
+    """
+    if report_type not in REPORT_TYPES:
+        raise ValueError(f"UNSUPPORTED_REPORT_TYPE:{report_type}")
+    report_date = local_date
+    idempotency_key = f"daily-report:{user_id}:{language}:{report_type}:{report_date.isoformat()}"
+    if db.bind and db.bind.dialect.name == "postgresql":
+        db.execute(text("SELECT pg_advisory_xact_lock(73002002)"))
+    cached = db.query(Report).filter_by(idempotency_key=idempotency_key).one_or_none()
+    if cached:
+        return cached
+    if not scheduled:
+        assert_daily_report_limit(db, user_id)
+    assert_action_allowed(db, user_id, "daily_market_report")
+    reservation = None
+    quote = None
+    billing_task = None
+    if report_type in LLM_REPORT_TYPES:
+        billing_task = "portfolio_daily_brief" if portfolio_context(db, user_id).get("connected") else "daily_market_report"
+        quote = quote_task(task_type=billing_task, requested_model="default")
+        reservation = reserve_task(
+            db,
+            user_id,
+            quote,
+            f"report-charge:{idempotency_key}",
+            {"report_date": report_date.isoformat(), **({"automation_key": automation_key} if automation_key else {})},
+        )
+        # Make the reservation durable before provider execution, then serialize
+        # concurrent generation for the same daily report on that reservation row.
+        db.commit()
+        db.query(CreditReservationRecord).filter_by(
+            user_id=user_id,
+            idempotency_key=reservation.idempotency_key,
+        ).with_for_update().one()
+        cached = db.query(Report).filter_by(idempotency_key=idempotency_key).one_or_none()
+        if cached:
+            return cached
+    generation_started_at = datetime.now(timezone.utc)
+    try:
+        rendered = render_daily_report(db, user_id, report_type, language, local_date)
+    except Exception:
+        if reservation is not None:
+            refund_task(db, user_id, reservation, "REPORT_GENERATION_FAILED", metadata={"report_date": report_date.isoformat()})
+            db.commit()
+        raise
+    report = Report(
+        user_id=user_id,
+        title=rendered["title"],
+        report_type=report_type,
+        language=language,
+        content_markdown=rendered["content_markdown"],
+        assets=rendered.get("assets") or [],
+        source_intelligence_id=rendered.get("source_intelligence_id"),
+        report_date=report_date,
+        status="completed",
+        idempotency_key=idempotency_key,
+    )
+    db.add(report)
+    if reservation is not None:
+        usage = (
+            db.query(LLMCallLog)
+            .filter(
+                LLMCallLog.user_id == user_id,
+                LLMCallLog.task_type == "daily_market_report",
+                LLMCallLog.status == "success",
+                LLMCallLog.created_at >= generation_started_at,
+            )
+            .order_by(LLMCallLog.created_at.desc())
+            .first()
+        )
+        actual_quote = quote_task(
+            task_type=billing_task,
+            requested_model="default",
+            resolved_model=usage.model if usage else "default",
+            input_tokens=usage.prompt_tokens if usage else 0,
+            output_tokens=usage.completion_tokens if usage else 0,
+        )
+        settle_task(db, user_id, reservation, actual_quote.credits, metadata={"report_id": report.id, "usage_log_id": usage.id if usage else None})
     db.commit()
     db.refresh(report)
     return report

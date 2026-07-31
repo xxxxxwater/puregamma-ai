@@ -76,6 +76,11 @@ def usage_cost(prices: dict[str, Any], usage: GatewayUsage) -> Decimal:
     for key, field in {**TOKEN_PRICE_KEYS, **UNIT_PRICE_KEYS}.items():
         item = normalized.get(key)
         amount = int(getattr(usage, field))
+        # OpenAI-compatible providers normally report prompt_tokens as the
+        # complete prompt and cached_tokens as a subset. Bill cache misses at
+        # the input tariff and hits at the cache tariff, never both.
+        if key == "input":
+            amount = max(0, amount - max(0, int(usage.cache_tokens)))
         if not item or amount <= 0:
             continue
         price = decimal_value(item["usd"])

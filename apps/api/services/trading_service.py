@@ -7,6 +7,7 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy.orm import Session
 
 from apps.api.services.credit_service import quote_task, reserve_task, settle_task
+from apps.api.services import custody_service
 from apps.api.services.entitlement_service import get_user_entitlement
 from packages.database.models import (
     AccountSnapshot,
@@ -254,6 +255,22 @@ def confirm_order(
         )
     assert_execution_mode_allowed(intent.execution_mode)
     account = owned_account(db, user_id, intent.account_id)
+    # Custody-linked accounts hold the quote notional at submission time.
+    # Unlinked accounts are a no-op here (behavior unchanged). The freeze is
+    # idempotent on the intent id and happens in this transaction, so a
+    # rejected order releases the hold below and a failed commit rolls it back.
+    try:
+        custody_service.apply_order_freeze(
+            db,
+            trading_account=account,
+            user_id=user_id,
+            order_ref=intent.id,
+            side=intent.direction,
+            notional=intent.notional,
+            quote_asset=account.base_currency,
+        )
+    except custody_service.InsufficientCustodyBalance as exc:
+        raise TradingServiceError("Insufficient custody balance for this order") from exc
     run = (
         db.query(StrategyRun)
         .filter_by(strategy_id=intent.strategy_id, user_id=user_id)
@@ -308,6 +325,33 @@ def confirm_order(
         error_message=ack.get("error"),
     )
     db.add(journal)
+    db.flush()  # journal.id feeds the custody fill idempotency reference
+    # Custody settlement for the ack: fills debit the frozen hold (BUY) or
+    # credit proceeds (SELL); rejects release the hold.
+    if state == "REJECTED":
+        custody_service.release_order_freeze(
+            db,
+            trading_account=account,
+            user_id=user_id,
+            order_ref=intent.id,
+            side=intent.direction,
+            notional=intent.notional,
+            quote_asset=account.base_currency,
+        )
+    else:
+        custody_service.apply_fill_settlement(
+            db,
+            trading_account=account,
+            user_id=user_id,
+            fill_ref=journal.id,
+            side=intent.direction,
+            state=state,
+            quantity=intent.quantity,
+            filled_quantity=float(ack.get("filled_quantity", 0)),
+            average_price=ack.get("average_price"),
+            notional=intent.notional,
+            quote_asset=account.base_currency,
+        )
     decision = ack.get(
         "risk_decision",
         {

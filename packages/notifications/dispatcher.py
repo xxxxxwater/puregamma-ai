@@ -57,7 +57,7 @@ class NotificationDispatcher:
     def _recipient(
         self, user_id: str, pref: UserPreference | None, channel: str, metadata: dict
     ) -> str | None:
-        if channel == "push":
+        if channel in {"push", "web"}:
             return user_id
         if not pref:
             return None
@@ -159,16 +159,28 @@ class NotificationDispatcher:
             """Terminal/skip outcome: update the retrying row in place instead of
             inserting a duplicate idempotency-key row (which crashes on the
             uq_notification_idempotency constraint)."""
+            extras = {
+                key: metadata[key]
+                for key in ("automation_key", "report_id")
+                if metadata.get(key)
+            }
             if existing is not None:
                 existing.status = status
                 existing.provider_response = response
                 existing.last_attempt_at = utcnow()
                 existing.next_retry_at = None
                 existing.last_error = None
+                if extras:
+                    existing.payload = {**(existing.payload or {}), **extras}
                 db.commit()
                 db.refresh(existing)
                 return existing
-            return self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, status, response, locale=locale)
+            delivery = self._create_delivery(db, user_id, channel, recipient, message, idempotency_key, status, response, locale=locale)
+            if extras:
+                delivery.payload = {**(delivery.payload or {}), **extras}
+                db.commit()
+                db.refresh(delivery)
+            return delivery
 
         pref = user.preference
         locale = normalize_locale(
@@ -179,6 +191,11 @@ class NotificationDispatcher:
             # Hard bind email deliveries to the verified account email (defense
             # in depth; onboarding already enforces this at write time).
             recipient = user.email
+        if channel == "web":
+            # Web inbox: the persisted delivery row is the audit trail; the web
+            # reports library reads Report rows directly. No external provider,
+            # no credits.
+            return _finish("sent", {"reason": "web_inbox"})
         if not recipient:
             return _finish("skipped", {"reason": "missing_recipient"})
         if self.settings.app_environment.lower() == "production":

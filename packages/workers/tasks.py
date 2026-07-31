@@ -1,21 +1,25 @@
 from __future__ import annotations
 
 import logging
-from datetime import timedelta
+from datetime import date, timedelta
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from apps.api.services.market_intelligence_service import (
     generate_shared_market_intelligence,
+    latest_or_create_intelligence,
 )
 from apps.api.services.notification_service import send_notification
-from apps.api.services.report_service import create_daily_report
+from apps.api.services.report_service import create_daily_report, create_typed_daily_report
+from apps.api.services.cost_control_service import DailyLimitExceededError
 from apps.api.services.signal_service import scan_signals
 from apps.api.services.runtime_sync_service import sync_runtime_account
-from apps.api.services.portfolio_service import PlaidDataPending, run_autopilot_review, sync_account
+from apps.api.services.portfolio_service import PlaidDataPending, sync_account
 from apps.api.services.data_source_service import sync_all_providers, sync_provider
-from apps.api.services.daily_push_service import next_delivery, render_daily_brief_delivery
+from apps.api.services.daily_push_service import next_delivery
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
-from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
+from apps.api.services.skill_service import finish_module_skill_invocation
+from apps.api.services.skill_workflow_service import invoke_workflow_skill
 from apps.api.config import get_settings
 from packages.database.models import (
     AccountSnapshot,
@@ -33,6 +37,7 @@ from packages.database.models import (
 )
 from packages.database.session import SessionLocal
 from packages.billing.budgets import AutomationBudgetExceeded, pause_automation_budget
+from packages.reports.templates import disclaimer_for
 from packages.trading.runtime_client import NautilusRuntimeClient
 from packages.workers.celery_app import celery_app
 
@@ -177,51 +182,196 @@ def ensure_daily_brief_defaults(db) -> int:
     return created
 
 
+# ---------------------------------------------------------------------------
+# Unified daily report orchestrator (P0-8)
+#
+# SINGLE-ORCHESTRATOR INVARIANT: ``_orchestrate_due_daily_briefs`` is the ONLY
+# per-user daily dispatch path. The legacy chains
+# (send_unified_daily_brief_to_all / generate_personalized_daily_reports /
+# send_daily_reports_to_channels) are thin wrappers that warm shared
+# intelligence and delegate here, so shared intelligence is built once and
+# per-user reports/deliveries are idempotent under exactly one code path.
+#
+# Flow: shared intelligence once → per-user personalization → report cache →
+# multi-channel dispatch.
+# ---------------------------------------------------------------------------
+
+DEFAULT_DAILY_REPORT_TYPES = ["crypto_daily", "us_daily", "week_ahead_events", "portfolio_daily"]
+
+# Generic-failure backoff in minutes: 2**failure_count capped at 240 (1, 2, 4,
+# ... capped) — a failing preference is NEVER left due-again immediately.
+MAX_FAILURE_BACKOFF_MINUTES = 240
+
+
+def _local_date_for(preference: DailyBriefPreference) -> date:
+    try:
+        zone = ZoneInfo(preference.timezone)
+    except (ZoneInfoNotFoundError, ValueError):
+        zone = ZoneInfo("UTC")
+    return utcnow().astimezone(zone).date()
+
+
+def _delivery_message(preference: DailyBriefPreference, report) -> str:
+    disclaimer = disclaimer_for(preference.locale)
+    body = (report.content_markdown or "").rstrip()
+    if disclaimer not in body:
+        body = f"{body}\n\n{disclaimer}" if body else disclaimer
+    if len(body) <= preference.max_length:
+        return body
+    available = max(0, preference.max_length - len(disclaimer) - 2)
+    return f"{(report.content_markdown or '')[:available].rstrip()}\n\n{disclaimer}"
+
+
+def _already_delivered(db, user_id: str, channel: str, report_id: str) -> bool:
+    """Exactly-once guard across backoff retries: a retry gets a new
+    scheduled_for-based idempotency key, so also dedupe on the delivered report."""
+    existing = (
+        db.query(NotificationDelivery.id)
+        .filter(
+            NotificationDelivery.user_id == user_id,
+            NotificationDelivery.channel == channel,
+            NotificationDelivery.status == "sent",
+            NotificationDelivery.payload["report_id"].as_string() == report_id,
+        )
+        .first()
+    )
+    return existing is not None
+
+
+def _process_due_preference(db, user: User, preference: DailyBriefPreference, scheduled_for) -> dict:
+    """Generate cached typed reports for one due preference and dispatch them.
+
+    Raises on report-generation failures (the caller classifies them); channel
+    delivery problems are contained per channel so one bad channel never blocks
+    the rest of the user's dispatch.
+    """
+    entitlement = get_user_entitlement(db, user.id)
+    entitled_channels = set(entitlement["notification_channels"])
+    configured = [str(channel).lower() for channel in (preference.channels or [preference.channel]) if channel]
+    channels = [channel for channel in dict.fromkeys(configured) if channel in entitled_channels]
+    report_types = list(preference.report_types or DEFAULT_DAILY_REPORT_TYPES)
+    local_date = _local_date_for(preference)
+
+    reports = []
+    for report_type in report_types:
+        report = create_typed_daily_report(
+            db,
+            user.id,
+            report_type,
+            preference.locale,
+            local_date=local_date,
+            scheduled=True,
+            automation_key="daily_brief",
+        )
+        reports.append((report_type, report))
+
+    sent = skipped = 0
+    for report_type, report in reports:
+        message = _delivery_message(preference, report)
+        for channel in [*channels, "web"]:
+            if _already_delivered(db, user.id, channel, report.id):
+                skipped += 1
+                continue
+            try:
+                delivery = send_notification(
+                    db,
+                    user.id,
+                    channel,
+                    message,
+                    {
+                        "idempotency_key": f"daily-brief:{user.id}:{channel}:{report_type}:{scheduled_for.isoformat()}",
+                        "locale": preference.locale,
+                        "report_id": report.id,
+                        "automation_key": "daily_brief_delivery",
+                    },
+                )
+            except Exception:
+                db.rollback()
+                skipped += 1
+                logger.exception("daily_brief_channel_dispatch_failed user_id=%s channel=%s report_type=%s", user.id, channel, report_type)
+                continue
+            if delivery.status == "sent":
+                sent += 1
+            else:
+                skipped += 1
+    return {"sent": sent, "skipped": skipped}
+
+
+def _orchestrate_due_daily_briefs(db) -> dict:
+    provisioned = ensure_daily_brief_defaults(db)
+    # Shared intelligence is built at most once and reused by every per-user
+    # renderer below (no duplicated LLM calls across users).
+    try:
+        latest_or_create_intelligence(db)
+    except Exception:
+        db.rollback()
+        logger.exception("daily_orchestrator_intelligence_warm_failed")
+    query = db.query(DailyBriefPreference).filter(DailyBriefPreference.enabled.is_(True), DailyBriefPreference.next_delivery_at <= utcnow()).order_by(DailyBriefPreference.next_delivery_at).limit(100)
+    if db.bind and db.bind.dialect.name == "postgresql":
+        query = query.with_for_update(skip_locked=True)
+    rows = query.all()
+    sent = skipped = failed = 0
+    for preference in rows:
+        user = db.get(User, preference.user_id)
+        scheduled_for = preference.next_delivery_at
+        if not user:
+            failed += 1
+            continue
+        try:
+            outcome = _process_due_preference(db, user, preference, scheduled_for)
+            preference.failure_count = 0
+            preference.last_error = None
+            preference.next_delivery_at = next_delivery(preference.timezone, preference.local_time, utcnow() + timedelta(minutes=1))
+            db.commit()
+            sent += outcome["sent"]
+            skipped += outcome["skipped"]
+            logger.info("daily_brief_dispatched user_id=%s sent=%s skipped=%s", user.id, outcome["sent"], outcome["skipped"])
+        except DailyLimitExceededError:
+            # THE incident fix: a daily-limit rejection is terminal for TODAY —
+            # advance to the next scheduled local slot instead of leaving the
+            # preference due every minute forever.
+            db.rollback()
+            row = db.get(DailyBriefPreference, preference.user_id)
+            if row:
+                row.failure_count = 0
+                row.last_error = "DAILY_LIMIT"
+                row.next_delivery_at = next_delivery(row.timezone, row.local_time, utcnow() + timedelta(minutes=1))
+                db.commit()
+            skipped += 1
+            logger.info("daily_brief_daily_limit_terminal user_id=%s", preference.user_id)
+        except AutomationBudgetExceeded as exc:
+            user_id = preference.user_id
+            _persist_budget_pause(db, user_id, "daily_brief", exc)
+            row = db.get(DailyBriefPreference, user_id)
+            if row:
+                row.enabled = False
+                row.next_delivery_at = None
+                row.last_error = "AutomationBudgetExceeded"
+                db.commit()
+            skipped += 1
+            logger.warning("due_daily_brief_budget_paused user_id=%s", user_id)
+        except Exception as exc:
+            # Generic failure: exponential backoff (2**failure_count minutes,
+            # capped) — next_delivery_at ALWAYS advances, never re-due in 1 min.
+            db.rollback()
+            row = db.get(DailyBriefPreference, preference.user_id)
+            if row:
+                failure_count = (row.failure_count or 0) + 1
+                row.failure_count = failure_count
+                row.last_error = type(exc).__name__
+                backoff_minutes = min(2 ** failure_count, MAX_FAILURE_BACKOFF_MINUTES)
+                row.next_delivery_at = utcnow() + timedelta(minutes=backoff_minutes)
+                db.commit()
+            failed += 1
+            logger.exception("due_daily_brief_failed user_id=%s", preference.user_id)
+    return {"due": len(rows), "sent": sent, "skipped": skipped, "failed": failed, "provisioned": provisioned}
+
+
 @celery_app.task(name="puregamma.dispatch_due_daily_briefs")
 def dispatch_due_daily_briefs() -> dict:
     db = SessionLocal()
-    sent = skipped = failed = 0
     try:
-        provisioned = ensure_daily_brief_defaults(db)
-        query = db.query(DailyBriefPreference).filter(DailyBriefPreference.enabled.is_(True), DailyBriefPreference.next_delivery_at <= utcnow()).order_by(DailyBriefPreference.next_delivery_at).limit(100)
-        if db.bind and db.bind.dialect.name == "postgresql":
-            query = query.with_for_update(skip_locked=True)
-        rows = query.all()
-        for preference in rows:
-            user = db.get(User, preference.user_id)
-            scheduled_for = preference.next_delivery_at
-            try:
-                entitlement = get_user_entitlement(db, user.id)
-                if preference.channel not in entitlement["notification_channels"]:
-                    preference.enabled = False
-                    preference.next_delivery_at = None
-                    db.commit()
-                    skipped += 1
-                    continue
-                report = create_daily_report(db, user.id, preference.locale, automation_key="daily_brief")
-                message = render_daily_brief_delivery(db, preference, report)
-                delivery = send_notification(db, user.id, preference.channel, message, {"idempotency_key": f"daily-brief:{user.id}:{preference.channel}:{scheduled_for.isoformat()}", "locale": preference.locale, "report_id": report.id, "automation_key": "daily_brief_delivery"})
-                if delivery.status == "sent":
-                    sent += 1
-                else:
-                    skipped += 1
-                preference.next_delivery_at = next_delivery(preference.timezone, preference.local_time, utcnow() + timedelta(minutes=1))
-                db.commit()
-            except AutomationBudgetExceeded as exc:
-                user_id = preference.user_id
-                _persist_budget_pause(db, user_id, "daily_brief", exc)
-                row = db.get(DailyBriefPreference, user_id)
-                if row:
-                    row.enabled = False
-                    row.next_delivery_at = None
-                    db.commit()
-                skipped += 1
-                logger.warning("due_daily_brief_budget_paused user_id=%s", user_id)
-            except Exception:
-                db.rollback()
-                failed += 1
-                logger.exception("due_daily_brief_failed user_id=%s", preference.user_id)
-        return {"due": len(rows), "sent": sent, "skipped": skipped, "failed": failed, "provisioned": provisioned}
+        return _orchestrate_due_daily_briefs(db)
     finally:
         db.close()
 
@@ -266,6 +416,22 @@ def execute_unified_backtest(self, run_id: str) -> dict:
         db.close()
 
 
+@celery_app.task(name="puregamma.execute_research_run", bind=True, max_retries=0)
+def execute_research_run(self, run_id: str) -> dict:
+    """Execute one isolated research run in an ephemeral Docker container."""
+    from apps.api.services.research_runner_service import (
+        execute_research_run as _execute_research_run,
+        serialize_research_run,
+    )
+
+    db = SessionLocal()
+    try:
+        row = _execute_research_run(db, run_id)
+        return serialize_research_run(row)
+    finally:
+        db.close()
+
+
 @celery_app.task(name="puregamma.sync_plaid_investments_account", bind=True, max_retries=8)
 def sync_plaid_investments_account(self, account_id: str) -> dict:
     """Fetch holdings and investment activity after Link, refresh, or webhook."""
@@ -284,6 +450,36 @@ def sync_plaid_investments_account(self, account_id: str) -> dict:
         raise self.retry(exc=exc, countdown=delay)
     finally:
         db.close()
+
+
+def _persist_autopilot_review_from_workflow(db, user, accounts, skill_run) -> dict:
+    """Keep the Autopilot review contract (cadence gating + autopilot_view) on
+    top of the portfolio_impact_review workflow output — no bespoke rules."""
+    output = (((skill_run.evidence_json or {}).get("workflow") or {}).get("output") or {})
+    nav = output.get("nav")
+    nav_value = float(nav) if isinstance(nav, (int, float)) and not isinstance(nav, bool) else 0.0
+    findings: list[dict] = []
+    for impact in output.get("impacts") or []:
+        title = impact.get("event_title") or impact.get("event_type")
+        symbol = impact.get("symbol")
+        if title and symbol:
+            findings.append({"severity": "info", "title": f"{symbol}: {title}"})
+    for gap in output.get("gaps") or []:
+        findings.append({"severity": "warning", "title": str(gap)})
+    if not findings:
+        findings.append({"severity": "info", "title": "No freshness or concentration exception detected"})
+    review = PortfolioAutopilotReview(
+        user_id=user.id,
+        nav=nav_value,
+        account_count=len(accounts),
+        findings_json=findings,
+        concentration_json={},
+        status="COMPLETED",
+        data_as_of=utcnow(),
+    )
+    db.add(review)
+    db.commit()
+    return {"last_review": review.created_at.isoformat(), "findings": findings, "account_count": len(accounts)}
 
 
 @celery_app.task(name="puregamma.sync_portfolio_autopilot_accounts")
@@ -312,22 +508,9 @@ def sync_portfolio_autopilot_accounts() -> dict:
             interval = timedelta(days=7 if cadence == "weekly" else 1)
             if accounts and (not last_review or utcnow() - last_review.created_at >= interval):
                 reservation = None
-                skill_invocation_id = None
                 try:
                     quote = quote_task(task_type="portfolio_monitor", async_execution=True)
                     date_key = utcnow().date().isoformat()
-                    skill_invocation_id, _ = begin_module_skill_invocation(
-                        db,
-                        user,
-                        config.get("skill_refs", []),
-                        trigger_source="scheduled_job",
-                        input_payload={"query": "Run scheduled portfolio Autopilot review", "portfolio_user_id": user.id, "cadence": cadence},
-                        estimated_credits=quote.credits,
-                        allow_autopilot=True,
-                        required_tool="get_account_snapshot",
-                        invocation_id=f"portfolio-scheduled-skill:{user.id}:{date_key}",
-                    )
-                    db.commit()
                     reservation = reserve_task(
                         db,
                         user.id,
@@ -336,18 +519,25 @@ def sync_portfolio_autopilot_accounts() -> dict:
                         {"automation_key": "portfolio_monitor", "cadence": cadence},
                     )
                     db.commit()
-                    review = run_autopilot_review(db, user)
+                    # The scheduled review is the portfolio_impact_review workflow
+                    # Skill: one shared invocation path, fully audited on SkillRun.
+                    skill_run = invoke_workflow_skill(
+                        db,
+                        user=user,
+                        slug="portfolio_impact_review",
+                        inputs={"locale": "en", "cadence": cadence},
+                        trigger_source="scheduled_job",
+                        allow_autopilot=True,
+                        invocation_id=f"portfolio-scheduled-skill:{user.id}:{date_key}",
+                    )
+                    review = _persist_autopilot_review_from_workflow(db, user, accounts, skill_run)
                     delivery = config.get("delivery", "in_app")
                     if delivery in {"telegram", "imessage"}:
                         findings = "; ".join(item["title"] for item in review["findings"][:5])
                         send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"], "automation_key": "portfolio_monitor_delivery"})
                     settle_task(db, user.id, reservation, quote.credits, metadata={"reviewed_at": review["last_review"]})
-                    finish_module_skill_invocation(db, skill_invocation_id, status="completed", credits_used=quote.credits, output_summary="Scheduled portfolio Autopilot review", evidence={"reviewed_at": review["last_review"], "account_count": review["account_count"]})
                     db.commit()
                 except AutomationBudgetExceeded as exc:
-                    if skill_invocation_id:
-                        finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="AUTOMATION_BUDGET_EXCEEDED")
-                        db.commit()
                     _persist_budget_pause(db, user.id, "portfolio_monitor", exc)
                     current = db.get(UserPreference, preference.user_id)
                     if current:
@@ -361,8 +551,6 @@ def sync_portfolio_autopilot_accounts() -> dict:
                     db.rollback()
                     if reservation:
                         refund_task(db, user.id, reservation, "PORTFOLIO_MONITOR_FAILED")
-                    if skill_invocation_id:
-                        finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="PORTFOLIO_MONITOR_FAILED")
                     db.commit()
                     logger.exception("portfolio_autopilot_review_failed user_id=%s", preference.user_id)
                     errors += 1
@@ -382,26 +570,13 @@ def generate_shared_daily_market_intelligence() -> str:
 
 
 @celery_app.task(name="puregamma.generate_personalized_daily_reports")
-def generate_personalized_daily_reports() -> list[str]:
+def generate_personalized_daily_reports() -> dict:
+    """Thin wrapper (single-orchestrator invariant): warm shared intelligence,
+    then delegate ALL per-user work to the unified daily orchestrator."""
     db = SessionLocal()
-    ids = []
     try:
-        users = db.query(User).all()
-        for user in users:
-            try:
-                language = (
-                    getattr(user.preference, "locale", "en")
-                    if user.preference
-                    else "en"
-                )
-                ids.append(create_daily_report(db, user.id, language, automation_key="daily_report").id)
-            except AutomationBudgetExceeded as exc:
-                _persist_budget_pause(db, user.id, "daily_report", exc)
-                logger.warning("daily_report_budget_paused user_id=%s", user.id)
-            except Exception:
-                db.rollback()
-                logger.exception("daily_report_generation_failed user_id=%s", user.id)
-        return ids
+        latest_or_create_intelligence(db)
+        return _orchestrate_due_daily_briefs(db)
     finally:
         db.close()
 
@@ -416,112 +591,30 @@ def scan_market_anomalies() -> int:
 
 
 @celery_app.task(name="puregamma.send_daily_reports_to_channels")
-def send_daily_reports_to_channels() -> int:
+def send_daily_reports_to_channels() -> dict:
+    """Thin wrapper (single-orchestrator invariant): warm shared intelligence,
+    then delegate ALL per-user channel dispatch to the unified orchestrator."""
     db = SessionLocal()
-    sent = 0
     try:
-        from apps.api.services.report_service import create_daily_report
-        users = db.query(User).all()
-        for user in users:
-            pref = user.preference
-            if not pref:
-                continue
-            language = getattr(pref, "locale", "en")
-            try:
-                report = create_daily_report(db, user.id, language, automation_key="daily_report_delivery")
-                db.commit()
-            except AutomationBudgetExceeded as exc:
-                _persist_budget_pause(db, user.id, "daily_report_delivery", exc)
-                logger.warning("daily_delivery_budget_paused user_id=%s", user.id)
-                continue
-            except Exception:
-                db.rollback()
-                logger.exception("daily_delivery_report_generation_failed user_id=%s", user.id)
-                try:
-                    report = create_daily_report(db, user.id, language, automation_key="daily_report_delivery")
-                    db.commit()
-                except Exception:
-                    db.rollback()
-                    logger.exception("daily_delivery_report_retry_failed user_id=%s", user.id)
-                    continue
-            brief_text = report.content_markdown
-            if not brief_text:
-                brief_text = (
-                    "PureGamma 每日简报已生成。Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
-                    if language == "zh"
-                    else "PureGamma daily brief is ready. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
-                )
-            for channel in pref.notification_channels:
-                try:
-                    delivery = send_notification(
-                        db,
-                        user.id,
-                        channel,
-                        brief_text,
-                        {
-                            "idempotency_key": f"daily-{user.id}-{channel}-{language}-{utcnow().date().isoformat()}",
-                            "locale": language,
-                            "report_id": report.id,
-                            "automation_key": "daily_report_delivery",
-                        },
-                    )
-                    sent += 1 if delivery.status == "sent" else 0
-                except Exception:
-                    db.rollback()
-                    logger.exception("daily_notification_failed user_id=%s channel=%s", user.id, channel)
-        return sent
+        latest_or_create_intelligence(db)
+        return _orchestrate_due_daily_briefs(db)
     finally:
         db.close()
 
 
 @celery_app.task(name="puregamma.send_unified_daily_brief_to_all")
 def send_unified_daily_brief_to_all() -> dict:
-    """Render ONE unified brief per locale and broadcast it to every user (free).
+    """Thin wrapper (single-orchestrator invariant): warm shared intelligence,
+    then delegate the broadcast to the unified daily orchestrator.
 
-    Template-rendered (non-LLM) so all users share the same daily view.
-    Free of charge; failures land in the existing NotificationDelivery retry lane.
+    The one-shared-template broadcast was replaced by the typed per-user
+    reports the orchestrator renders and caches; this task name stays
+    registered for deploy compatibility only.
     """
-    from packages.reports.unified_daily_brief import generate_unified_daily_brief
-
     db = SessionLocal()
-    sent = skipped = failed = 0
     try:
-        briefs = {
-            "en": generate_unified_daily_brief(db, "en"),
-            "zh": generate_unified_daily_brief(db, "zh"),
-        }
-        today = utcnow().date().isoformat()
-        users = db.query(User).all()
-        for user in users:
-            raw_locale = user.preference.locale if user.preference else "en"
-            locale = "zh" if raw_locale == "zh" else "en"
-            brief_pref = db.get(DailyBriefPreference, user.id)
-            channel = "email"
-            if brief_pref and brief_pref.enabled and brief_pref.channel in {"email", "imessage"}:
-                channel = brief_pref.channel
-            if channel == "imessage" and not (brief_pref and brief_pref.recipient and brief_pref.recipient_verified_at):
-                channel = "email"
-            try:
-                delivery = send_notification(
-                    db,
-                    user.id,
-                    channel,
-                    briefs[locale],
-                    {
-                        "idempotency_key": f"unified-brief:{today}:{user.id}:{channel}",
-                        "locale": locale,
-                        "automation_key": "unified_daily_brief",
-                    },
-                )
-                if delivery.status == "sent":
-                    sent += 1
-                else:
-                    skipped += 1
-            except Exception:
-                db.rollback()
-                failed += 1
-                logger.exception("unified_brief_delivery_failed user_id=%s", user.id)
-        return {"sent": sent, "skipped": skipped, "failed": failed, "users": len(users)}
+        latest_or_create_intelligence(db)
+        return _orchestrate_due_daily_briefs(db)
     finally:
         db.close()
 
@@ -545,6 +638,16 @@ def refresh_earnings_gamma_candidates() -> dict:
         }
     finally:
         db.close()
+
+
+@celery_app.task(name="puregamma.refresh_mstr_btc_dashboard")
+def refresh_mstr_btc_dashboard() -> dict:
+    """Warm the MSTR/BTC opportunity dashboard cache and append series points."""
+    from apps.api.services import mstr_btc_service
+
+    pack = mstr_btc_service.refresh_fact_pack()
+    usable = bool(pack.get("kpis") or pack.get("mstr") or pack.get("tracker"))
+    return {"usable": usable, "errors": list(pack.get("errors") or [])}
 
 
 @celery_app.task(name="puregamma.check_subscription_status")
@@ -732,3 +835,55 @@ def refresh_nautilus_public_market_data() -> dict:
         f"worker:market-refresh:{bucket}",
         {"symbols": []},
     )
+
+
+@celery_app.task(name="puregamma.build_research_events")
+def build_research_events() -> dict:
+    from apps.api.services import research_event_service
+
+    db = SessionLocal()
+    try:
+        snapshot = research_event_service.build_research_events(db, "intraday", 24)
+        impacts = research_event_service.compute_asset_impacts(db, snapshot)
+        portfolio = research_event_service.compute_user_portfolio_impacts(db, snapshot)
+        return {
+            "snapshot_id": snapshot.id,
+            "events": snapshot.source_counts_json,
+            "asset_impacts": impacts,
+            "user_impacts": portfolio,
+        }
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.sync_earnings_calendar")
+def sync_earnings_calendar() -> dict:
+    from apps.api.services import research_event_service
+    from packages.data import earnings_calendar
+    from packages.data.earnings_calendar import ProviderUnavailable
+
+    db = SessionLocal()
+    try:
+        today = utcnow().date()
+        prefetched = 0
+        provider_error = None
+        try:
+            # Warm the confirmed-earnings cache for today + 7 days; the research
+            # build below reuses the same provider (and its cache).
+            for offset in range(8):
+                prefetched += len(earnings_calendar.fetch_confirmed_earnings(today + timedelta(days=offset)))
+        except ProviderUnavailable as exc:
+            provider_error = str(exc)[:300]
+        snapshot = research_event_service.build_research_events(db, "earnings", 24)
+        impacts = research_event_service.compute_asset_impacts(db, snapshot)
+        portfolio = research_event_service.compute_user_portfolio_impacts(db, snapshot)
+        return {
+            "snapshot_id": snapshot.id,
+            "prefetched": prefetched,
+            "provider_error": provider_error,
+            "events": snapshot.source_counts_json,
+            "asset_impacts": impacts,
+            "user_impacts": portfolio,
+        }
+    finally:
+        db.close()

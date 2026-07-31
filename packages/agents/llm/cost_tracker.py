@@ -58,6 +58,7 @@ def log_llm_call(
     status: str,
     cache_hit: bool = False,
     error_message: str | None = None,
+    latency_ms: int | None = None,
 ) -> None:
     if db is None:
         return
@@ -77,6 +78,7 @@ def log_llm_call(
             cache_hit=cache_hit,
             status=status,
             error_message=redact_text(error_message or "") if error_message else None,
+            latency_ms=latency_ms,
         )
     )
     db.flush()

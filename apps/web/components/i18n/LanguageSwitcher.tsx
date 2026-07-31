@@ -42,7 +42,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
             type="button"
             aria-label={t(locale, target.ariaKey)}
             aria-pressed={active}
-            className={clsx("px-2.5 py-1.5 font-medium transition", active ? "bg-pg-white text-pg-black" : "text-text-pg-muted hover:bg-bg-panel hover:text-text-pg")}
+            className={clsx("min-h-9 px-2.5 py-1.5 font-medium transition", active ? "bg-pg-white text-pg-black" : "text-text-pg-muted hover:bg-bg-panel hover:text-text-pg")}
             onClick={() => switchTo(target.locale)}
           >
             {t(locale, target.labelKey)}

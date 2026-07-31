@@ -8,6 +8,7 @@ class RuntimeRiskGateway:
     def __init__(self):
         self.global_kill_switch = False
         self.pause_opening_accounts: set[str] = set()
+        self.paused_run_ids: set[str] = set()
         self._order_times: dict[str, deque[datetime]] = defaultdict(deque)
 
     def evaluate(self, order: dict, policy: dict, account: dict) -> dict:
@@ -18,6 +19,8 @@ class RuntimeRiskGateway:
             "reduce_only"
         ):
             reasons.append("OPENING_PAUSED")
+        if order.get("run_id") in self.paused_run_ids and not order.get("reduce_only"):
+            reasons.append("RUN_PAUSED")
         if order.get("mode") not in {"PAPER", "SHADOW"}:
             reasons.append("LIVE_EXECUTION_DISABLED")
         if float(order.get("notional", 0)) > float(policy.get("max_notional", 10_000)):
@@ -51,9 +54,15 @@ class RuntimeRiskGateway:
             "state": {
                 "kill_switch": self.global_kill_switch,
                 "opening_paused": order["account_id"] in self.pause_opening_accounts,
+                "run_paused": order.get("run_id") in self.paused_run_ids,
             },
         }
 
     def kill_switch(self, enabled: bool) -> dict:
         self.global_kill_switch = enabled
         return {"enabled": enabled, "live_execution": False}
+
+    def sync_paused_runs(self, runs: list[dict]) -> None:
+        self.paused_run_ids = {
+            run["id"] for run in runs if run.get("status") == "PAUSED"
+        }

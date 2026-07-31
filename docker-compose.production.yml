@@ -115,6 +115,12 @@ services:
     expose: ["8000"]
     volumes:
       - backtest_artifacts:/var/lib/puregamma/backtests
+      # The API probes docker availability at research-run creation time so an
+      # unavailable runner is reported honestly (and never charged) up front.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Host docker group (stat -c %g /var/run/docker.sock): lets the non-root
+    # container user reach the socket for the availability probe.
+    group_add: ["${DOCKER_SOCKET_GID:-107}"]
     networks: [edge, data, runtime]
     mem_limit: 640m
     cpus: 0.65
@@ -159,6 +165,25 @@ services:
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
       REDIS_URL: redis://redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
+      BACKTEST_ARTIFACT_DIR: ${BACKTEST_ARTIFACT_DIR:-/var/lib/puregamma/backtests}
+      RESEARCH_RUNNER_IMAGE: ${RESEARCH_RUNNER_IMAGE:-puregamma-research-runner:1}
+      # Host-visible job/dataset dirs: sibling research containers can only
+      # mount HOST paths, so the worker writes job files on a bind mount that
+      # exists at the same absolute path on the host.
+      RESEARCH_RUNNER_JOB_DIR: ${RESEARCH_RUNNER_JOB_DIR:-/var/lib/puregamma/research-jobs/jobs}
+      RESEARCH_RUNNER_DATA_DIRS: ${RESEARCH_RUNNER_DATA_DIRS:-/var/lib/puregamma/research-jobs/datasets}
+      RESEARCH_RUNNER_CONTAINER_USER: ${RESEARCH_RUNNER_CONTAINER_USER:-10001:10001}
+    volumes:
+      # Research runner figures/datasets share the artifact store with the API.
+      - backtest_artifacts:/var/lib/puregamma/backtests
+      # Optional: lets the worker spawn ephemeral sibling containers for the
+      # isolated research runner. On hosts without Docker, remove this mount;
+      # the runner then honestly reports runs as "unavailable" (never faked).
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${RESEARCH_JOBS_HOST_DIR:-/var/lib/puregamma/research-jobs}:/var/lib/puregamma/research-jobs
+    # Host docker group (stat -c %g /var/run/docker.sock): lets the non-root
+    # container user reach the socket to spawn research containers.
+    group_add: ["${DOCKER_SOCKET_GID:-107}"]
     networks: [data, runtime, egress]
     mem_limit: 768m
     cpus: 0.70

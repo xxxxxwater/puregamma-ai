@@ -27,6 +27,9 @@ puregamma.ai, www.puregamma.ai {
 		-Server
 	}
 	reverse_proxy api:8000 {
-		header_up X-Real-IP {remote_host}
+		# The origin must accept 80/443 only from Cloudflare. With that network
+		# boundary, CF-Connecting-IP is safe to pass to the gateway's per-key
+		# rate limiter and IP block list; direct requests fall back to remote_host.
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
 	}
 }

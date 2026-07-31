@@ -1,0 +1,111 @@
+﻿# Staging stack for production-path verification (P0-9 acceptance and later
+# milestones). Runs on the same host as production but fully isolated: own
+# compose project, own postgres/redis volumes, loopback-only API port
+# (127.0.0.1:18000), no caddy/web. APP_ENV=production so queue dispatch,
+# synthetic-data guards, and credit enforcement follow production code paths.
+#
+# Usage (on the host, from the extracted release dir):
+#   docker compose -p pgstaging -f deploy/staging/docker-compose.staging.yml up -d --build
+#
+# The worker mounts the host docker socket so the containerized research
+# runner can spawn ephemeral sibling containers (RESEARCH_RUNNER_IMAGE must
+# exist locally; build it from packages/research_runner/Dockerfile.runner).
+services:
+  postgres:
+    image: postgres:16
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: puregamma
+      POSTGRES_USER: puregamma
+      POSTGRES_PASSWORD: pgstaging-secret
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U puregamma -d puregamma"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: redis-server --appendonly yes --maxmemory 256mb --maxmemory-policy allkeys-lru
+    volumes:
+      - redisdata:/data
+    networks: [data]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  api:
+    build:
+      context: ../..
+      dockerfile: Dockerfile.api
+    image: pgstaging-api:latest
+    restart: unless-stopped
+    env_file: ../../.env.staging
+    environment:
+      APP_ENV: production
+      SITE_URL: https://staging.puregamma.ai
+      CORS_ORIGINS: https://staging.puregamma.ai
+      SESSION_COOKIE_DOMAIN: puregamma.ai
+      DATABASE_URL: postgresql+psycopg://puregamma:pgstaging-secret@postgres:5432/puregamma
+      REDIS_URL: redis://redis:6379/0
+      IMESSAGE_PROVIDER: disabled
+      NAUTILUS_RUNTIME_URL: http://127.0.0.1:9
+      BACKTEST_ARTIFACT_DIR: /var/lib/puregamma/backtests
+      RESEARCH_RUNNER_IMAGE: puregamma-research-runner:1
+    ports:
+      - "127.0.0.1:18000:8000"
+    volumes:
+      - backtest_artifacts:/var/lib/puregamma/backtests
+      # The API probes docker availability at research-run creation time so an
+      # unavailable runner is reported honestly (and never charged) up front.
+      - /var/run/docker.sock:/var/run/docker.sock
+    # Host docker group: lets the non-root container user reach the socket.
+    group_add: ["${DOCKER_SOCKET_GID:-107}"]
+    networks: [data]
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    image: pgstaging-api:latest
+    restart: unless-stopped
+    env_file: ../../.env.staging
+    command: ["sh", "-c", "celery -A packages.workers.celery_app.celery_app worker --loglevel=INFO --concurrency=2"]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: postgresql+psycopg://puregamma:pgstaging-secret@postgres:5432/puregamma
+      REDIS_URL: redis://redis:6379/0
+      IMESSAGE_PROVIDER: disabled
+      NAUTILUS_RUNTIME_URL: http://127.0.0.1:9
+      BACKTEST_ARTIFACT_DIR: /var/lib/puregamma/backtests
+      RESEARCH_RUNNER_IMAGE: puregamma-research-runner:1
+      # Host-visible job/dataset dirs: sibling research containers can only
+      # mount HOST paths, so the worker writes job files on a bind mount that
+      # exists at the same absolute path on the host.
+      RESEARCH_RUNNER_JOB_DIR: /var/lib/puregamma/research-jobs/jobs
+      RESEARCH_RUNNER_DATA_DIRS: /var/lib/puregamma/research-jobs/datasets
+      RESEARCH_RUNNER_CONTAINER_USER: "10001:10001"
+    volumes:
+      - backtest_artifacts:/var/lib/puregamma/backtests
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${RESEARCH_JOBS_HOST_DIR:-/var/lib/puregamma/research-jobs}:/var/lib/puregamma/research-jobs
+    # Host docker group: lets the non-root container user reach the socket.
+    group_add: ["${DOCKER_SOCKET_GID:-107}"]
+    networks: [data]
+    depends_on:
+      api: { condition: service_started }
+
+volumes:
+  pgdata:
+  redisdata:
+  backtest_artifacts:
+
+networks:
+  data:
+    driver: bridge

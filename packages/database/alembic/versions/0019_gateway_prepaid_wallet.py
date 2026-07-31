@@ -9,7 +9,7 @@ import sqlalchemy as sa
 
 
 revision = "0019_gateway_prepaid_wallet"
-down_revision = "0018_ai_gateway"
+down_revision = "0023_ai_gateway"
 branch_labels = None
 depends_on = None
 

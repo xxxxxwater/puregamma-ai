@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+TERMINAL_STATES = {"FILLED", "CANCELED", "REJECTED", "EXPIRED"}
+
 
 class RuntimeReconciler:
     def __init__(self, store, exchange, risk):
@@ -8,7 +10,13 @@ class RuntimeReconciler:
         self.risk = risk
 
     def reconcile(self, account_id: str) -> dict:
-        local = self.store.open_orders(account_id)
+        # Compare only the LATEST journal row per order: append-only history
+        # rows of terminal orders are not open orders.
+        local = [
+            order
+            for order in self.store.latest_orders(account_id)
+            if order["state"] not in TERMINAL_STATES
+        ]
         remote = self.exchange.reconcile(account_id)
         remote_ids = {item["client_order_id"] for item in remote["open_orders"]}
         unknown = [
@@ -17,6 +25,18 @@ class RuntimeReconciler:
             if item["client_order_id"] not in remote_ids
             and item["state"] not in {"CREATED", "PREPARED"}
         ]
+        local_fills = sum(
+            1
+            for order in self.store.latest_orders(account_id)
+            if order["state"] == "FILLED"
+        )
+        remote_fills = remote.get("fills", [])
+        drift = {
+            "unknown_open_orders": unknown,
+            "local_fills": local_fills,
+            "adapter_fills": len(remote_fills),
+            "fills_diverged": local_fills != len(remote_fills),
+        }
         if unknown:
             self.risk.pause_opening_accounts.add(account_id)
         else:
@@ -27,5 +47,6 @@ class RuntimeReconciler:
             "unknown_orders": unknown,
             "local_open_orders": local,
             "exchange": remote,
+            "drift": drift,
             "opening_paused": bool(unknown),
         }

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from sqlalchemy.orm import Session
 
+from apps.api.services import custody_service
 from packages.database.models import (
     AccountSnapshot,
     OrderIntent,
@@ -149,6 +150,37 @@ def sync_runtime_account(
             )
             db.add(intent)
             db.flush()
+        # Custody-linked accounts: order intent creation freezes the quote
+        # notional (BUY) and the fill settles debit/credit into custody.
+        # Unlinked accounts are a no-op. An insufficient hold never wedges the
+        # sync loop — the journal row is annotated instead of faking balances.
+        side = value.get("side", value.get("direction", "BUY"))
+        custody_error = None
+        try:
+            custody_service.apply_order_freeze(
+                db,
+                trading_account=account,
+                user_id=account.user_id,
+                order_ref=client_order_id,
+                side=side,
+                notional=value.get("notional", 0),
+                quote_asset=account.base_currency,
+            )
+            custody_service.apply_fill_settlement(
+                db,
+                trading_account=account,
+                user_id=account.user_id,
+                fill_ref=f"{client_order_id}:{sequence}",
+                side=side,
+                state=value["state"],
+                quantity=float(value["quantity"]),
+                filled_quantity=float(value.get("filled_quantity", 0)),
+                average_price=value.get("average_price"),
+                notional=value.get("notional", 0),
+                quote_asset=account.base_currency,
+            )
+        except custody_service.InsufficientCustodyBalance:
+            custody_error = "CUSTODY_INSUFFICIENT_BALANCE"
         db.add(
             OrderJournal(
                 user_id=account.user_id,
@@ -161,7 +193,7 @@ def sync_runtime_account(
                 sequence=sequence,
                 state=value["state"],
                 instrument=value["instrument"],
-                side=value.get("side", value.get("direction", "BUY")),
+                side=side,
                 quantity=float(value["quantity"]),
                 filled_quantity=float(value.get("filled_quantity", 0)),
                 remaining_quantity=float(value.get("remaining_quantity", 0)),
@@ -170,7 +202,7 @@ def sync_runtime_account(
                 event_json=value,
                 raw_event_reference={"source": "nautilus-runtime"},
                 idempotency_key=order_key,
-                error_code=value.get("error"),
+                error_code=custody_error or value.get("error"),
             )
         )
         counts["orders"] += 1

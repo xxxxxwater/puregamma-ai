@@ -73,7 +73,7 @@ def test_skill_invocation_validation_returns_resolved_version(api_client, normal
     market = next(item for item in catalog if item["slug"] == "market_research")
     response = api_client.post(
         "/api/skills/validate-invocation",
-        json={"skill_refs": [{"skill_id": market["skill_id"], "version": market["current_version"]}], "trigger_source": "dashboard", "estimated_credits": 2},
+        json={"skill_refs": [{"skill_id": market["skill_id"], "version": "1.0.0"}], "trigger_source": "dashboard", "estimated_credits": 2},
         headers=auth_headers(normal_user),
     )
     assert response.status_code == 200, response.text

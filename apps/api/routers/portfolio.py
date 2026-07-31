@@ -22,8 +22,10 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
+from apps.api.services.cex_connection_service import cex_connection_status, connect_cex
 from apps.api.services.credit_service import InsufficientCreditsError, quote_task, refund_task, reserve_task, settle_task
 from apps.api.services.portfolio_service import PlaidDataPending, PlaidRefreshRateLimited, PlaidRefreshUnsupported, PlaidWebhookVerificationError, PortfolioAccessError, autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_investment_transactions, plaid_link_token, portfolio_view, process_plaid_webhook, request_plaid_investments_refresh, run_autopilot_review, sync_account, update_autopilot, verify_plaid_webhook
+from packages.data.cex_private import CexPermissionDenied
 from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
 from packages.skills.registry import SkillResolutionError
@@ -73,6 +75,14 @@ class PlaidExchangeRequest(BaseModel):
 
 class HyperliquidRequest(BaseModel):
     address: str
+
+
+class CexConnectRequest(BaseModel):
+    venue: str = Field(min_length=1, max_length=32)
+    api_key: str = Field(min_length=1, max_length=256)
+    api_secret: str = Field(min_length=1, max_length=512)
+    passphrase: str | None = Field(default=None, max_length=256)
+    environment: str = Field(default="production", max_length=32)
 
 
 class EVMChallengeRequest(BaseModel):
@@ -331,6 +341,31 @@ def exchange_plaid(payload: PlaidExchangeRequest, db: Session = Depends(get_db),
         raise _portfolio_access_http(exc) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
+
+
+@router.post("/cex/connect")
+def add_cex_connection(payload: CexConnectRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    """Connect a Binance/OKX/Bybit read-only API key pair.
+
+    The plaintext secret is used only for the signed permission probe and is
+    stored solely as Fernet ciphertext; this response never echoes it.
+    """
+    try:
+        account = connect_cex(db, user, payload.venue, payload.api_key, payload.api_secret, payload.passphrase, payload.environment)
+    except CexPermissionDenied as exc:
+        raise HTTPException(status_code=400, detail={"code": "CEX_PERMISSION_DENIED", "reason": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    except PermissionError as exc:
+        raise _portfolio_access_http(exc) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    result = portfolio_view(db, user)
+    if cex_connection_status(db, account) == "CONNECTED":
+        # First-run personalization: the deterministic first portfolio brief
+        # was generated during sync; route the UI to channel selection next.
+        result["next_step"] = "choose_channels"
+    return result
 
 
 @router.post("/hyperliquid/connect")

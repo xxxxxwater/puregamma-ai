@@ -25,7 +25,6 @@ if (!TOKEN) {
 // Page tree: [title, emoji, file, children[]]
 const TREE = [
   { title: "快速上手", emoji: "🚀", file: "getting-started.md" },
-  { title: "API 接入", emoji: "🔌", file: "api-gateway.md" },
   {
     title: "功能指南",
     emoji: "📖",
@@ -51,7 +50,6 @@ const TREE = [
     file: "english/README.md",
     children: [
       { title: "Getting Started", emoji: "🚀", file: "english/getting-started.md" },
-      { title: "API Gateway", emoji: "🔌", file: "api-gateway-en.md" },
       { title: "Feature Guide", emoji: "📖", file: "english/features.md" },
       { title: "Billing & Credits", emoji: "💳", file: "english/billing-credits.md" },
       { title: "FAQ & Roadmap", emoji: "❓", file: "english/faq-roadmap.md" },

@@ -88,6 +88,11 @@ def _account(
     return row
 
 
+def _account_environment(account: TradingAccount) -> str:
+    mapping = {"PAPER": "paper", "SHADOW": "paper", "TESTNET": "testnet"}
+    return mapping.get(str(account.account_type or "").upper(), "paper")
+
+
 def _audit(
     db: Session,
     *,
@@ -481,6 +486,10 @@ def activate_strategy(
         "strategy_id": strategy.id,
         "strategy_version": version.version,
         "account_id": account.id,
+        "account": {
+            "venue": account.venue,
+            "environment": _account_environment(account),
+        },
         "mode": intent.execution_mode,
         "strategy": version.draft_json,
         "risk_policy": intent.payload_json.get("risk", {}),
