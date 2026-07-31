@@ -70,7 +70,7 @@
     { "title": "决策", "body": "在明确失效条件、成本和最大风险后选择敞口。" }
   ],
   "footerSlides": [
-    "已新增 Kimi3、GPT5.6、Luna 等模型。",
+    "已上线 Kimi K3、GPT5.6 Luna、DeepSeek v4 flash 0731 等 Model，开放路由 API 和 Agent 均已上线。",
     "使用该服务用户自行承担风险。提供本服务的主体概不负责AI生成所有责任。"
   ]
 }
