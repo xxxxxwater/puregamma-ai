@@ -58,6 +58,16 @@ def test_payment_failed_restricts_high_cost_and_imessage(db, demo_user):
     assert can_run_action("Max", "daily_market_report", "past_due") is False
 
 
+def test_free_can_run_backtest_by_credits_only():
+    assert can_run_action("Free", "backtest") is True
+    assert can_run_action("Free", "backtest_export") is True
+
+
+def test_backtest_blocked_when_subscription_restricted():
+    for status in ("past_due", "unpaid", "canceled", "inactive"):
+        assert can_run_action("Free", "backtest", status) is False
+
+
 def test_past_due_backtest_is_blocked(db, demo_user):
     mock_upgrade(db, demo_user.id, "Pro")
     event, raw = stripe_event("evt-payment-failed-backtest", "invoice.payment_failed", {"customer": demo_user.stripe_customer_id})

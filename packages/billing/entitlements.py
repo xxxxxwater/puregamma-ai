@@ -61,6 +61,10 @@ def can_run_action(plan_name: str, action: str, subscription_status: str | None 
     channel = channel_actions.get(action)
     if channel:
         return channel in entitlement["notification_channels"]
+    if action in {"backtest", "backtest_export"}:
+        # Backtests are metered by Credits only; plan tier does not gate them.
+        # Restricted subscriptions (past_due, canceled, unpaid) stay blocked.
+        return subscription_status not in RESTRICTED_STATUSES
     if action in HIGH_COST_ACTIONS:
         return bool(entitlement["high_cost_tasks"])
     return True
