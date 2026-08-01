@@ -25,10 +25,22 @@
     "restricted": "Restricted"
   },
   "process": [
-    { "label": "Input", "detail": "Market data, KOL notes, portfolio sources, and macro context." },
-    { "label": "Fusion", "detail": "Signals are merged with risk, freshness, and source quality." },
-    { "label": "Allocation", "detail": "Research is reviewed against portfolio NAV and exposure." },
-    { "label": "Review", "detail": "Outputs are archived with disclosure and delivery ledger." }
+    {
+      "label": "Input",
+      "detail": "Market data, KOL notes, portfolio sources, and macro context."
+    },
+    {
+      "label": "Fusion",
+      "detail": "Signals are merged with risk, freshness, and source quality."
+    },
+    {
+      "label": "Allocation",
+      "detail": "Research is reviewed against portfolio NAV and exposure."
+    },
+    {
+      "label": "Review",
+      "detail": "Outputs are archived with disclosure and delivery ledger."
+    }
   ],
   "assetMonitor": {
     "title": "Asset monitor",
@@ -51,9 +63,44 @@
     "confidenceDistribution": "Confidence Distribution"
   },
   "diligence": [
-    { "label": "Strategy memo", "status": "Available", "detail": "Daily market regime note archived." },
-    { "label": "Performance review", "status": "Mock", "detail": "NAV path currently uses fallback data." },
-    { "label": "Operational boundary", "status": "Healthy", "detail": "Execution disabled; research-only delivery." },
-    { "label": "Data trail", "status": "Delayed", "detail": "X/Bloomberg require configured keys." }
-  ]
+    {
+      "label": "Strategy memo",
+      "status": "Available",
+      "detail": "Daily market regime note archived."
+    },
+    {
+      "label": "Performance review",
+      "status": "Mock",
+      "detail": "NAV path currently uses fallback data."
+    },
+    {
+      "label": "Operational boundary",
+      "status": "Healthy",
+      "detail": "Execution disabled; research-only delivery."
+    },
+    {
+      "label": "Data trail",
+      "status": "Delayed",
+      "detail": "X/Bloomberg require configured keys."
+    }
+  ],
+  "accountBillingUnavailable": "Account and billing data unavailable",
+  "accountBillingUnavailableDesc": "Retry shortly; this page will not substitute a simulated balance.",
+  "dataUnavailable": "Unavailable",
+  "researchBriefs": "Research briefs",
+  "researchBriefsDetail": "Concise sourced research",
+  "liveAssets": "Live assets",
+  "sourcesUnavailable": "Sources unavailable",
+  "delayedQuote": "Delayed",
+  "fundingRate": "Funding rate",
+  "marketUnavailable": "Market data unavailable",
+  "marketUnavailableDesc": "The system will not replace live prices with simulated values.",
+  "noBrief": "No research brief",
+  "noBriefDesc": "A sourced brief will appear after data and the Agent are available.",
+  "marketTerminal": "Market data terminal",
+  "crossMarketTape": "Cross-market tape",
+  "ticker": "Ticker",
+  "last": "Last",
+  "source": "Source",
+  "waitingFeed": "Waiting for an authorized market feed."
 }

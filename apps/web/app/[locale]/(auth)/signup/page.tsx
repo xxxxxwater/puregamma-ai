@@ -9,15 +9,20 @@ import { PasswordInput } from "@/components/password-input";
 import { CaptchaModal } from "@/components/captcha-modal";
 import type { CaptchaResult } from "@/components/puzzle-captcha";
 import { useLocale } from "@/components/i18n/LocaleProvider";
-import { emailLogin, extractApiError, googleLogin, resendVerificationEmail } from "@/lib/api";
+import { emailRegister, extractApiError, googleLogin } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 
-export default function LoginPage() {
+
+
+const EMAIL_RE = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?(?:\.[A-Za-z0-9](?:[A-Za-z0-9-]*[A-Za-z0-9])?)+$/;
+
+export default function SignUpPage() {
   const locale = useLocale();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [verifyError, setVerifyError] = useState("");
+  const [success, setSuccess] = useState(false);
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [captchaOpen, setCaptchaOpen] = useState(false);
@@ -44,11 +49,11 @@ export default function LoginPage() {
     setCaptchaOpen(true);
   };
 
-  const handleEmailLogin = (e: React.FormEvent) => {
+  const handleEmailRegister = (e: React.FormEvent) => {
     e.preventDefault();
     if (!email || !password || busy) return;
+    if (!EMAIL_RE.test(email.trim())) { setError(t(locale, "common.auth.invalidEmail")); return; }
     setError("");
-    setVerifyError("");
     openCaptcha();
   };
 
@@ -56,10 +61,9 @@ export default function LoginPage() {
     setBusy(true);
     setCaptchaError("");
     try {
-      await emailLogin(email.trim(), password, { captcha_id: result.captchaId, captcha_offset: result.offset });
+      await emailRegister(email.trim(), password, name, locale, { captcha_id: result.captchaId, captcha_offset: result.offset });
       setCaptchaOpen(false);
-      const returnTo = new URLSearchParams(window.location.search).get("returnTo");
-      window.location.href = returnTo?.startsWith("/") && !returnTo.startsWith("//") ? returnTo : `/${locale}/chat`;
+      setSuccess(true);
     } catch (err: unknown) {
       const apiError = extractApiError(err);
       if (apiError.code === "CAPTCHA_FAILED") {
@@ -71,40 +75,55 @@ export default function LoginPage() {
         setCaptchaKey((key) => key + 1);
       } else {
         setCaptchaOpen(false);
-        if (apiError.status === 403) {
-          setVerifyError(email.trim());
-        } else if (apiError.code === "INVALID_EMAIL") setError(t(locale, "common.auth.invalidEmail"));
-        else if (apiError.status === 429) setError(zh ? "尝试过于频繁，请稍后再试" : "Too many attempts. Please try again later.");
-        else {
-          setError(t(locale, "common.auth.invalidCredentials"));
-        }
+        if (apiError.status === 409) setError(t(locale, "common.auth.emailAlreadyRegistered"));
+        else if (apiError.code === "INVALID_EMAIL") setError(t(locale, "common.auth.invalidEmail"));
+        else if (apiError.code === "PASSWORD_TOO_WEAK") setError(apiError.message || t(locale, "common.auth.passwordTooShort"));
+        else if (apiError.status === 429) setError(zh ? "操作过于频繁，请稍后再试" : "Too many attempts. Please try again later.");
+        else setError(zh ? "注册失败，请稍后重试" : "Registration failed. Please try again later.");
       }
     } finally {
       setBusy(false);
     }
   };
 
+  if (success) {
+    return (
+      <div className="space-y-6">
+        <div className="space-y-6 text-center">
+          <h1 className="text-2xl font-semibold">{t(locale, "common.auth.verifyEmailTitle")}</h1>
+          <p className="text-sm text-text-pg-muted">{t(locale, "common.auth.registerSuccess")}</p>
+          <p className="text-xs text-text-pg-dim">{t(locale, "common.auth.checkSpamFolder")}</p>
+          <div className="flex justify-center gap-4 text-sm">
+            <Link href={withLocale(locale, "/verify-email")} className="font-medium text-text-pg underline underline-offset-2">{t(locale, "common.auth.resendVerification")}</Link>
+            <Link href={withLocale(locale, "/login")} className="font-medium text-text-pg underline underline-offset-2">{t(locale, "common.auth.signInLink")}</Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="flex min-h-[80vh] items-center justify-center">
-      <div className="w-full max-w-md space-y-6">
+    <div className="space-y-6">
+      <div className="space-y-6">
         <div className="text-center">
           <Link href={withLocale(locale, "/")} className="inline-flex items-center gap-2 font-semibold text-text-pg">
             <Image src="/logo.png" alt="PureGamma" width={32} height={32} className="mx-auto" />
             PureGamma AI
           </Link>
-          <h1 className="mt-6 text-2xl font-semibold">{t(locale, "common.auth.loginTitle")}</h1>
+          <h1 className="mt-6 text-2xl font-semibold">{t(locale, "common.auth.registerTitle")}</h1>
         </div>
 
         <div className="space-y-4 border border-border-pg bg-bg-panel p-6">
           {error ? <p className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative">{error}</p> : null}
-          {verifyError ? (
-            <div className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 space-y-2">
-              <p className="text-sm text-status-negative">{t(locale, "common.auth.emailNotVerified")}</p>
-              <button type="button" onClick={async () => { setVerifyError(""); try { await resendVerificationEmail(verifyError); setError(t(locale, "common.auth.verificationResent")); } catch { setError(zh ? "发送失败，请稍后重试" : "Failed to send"); } }} className="text-sm font-medium text-text-pg underline underline-offset-2">{t(locale, "common.auth.resendVerification")}</button>
-            </div>
-          ) : null}
 
-          <form onSubmit={handleEmailLogin} className="space-y-3">
+          <form onSubmit={handleEmailRegister} className="space-y-3">
+            <input
+              type="text"
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              placeholder={t(locale, "common.auth.namePlaceholder")}
+              className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong"
+            />
             <input
               type="email"
               value={email}
@@ -117,7 +136,8 @@ export default function LoginPage() {
               value={password}
               onChange={setPassword}
               placeholder={t(locale, "common.auth.passwordPlaceholder")}
-              autoComplete="current-password"
+              minLength={8}
+              autoComplete="new-password"
             />
             <button
               type="submit"
@@ -125,11 +145,8 @@ export default function LoginPage() {
               className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-pg-white px-4 py-2.5 text-sm font-semibold text-pg-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
-              {t(locale, "common.auth.emailLogin")}
+              {t(locale, "common.auth.emailRegister")}
             </button>
-            <Link href={withLocale(locale, "/forgot-password")} className="block text-right text-xs font-medium text-text-pg-muted hover:text-text-pg">
-              {t(locale, "common.auth.forgotPassword")}
-            </Link>
           </form>
 
           <div className="flex items-center gap-3">
@@ -145,13 +162,13 @@ export default function LoginPage() {
         </div>
 
         <p className="text-center text-sm text-text-pg-muted">
-          {t(locale, "common.auth.noAccount")}{" "}
-          <Link href={withLocale(locale, "/signup")} className="font-medium text-text-pg underline underline-offset-2">
-            {t(locale, "common.auth.signUpLink")}
+          {t(locale, "common.auth.hasAccount")}{" "}
+          <Link href={withLocale(locale, "/login")} className="font-medium text-text-pg underline underline-offset-2">
+            {t(locale, "common.auth.signInLink")}
           </Link>
         </p>
 
-        <AuthLegalNotice locale={locale} mode="login" />
+        <AuthLegalNotice locale={locale} mode="signup" />
       </div>
 
       <CaptchaModal

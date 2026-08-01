@@ -9,6 +9,8 @@ import { Button } from "@/components/ui";
 import { internalAdminLogin } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 
+
+
 const inputClass = "min-h-11 w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg outline-none focus:border-border-pg-strong";
 
 export default function InternalAdminLoginPage() {

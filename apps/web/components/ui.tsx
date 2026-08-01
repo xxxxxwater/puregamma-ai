@@ -1,5 +1,5 @@
 import clsx from "clsx";
-import type { ButtonHTMLAttributes, ReactNode } from "react";
+import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
   return <section className={clsx("border border-border-pg bg-bg-panel p-4", className)}>{children}</section>;
@@ -24,6 +24,24 @@ export function Button({
     >
       {children}
     </button>
+  );
+}
+
+export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
+  return <input className={clsx("w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong", className)} {...props} />;
+}
+
+export function Select({ className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
+  return <select className={clsx("w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg outline-none focus:border-border-pg-strong", className)} {...props}>{children}</select>;
+}
+
+export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
+  return (
+    <label className="block text-sm">
+      <span className="mb-1 block text-text-pg-muted">{label}</span>
+      {children}
+      {hint ? <span className="mt-1 block text-xs text-text-pg-dim">{hint}</span> : null}
+    </label>
   );
 }
 

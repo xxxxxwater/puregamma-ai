@@ -2,6 +2,12 @@ import Link from "next/link";
 import { PageHeader, ResearchCard } from "@/components/puregamma";
 import { type Locale, withLocale } from "@/i18n/routing";
 
+
+export function generateMetadata({ params }: { params: { locale: string } }) {
+  const locale = params.locale === "zh" ? "zh" : "en";
+  return { title: locale === "zh" ? "支付成功 | PureGamma AI" : "Payment Successful | PureGamma AI", description: locale === "zh" ? "订阅与充值支付成功确认。" : "Subscription and top-up payment confirmation." };
+}
+
 export default function BillingSuccessPage({ params }: { params: { locale: Locale } }) {
   const zh = params.locale === "zh";
   return (

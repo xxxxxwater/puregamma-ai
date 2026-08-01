@@ -9,6 +9,8 @@ import { forgotPassword } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 
+
+
 export default function ForgotPasswordPage() {
   const locale = useLocale();
   const zh = locale === "zh";
@@ -34,8 +36,8 @@ export default function ForgotPasswordPage() {
 
   if (sent) {
     return (
-      <div className="flex min-h-[80vh] items-center justify-center">
-        <div className="w-full max-w-md space-y-6 text-center">
+      <div className="space-y-6">
+        <div className="space-y-6 text-center">
           <h1 className="text-2xl font-semibold">{t(locale, "common.auth.forgotPasswordTitle")}</h1>
           <p className="text-sm text-text-pg-muted">{t(locale, "common.auth.resetLinkSent")}</p>
           <Link href={withLocale(locale, "/login")} className="inline-block text-sm font-medium text-text-pg underline underline-offset-2">
@@ -47,8 +49,8 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="flex min-h-[80vh] items-center justify-center">
-      <div className="w-full max-w-md space-y-6">
+    <div className="space-y-6">
+      <div className="space-y-6">
         <div className="text-center">
           <Link href={withLocale(locale, "/")} className="inline-flex items-center gap-2 font-semibold text-text-pg">
             <Image src="/logo.png" alt="PureGamma" width={32} height={32} className="mx-auto" />

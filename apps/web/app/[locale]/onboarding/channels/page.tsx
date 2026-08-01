@@ -8,6 +8,8 @@ import { normalizeLocale, withLocale, type Locale } from "@/i18n/routing";
 import { saveOnboarding } from "@/lib/api";
 import { getMessageNamespace, t } from "@/lib/translations";
 
+
+
 const channelIcons: Record<string, LucideIcon> = {
   email: Mail,
   telegram: MessageCircle,

@@ -25,10 +25,22 @@
     "restricted": "受限"
   },
   "process": [
-    { "label": "输入", "detail": "市场数据、KOL 笔记、组合来源与宏观背景。" },
-    { "label": "融合", "detail": "结合风险、新鲜度与来源质量对信号进行合并。" },
-    { "label": "配置", "detail": "研究输出会结合组合净值 NAV 与风险敞口复核。" },
-    { "label": "复核", "detail": "所有输出均归档并保留披露与投递记录。" }
+    {
+      "label": "输入",
+      "detail": "市场数据、KOL 笔记、组合来源与宏观背景。"
+    },
+    {
+      "label": "融合",
+      "detail": "结合风险、新鲜度与来源质量对信号进行合并。"
+    },
+    {
+      "label": "配置",
+      "detail": "研究输出会结合组合净值 NAV 与风险敞口复核。"
+    },
+    {
+      "label": "复核",
+      "detail": "所有输出均归档并保留披露与投递记录。"
+    }
   ],
   "assetMonitor": {
     "title": "资产监控",
@@ -51,9 +63,44 @@
     "confidenceDistribution": "置信度分布"
   },
   "diligence": [
-    { "label": "策略备忘录", "status": "可用", "detail": "每日市场状态笔记已归档。" },
-    { "label": "表现复盘", "status": "Mock", "detail": "NAV 路径当前使用 fallback 数据。" },
-    { "label": "运营边界", "status": "健康", "detail": "交易执行已禁用；仅支持研究交付。" },
-    { "label": "数据轨迹", "status": "延迟", "detail": "X/Bloomberg 需要配置 Key。" }
-  ]
+    {
+      "label": "策略备忘录",
+      "status": "可用",
+      "detail": "每日市场状态笔记已归档。"
+    },
+    {
+      "label": "表现复盘",
+      "status": "Mock",
+      "detail": "NAV 路径当前使用 fallback 数据。"
+    },
+    {
+      "label": "运营边界",
+      "status": "健康",
+      "detail": "交易执行已禁用；仅支持研究交付。"
+    },
+    {
+      "label": "数据轨迹",
+      "status": "延迟",
+      "detail": "X/Bloomberg 需要配置 Key。"
+    }
+  ],
+  "accountBillingUnavailable": "账户与计费数据暂不可用",
+  "accountBillingUnavailableDesc": "请稍后重试；页面不会展示模拟余额。",
+  "dataUnavailable": "数据不可用",
+  "researchBriefs": "研究简报",
+  "researchBriefsDetail": "附来源的简短研究",
+  "liveAssets": "实时资产",
+  "sourcesUnavailable": "数据源暂不可用",
+  "delayedQuote": "延迟行情",
+  "fundingRate": "资金费率",
+  "marketUnavailable": "市场数据暂不可用",
+  "marketUnavailableDesc": "系统不会使用模拟价格替代真实行情。",
+  "noBrief": "暂无研究简报",
+  "noBriefDesc": "数据和 Agent 就绪后将在此生成带来源的简报。",
+  "marketTerminal": "实时市场终端",
+  "crossMarketTape": "跨市场行情",
+  "ticker": "代码",
+  "last": "最新",
+  "source": "来源",
+  "waitingFeed": "等待已授权行情源。"
 }

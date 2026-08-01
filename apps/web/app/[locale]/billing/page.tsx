@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Check } from "lucide-react";
 import { BillingButton, PortalButton, SubscriptionLifecycleButton } from "@/components/actions";
 import { CreditUsageChart } from "@/components/charts";
+import { PGTable } from "@/components/pg-table";
 import { Badge, CreditCostBadge, EmptyState, ErrorState, PageHeader, PlanBadge, ResearchCard, StatusDot } from "@/components/puregamma";
 import { getBillingBudget, getBillingCredits, getBillingRewards, getBillingSubscription } from "@/lib/api";
 import { formatDateTime } from "@/lib/formatters";
@@ -34,7 +35,7 @@ export default async function BillingPage({ params }: { params: { locale: Locale
         sectionNumber="07"
         actions={<PortalButton />}
       />
-      {subscription.unavailable || budget.unavailable || rewards.unavailable ? <ErrorState title={locale === "zh" ? "计费数据暂不可用" : "Billing data unavailable"} description={locale === "zh" ? "请稍后重试；页面不会以演示余额、预算或奖励记录代替真实结果。" : "Retry shortly; demo balances, budgets, and rewards will not replace real results."} /> : null}
+      {subscription.unavailable || budget.unavailable || rewards.unavailable ? <ErrorState title={copy.billingUnavailable} description={copy.billingUnavailableDesc} /> : null}
       <div className="grid gap-4 lg:grid-cols-[1fr_420px]">
         <ResearchCard>
           <div className="grid gap-4 md:grid-cols-5">
@@ -56,29 +57,29 @@ export default async function BillingPage({ params }: { params: { locale: Locale
         </ResearchCard>
         <ResearchCard>
           <div className="mb-3 flex items-center justify-between"><h2 className="font-semibold">{copy.summary.creditUsage}</h2><CreditCostBadge locale={locale} cost={credits.credit_balance} /></div>
-          {usageChart.length ? <CreditUsageChart data={usageChart} /> : <EmptyState title={locale === "zh" ? "暂无使用记录" : "No usage yet"} description={locale === "zh" ? "研究任务产生 Credit 记录后将在此显示。" : "Credit activity will appear after you run research tasks."} />}
+          {usageChart.length ? <CreditUsageChart data={usageChart} /> : <EmptyState title={copy.noUsage} description={copy.noUsageDesc} />}
         </ResearchCard>
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
         <ResearchCard>
           <div className="mb-3 flex items-center justify-between gap-3">
-            <h2 className="font-semibold">{locale === "zh" ? "自动化 Credits 预算" : "Automation credit budgets"}</h2>
-            <Badge tone="neutral">{locale === "zh" ? "不足时自动暂停" : "Hard stop when exhausted"}</Badge>
+            <h2 className="font-semibold">{copy.budgetsTitle}</h2>
+            <Badge tone="neutral">{copy.hardStop}</Badge>
           </div>
           {budget.budgets.length ? (
             <div className="overflow-x-auto">
               <table className="w-full min-w-[580px] text-sm">
-                <thead className="text-left text-xs uppercase tracking-[0.1em] text-text-pg-muted"><tr><th className="py-2">{locale === "zh" ? "自动化" : "Automation"}</th><th>{locale === "zh" ? "本月" : "This month"}</th><th>{locale === "zh" ? "下次预计" : "Next estimate"}</th><th>{locale === "zh" ? "状态" : "Status"}</th></tr></thead>
-                <tbody>{budget.budgets.map((item) => <tr key={item.automation_key} className="border-t border-border-pg"><td className="py-3">{item.automation_key}</td><td>{item.monthly_used} / {item.monthly_limit}</td><td>{item.next_estimated_credits ?? "—"} Credits</td><td><Badge tone={item.paused || !item.enabled ? "amber" : "emerald"}><StatusDot tone={item.paused || !item.enabled ? "amber" : "emerald"} />{item.paused ? (locale === "zh" ? "已暂停" : "Paused") : item.enabled ? (locale === "zh" ? "运行中" : "Active") : (locale === "zh" ? "已关闭" : "Disabled")}</Badge></td></tr>)}</tbody>
+                <thead className="text-left text-xs uppercase tracking-[0.1em] text-text-pg-muted"><tr><th className="py-2">{copy.automation}</th><th>{copy.thisMonth}</th><th>{copy.nextEstimate}</th><th>{copy.status}</th></tr></thead>
+                <tbody>{budget.budgets.map((item) => <tr key={item.automation_key} className="border-t border-border-pg"><td className="py-3">{item.automation_key}</td><td>{item.monthly_used} / {item.monthly_limit}</td><td>{item.next_estimated_credits ?? "—"} Credits</td><td><Badge tone={item.paused || !item.enabled ? "amber" : "emerald"}><StatusDot tone={item.paused || !item.enabled ? "amber" : "emerald"} />{item.paused ? copy.paused : item.enabled ? copy.active : copy.disabled}</Badge></td></tr>)}</tbody>
               </table>
             </div>
-          ) : <EmptyState title={locale === "zh" ? "暂无自动化预算" : "No automation budgets yet"} description={locale === "zh" ? "开启日报、组合监控或推送后会自动建立预算。" : "A budget is created when you enable briefs, monitoring, or delivery."} />}
+          ) : <EmptyState title={copy.noBudgets} description={copy.noBudgetsDesc} />}
         </ResearchCard>
         <ResearchCard>
-          <h2 className="mb-3 font-semibold">{locale === "zh" ? "奖励记录" : "Reward history"}</h2>
+          <h2 className="mb-3 font-semibold">{copy.rewardHistory}</h2>
           {rewards.rewards.length ? (
             <div className="space-y-2">{rewards.rewards.slice(0, 8).map((item) => <div key={item.id} className="flex items-center justify-between gap-3 border-t border-border-pg py-2 text-sm"><div><div>{item.reward_type}</div><div className="text-xs text-text-pg-muted">{item.source} · {formatDateTime(locale, item.created_at)}</div></div><span className="text-status-positive">+{item.credits}</span></div>)}</div>
-          ) : <EmptyState title={locale === "zh" ? "暂无奖励" : "No rewards yet"} description={locale === "zh" ? "邀请、完善组合和反馈奖励会在此显示。" : "Invite, portfolio onboarding, and feedback rewards appear here."} />}
+          ) : <EmptyState title={copy.noRewards} description={copy.noRewardsDesc} />}
         </ResearchCard>
       </div>
       <ResearchCard className="p-0">
@@ -95,7 +96,7 @@ export default async function BillingPage({ params }: { params: { locale: Locale
               </div>
               {subscription.plan === plan.name ? <Badge tone="neutral"><StatusDot tone="emerald" /> {t(locale, "common.badges.active")}</Badge> : null}
             </div>
-            <div className="mt-3 text-sm text-text-pg-muted">{plan.credits} {locale === "zh" ? "Credits / 月" : "credits / month"}</div>
+            <div className="mt-3 text-sm text-text-pg-muted">{plan.credits} {copy.creditsPerMonth}</div>
             <p className="mt-3 min-h-10 text-xs leading-5 text-text-pg-muted">{plan.tagline}</p>
             <ul className="mt-4 flex-1 space-y-2 border-t border-border-pg pt-4 text-sm">{plan.benefits.map((item) => <li key={item} className="flex gap-2"><Check className="mt-0.5 h-3.5 w-3.5 shrink-0 text-status-positive" /><span>{item}</span></li>)}</ul>
             <div className="mt-6">
@@ -115,7 +116,7 @@ export default async function BillingPage({ params }: { params: { locale: Locale
       <p className="border border-border-pg bg-bg-panel-muted p-3 text-xs text-text-pg-muted">{copy.noPerformancePromise}</p>
       <ResearchCard>
         <h2 className="mb-3 font-semibold">{copy.summary.usageHistory}</h2>
-        <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead className="text-left text-xs uppercase tracking-[0.12em] text-text-pg-muted"><tr><th className="py-2">{copy.usageTable.action}</th><th>{copy.usageTable.delta}</th><th>{copy.usageTable.balanceAfter}</th><th>{copy.usageTable.created}</th></tr></thead><tbody>{credits.usage_history.map((item) => <tr key={item.id} className="border-t border-border-pg"><td className="py-3">{item.action}</td><td className={item.credits_delta > 0 ? "text-status-positive" : "text-status-negative"}>{item.credits_delta}</td><td>{item.balance_after}</td><td>{formatDateTime(locale, item.created_at)}</td></tr>)}</tbody></table></div>
+        <PGTable columns={[{ key: "action", header: copy.usageTable.action, render: (item: typeof credits.usage_history[number]) => item.action }, { key: "delta", header: copy.usageTable.delta, render: (item: typeof credits.usage_history[number]) => <span className={item.credits_delta > 0 ? "text-status-positive" : "text-status-negative"}>{item.credits_delta}</span> }, { key: "balance", header: copy.usageTable.balanceAfter, render: (item: typeof credits.usage_history[number]) => item.balance_after }, { key: "created", header: copy.usageTable.created, render: (item: typeof credits.usage_history[number]) => formatDateTime(locale, item.created_at) }]} rows={credits.usage_history} />
       </ResearchCard>
     </div>
   );

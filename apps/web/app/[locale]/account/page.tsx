@@ -9,6 +9,8 @@ import { withLocale } from "@/i18n/routing";
 import { AuthResponse, changePassword, confirmIMessageVerification, getAgentQuota, getIMessageConfig, getMe, IMessageConfig, logout, requestIMessageVerification, setPassword } from "@/lib/api";
 import { t } from "@/lib/translations";
 
+
+
 export default function AccountPage() {
   const locale = useLocale();
   const zh = locale === "zh";

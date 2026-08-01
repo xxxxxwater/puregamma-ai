@@ -34,8 +34,8 @@ export function NavHistoryChart({ data }: { data: Point[] }) {
         <LineChart data={data} margin={{ top: 18, right: 4, bottom: 8, left: 4 }}>
           <XAxis dataKey="date" hide />
           <YAxis domain={["dataMin", "dataMax"]} hide />
-          <Tooltip cursor={{ stroke: "rgba(255,255,255,0.35)", strokeWidth: 1 }} content={<ChartTooltip />} />
-          <Line type="monotoneX" dataKey="nav" stroke={positive} strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: positive, stroke: "#0a0a0a", strokeWidth: 2 }} animationDuration={450} />
+          <Tooltip cursor={{ stroke: "var(--border-strong)", strokeWidth: 1 }} content={<ChartTooltip />} />
+          <Line type="monotoneX" dataKey="nav" stroke={positive} strokeWidth={2.5} dot={false} activeDot={{ r: 4, fill: positive, stroke: "var(--background)", strokeWidth: 2 }} animationDuration={450} />
         </LineChart>
       </ResponsiveContainer>
     </div>

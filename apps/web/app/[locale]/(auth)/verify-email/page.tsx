@@ -10,6 +10,8 @@ import { emailVerify, resendVerificationEmail } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 
+
+
 export default function VerifyEmailPage() {
   const locale = useLocale();
   const router = useRouter();
@@ -53,8 +55,8 @@ export default function VerifyEmailPage() {
   };
 
   return (
-    <div className="flex min-h-[80vh] items-center justify-center">
-      <div className="w-full max-w-md space-y-6 text-center">
+    <div className="space-y-6">
+      <div className="space-y-6 text-center">
         <div className="text-center">
           <Link href={withLocale(locale, "/")} className="inline-flex items-center gap-2 font-semibold text-text-pg">
             <Image src="/logo.png" alt="PureGamma" width={32} height={32} className="mx-auto" />
