@@ -1249,7 +1249,6 @@ export type BacktestLabRun = {
 export type BacktestLabStatus = {
   symbols: string[];
   coverage: Record<string, { bars: number; first_ts: string | null; last_ts: string | null }>;
-  disclaimer: string;
 };
 
 export function getBacktestLabStatus() {

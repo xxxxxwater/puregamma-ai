@@ -88,7 +88,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
     setError("");
     try {
       const result = await refreshBacktestLabData();
-      setStatus({ symbols: result.symbols, coverage: result.coverage, disclaimer: result.disclaimer });
+      setStatus({ symbols: result.symbols, coverage: result.coverage });
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : copy.errors.loadFailed);
     } finally {
@@ -325,8 +325,6 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           </div>
         )}
       </section>
-
-      <p className="text-[11px] leading-5 text-text-pg-dim">{copy.disclaimer}</p>
     </div>
   );
 }

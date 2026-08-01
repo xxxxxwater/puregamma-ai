@@ -184,7 +184,6 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
         result["data_freshness"] = data_source
         result["data_sources"] = sources
         result["bar_count"] = sum(len(window.get(asset, [])) for asset in spec["assets"])
-        result["disclaimer"] = "Hypothetical research backtest. Past performance does not predict future results. Users bear all risks of using this service."
         result["requested_engine"] = "vectorbt"
         snapshot = {"provider": data_source, "providers": sources, "interval": "1d", "coverage": coverage, "bar_count": result["bar_count"], "window_start": start.isoformat(), "window_end": end.isoformat()}
         assumptions = {

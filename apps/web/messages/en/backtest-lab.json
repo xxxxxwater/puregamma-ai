@@ -57,6 +57,5 @@
     "generateFailed": "Spec generation failed.",
     "runFailed": "Backtest run failed.",
     "loginRequired": "Please sign in to use the backtest lab."
-  },
-  "disclaimer": "Hypothetical backtest on historical daily data. Past performance does not predict future results. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+  }
 }

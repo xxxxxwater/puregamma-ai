@@ -170,5 +170,4 @@ def list_lab_runs(db: Session, user_id: str, *, limit: int = 20) -> list[Backtes
 def lab_status(db: Session) -> dict:
     return {
         "coverage": candle_coverage(db),
-        "disclaimer": "Hypothetical backtest. Past performance does not predict future results. Users bear all risks of using this service.",
     }

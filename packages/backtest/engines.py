@@ -97,7 +97,6 @@ class VectorBTBacktestEngine:
         result["asset"] = asset
         result["params"] = params
         result["data_snapshot"] = {"provider": freshness, "interval": "1d", "coverage": candle_coverage(db) if freshness == "binance" else {asset: {"bars": len(window[asset])}}}
-        result["disclaimer"] = "Hypothetical research backtest. Past performance does not predict future results."
         return result
 
 

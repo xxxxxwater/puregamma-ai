@@ -1201,7 +1201,6 @@ class AgentToolRegistry:
                     "status": row.status,
                     "asset": asset,
                     "poll_url": f"/backtest-lab/runs/{row.id}",
-                    "disclaimer": "Hypothetical research backtest. Past performance does not predict future results.",
                 }
             )
             sources.append(
