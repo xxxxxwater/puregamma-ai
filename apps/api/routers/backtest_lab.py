@@ -43,7 +43,7 @@ class GenerateSpecRequest(BaseModel):
 
 class RunLabRequest(BaseModel):
     spec: dict
-    window_days: int = Field(default=365 * 3, ge=30, le=365 * 3)
+    window_days: int = Field(default=30, ge=1, le=30)
     idempotency_key: str | None = Field(default=None, max_length=120)
     context_meta: dict = Field(default_factory=dict)
 

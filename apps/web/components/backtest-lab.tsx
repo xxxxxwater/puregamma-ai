@@ -15,9 +15,9 @@ function getLabCopy(locale: Locale) {
 }
 
 const WINDOW_OPTIONS = [
-  { days: 365, key: "years1" as const },
-  { days: 365 * 2, key: "years2" as const },
-  { days: 365 * 3, key: "years3" as const },
+  { days: 1, key: "days1" as const },
+  { days: 7, key: "weeks1" as const },
+  { days: 30, key: "months1" as const },
 ];
 
 function fmtPct(value: number | undefined) {
@@ -40,7 +40,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
   const [useMemory, setUseMemory] = useState(true);
   const [specText, setSpecText] = useState("");
   const [specMeta, setSpecMeta] = useState<{ fallback: boolean; context_notes: number } | null>(null);
-  const [windowDays, setWindowDays] = useState(365 * 3);
+  const [windowDays, setWindowDays] = useState(30);
   const [generating, setGenerating] = useState(false);
   const [running, setRunning] = useState(false);
   const [refreshing, setRefreshing] = useState(false);

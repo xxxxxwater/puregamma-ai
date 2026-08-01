@@ -151,9 +151,9 @@ def execute_unified_run(db: Session, run_id: str) -> BacktestRun:
     backtest_logger: BacktestLogger | None = None
     try:
         spec = parse_spec((row.spec_json or {}).get("spec") or row.params_json).model_dump()
-        window_days = int((row.spec_json or {}).get("window_days", 365 * 3))
+        window_days = int((row.spec_json or {}).get("window_days", 30))
         end = _now()
-        start = end - timedelta(days=max(30, min(window_days, 365 * 3)))
+        start = end - timedelta(days=max(1, min(window_days, 30)))
         window, sources = _build_window(db, spec, start, end)
         data_source = "+".join(sorted({source.split(":")[0] for source in sources.values()}))
         try:

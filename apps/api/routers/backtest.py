@@ -81,7 +81,7 @@ def create(payload: BacktestRequest, db: Session = Depends(get_db), user: User =
         if payload.engine.lower().strip() == "vectorbt":
             params = payload.params or {}
             spec = {"name": payload.strategy_name, "mode": "daily", "signal": params.get("signal", "momentum"), "assets": [payload.asset.upper()], "fast_window": int(params.get("fast_window", 12)), "slow_window": int(params.get("slow_window", 26)), "entry_threshold": float(params.get("entry_threshold", 0)), "exit_threshold": float(params.get("exit_threshold", 0)), "long_short": bool(params.get("long_short", False)), "max_position": float(params.get("max_position", 1.0)), "fee_bps": float(params.get("fee_bps", 10)), "slippage_bps": float(params.get("slippage_bps", 0)), "thesis": params.get("thesis", "")}
-            row = create_unified_run(db, user.id, spec, window_days=int(params.get("lookback_days", 365 * 3)), idempotency_key=payload.idempotency_key, context_meta={"skill_invocation_id": invocation_id})
+            row = create_unified_run(db, user.id, spec, window_days=int(params.get("lookback_days", 30)), idempotency_key=payload.idempotency_key, context_meta={"skill_invocation_id": invocation_id})
             from apps.api.routers.backtest_lab import _dispatch_or_run
             _dispatch_or_run(db, row.id)
             db.refresh(row)

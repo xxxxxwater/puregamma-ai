@@ -22,7 +22,7 @@ from packages.database.models import AgentMessage, BacktestLabRun, utcnow
 logger = logging.getLogger(__name__)
 
 LAB_DAILY_RUN_LIMIT = 5
-LAB_DEFAULT_WINDOW_DAYS = 365 * 3
+LAB_DEFAULT_WINDOW_DAYS = 30
 ASSUMPTIONS = {
     "execution": "next-bar close-to-close, no look-ahead",
     "data": "binance 1d klines (shared dataset)",
@@ -107,7 +107,7 @@ def run_lab(
     try:
         refresh_daily_candles(db, spec.assets)
         end = datetime.now(timezone.utc)
-        start = end - timedelta(days=max(30, min(window_days, LAB_DEFAULT_WINDOW_DAYS)))
+        start = end - timedelta(days=max(1, min(window_days, LAB_DEFAULT_WINDOW_DAYS)))
         window = load_candle_window(db, spec.assets, start, end)
         result = run_lab_backtest(spec, window)
         coverage = candle_coverage(db)

@@ -26,13 +26,13 @@
     "specLabel": "策略规范（可编辑 JSON）",
     "invalidSpec": "规范 JSON 无效，请修正后再运行。",
     "window": "窗口",
-    "years1": "1 年",
-    "years2": "2 年",
-    "years3": "3 年",
     "button": "运行回测",
     "running": "回测中...",
     "creditsHint": "Credits / 次",
-    "dailyLimit": "已达每日回测次数上限，请明天再试。"
+    "dailyLimit": "已达每日回测次数上限，请明天再试。",
+    "days1": "1 天",
+    "weeks1": "1 周",
+    "months1": "1 个月"
   },
   "performance": {
     "title": "绩效",

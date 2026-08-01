@@ -26,13 +26,13 @@
     "specLabel": "Strategy spec (editable JSON)",
     "invalidSpec": "Spec JSON is invalid. Fix it before running.",
     "window": "Window",
-    "years1": "1 year",
-    "years2": "2 years",
-    "years3": "3 years",
     "button": "Run backtest",
     "running": "Running...",
     "creditsHint": "credits per run",
-    "dailyLimit": "Daily limit reached. Try again tomorrow."
+    "dailyLimit": "Daily limit reached. Try again tomorrow.",
+    "days1": "1 day",
+    "weeks1": "1 week",
+    "months1": "1 month"
   },
   "performance": {
     "title": "Performance",
