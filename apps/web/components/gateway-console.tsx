@@ -3,14 +3,15 @@
 import { useState } from "react";
 import { Copy, CreditCard, KeyRound, Pause, Play, RefreshCw, Trash2 } from "lucide-react";
 import { Badge, EmptyState, MetricCard, ResearchCard } from "@/components/puregamma";
-import { changeGatewayKeyStatus, createGatewayKey, createGatewayTopup, rotateGatewayKey, type GatewayDashboard, type GatewayKey, type GatewayRequest } from "@/lib/api";
+import { UsagePanel } from "@/components/usage-panel";
+import { changeGatewayKeyStatus, createGatewayKey, createGatewayTopup, rotateGatewayKey, type GatewayDashboard, type GatewayKey, type GatewayRequest, type GatewayUsage } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
 
-type Props = { locale: Locale; dashboard: GatewayDashboard; initialKeys: GatewayKey[]; initialRequests: GatewayRequest[] };
+type Props = { locale: Locale; dashboard: GatewayDashboard; initialKeys: GatewayKey[]; initialRequests: GatewayRequest[]; initialUsage: GatewayUsage };
 
 const money = (value: string) => `$${Number(value || 0).toFixed(4)}`;
 
-export function GatewayConsole({ locale, dashboard, initialKeys, initialRequests }: Props) {
+export function GatewayConsole({ locale, dashboard, initialKeys, initialRequests, initialUsage }: Props) {
   const zh = locale === "zh";
   const [keys, setKeys] = useState(initialKeys);
   const [oneTimeKey, setOneTimeKey] = useState<string | null>(null);
@@ -67,6 +68,10 @@ export function GatewayConsole({ locale, dashboard, initialKeys, initialRequests
       <MetricCard label={zh ? "累计消费" : "Lifetime"} value={money(dashboard.spend_usd.lifetime)} detail={`${keys.length} / 10 ${zh ? "个密钥" : "keys"}`} tone="cyan" />
       <MetricCard label={zh ? "月度限额" : "Monthly limit"} value={Number(dashboard.account.monthly_spend_limit_usd) > 0 ? money(dashboard.account.monthly_spend_limit_usd) : (zh ? "不限额" : "Unlimited")} detail={dashboard.account.status === "active" ? (zh ? "Gateway 已启用" : "Gateway active") : (zh ? "Gateway 已暂停" : "Gateway suspended")} tone="neutral" />
     </div>
+
+    <ResearchCard>
+      <UsagePanel locale={locale} initialUsage={initialUsage} />
+    </ResearchCard>
 
     <ResearchCard>
       <div className="flex flex-wrap items-start justify-between gap-4">

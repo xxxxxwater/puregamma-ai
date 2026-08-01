@@ -15,13 +15,36 @@ depends_on = None
 
 
 def upgrade() -> None:
-    op.add_column("daily_brief_preferences", sa.Column("channels", sa.JSON(), nullable=True))
-    op.add_column("daily_brief_preferences", sa.Column("report_types", sa.JSON(), nullable=True))
-    op.add_column("daily_brief_preferences", sa.Column("failure_count", sa.Integer(), nullable=False, server_default="0"))
-    op.add_column("daily_brief_preferences", sa.Column("last_error", sa.String(), nullable=True))
-    # Backfill: existing single channel becomes the channels list.
-    op.execute("UPDATE daily_brief_preferences SET channels = json_build_array(channel) WHERE channels IS NULL AND channel IS NOT NULL")
-    op.execute("UPDATE daily_brief_preferences SET channels = json_build_array('email') WHERE channels IS NULL")
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing = {column["name"] for column in inspector.get_columns("daily_brief_preferences")}
+    additions = (
+        ("channels", sa.JSON()),
+        ("report_types", sa.JSON()),
+        ("failure_count", sa.Integer(), "0"),
+        ("last_error", sa.String()),
+    )
+    for name, column_type, *default in additions:
+        if name not in existing:
+            op.add_column(
+                "daily_brief_preferences",
+                sa.Column(name, column_type, server_default=default[0] if default else None),
+            )
+    # Backfill: existing single channel becomes the channels list. JSON array
+    # construction is dialect-specific (json_build_array on PostgreSQL, direct
+    # JSON literal on SQLite), so build the value in Python for both.
+    bind = op.get_bind()
+    if bind.dialect.name == "postgresql":
+        op.execute("UPDATE daily_brief_preferences SET channels = json_build_array(channel) WHERE channels IS NULL AND channel IS NOT NULL")
+        op.execute("UPDATE daily_brief_preferences SET channels = json_build_array('email') WHERE channels IS NULL")
+    else:
+        rows = bind.execute(sa.text("SELECT user_id, channel FROM daily_brief_preferences WHERE channels IS NULL")).fetchall()
+        for user_id, channel in rows:
+            value = f'["{channel}"]' if channel else '["email"]'
+            bind.execute(
+                sa.text("UPDATE daily_brief_preferences SET channels = :value WHERE user_id = :user_id"),
+                {"value": value, "user_id": user_id},
+            )
 
 
 def downgrade() -> None:

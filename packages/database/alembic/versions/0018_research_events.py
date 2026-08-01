@@ -128,7 +128,11 @@ def upgrade() -> None:
     op.create_index("ix_research_actions_status", "research_actions", ["status"])
     op.create_index("ix_research_actions_created_at", "research_actions", ["created_at"])
 
-    op.add_column("llm_call_logs", sa.Column("latency_ms", sa.Integer(), nullable=True))
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    llm_columns = {column["name"] for column in inspector.get_columns("llm_call_logs")}
+    if "latency_ms" not in llm_columns:
+        op.add_column("llm_call_logs", sa.Column("latency_ms", sa.Integer(), nullable=True))
 
 
 def downgrade() -> None:

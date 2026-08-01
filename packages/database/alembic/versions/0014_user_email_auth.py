@@ -16,14 +16,27 @@ depends_on = None
 
 def upgrade() -> None:
     # Idempotent: production columns were provisioned manually before this
-    # revision existed; IF NOT EXISTS keeps fresh installs and production aligned.
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_hash VARCHAR")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token VARCHAR")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS email_verification_token_expires_at TIMESTAMPTZ")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token VARCHAR")
-    op.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS password_reset_token_expires_at TIMESTAMPTZ")
-    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email_verification_token ON users (email_verification_token)")
-    op.execute("CREATE UNIQUE INDEX IF NOT EXISTS ix_users_password_reset_token ON users (password_reset_token)")
+    # revision existed; skipping existing columns keeps fresh installs and
+    # production aligned without PostgreSQL-only "ADD COLUMN IF NOT EXISTS"
+    # syntax that SQLite rejects.
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    existing = {column["name"] for column in inspector.get_columns("users")}
+    additions = (
+        ("password_hash", sa.String()),
+        ("email_verification_token", sa.String()),
+        ("email_verification_token_expires_at", sa.DateTime(timezone=True)),
+        ("password_reset_token", sa.String()),
+        ("password_reset_token_expires_at", sa.DateTime(timezone=True)),
+    )
+    for name, column_type in additions:
+        if name not in existing:
+            op.add_column("users", sa.Column(name, column_type))
+    existing_indexes = {index["name"] for index in inspector.get_indexes("users")}
+    if "ix_users_email_verification_token" not in existing_indexes:
+        op.create_index("ix_users_email_verification_token", "users", ["email_verification_token"], unique=True)
+    if "ix_users_password_reset_token" not in existing_indexes:
+        op.create_index("ix_users_password_reset_token", "users", ["password_reset_token"], unique=True)
 
 
 def downgrade() -> None:

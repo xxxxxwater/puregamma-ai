@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 from ipaddress import ip_address
 from typing import Any, Generator, Literal
@@ -58,6 +58,7 @@ from packages.gateway.service import (
     record_request,
     stream_chat,
 )
+from packages.gateway.usage import usage_summary
 from apps.api.services.gateway_wallet_service import (
     GatewayTopupError,
     create_gateway_topup_checkout,
@@ -404,6 +405,40 @@ def request_history(
     total = query.count()
     rows = query.order_by(GatewayRequestLog.created_at.desc()).offset(offset).limit(limit).all()
     return {"requests": [_serialize_request(row) for row in rows], "total": total, "limit": limit, "offset": offset}
+
+
+@router.get("/usage")
+def usage(
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    granularity: Literal["hour", "day"] = Query(default="day"),
+    model: str | None = Query(default=None, max_length=160),
+    api_key_id: str | None = Query(default=None, max_length=80),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, Any]:
+    """Aggregate request logs into a zero-filled time series for one user.
+
+    Defaults to the trailing 7 days at day granularity. The range may span at
+    most 90 days; anything larger (or malformed dates) is rejected with 422.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        parsed_start = datetime.fromisoformat(start) if start else now - timedelta(days=7)
+        parsed_end = datetime.fromisoformat(end) if end else now
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": "GATEWAY_USAGE_INVALID_DATE"}) from exc
+    if parsed_start.tzinfo is None:
+        parsed_start = parsed_start.replace(tzinfo=timezone.utc)
+    if parsed_end.tzinfo is None:
+        parsed_end = parsed_end.replace(tzinfo=timezone.utc)
+    parsed_start = parsed_start.astimezone(timezone.utc)
+    parsed_end = parsed_end.astimezone(timezone.utc)
+    if parsed_start >= parsed_end:
+        raise HTTPException(status_code=422, detail={"code": "GATEWAY_USAGE_EMPTY_RANGE"})
+    if (parsed_end - parsed_start) > timedelta(days=90):
+        raise HTTPException(status_code=422, detail={"code": "GATEWAY_USAGE_RANGE_TOO_LARGE"})
+    return usage_summary(db, user.id, parsed_start, parsed_end, granularity, model=model, api_key_id=api_key_id)
 
 
 @openai_router.get("/models")

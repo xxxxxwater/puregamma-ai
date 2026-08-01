@@ -639,6 +639,82 @@ export function getGatewayRequests(locale: Locale = defaultLocale) {
   return api<{ requests: GatewayRequest[]; total: number; unavailable?: boolean }>("/gateway/requests?limit=20", { fallback: { requests: [], total: 0, unavailable: true }, locale });
 }
 
+export type GatewayUsageBucket = {
+  bucket: string;
+  requests: number;
+  success: number;
+  errors: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_tokens: number;
+  reasoning_tokens: number;
+  avg_latency_ms: number;
+  max_latency_ms: number;
+  cost_usd: string;
+};
+
+export type GatewayUsageTotals = {
+  requests: number;
+  success: number;
+  errors: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_tokens: number;
+  reasoning_tokens: number;
+  avg_latency_ms: number;
+  max_latency_ms: number;
+  cost_usd: string;
+};
+
+export type GatewayUsageBreakdownRow = {
+  model?: string;
+  api_key_id?: string | null;
+  name?: string;
+  prefix?: string;
+  requests: number;
+  success: number;
+  errors: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_tokens: number;
+  reasoning_tokens: number;
+  avg_latency_ms: number;
+  cost_usd: string;
+};
+
+export type GatewayUsage = {
+  start: string;
+  end: string;
+  granularity: "hour" | "day";
+  buckets: GatewayUsageBucket[];
+  totals: GatewayUsageTotals;
+  by_model: GatewayUsageBreakdownRow[];
+  by_key: GatewayUsageBreakdownRow[];
+  unavailable?: boolean;
+};
+
+const emptyGatewayUsage: GatewayUsage = {
+  start: "",
+  end: "",
+  granularity: "day",
+  buckets: [],
+  totals: { requests: 0, success: 0, errors: 0, input_tokens: 0, output_tokens: 0, cache_tokens: 0, reasoning_tokens: 0, avg_latency_ms: 0, max_latency_ms: 0, cost_usd: "0" },
+  by_model: [],
+  by_key: [],
+  unavailable: true
+};
+
+export function getGatewayUsage(locale: Locale = defaultLocale, params: { start?: string; end?: string; granularity?: "hour" | "day"; model?: string; api_key_id?: string } = {}) {
+  const query = new URLSearchParams();
+  if (params.start) query.set("start", params.start);
+  if (params.end) query.set("end", params.end);
+  if (params.granularity) query.set("granularity", params.granularity);
+  if (params.model) query.set("model", params.model);
+  if (params.api_key_id) query.set("api_key_id", params.api_key_id);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return api<GatewayUsage>(`/gateway/usage${suffix}`, { fallback: emptyGatewayUsage, locale });
+}
+
 export function createGatewayKey(name: string) {
   return requestStrict<{ key: string; api_key: GatewayKey }>("/gateway/keys", { method: "POST", body: JSON.stringify({ name }) });
 }
