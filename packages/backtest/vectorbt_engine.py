@@ -117,10 +117,18 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
     positions: list[dict] = []
     all_returns: list[float] = []
     global_bar = 0
+    adjusted = False
     for asset in assets:
         bars = bars_by_asset[asset]
-        if len(bars) < slow + 2:
+        if len(bars) < 4:
             raise ValueError(f"insufficient candle history for {asset}")
+        # The requested MA/breakout windows may exceed the loaded history on
+        # short ranges (1 day / 1 week / 1 month). Clamp the windows to the
+        # available bars so the backtest still runs with a feasible signal.
+        slow_effective = min(slow, max(3, len(bars) - 2))
+        fast_effective = min(fast, max(2, slow_effective - 1))
+        if slow_effective != slow or fast_effective != fast:
+            adjusted = True
         closes = [float(row["close"]) for row in bars]
         previous = 0.0
         # The signal at ``index`` only sees closes strictly before that bar.
@@ -128,7 +136,7 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
         # same-bar execution / look-ahead bias in the compatible engine.
         equity_sofar = initial_cash
         for index in range(1, len(bars)):
-            target = _signal(closes, index, fast, slow, signal, threshold, long_short)
+            target = _signal(closes, index, fast_effective, slow_effective, signal, threshold, long_short)
             change = target - previous
             asset_return = closes[index] / closes[index - 1] - 1
             period_return = previous * asset_return - abs(change) * cost_bps / 10_000
@@ -163,6 +171,8 @@ def run_vectorbt(spec: dict[str, Any], window: dict[str, list[dict]], *, initial
         benchmark.append({"ts": ts, "equity": round(benchmark_value, 6)})
     drawdown = _drawdown_curve(equity)
     result = {"metrics": metrics, "equity_curve": equity, "drawdown_curve": drawdown, "benchmark_curve": benchmark, "trades": trades, "positions": positions, "charts": _charts(equity, drawdown, benchmark, trades, positions), "engine": "vectorbt" if _vectorbt_available() else "vectorbt_compatible", "is_live": False}
+    if adjusted:
+        result["windows_adjusted"] = {"fast": fast_effective, "slow": slow_effective}
     if logger:
         _log_summary_metrics(logger, metrics)
         ret = metrics.get("total_return", 0.0)

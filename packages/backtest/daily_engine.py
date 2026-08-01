@@ -45,30 +45,32 @@ def _moving_average(values: list[float], window: int) -> float:
     return sum(values[-window:]) / window
 
 
-def _daily_signal(spec: StrategySpec, history: list[float]) -> float:
+def _daily_signal(spec: StrategySpec, history: list[float], fast: int | None = None, slow: int | None = None) -> float:
     """Target position in [-max_position, max_position] from trailing closes."""
-    if len(history) < spec.slow_window:
+    fast = fast or spec.fast_window
+    slow = slow or spec.slow_window
+    if len(history) < slow:
         return 0.0
-    fast = _moving_average(history, spec.fast_window)
-    slow = _moving_average(history, spec.slow_window)
+    fast_avg = _moving_average(history, fast)
+    slow_avg = _moving_average(history, slow)
     last = history[-1]
     if spec.signal == "momentum":
-        spread = (fast - slow) / slow if slow else 0.0
+        spread = (fast_avg - slow_avg) / slow_avg if slow_avg else 0.0
         if spread > spec.entry_threshold:
             return spec.max_position
         if spec.long_short and spread < -spec.entry_threshold:
             return -spec.max_position
         return 0.0
     if spec.signal == "mean_reversion":
-        deviation = (last - slow) / slow if slow else 0.0
+        deviation = (last - slow_avg) / slow_avg if slow_avg else 0.0
         if deviation < -spec.entry_threshold:
             return spec.max_position
         if deviation > spec.entry_threshold:
             return -spec.max_position if spec.long_short else 0.0
         return 0.0
     # breakout: long when the last close exceeds the trailing slow-window high
-    window_high = max(history[-spec.slow_window:])
-    window_low = min(history[-spec.slow_window:])
+    window_high = max(history[-slow:])
+    window_low = min(history[-slow:])
     if last >= window_high * (1 + spec.entry_threshold):
         return spec.max_position
     if spec.long_short and last <= window_low * (1 - spec.entry_threshold):
@@ -76,7 +78,14 @@ def _daily_signal(spec: StrategySpec, history: list[float]) -> float:
     return 0.0
 
 
-def _run_daily_asset(spec: StrategySpec, bars: list[DailyBar]) -> EngineResult:
+def _effective_windows(spec: StrategySpec, min_count: int) -> tuple[int, int]:
+    slow = min(spec.slow_window, max(3, min_count - 2))
+    fast = min(spec.fast_window, max(2, slow - 1))
+    return fast, slow
+
+
+def _run_daily_asset(spec: StrategySpec, bars: list[DailyBar], min_count: int | None = None) -> EngineResult:
+    fast, slow = _effective_windows(spec, min_count or len(bars))
     closes = [bar.close for bar in bars]
     returns: list[float] = []
     equity: list[dict] = []
@@ -87,7 +96,7 @@ def _run_daily_asset(spec: StrategySpec, bars: list[DailyBar]) -> EngineResult:
     stopped_until = -1
     for index in range(1, len(bars)):
         history = closes[:index]
-        target = _daily_signal(spec, history)
+        target = _daily_signal(spec, history, fast=fast, slow=slow)
         if spec.stop_loss_pct and previous != 0.0:
             if previous > 0:
                 peak_price = max(peak_price, closes[index - 1])
@@ -114,7 +123,7 @@ def _run_daily_asset(spec: StrategySpec, bars: list[DailyBar]) -> EngineResult:
     return EngineResult(metrics=metrics, equity_curve=equity, trades=trades, daily_returns=returns)
 
 
-def _run_cross_sectional(spec: StrategySpec, universe: dict[str, list[DailyBar]]) -> EngineResult:
+def _run_cross_sectional(spec: StrategySpec, universe: dict[str, list[DailyBar]], min_count: int | None = None) -> EngineResult:
     legs = sorted(universe)
     if len(legs) != 2:
         raise ValueError("cross_sectional mode requires exactly two assets")
@@ -122,7 +131,8 @@ def _run_cross_sectional(spec: StrategySpec, universe: dict[str, list[DailyBar]]
     ts_left = {bar.ts: bar.close for bar in left}
     ts_right = {bar.ts: bar.close for bar in right}
     common_ts = sorted(set(ts_left) & set(ts_right))
-    if len(common_ts) < spec.slow_window + 2:
+    _, slow = _effective_windows(spec, min_count or len(common_ts))
+    if len(common_ts) < slow + 2:
         return EngineResult(metrics=calculate_metrics([]))
     left_closes = [ts_left[ts] for ts in common_ts]
     right_closes = [ts_right[ts] for ts in common_ts]
@@ -132,9 +142,9 @@ def _run_cross_sectional(spec: StrategySpec, universe: dict[str, list[DailyBar]]
     value = 1.0
     previous_left = previous_right = 0.0
     for index in range(1, len(common_ts)):
-        if index % spec.rebalance_days == 0 and index >= spec.slow_window:
-            left_momentum = left_closes[index - 1] / left_closes[index - 1 - spec.slow_window] - 1
-            right_momentum = right_closes[index - 1] / right_closes[index - 1 - spec.slow_window] - 1
+        if index % spec.rebalance_days == 0 and index >= slow:
+            left_momentum = left_closes[index - 1] / left_closes[index - 1 - slow] - 1
+            right_momentum = right_closes[index - 1] / right_closes[index - 1 - slow] - 1
             spread = left_momentum - right_momentum
             if abs(spread) <= spec.exit_threshold:
                 target_left = target_right = 0.0
@@ -161,11 +171,15 @@ def _run_cross_sectional(spec: StrategySpec, universe: dict[str, list[DailyBar]]
 
 def run_lab_backtest(spec: StrategySpec, window: dict[str, list[dict]]) -> EngineResult:
     """Execute a spec over the shared candle window and return performance."""
+    # Short ranges (1 day / 1 week / 1 month) may hold fewer bars than the
+    # requested MA window. Clamp slow_window to the loaded history so the
+    # engine still produces a feasible signal instead of failing outright.
+    bar_counts = [len(_series(window.get(asset, []))) for asset in spec.assets]
+    if any(count < 4 for count in bar_counts):
+        raise ValueError("insufficient candle history for the requested window")
     if spec.mode == "cross_sectional":
         universe = {asset: _series(window.get(asset, [])) for asset in spec.assets}
-        if any(len(bars) < spec.slow_window + 2 for bars in universe.values()):
-            raise ValueError("insufficient candle history for the requested window")
-        return _run_cross_sectional(spec, universe)
+        return _run_cross_sectional(spec, universe, min_count=min(bar_counts))
 
     combined_returns: list[tuple[datetime, float]] = []
     equity: list[dict] = []
@@ -173,9 +187,7 @@ def run_lab_backtest(spec: StrategySpec, window: dict[str, list[dict]]) -> Engin
     per_asset_metrics: dict[str, dict] = {}
     for asset in spec.assets:
         bars = _series(window.get(asset, []))
-        if len(bars) < spec.slow_window + 2:
-            raise ValueError(f"insufficient candle history for {asset}")
-        result = _run_daily_asset(spec, bars)
+        result = _run_daily_asset(spec, bars, min_count=min(bar_counts))
         per_asset_metrics[asset] = result.metrics
         trades.extend({**trade, "asset": asset} for trade in result.trades)
         combined_returns.extend((bars[index + 1].ts, value) for index, value in enumerate(result.daily_returns))

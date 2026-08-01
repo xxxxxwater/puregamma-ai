@@ -447,3 +447,30 @@ def test_equity_backtest_completes_with_keyed_provider(monkeypatch, db, pro_user
     assert row.data_snapshot_json["providers"] == {"AAPL": "equity:fmp"}
     assert row.assumptions_json["data_source"] == "equity"
     assert row.result_json["equity_curve"]
+
+
+def test_short_window_adapts_slow_window():
+    from packages.backtest.vectorbt_engine import run_vectorbt
+
+    now = datetime.now(timezone.utc)
+    window = {
+        "BTC": [{"ts": now - timedelta(days=29 - i), "open": 100 + i, "high": 102 + i, "low": 99 + i, "close": 100 + i * 0.5, "volume": 1000} for i in range(29)],
+    }
+    spec = {"assets": ["BTC"], "fast_window": 12, "slow_window": 40, "signal": "momentum", "long_short": False, "fee_bps": 10}
+    result = run_vectorbt(spec, window)
+    assert result["equity_curve"]
+    assert result["windows_adjusted"]["slow"] == 27
+    assert result["windows_adjusted"]["fast"] == 12
+
+
+def test_week_window_runs_with_minimal_bars():
+    from packages.backtest.vectorbt_engine import run_vectorbt
+
+    now = datetime.now(timezone.utc)
+    window = {
+        "BTC": [{"ts": now - timedelta(days=6 - i), "open": 100 + i, "high": 102 + i, "low": 99 + i, "close": 100 + i * 0.5, "volume": 1000} for i in range(7)],
+    }
+    spec = {"assets": ["BTC"], "fast_window": 12, "slow_window": 26, "signal": "momentum", "long_short": False, "fee_bps": 10}
+    result = run_vectorbt(spec, window)
+    assert result["equity_curve"]
+    assert result["windows_adjusted"]["slow"] == 5
