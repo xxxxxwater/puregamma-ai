@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Script from "next/script";
 import { ExternalLink, Gauge, ShieldCheck, TrendingUp } from "lucide-react";
 
 import { OptionsSurface } from "@/components/options-surface";
@@ -23,7 +24,7 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
   const earnings = await getEarningsGamma(locale);
   const metric = gamma.candidates[0];
 
-  return <div className="space-y-5">
+  return <><Script src="https://cdn.plot.ly/plotly-2.35.2.min.js" strategy="afterInteractive" /><div className="space-y-5">
     <PageHeader eyebrow="DERIBIT OPTIONS" title={zh ? "期权与 Long Gamma 研究" : "Options and Long Gamma Research"} description={zh ? "基于 Deribit 公开行情的只读期权研究。AI 负责排序与解释，Greeks 和价格均来自真实接口。" : "Read-only options research from Deribit public market data. AI ranks and explains; prices and Greeks come from the live source."} sectionNumber="04" />
 
     <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border-pg py-3">
@@ -55,7 +56,7 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
     </ResearchCard>
 
     <div className="flex flex-wrap items-center justify-between gap-3 border border-border-pg bg-bg-panel-muted p-4 text-xs text-text-pg-muted"><span>{zh ? "研究排序不是收益承诺；最大损失、Theta 衰减、流动性和到期风险需要独立评估。" : "Research ranking is not a return promise. Maximum loss, theta decay, liquidity, and expiry risk require independent review."}</span>{gamma.source_url ? <a className="inline-flex items-center gap-1 text-text-pg" href={gamma.source_url} target="_blank" rel="noreferrer">Deribit API <ExternalLink className="h-3.5 w-3.5" /></a> : null}</div>
-  </div>;
+  </div></>;
 }
 
 function format(value?: number | null, digits = 2) { return value == null ? "-" : value.toFixed(digits); }
