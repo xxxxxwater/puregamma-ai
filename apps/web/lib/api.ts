@@ -1415,6 +1415,61 @@ export function getEarningsGamma(locale: Locale = defaultLocale) {
   });
 }
 
+export type OptionSurfaceRow = {
+  x: number;
+  y: number;
+  z: number;
+  strike: number;
+  expiry: string;
+  instrument: string;
+  open_interest: number;
+  volume_24h: number;
+  option_type: "call" | "put";
+};
+
+export type OptionSurfaceResponse = {
+  status: string;
+  provider: string;
+  currency: string;
+  fetched_at?: string;
+  surface: {
+    x: number[];
+    y: number[];
+    z: number[];
+    type: "mark_iv" | "mark_price" | "gamma" | "theta" | "vega" | "spread_pct";
+    underlying_price: number;
+    rows: OptionSurfaceRow[];
+  };
+  candidates: LongGammaCandidate[];
+  insights: { atm_iv: number | null; dte: number | null; strike: number | null; put25_iv: number | null; call25_iv: number | null; skew_pct: number | null; underlying_price: number } | null;
+  error?: string;
+  live_trading: false;
+};
+
+const emptyOptionSurface: OptionSurfaceResponse = {
+  status: "DEGRADED",
+  provider: "unavailable",
+  currency: "BTC",
+  surface: { x: [], y: [], z: [], type: "mark_iv", underlying_price: 0, rows: [] },
+  candidates: [],
+  insights: null,
+  error: "Option surface data is currently unavailable.",
+  live_trading: false,
+};
+
+export function getOptionsSurface(currency: string, type: string = "mark_iv") {
+  return api<OptionSurfaceResponse>(`/options/surface?currency=${encodeURIComponent(currency)}&type=${encodeURIComponent(type)}`, {
+    fallback: { ...emptyOptionSurface, currency }
+  });
+}
+
+export function getOptionsSurfaceTickers(locale: Locale = defaultLocale) {
+  return api<{ tickers: { symbol: string; provider: string; label: string; market_cap: string }[]; unavailable?: boolean }>("/options/surface-tickers", {
+    fallback: { tickers: [], unavailable: true }
+  });
+}
+
+
 export function getDailyPushPreferences(locale: Locale = defaultLocale) {
   return requestStrict<{ preference: DailyPushPreference; history: DeliveryRecord[] }>("/notifications/preferences/daily-brief", { headers: { "X-PG-Locale": locale } });
 }

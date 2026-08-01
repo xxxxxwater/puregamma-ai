@@ -360,6 +360,10 @@ class Settings:
     deribit_cache_ttl_seconds: int = int(
         os.getenv("DERIBIT_CACHE_TTL_SECONDS", "30") or 30
     )
+    polygon_api_key: str = os.getenv("POLYGON_API_KEY", "")
+    polygon_options_timeout_seconds: float = float(
+        os.getenv("POLYGON_OPTIONS_TIMEOUT_SECONDS", "10") or 10
+    )
 
     nautilus_runtime_url: str = os.getenv(
         "NAUTILUS_RUNTIME_URL", "http://localhost:8090"

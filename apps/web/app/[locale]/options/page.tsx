@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { ExternalLink, Gauge, ShieldCheck, TrendingUp } from "lucide-react";
 
+import { OptionsSurface } from "@/components/options-surface";
 import { Badge, DataSourceStatusBadge, MetricCard, PageHeader, ResearchCard } from "@/components/puregamma";
 import { PGTable } from "@/components/pg-table";
 import { getEarningsGamma, getLongGammaCandidates } from "@/lib/api";
@@ -40,6 +41,8 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
     </section>
 
     {gamma.error ? <div className="border border-status-warning p-4 text-sm text-status-warning">{gamma.error}</div> : null}
+
+    <OptionsSurface locale={locale} initialCurrency={currency} />
 
     <ResearchCard>
       <div className="mb-4 flex items-start justify-between gap-3"><div><h2 className="flex items-center gap-2 font-semibold"><Gauge className="h-4 w-4" />Long Gamma {zh ? "候选" : "candidates"} — {currency}</h2><p className="mt-2 text-sm text-text-pg-muted">{zh ? "综合正 Gamma、Theta 成本、价差、成交量、OI 与到期时间排序。" : "Ranked by positive gamma, theta cost, spread, volume, OI, and time to expiry."}</p></div><ShieldCheck className="h-5 w-5 text-status-positive" /></div>

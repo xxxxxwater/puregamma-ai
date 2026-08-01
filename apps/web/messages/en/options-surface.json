@@ -1,0 +1,43 @@
+{
+  "seo": {
+    "title": "Options 3D Surface | PureGamma AI",
+    "description": "Options IV × skew × tenor 3D surface."
+  },
+  "eyebrow": "OPTIONS SURFACE",
+  "title": "Options 3D Surface",
+  "subtitle": "Strike × days-to-expiry × IV/Greeks surface. Cool = low value, warm = high value; highlighted points are Long Gamma candidates (color = research score, size = OI).",
+  "refresh": "Refresh",
+  "emptyTitle": "No surface data",
+  "emptyErrorTitle": "Surface unavailable",
+  "emptyDescription": "No option chain is available for this underlying. Switch the ticker or retry shortly.",
+  "nonIvNotice": "Z-axis is not IV; skew metrics are computed from mark_iv.",
+  "barsNote": "Points reflect the raw contract distribution; the mesh is interpolated by Plotly.",
+  "type": {
+    "mark_iv": "mark_iv (IV)",
+    "mark_price": "mark_price",
+    "gamma": "Gamma",
+    "theta": "Theta",
+    "spread_pct": "spread %"
+  },
+  "chart": {
+    "surfaceName": "IV surface",
+    "candidatesName": "Long Gamma candidates",
+    "scoreColorbar": "Score",
+    "xAxis": "Moneyness (Strike / Spot)",
+    "yAxis": "Days to expiry",
+    "zAxis": "Value"
+  },
+  "insights": {
+    "atm30": "ATM 30DTE IV",
+    "put25": "25Δ Put IV",
+    "call25": "25Δ Call IV",
+    "skew": "Skew",
+    "underlying": "Underlying",
+    "alert": "Add alert",
+    "alertTitle": "Add an IV alert",
+    "export": "Export CSV",
+    "exportTitle": "Export surface data",
+    "askAgent": "Ask Agent",
+    "agentTitle": "Ask the research Agent"
+  }
+}

@@ -11,6 +11,7 @@ import integrationsEn from "@/messages/en/integrations.json";
 import landingEn from "@/messages/en/landing.json";
 import nautilusEn from "@/messages/en/nautilus.json";
 import onboardingEn from "@/messages/en/onboarding.json";
+import optionsSurfaceEn from "@/messages/en/options-surface.json";
 import playbooksEn from "@/messages/en/playbooks.json";
 import portfolioEn from "@/messages/en/portfolio.json";
 import reportsEn from "@/messages/en/reports.json";
@@ -29,6 +30,7 @@ import integrationsZh from "@/messages/zh/integrations.json";
 import landingZh from "@/messages/zh/landing.json";
 import nautilusZh from "@/messages/zh/nautilus.json";
 import onboardingZh from "@/messages/zh/onboarding.json";
+import optionsSurfaceZh from "@/messages/zh/options-surface.json";
 import playbooksZh from "@/messages/zh/playbooks.json";
 import portfolioZh from "@/messages/zh/portfolio.json";
 import reportsZh from "@/messages/zh/reports.json";
@@ -50,6 +52,7 @@ const en = {
   landing: landingEn,
   nautilus: nautilusEn,
   onboarding: onboardingEn,
+  "options-surface": optionsSurfaceEn,
   playbooks: playbooksEn,
   portfolio: portfolioEn,
   reports: reportsEn,
@@ -71,6 +74,7 @@ const zh = {
   landing: landingZh,
   nautilus: nautilusZh,
   onboarding: onboardingZh,
+  "options-surface": optionsSurfaceZh,
   playbooks: playbooksZh,
   portfolio: portfolioZh,
   reports: reportsZh,
