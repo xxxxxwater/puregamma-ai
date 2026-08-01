@@ -42,5 +42,7 @@
     "freshnessCopy": "shared intelligence demo snapshot."
   },
   "confidenceDistribution": "Confidence Distribution",
-  "reviewDensity": "Review density"
+  "reviewDensity": "Review density",
+  "emptyTitle": "No signals",
+  "emptyDescription": "No long-side signals currently meet the research bar. Data refreshes automatically."
 }

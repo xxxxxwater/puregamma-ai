@@ -42,5 +42,7 @@
     "freshnessCopy": "共享市场情报 Demo 快照。"
   },
   "confidenceDistribution": "置信度分布",
-  "reviewDensity": "审查密度"
+  "reviewDensity": "审查密度",
+  "emptyTitle": "暂无信号",
+  "emptyDescription": "当前没有满足研究门槛的长期信号。数据就绪后会自动刷新。"
 }

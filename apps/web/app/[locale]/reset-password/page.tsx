@@ -95,7 +95,7 @@ export default function ResetPasswordPage() {
               {errorMsg ? <p className="text-sm text-status-negative">{errorMsg}</p> : null}
               <PasswordInput value={password} onChange={setPassword} placeholder={t(locale, "common.auth.newPassword")} minLength={8} autoComplete="new-password" />
               <p className="text-xs text-text-pg-dim">{t(locale, "common.auth.passwordRequirements")}</p>
-              <button type="submit" disabled={busy || !password || password.length < 8} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-text-pg px-4 py-2.5 text-sm font-semibold text-bg-panel transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
+              <button type="submit" disabled={busy || !password || password.length < 8} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-pg-white px-4 py-2.5 text-sm font-semibold text-pg-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
                 {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
                 {t(locale, "common.auth.resetPasswordTitle")}
               </button>

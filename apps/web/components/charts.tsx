@@ -2,18 +2,22 @@
 
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Cell, Line, LineChart, Pie, PieChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
-const grid = "rgba(255,255,255,0.08)";
-const text = "#A3A3A3";
-const white = "#EDEDED";
-const gray = "#737373";
-const positive = "#D9F99D";
-const negative = "#FCA5A5";
-const warning = "#FDE68A";
+const grid = "var(--border)";
+const text = "var(--muted)";
+const white = "var(--foreground)";
+const gray = "var(--muted-2)";
+const positive = "var(--positive)";
+const negative = "var(--negative)";
+const warning = "var(--warning)";
+const whiteFill = "color-mix(in srgb, var(--foreground) 8%, transparent)";
+const negativeFill = "color-mix(in srgb, var(--negative) 12%, transparent)";
+const positiveFill = "color-mix(in srgb, var(--positive) 12%, transparent)";
+const warningFill = "color-mix(in srgb, var(--warning) 12%, transparent)";
 
 type Point = { date: string; nav?: number; equity?: number; drawdown?: number; value?: number; confidence?: number; health?: number };
 type AllocationPoint = { name: string; value: number; weight?: number };
 
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string }) {
+export function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
     <div className="border border-border-pg bg-bg-panel px-3 py-2 text-xs">
@@ -39,7 +43,7 @@ export function NavHistoryChart({ data }: { data: Point[] }) {
 }
 
 export function AllocationChart({ data }: { data: AllocationPoint[] }) {
-  const colors = [white, "#D4D4D8", "#A3A3A3", "#737373", "#525252"];
+  const colors = [white, "var(--info)", text, gray, "var(--muted-2)"];
   return (
     <div className="h-64">
       <ResponsiveContainer width="100%" height="100%">
@@ -95,7 +99,7 @@ export function EquityCurveChart({ data }: { data: Point[] }) {
           <XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} />
           <YAxis stroke={text} tickLine={false} axisLine={false} />
           <Tooltip content={<ChartTooltip />} />
-          <Area type="monotone" dataKey="equity" stroke={white} fill="rgba(255,255,255,0.06)" strokeWidth={2} />
+          <Area type="monotone" dataKey="equity" stroke={white} fill={whiteFill} strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
     </div>
@@ -111,7 +115,7 @@ export function DrawdownChart({ data }: { data: Point[] }) {
           <XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} />
           <YAxis stroke={text} tickLine={false} axisLine={false} />
           <Tooltip content={<ChartTooltip />} />
-          <Area type="monotone" dataKey="drawdown" stroke={negative} fill="rgba(252,165,165,0.08)" strokeWidth={2} />
+          <Area type="monotone" dataKey="drawdown" stroke={negative} fill={negativeFill} strokeWidth={2} />
         </AreaChart>
       </ResponsiveContainer>
     </div>

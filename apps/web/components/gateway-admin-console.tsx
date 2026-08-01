@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { Activity, Check, Power, RefreshCw, Save } from "lucide-react";
-import { Badge, ResearchCard, StatusDot } from "@/components/puregamma";
+import { Badge, ResearchCard, StatCell, StatusDot } from "@/components/puregamma";
 import {
   approveGatewayPrice,
   getGatewayAdminAccounts,
@@ -124,7 +124,7 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
           </div>
           <div className="flex flex-wrap gap-2">
             <button type="button" disabled={busy} onClick={() => void healthcheck()} className="inline-flex items-center gap-2 border border-border-pg px-3 py-2 text-sm disabled:opacity-50"><Activity className="h-4 w-4" />{zh ? "健康检查" : "Health check"}</button>
-            <button type="button" disabled={busy} onClick={() => void sync()} className="inline-flex items-center gap-2 border border-border-pg bg-text-pg px-3 py-2 text-sm font-semibold text-bg-panel disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />{zh ? "立即同步" : "Sync now"}</button>
+            <button type="button" disabled={busy} onClick={() => void sync()} className="inline-flex items-center gap-2 border border-border-pg bg-pg-white px-3 py-2 text-sm font-semibold text-pg-black disabled:opacity-50"><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />{zh ? "立即同步" : "Sync now"}</button>
           </div>
         </div>
         {error ? <p className="mt-3 text-sm text-status-negative">{error}</p> : null}
@@ -202,6 +202,4 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
-  return <div className="border border-border-pg bg-bg-panel-muted p-3"><div className="text-xs text-text-pg-muted">{label}</div><div className="mt-1 font-semibold">{value}</div></div>;
-}
+const Metric = StatCell;

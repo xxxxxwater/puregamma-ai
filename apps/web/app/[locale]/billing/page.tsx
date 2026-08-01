@@ -112,7 +112,7 @@ export default async function BillingPage({ params }: { params: { locale: Locale
           </ResearchCard>
         ))}
       </div>
-      <p className="hidden">{copy.noPerformancePromise}</p>
+      <p className="border border-border-pg bg-bg-panel-muted p-3 text-xs text-text-pg-muted">{copy.noPerformancePromise}</p>
       <ResearchCard>
         <h2 className="mb-3 font-semibold">{copy.summary.usageHistory}</h2>
         <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-sm"><thead className="text-left text-xs uppercase tracking-[0.12em] text-text-pg-muted"><tr><th className="py-2">{copy.usageTable.action}</th><th>{copy.usageTable.delta}</th><th>{copy.usageTable.balanceAfter}</th><th>{copy.usageTable.created}</th></tr></thead><tbody>{credits.usage_history.map((item) => <tr key={item.id} className="border-t border-border-pg"><td className="py-3">{item.action}</td><td className={item.credits_delta > 0 ? "text-status-positive" : "text-status-negative"}>{item.credits_delta}</td><td>{item.balance_after}</td><td>{formatDateTime(locale, item.created_at)}</td></tr>)}</tbody></table></div>

@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { ArrowRight, Crosshair, Globe, Info, Shield, TrendingUp, Zap, type LucideIcon } from "lucide-react";
 import { normalizeLocale, withLocale } from "@/i18n/routing";
+import { SelectionBox } from "@/components/selection-box";
 import { getMessageNamespace, t } from "@/lib/translations";
 
 const styleIcons: Record<string, LucideIcon> = {
@@ -87,10 +88,4 @@ function riskTone(id: string): string {
   return "text-status-negative";
 }
 
-function SelectionBox({ selected }: { selected: boolean }) {
-  return (
-    <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center border ${selected ? "border-border-pg-strong bg-pg-white" : "border-border-pg"}`}>
-      {selected ? <span className="text-xs text-pg-black">✓</span> : null}
-    </div>
-  );
-}
+

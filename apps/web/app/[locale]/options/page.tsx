@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { ExternalLink, Gauge, ShieldCheck, TrendingUp } from "lucide-react";
 
-import { Badge, DataSourceStatusBadge, PageHeader, ResearchCard } from "@/components/puregamma";
+import { Badge, DataSourceStatusBadge, MetricCard, PageHeader, ResearchCard } from "@/components/puregamma";
 import { getEarningsGamma, getLongGammaCandidates } from "@/lib/api";
 import { isLocale, type Locale } from "@/i18n/routing";
 
@@ -31,11 +31,11 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
       <div className="flex items-center gap-2"><DataSourceStatusBadge locale={locale} status={gamma.status} /><Badge tone="neutral">READ ONLY</Badge></div>
     </div>
 
-    <section className="grid gap-px border border-border-pg bg-border-pg sm:grid-cols-2 xl:grid-cols-4">
-      <Metric label={zh ? "期权合约" : "Option instruments"} value={String(gamma.instrument_count)} />
-      <Metric label={zh ? "候选数量" : "Candidates"} value={String(gamma.candidates.length)} />
-      <Metric label={zh ? "最高研究分" : "Top research score"} value={metric ? metric.research_score.toFixed(1) : "-"} />
-      <Metric label={zh ? "数据源" : "Source"} value="Deribit Public" />
+    <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      <MetricCard label={zh ? "期权合约" : "Option instruments"} value={String(gamma.instrument_count)} tone="cyan" />
+      <MetricCard label={zh ? "候选数量" : "Candidates"} value={String(gamma.candidates.length)} tone="cyan" />
+      <MetricCard label={zh ? "最高研究分" : "Top research score"} value={metric ? metric.research_score.toFixed(1) : "-"} tone="amber" />
+      <MetricCard label={zh ? "数据源" : "Source"} value="Deribit Public" tone="neutral" />
     </section>
 
     {gamma.error ? <div className="border border-status-warning p-4 text-sm text-status-warning">{gamma.error}</div> : null}
@@ -54,5 +54,4 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
   </div>;
 }
 
-function Metric({ label, value }: { label: string; value: string }) { return <div className="bg-bg-panel p-4"><p className="text-xs text-text-pg-muted">{label}</p><p className="mt-2 text-xl font-semibold">{value}</p></div>; }
 function format(value?: number | null, digits = 2) { return value == null ? "-" : value.toFixed(digits); }

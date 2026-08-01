@@ -532,7 +532,7 @@ PUREGAMMA_MODEL=${selectedId}
 }
 
 function ChevronMark({ active }: { active: boolean }) {
-  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border ${active ? "border-text-pg bg-text-pg text-bg-panel" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
+  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border ${active ? "border-text-pg bg-pg-white text-pg-black" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
 }
 
 function CodeTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {

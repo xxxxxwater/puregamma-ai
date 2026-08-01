@@ -1181,6 +1181,10 @@ export function getNautilusStrategies(locale: Locale = defaultLocale) {
   return api<{ strategies: RuntimeStrategy[] }>("/strategies", { fallback: { strategies: [] }, locale });
 }
 
+export function getPlaybooks(locale: Locale = defaultLocale) {
+  return api<{ playbooks: StrategyRow[]; reports: unknown[]; unavailable?: boolean }>("/playbooks", { fallback: fallbackPlaybooksForLocale(locale), locale });
+}
+
 export function getRuntimeStrategy(strategyId: string) {
   return requestStrict<{ strategy: RuntimeStrategy }>(`/strategies/${encodeURIComponent(strategyId)}`);
 }

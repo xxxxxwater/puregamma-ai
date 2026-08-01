@@ -2,31 +2,25 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { Area, AreaChart, Bar, BarChart, CartesianGrid, Line, LineChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
+import { ChartTooltip } from "@/components/charts";
 import { EmptyState, MetricCard, ResearchCard } from "@/components/puregamma";
 import { getGatewayUsage, type GatewayUsage, type GatewayUsageBucket, type GatewayUsageBreakdownRow } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
 
-const grid = "rgba(255,255,255,0.08)";
-const text = "#A3A3A3";
-const white = "#EDEDED";
-const positive = "#D9F99D";
-const negative = "#FCA5A5";
-const warning = "#FDE68A";
+const grid = "var(--border)";
+const text = "var(--muted)";
+const white = "var(--foreground)";
+const positive = "var(--positive)";
+const negative = "var(--negative)";
+const warning = "var(--warning)";
+const positiveFill = "color-mix(in srgb, var(--positive) 12%, transparent)";
+const whiteFill = "color-mix(in srgb, var(--foreground) 10%, transparent)";
+const warningFill = "color-mix(in srgb, var(--warning) 12%, transparent)";
 
 type Props = { locale: Locale; initialUsage: GatewayUsage };
 
 const money = (value: string) => `$${Number(value || 0).toFixed(4)}`;
 const num = (value: number) => value.toLocaleString();
-
-function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string; unit?: string }[]; label?: string }) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="border border-border-pg bg-bg-panel px-3 py-2 text-xs">
-      <div className="mb-1 text-text-pg-muted">{label}</div>
-      {payload.map((item) => <div key={item.name} className="text-text-pg">{item.name}: {num(Number(item.value))}</div>)}
-    </div>
-  );
-}
 
 function UsageTooltip({ active, payload, label, prefix }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string; prefix?: string }) {
   if (!active || !payload?.length) return null;
@@ -192,9 +186,9 @@ export function UsagePanel({ locale, initialUsage }: Props) {
     {!hasData && !loading && !usage?.unavailable ? <div className="mt-4"><EmptyState title={zh ? "该时间范围内暂无调用记录" : "No calls in this range"} description={zh ? "调整日期范围或先发起一次 API 调用。" : "Adjust the range or make an API call first."} /></div> : null}
 
     {hasData ? <div className="grid gap-4 xl:grid-cols-2">
-      <ResearchCard><h3 className="font-semibold">{zh ? "Tokens 时间序列" : "Tokens over time"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={tokenSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<ChartTooltip />} /><Area type="monotone" dataKey="input" name={zh ? "输入" : "Input"} stackId="1" stroke={positive} fill="rgba(217,249,157,0.10)" strokeWidth={2} /><Area type="monotone" dataKey="output" name={zh ? "输出" : "Output"} stackId="1" stroke={white} fill="rgba(237,237,237,0.10)" strokeWidth={2} /><Area type="monotone" dataKey="cache" name={zh ? "缓存" : "Cache"} stackId="1" stroke={warning} fill="rgba(253,230,138,0.10)" strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
+      <ResearchCard><h3 className="font-semibold">{zh ? "Tokens 时间序列" : "Tokens over time"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={tokenSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<ChartTooltip />} /><Area type="monotone" dataKey="input" name={zh ? "输入" : "Input"} stackId="1" stroke={positive} fill={positiveFill} strokeWidth={2} /><Area type="monotone" dataKey="output" name={zh ? "输出" : "Output"} stackId="1" stroke={white} fill={whiteFill} strokeWidth={2} /><Area type="monotone" dataKey="cache" name={zh ? "缓存" : "Cache"} stackId="1" stroke={warning} fill={warningFill} strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
       <ResearchCard><h3 className="font-semibold">{zh ? "请求与错误" : "Requests and errors"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={requestSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={36} /><Tooltip content={<ChartTooltip />} /><Bar dataKey="success" name={zh ? "成功" : "Success"} fill={positive} radius={[0, 0, 0, 0]} /><Bar dataKey="errors" name={zh ? "错误" : "Errors"} fill={negative} radius={[0, 0, 0, 0]} /></BarChart></ResponsiveContainer></div></ResearchCard>
-      <ResearchCard><h3 className="font-semibold">{zh ? "消费金额" : "Spend"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={costSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip prefix="$" />} /><Area type="monotone" dataKey="cost" name="USD" stroke={warning} fill="rgba(253,230,138,0.10)" strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
+      <ResearchCard><h3 className="font-semibold">{zh ? "消费金额" : "Spend"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={costSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip prefix="$" />} /><Area type="monotone" dataKey="cost" name="USD" stroke={warning} fill={warningFill} strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
       <ResearchCard><h3 className="font-semibold">{zh ? "平均延迟" : "Average latency"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><LineChart data={latencySeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip />} /><Line type="monotone" dataKey="latency" name="ms" stroke={positive} strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div></ResearchCard>
     </div> : null}
 

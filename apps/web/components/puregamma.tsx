@@ -145,6 +145,10 @@ export function StatusDot({ tone = "neutral" }: { tone?: Tone }) {
   return <span className={clsx("inline-block h-1.5 w-1.5 rounded-full", dotClass(tone))} />;
 }
 
+export function StatCell({ label, value, dim = false }: { label: string; value: string; dim?: boolean }) {
+  return <div className="bg-bg-panel p-4"><p className={dim ? "text-xs text-text-pg-dim" : "text-xs text-text-pg-muted"}>{label}</p><p className="mt-2 font-semibold">{value}</p></div>;
+}
+
 export function SignalBadge({ direction }: { direction: string }) {
   const normalized = direction.toLowerCase();
   const tone: Tone = normalized.includes("bear") || normalized.includes("short") ? "red" : normalized.includes("long") || normalized.includes("bull") ? "emerald" : "info";
@@ -187,10 +191,10 @@ export function CreditCostBadge({ cost, locale = defaultLocale }: { cost: number
 type PlanIdentity = "silver" | "gold" | "black-gold" | "prestige";
 
 const planIdentityStyles: Record<PlanIdentity, string> = {
-  silver: "border-[#9aa3b2] bg-[#aeb6c4]/10 text-[#aeb6c4]",
-  gold: "border-[#b68a2c] bg-[#d5a93f]/10 text-[#d8ad46]",
-  "black-gold": "border-[#8a702e] bg-[#11100d] text-[#e2c66d] shadow-[inset_0_0_12px_rgba(226,198,109,0.08)]",
-  prestige: "border-[#9d83bb] bg-[#6f4f8f]/10 text-[#d9c3ef] shadow-[inset_0_0_12px_rgba(217,195,239,0.08)]",
+  silver: "border-[var(--muted-2)] bg-[var(--muted-2)]/10 text-[var(--muted)]",
+  gold: "border-[var(--warning)] bg-[var(--warning)]/10 text-[var(--warning)]",
+  "black-gold": "border-[var(--warning)] bg-[var(--panel-strong)] text-[var(--warning)]",
+  prestige: "border-[var(--info)] bg-[var(--info)]/10 text-[var(--info)]",
 };
 
 function planIdentity(plan: string): PlanIdentity {
@@ -354,13 +358,14 @@ export function DailyBriefPreview({ locale = defaultLocale }: { locale?: Locale 
 
 export const DailyPushPreview = DailyBriefPreview;
 
-export function IntegrationConnectorCard({ item, locale = defaultLocale }: { item: IntegrationRow; locale?: Locale }) {
+export function IntegrationConnectorCard({ item, locale = defaultLocale, manageHref }: { item: IntegrationRow; locale?: Locale; manageHref?: string }) {
+  const manage = manageHref ?? (locale === "zh" ? "/zh/portfolio" : "/en/portfolio");
   return (
     <PGResearchCard>
       <div className="flex items-start justify-between gap-3 border-b border-border-pg pb-3"><div><h3 className="font-semibold">{item.name}</h3><p className="mt-1 text-sm text-text-pg-muted">{item.description}</p></div><DataSourceStatusBadge locale={locale} status={item.status} /></div>
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm"><span className="text-text-pg-muted">{t(locale, "integrations.cardLabels.requiredPlan")}</span><PlanBadge plan={item.plan} /><span className="text-text-pg-muted">{t(locale, "integrations.cardLabels.creditCost")}</span><CreditCostBadge locale={locale} cost={item.cost} /><span className="text-text-pg-muted">{t(locale, "integrations.cardLabels.lastSync")}</span><span>{item.lastSync}</span></div>
       {item.failureReason ? <p className="mt-3 text-sm text-status-warning">{item.failureReason}</p> : null}
-      <div className="mt-4 flex gap-2"><button className="border border-border-pg px-3 py-2 text-sm hover:border-border-pg-strong">{t(locale, "common.actions.connect")}</button><button className="border border-border-pg px-3 py-2 text-sm hover:border-border-pg-strong">{t(locale, "common.actions.sync")}</button></div>
+      <div className="mt-4 flex gap-2"><a href={manage} className="border border-border-pg px-3 py-2 text-sm transition hover:border-border-pg-strong">{t(locale, "common.actions.connect")}</a><a href={manage} className="border border-border-pg px-3 py-2 text-sm transition hover:border-border-pg-strong">{t(locale, "common.actions.sync")}</a></div>
     </PGResearchCard>
   );
 }

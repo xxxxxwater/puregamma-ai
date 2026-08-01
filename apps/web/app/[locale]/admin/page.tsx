@@ -47,7 +47,7 @@ export default async function AdminPage({ params }: { params: { locale: Locale }
       <AdminCreditConsole locale={locale} />
       <ResearchCard className="flex flex-wrap items-center justify-between gap-3">
         <div><div className="text-eyebrow uppercase text-text-pg-muted">PureGamma API</div><h2 className="mt-1 font-semibold">{locale === "zh" ? "API Gateway 管理" : "API Gateway administration"}</h2><p className="mt-1 text-sm text-text-pg-muted">{locale === "zh" ? "管理 Provider、价格审批、用户访问和消费限额。" : "Manage providers, price approvals, user access, and spend limits."}</p></div>
-        <Link href={withLocale(locale, "/admin/gateway")} className="border border-border-pg bg-text-pg px-3 py-2 text-sm font-semibold text-bg-panel">{locale === "zh" ? "打开管理台" : "Open console"}</Link>
+        <Link href={withLocale(locale, "/admin/gateway")} className="border border-border-pg bg-pg-white px-3 py-2 text-sm font-semibold text-pg-black">{locale === "zh" ? "打开管理台" : "Open console"}</Link>
       </ResearchCard>
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label={copy.modules.users} value={String(users.users.length)} detail={copy.details.maskedAuditView} tone="info" />

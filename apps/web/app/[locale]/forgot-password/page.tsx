@@ -62,7 +62,7 @@ export default function ForgotPasswordPage() {
           {failed ? <p className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative">{zh ? "发送失败，请稍后重试" : "Failed to send the reset link. Please try again later."}</p> : null}
           <form onSubmit={handleSubmit} className="space-y-3">
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t(locale, "common.auth.emailPlaceholder")} className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong" required />
-            <button type="submit" disabled={busy || !email} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-text-pg px-4 py-2.5 text-sm font-semibold text-bg-panel transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
+            <button type="submit" disabled={busy || !email} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-pg-white px-4 py-2.5 text-sm font-semibold text-pg-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t(locale, "common.auth.sendResetLink")}
             </button>

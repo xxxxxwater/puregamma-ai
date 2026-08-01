@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowRight, Info } from "lucide-react";
 import { Badge } from "@/components/puregamma";
 import { normalizeLocale, withLocale, type Locale } from "@/i18n/routing";
+import { SelectionBox } from "@/components/selection-box";
 import { getMessageNamespace, t } from "@/lib/translations";
 
 export default function LocalizedOnboardingAssetsPage({ params }: { params: { locale: string } }) {
@@ -92,10 +93,4 @@ function selectedLabel(locale: Locale, count: number): string {
   return t(locale, count === 1 ? "onboarding.assets.selectedSingular" : "onboarding.assets.selected", { count });
 }
 
-function SelectionBox({ selected }: { selected: boolean }) {
-  return (
-    <div className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center border ${selected ? "border-border-pg-strong bg-pg-white" : "border-border-pg"}`}>
-      {selected ? <span className="text-xs text-pg-black">✓</span> : null}
-    </div>
-  );
-}
+

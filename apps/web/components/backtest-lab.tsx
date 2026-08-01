@@ -178,7 +178,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           <h2 className="text-sm font-semibold">{copy.generate.title}</h2>
           <textarea value={idea} onChange={(event) => setIdea(event.target.value)} rows={3} placeholder={copy.generate.ideaPlaceholder} className="w-full border border-border-pg bg-bg-panel-muted p-3 text-sm outline-none focus:border-border-pg-strong" />
           <label className="flex items-center gap-2 text-xs text-text-pg-muted">
-            <input type="checkbox" checked={useMemory} onChange={(event) => setUseMemory(event.target.checked)} className="accent-white" />
+            <input type="checkbox" checked={useMemory} onChange={(event) => setUseMemory(event.target.checked)} className="accent-[var(--foreground)]" />
             {copy.generate.useMemory}
           </label>
           <button type="button" onClick={handleGenerate} disabled={generating} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-2 text-sm font-semibold text-pg-black disabled:opacity-50">

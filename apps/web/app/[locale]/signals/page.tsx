@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { ConfidenceDistributionChart } from "@/components/charts";
-import { Badge, MetricCard, PageHeader, ResearchCard, RiskBadge, SignalTable, StatusDot } from "@/components/puregamma";
+import { Badge, EmptyState, MetricCard, PageHeader, ResearchCard, RiskBadge, SignalTable, StatusDot } from "@/components/puregamma";
 import { getSignals } from "@/lib/api";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace, t } from "@/lib/translations";
@@ -37,14 +37,13 @@ export default async function SignalsPage({ params }: { params: { locale: Locale
         <MetricCard label={copy.metrics.highRisk} value={String(highRisk)} detail={copy.metrics.riskAbove} tone="amber" />
       </div>
       <div className="grid gap-4 xl:grid-cols-[1.4fr_0.6fr]">
-        <ResearchCard><SignalTable locale={locale} rows={rows} /></ResearchCard>
+        <ResearchCard>{rows.length ? <SignalTable locale={locale} rows={rows} /> : <EmptyState title={copy.emptyTitle} description={copy.emptyDescription} />}</ResearchCard>
         <ResearchCard>
           <div className="mb-3 border-b border-border-pg pb-3">
             <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-muted">{copy.confidenceDistribution}</div>
             <h2 className="mt-2 font-semibold">{copy.reviewDensity}</h2>
           </div>
-          <ConfidenceDistributionChart data={chart} />
-          <div className="mt-4 space-y-2 text-sm">{rows.map((row) => <div key={row.id} className="flex items-center justify-between border border-border-pg bg-bg-panel-muted p-2"><span>{row.asset}</span><RiskBadge locale={locale} score={row.risk_score} /></div>)}</div>
+          {rows.length ? <><ConfidenceDistributionChart data={chart} /><div className="mt-4 space-y-2 text-sm">{rows.map((row) => <div key={row.id} className="flex items-center justify-between border border-border-pg bg-bg-panel-muted p-2"><span>{row.asset}</span><RiskBadge locale={locale} score={row.risk_score} /></div>)}</div></> : null}
         </ResearchCard>
       </div>
       <ResearchCard>
