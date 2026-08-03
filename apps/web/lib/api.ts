@@ -768,6 +768,13 @@ export function getMarketSnapshot(locale: Locale = defaultLocale) {
   return api<MarketSnapshotResponse>("/market/snapshot", { fallback: { mockMode: false, live_assets: 0, source_summary: [], assets: [] }, locale });
 }
 
+export type GlobalMarketRow = { symbol: string; price: number; volume_24h: number; change_24h: number | null; timestamp: string; source: string; is_realtime: boolean; asset_type: string };
+export type GlobalMarketSnapshot = { status: string; provider: string; fetched_at: string; groups: Record<string, GlobalMarketRow[]>; order: string[]; live_trading: false; unavailable?: boolean };
+
+export function getGlobalMarket(locale: Locale = defaultLocale) {
+  return api<GlobalMarketSnapshot>("/market/global", { fallback: { status: "DEGRADED", provider: "unavailable", fetched_at: "", groups: {}, order: [], live_trading: false, unavailable: true }, locale });
+}
+
 export function getReports(locale: Locale = defaultLocale) {
   return api<ReturnType<typeof fallbackReportForLocale>>(`/reports?locale=${locale}`, { fallback: fallbackReportForLocale(locale), locale });
 }

@@ -102,5 +102,9 @@
   "ticker": "代码",
   "last": "最新",
   "source": "来源",
-  "waitingFeed": "等待已授权行情源。"
+  "waitingFeed": "等待已授权行情源。",
+  "group.nasdaq_top": "纳斯达克 成交量 Top",
+  "group.metals": "贵金属",
+  "group.forex": "外汇 CFD",
+  "group.energy": "能源 / 大宗"
 }

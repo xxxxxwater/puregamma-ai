@@ -14,6 +14,7 @@ from apps.api.services.data_source_service import data_capability
 from packages.data.cache import market_cache
 from packages.data.base import MarketQuote, asset_type_for, is_equity
 from packages.data.equity_providers.equity_provider import equity_source_label
+from packages.data.global_market import build_global_snapshot
 from packages.data.public_market_provider import PublicMarketDataProvider
 from packages.risk.scoring import risk_score_for_quote
 from packages.database.models import DataSource, User
@@ -50,6 +51,22 @@ def snapshot() -> dict:
     }
     market_cache.set(
         f"api:market:snapshot:{mode}",
+        payload,
+        ttl_seconds=settings.market_snapshot_cache_ttl_seconds,
+    )
+    return payload
+
+
+@router.get("/global")
+def global_snapshot() -> dict:
+    """Cross-market terminal: NASDAQ top-volume equities, metals, FX, energy."""
+    settings = get_settings()
+    cached = market_cache.get("api:market:global")
+    if cached:
+        return cached
+    payload = build_global_snapshot()
+    market_cache.set(
+        "api:market:global",
         payload,
         ttl_seconds=settings.market_snapshot_cache_ttl_seconds,
     )
