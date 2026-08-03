@@ -1,10 +1,9 @@
 import type { Metadata } from "next";
-import { BookOpen, CreditCard, Database } from "lucide-react";
 import { HyperliquidMarketPanel } from "@/components/hyperliquid-market-panel";
-import { getDashboard } from "@/lib/api";
-import { ActionLink, Badge, EmptyState, ErrorState, MetricCard, PageHeader, ResearchCard, RiskBadge } from "@/components/puregamma";
 import { Markdown } from "@/components/markdown";
-import { formatCurrency, formatDateTime } from "@/lib/formatters";
+import { ActionLink, EmptyState, ErrorState, PageHeader, ResearchCard } from "@/components/puregamma";
+import { formatCurrency } from "@/lib/formatters";
+import { getDashboard } from "@/lib/api";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace, t } from "@/lib/translations";
 import { isLocale, type Locale, withLocale } from "@/i18n/routing";
@@ -32,49 +31,7 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
 
       {subscription.unavailable ? <ErrorState title={copy.accountBillingUnavailable} description={copy.accountBillingUnavailableDesc} /> : null}
 
-      <div className="grid gap-3 md:grid-cols-3">
-        <MetricCard label={copy.metrics.creditBalance} value={subscription.unavailable ? "--" : String(subscription.credit_balance)} detail={subscription.unavailable ? copy.dataUnavailable : `${subscription.plan} plan`} tone="cyan" icon={<CreditCard className="h-4 w-4" />} />
-        <MetricCard label={copy.researchBriefs} value={String(reports.reports.length)} detail={copy.researchBriefsDetail} tone="emerald" icon={<BookOpen className="h-4 w-4" />} />
-        <MetricCard label={copy.liveAssets} value={String(market.live_assets || 0)} detail={(market.source_summary || []).join(" / ") || copy.sourcesUnavailable} tone="amber" icon={<Database className="h-4 w-4" />} />
-      </div>
-
       <HyperliquidMarketPanel locale={locale} />
-
-      <section>
-        <div className="mb-3 text-eyebrow uppercase text-text-pg-muted">{copy.assetMonitor.title}</div>
-        <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-          {market.assets.map((asset) => (
-            <ResearchCard key={asset.symbol} className="flex min-h-[238px] flex-col">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <div className="flex flex-wrap items-center gap-2">
-                    <div className="text-xl font-semibold">{asset.symbol}</div>
-                    <Badge tone={asset.is_realtime ? "emerald" : "amber"}>{asset.is_realtime ? copy.assetMonitor.liveRest : copy.delayedQuote}</Badge>
-                  </div>
-                  <div className="mt-3 text-3xl font-semibold tracking-normal">{formatCurrency(locale, asset.price)}</div>
-                  <div className="mt-2 text-xs text-text-pg-muted">{asset.source_display || (asset.source ? `${asset.source.toUpperCase()}${asset.source_symbol ? ` / ${asset.source_symbol}` : ""}` : "-")}</div>
-                </div>
-                <RiskBadge locale={locale} score={asset.risk_score || 50} />
-              </div>
-              <div className="mt-5 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-border-pg pt-4 text-sm">
-                <span className="text-text-pg-muted">{copy.assetMonitor.change24h}</span>
-                <span className={asset.change_24h !== undefined && asset.change_24h !== null && asset.change_24h >= 0 ? "text-status-positive" : "text-status-negative"}>{asset.change_24h !== undefined && asset.change_24h !== null ? `${asset.change_24h.toFixed(2)}%` : "-"}</span>
-                <span className="text-text-pg-muted">{copy.assetMonitor.volume24h}</span>
-                <span>{formatCurrency(locale, asset.volume_24h || 0, true)}</span>
-                <span className="text-text-pg-muted">{copy.assetMonitor.openInterest}</span>
-                <span>{asset.open_interest != null ? formatCurrency(locale, asset.open_interest, true) : "N/A"}</span>
-                <span className="text-text-pg-muted">{copy.fundingRate}</span>
-                <span>{asset.funding_rate != null ? `${(asset.funding_rate * 100).toFixed(3)}%` : "N/A"}</span>
-              </div>
-              <div className="mt-auto flex flex-wrap items-center justify-between gap-2 border-t border-border-pg pt-3 text-xs text-text-pg-dim">
-                <span>{copy.assetMonitor.updated}</span>
-                <span>{asset.timestamp ? formatDateTime(locale, asset.timestamp) : "-"}</span>
-              </div>
-            </ResearchCard>
-          ))}
-          {!market.assets.length ? <EmptyState title={copy.marketUnavailable} description={copy.marketUnavailableDesc} /> : null}
-        </div>
-      </section>
 
       <div className="grid gap-4 xl:grid-cols-[1fr_0.8fr]">
         <ResearchCard>
