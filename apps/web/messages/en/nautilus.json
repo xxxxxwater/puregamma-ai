@@ -1,0 +1,33 @@
+{
+  "seo": {
+    "title": "Strategy Research Lab",
+    "description": "Backtesting and paper trading research layer with explicit live trading guardrails."
+  },
+  "eyebrow": "NAUTILUSTRADER",
+  "title": "Strategy Research Lab",
+  "subtitle": "Backtesting and paper trading research layer with explicit live trading guardrails.",
+  "warningTitle": "Live trading is disabled by default.",
+  "warningBody": "PureGamma supports research, backtesting, and paper trading only in this MVP.",
+  "modules": {
+    "strategyCatalog": "Strategy Catalog",
+    "runBacktest": "Run Backtest",
+    "backtestResults": "Backtest Results",
+    "equityCurve": "Equity Curve",
+    "drawdown": "Drawdown",
+    "riskAssumptions": "Risk Assumptions",
+    "liveTradingGuard": "Live Trading Guard"
+  },
+  "inputs": {
+    "strategy": "strategy",
+    "startDate": "start date",
+    "initialCapital": "initial capital"
+  },
+  "riskSteps": [
+    { "label": "Universe", "detail": "BTC, ETH, SOL, HYPE, MSTR, STRC research assets." },
+    { "label": "Costs", "detail": "Mock fees and slippage; no exchange execution." },
+    { "label": "Drawdown", "detail": "Stress path shown for review, not allocation instruction." },
+    { "label": "Guard", "detail": "Live order flags remain false in this MVP." }
+  ],
+  "latestEquity": "Latest equity: $118.4K",
+  "drawdownBadge": "Drawdown: -4.8%"
+}

@@ -1,0 +1,5 @@
+#include "Shared.xcconfig"
+
+PUREGAMMA_ENVIRONMENT = production
+PUREGAMMA_API_BASE_URL = https:/$()/api.puregamma.ai
+PUREGAMMA_APNS_ENVIRONMENT = production

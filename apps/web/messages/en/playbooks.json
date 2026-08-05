@@ -1,0 +1,14 @@
+{
+  "seo": {
+    "title": "Research Playbooks",
+    "description": "Disciplined strategy templates for market regime, trigger, invalidation, payoff, and portfolio constraint review."
+  },
+  "eyebrow": "STRATEGY SYSTEM",
+  "title": "Research Playbooks",
+  "subtitle": "Disciplined strategy templates for market regime, trigger, invalidation, payoff, and portfolio constraint review.",
+  "notice": "Playbooks are research materials for scenario review, not trading instructions.",
+  "labels": {
+    "trigger": "Trigger",
+    "invalidation": "Invalidation"
+  }
+}

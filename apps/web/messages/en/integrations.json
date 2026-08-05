@@ -1,0 +1,22 @@
+{
+  "seo": {
+    "title": "Portfolio Source Connections",
+    "description": "Connect brokerage, exchange, on-chain wallet, and notification sources for portfolio-aware research workflows."
+  },
+  "eyebrow": "SOURCE CONNECTIONS",
+  "title": "Portfolio Source Connections",
+  "subtitle": "Connect brokerage, exchange, on-chain wallet, and notification sources for portfolio-aware research workflows.",
+  "securityNotice": "Security notice",
+  "securityCopy": "Use read-only API keys only. Never provide withdrawal permissions or private keys. Plaid is used for holdings and investment transaction data only, not trade execution.",
+  "cardLabels": {
+    "requiredPlan": "Required plan",
+    "creditCost": "Credit cost",
+    "lastSync": "Last sync"
+  },
+  "mock": [
+    { "name": "Plaid Brokerage", "description": "Holdings and investment transaction sync only.", "status": "stale warning", "failureReason": "Manual refresh required for demo brokerage." },
+    { "name": "Binance Read-only", "description": "CEX balances through read-only API keys.", "status": "healthy", "failureReason": "" },
+    { "name": "Ethereum Wallet", "description": "On-chain wallet positions and stablecoins.", "status": "healthy", "failureReason": "" },
+    { "name": "iMessage", "description": "Self-hosted Mac relay for daily brief push.", "status": "requires Max", "failureReason": "" }
+  ]
+}

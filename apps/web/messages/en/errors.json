@@ -1,0 +1,9 @@
+{
+  "insufficientCredits": "This action requires {credits} credits. Upgrade your plan or wait until your monthly credit refresh.",
+  "entitlementDenied": "This feature is available on {plans} plans.",
+  "partialData": "Portfolio NAV is based on currently synced sources. Some integrations failed to sync.",
+  "staleData": "Some data sources are stale. Review freshness before relying on this output.",
+  "imessageUnavailable": "iMessage relay is offline. The brief was generated but not delivered.",
+  "liveTradingDisabled": "Live trading is disabled by default.",
+  "missingTranslation": "Missing translation: {key}"
+}

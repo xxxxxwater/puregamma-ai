@@ -1,0 +1,31 @@
+accounts:
+  - username: glassnode
+    display_name: Glassnode
+    platform: x
+    category: on-chain researcher
+    language: en
+    credibility_score: 0.86
+    account_weight: 1.0
+    enabled: true
+    source_url: https://x.com/glassnode
+    collection_method: official_api
+  - username: LynAldenContact
+    display_name: Lyn Alden
+    platform: x
+    category: macro analyst
+    language: en
+    credibility_score: 0.88
+    account_weight: 1.0
+    enabled: true
+    source_url: https://x.com/LynAldenContact
+    collection_method: official_api
+  - username: EricBalchunas
+    display_name: Eric Balchunas
+    platform: x
+    category: ETF analyst
+    language: en
+    credibility_score: 0.90
+    account_weight: 1.0
+    enabled: true
+    source_url: https://x.com/EricBalchunas
+    collection_method: official_api

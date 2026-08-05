@@ -1,0 +1,23 @@
+{
+  "seo": {
+    "title": "Daily Research Delivery",
+    "description": "Configure the daily iMessage brief with entitlement, credit, idempotency, and delivery ledger controls."
+  },
+  "eyebrow": "DAILY RESEARCH DELIVERY",
+  "title": "Daily Research Delivery",
+  "subtitle": "Configure the daily iMessage brief with entitlement, credit, idempotency, and delivery ledger controls.",
+  "entitlement": "Daily iMessage delivery is available on Max and Enterprise plans.",
+  "modules": {
+    "deliverySettings": "Delivery Settings",
+    "messagePreview": "Message Preview",
+    "deliveryLedger": "Delivery Ledger",
+    "sendTest": "Send Test",
+    "pushHistory": "Push History",
+    "contentControls": "Content controls"
+  },
+  "controls": ["include portfolio", "include market intelligence", "include top signals", "include risk", "include KOL sentiment", "max message length"],
+  "preview": {
+    "label": "iMessage Daily Brief",
+    "message": "PureGamma AI Daily Brief\n\nMarket:\nRisk-on momentum\n\nPortfolio:\nNAV: $1.28M\nDaily PnL: +1.42%\n\nRisk:\nFunding crowding in high beta alts. MSTR premium compression watch.\n\nKOL sentiment is an input, not a verified fact.\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+  }
+}

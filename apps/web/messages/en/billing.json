@@ -1,0 +1,156 @@
+{
+  "seo": {
+    "title": "Access & Subscription",
+    "description": "Stripe subscription state, monthly credits, and high-cost research entitlement controls."
+  },
+  "eyebrow": "ACCESS CONTROL",
+  "title": "Access & Subscription",
+  "subtitle": "Choose the research coverage, monitoring cadence, and decision workflow that fit you.",
+  "valueTitle": "Pay for a faster, more disciplined research process",
+  "valueProps": [
+    {
+      "title": "Save time",
+      "detail": "Reduce repetitive screening, organization, and cross-platform checks."
+    },
+    {
+      "title": "Broader coverage",
+      "detail": "Track assets, events, and portfolios in one workflow."
+    },
+    {
+      "title": "Risk visibility",
+      "detail": "Surface concentration, stale data, and important events."
+    },
+    {
+      "title": "Decision discipline",
+      "detail": "Use consistent reviews, citations, and Playbooks."
+    }
+  ],
+  "summary": {
+    "currentPlan": "Current Plan",
+    "subscription": "Subscription",
+    "creditBalance": "Credit Balance",
+    "periodEnd": "Period end",
+    "accountSource": "Account source",
+    "checkoutMode": "Checkout mode",
+    "primaryPaymentLink": "Primary Payment Link configured",
+    "creditUsage": "Credit usage",
+    "usageHistory": "Usage History"
+  },
+  "checkoutModes": {
+    "session": "Checkout Session",
+    "paymentLink": "Payment Link"
+  },
+  "accountSources": {
+    "google": "Google OAuth",
+    "email": "Email"
+  },
+  "cancelSubscription": "Cancel subscription",
+  "reactivateSubscription": "Reactivate subscription",
+  "cancelWarning": "Cancellation is scheduled at period end. Entitlements remain active until then.",
+  "cancelAtPeriodEnd": "Cancels on {date}",
+  "subscriptionCanceled": "Subscription cancellation scheduled.",
+  "paymentLinkMissing": "Stripe Payment Link is not configured for this plan.",
+  "checkoutFailed": "Unable to create checkout session. Please sign in first.",
+  "plans": [
+    {
+      "name": "Free",
+      "price": "$0",
+      "credits": "150",
+      "tagline": "Build a basic market review habit.",
+      "benefits": [
+        "Core asset watchlist",
+        "1 portfolio connection",
+        "Shared market brief",
+        "Basic event view",
+        "Email delivery"
+      ]
+    },
+    {
+      "name": "Pro",
+      "price": "$29.9",
+      "credits": "3,000",
+      "tagline": "For active investors following a personal portfolio.",
+      "benefits": [
+        "20–50 assets",
+        "Daily portfolio brief",
+        "Important event alerts",
+        "Limited deep research",
+        "Telegram / Email",
+        "Basic backtesting"
+      ]
+    },
+    {
+      "name": "Max",
+      "price": "$199",
+      "credits": "15,000",
+      "tagline": "For multi-portfolio and high-frequency research workflows.",
+      "benefits": [
+        "Everything in Pro",
+        "Multiple portfolios",
+        "Higher Agent allowance",
+        "iMessage",
+        "High-frequency monitoring",
+        "Advanced backtesting",
+        "Private Playbooks"
+      ]
+    },
+    {
+      "name": "Enterprise",
+      "price": "Custom",
+      "credits": "Custom",
+      "tagline": "For teams, custom data, and private deployment.",
+      "benefits": [
+        "Team workspace",
+        "API access",
+        "Custom data sources",
+        "Private deployment",
+        "Dedicated support and compliance configuration"
+      ]
+    }
+  ],
+  "featureLabels": {
+    "monthlyCredits": "Monthly credits",
+    "researchAccess": "Research access",
+    "dataAccess": "Data access",
+    "notificationAccess": "Notification access",
+    "strategyLabAccess": "Strategy lab access",
+    "perMonth": " / month"
+  },
+  "features": [
+    "Monthly credits",
+    "Daily market brief",
+    "Portfolio NAV",
+    "iMessage delivery",
+    "X KOL scan",
+    "On-chain scan",
+    "NautilusTrader backtest",
+    "Bloomberg adapter",
+    "Private deployment"
+  ],
+  "noPerformancePromise": "Subscriptions provide research tools and workflows, not guaranteed investment performance or outcomes.",
+  "usageTable": {
+    "action": "Action",
+    "delta": "Delta",
+    "balanceAfter": "Balance after",
+    "created": "Created"
+  },
+  "billingUnavailable": "Billing data unavailable",
+  "billingUnavailableDesc": "Retry shortly; demo balances, budgets, and rewards will not replace real results.",
+  "noUsage": "No usage yet",
+  "noUsageDesc": "Credit activity will appear after you run research tasks.",
+  "budgetsTitle": "Automation credit budgets",
+  "hardStop": "Hard stop when exhausted",
+  "automation": "Automation",
+  "thisMonth": "This month",
+  "nextEstimate": "Next estimate",
+  "status": "Status",
+  "paused": "Paused",
+  "active": "Active",
+  "disabled": "Disabled",
+  "noBudgets": "No automation budgets yet",
+  "noBudgetsDesc": "A budget is created when you enable briefs, monitoring, or delivery.",
+  "rewardHistory": "Reward history",
+  "noRewards": "No rewards yet",
+  "noRewardsDesc": "Invite, portfolio onboarding, and feedback rewards appear here.",
+  "creditsPerMonth": "credits / month"
+}

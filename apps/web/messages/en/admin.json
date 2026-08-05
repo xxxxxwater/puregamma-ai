@@ -1,0 +1,43 @@
+{
+  "seo": {
+    "title": "Operational Control Room",
+    "description": "Role-gated audit view for users, subscriptions, credit ledger, Stripe webhooks, notification deliveries, iMessage relay, data sources, worker queue, and agent eval status."
+  },
+  "eyebrow": "ADMIN CONTROL PLANE",
+  "title": "Operational Control Room",
+  "subtitle": "Role-gated audit view for users, subscriptions, credit ledger, Stripe webhooks, notification deliveries, iMessage relay, data sources, worker queue, and agent eval status.",
+  "sensitiveNotice": "Sensitive values are masked by default.",
+  "unauthorizedTitle": "Access control active",
+  "unauthorizedDescription": "Admin endpoints require a valid bearer token with admin role. This page is rendering mock operational state for UI review.",
+  "modules": {
+    "users": "Users",
+    "subscriptions": "Subscriptions",
+    "creditLedger": "Credit Ledger",
+    "stripeWebhookEvents": "Stripe Webhook Events",
+    "notificationDeliveries": "Notification Deliveries",
+    "imessageRelay": "iMessage Relay",
+    "dataSourceStatus": "Data Source Status",
+    "workerQueue": "Worker Queue",
+    "agentEvalStatus": "Agent Eval Status",
+    "reports": "Reports",
+    "signals": "Signals"
+  },
+  "details": {
+    "maskedAuditView": "masked audit view",
+    "generatedResearch": "generated research",
+    "activeBoard": "active board",
+    "webhookAudit": "webhook audit",
+    "mockSubscriptionMirror": "Mock subscription mirror",
+    "subscriptionRecords": "Stripe subscription records are available through authenticated admin APIs.",
+    "sensitiveMasked": "Sensitive customer and subscription identifiers are masked in the UI.",
+    "noWebhookEvents": "No webhook events in mock state.",
+    "noDeliveries": "No deliveries in mock state.",
+    "creditLedgerCopy": "Credit deltas are visible through billing usage and authenticated admin audit APIs.",
+    "relayCopy": "Production relay requires IMESSAGE_RELAY_SECRET and HMAC verification.",
+    "workerCopy": "Market intelligence, report personalization, and delivery tasks are queue-backed.",
+    "agentEvalCopy": "Research output checks enforce disclosure and no-trading boundaries.",
+    "ledgerIdempotent": "ledger idempotent",
+    "mockProvider": "mock provider",
+    "mockEvalSuite": "mock eval suite"
+  }
+}

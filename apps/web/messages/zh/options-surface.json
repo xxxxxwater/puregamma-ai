@@ -1,0 +1,43 @@
+{
+  "seo": {
+    "title": "期权 3D 曲面 | PureGamma AI",
+    "description": "期权 IV × Skew × 期限结构 3D 曲面。"
+  },
+  "eyebrow": "OPTIONS SURFACE",
+  "title": "期权 3D 曲面",
+  "subtitle": "行权价 × 剩余期限 × IV/Greeks 三维曲面。冷色 = 低值，暖色 = 高值；高亮散点为 Long Gamma 候选（颜色 = 研究分，大小 = OI）。",
+  "refresh": "刷新",
+  "emptyTitle": "暂无曲面数据",
+  "emptyErrorTitle": "曲面数据不可用",
+  "emptyDescription": "当前标的不存在可用的期权链数据，请切换标的或稍后重试。",
+  "nonIvNotice": "当前 Z 轴不是 IV，Skew 指标按 mark_iv 计算。",
+  "barsNote": "曲面点数为当前合约的原始分布；Mesh 由 Plotly 插值生成。",
+  "type": {
+    "mark_iv": "mark_iv (IV)",
+    "mark_price": "mark_price",
+    "gamma": "Gamma",
+    "theta": "Theta",
+    "spread_pct": "spread %"
+  },
+  "chart": {
+    "surfaceName": "IV 曲面",
+    "candidatesName": "Long Gamma 候选",
+    "scoreColorbar": "研究分",
+    "xAxis": "Moneyness (Strike / Spot)",
+    "yAxis": "剩余天数 (DTE)",
+    "zAxis": "数值"
+  },
+  "insights": {
+    "atm30": "ATM 30DTE IV",
+    "put25": "25Δ Put IV",
+    "call25": "25Δ Call IV",
+    "skew": "Skew",
+    "underlying": "标的价",
+    "alert": "添加提醒",
+    "alertTitle": "添加 IV 提醒",
+    "export": "导出 CSV",
+    "exportTitle": "导出曲面数据",
+    "askAgent": "问 Agent",
+    "agentTitle": "向研究 Agent 提问"
+  }
+}

@@ -1,0 +1,18 @@
+# Ephemeral research runner image.
+#
+# User research code executes INSIDE containers created from this image with
+# no network, a read-only root filesystem, and memory/cpu/pid caps (see
+# packages/research_runner/docker_runner.py). Only the libraries whitelisted
+# by the AST validator (numpy / pandas / matplotlib) are installed on top of
+# the pinned Python stdlib. matplotlib is forced onto the headless Agg
+# backend; MPLCONFIGDIR is pointed at the writable /tmp tmpfs at runtime.
+FROM python:3.12-slim
+
+RUN pip install --no-cache-dir \
+    numpy==2.2.6 \
+    pandas==2.3.1 \
+    matplotlib==3.10.3
+
+ENV MPLBACKEND=Agg
+
+CMD ["python"]

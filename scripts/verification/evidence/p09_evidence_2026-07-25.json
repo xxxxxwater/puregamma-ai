@@ -1,0 +1,284 @@
+﻿{
+  "started_at": "2026-07-25T04:22:58Z",
+  "steps": [
+    {
+      "name": "users_ready",
+      "pro_balance": 100000,
+      "free_balance": 150
+    },
+    {
+      "name": "api_ready",
+      "status": "ok",
+      "service": "puregamma-api",
+      "database": "ok",
+      "redis": "ok"
+    },
+    {
+      "name": "seed_candles",
+      "BTCUSDT": 1095,
+      "ETHUSDT": 1095,
+      "SOLUSDT": 1095,
+      "HYPEUSDT": 598
+    },
+    {
+      "name": "A1_ast_reject",
+      "status_code": 400,
+      "body": {
+        "detail": {
+          "code": "RESEARCH_CODE_REJECTED",
+          "violations": [
+            "call to 'os.system()' is not allowed"
+          ]
+        }
+      },
+      "balance": 100000
+    },
+    {
+      "name": "A2_free_plan_denied",
+      "status_code": 402,
+      "body": {
+        "detail": {
+          "code": "RESEARCH_RUN_NOT_ENTITLED",
+          "message": "Action 'research_run' is not available for plan Free"
+        }
+      },
+      "free_balance": 150
+    },
+    {
+      "name": "A3_created",
+      "status_code": 200,
+      "body": {
+        "run_id": "9a7fcdd3-6047-41bf-9b88-677e1c97d142",
+        "status": "queued"
+      },
+      "balance": 99980
+    },
+    {
+      "name": "A3_final",
+      "status": "completed",
+      "metrics": {
+        "rows": 1095,
+        "total_return": 1.192566552531963,
+        "mean_daily": 0.001013665964174845
+      },
+      "figures": [
+        "/api/research/run/9a7fcdd3-6047-41bf-9b88-677e1c97d142/files/btc_close.png"
+      ],
+      "credits_reserved": 20,
+      "credits_spent": 20,
+      "logs_tail": "research ok 1095\n",
+      "balance": 99980
+    },
+    {
+      "name": "A3_figure_download",
+      "url": "/api/research/run/9a7fcdd3-6047-41bf-9b88-677e1c97d142/files/btc_close.png",
+      "status_code": 200,
+      "content_type": "image/png",
+      "bytes": 33540
+    },
+    {
+      "name": "A4_timeout",
+      "status": "failed",
+      "error": "runtime exceeded 15s; container killed",
+      "credits_spent": 0,
+      "balance": 99980,
+      "expected_balance": 99980
+    },
+    {
+      "name": "A5_cancel_running",
+      "cancel_status_code": 200,
+      "final_status": "cancelled",
+      "error": "cancelled by user",
+      "credits_spent": 0,
+      "balance": 99980,
+      "expected_balance": 99980
+    },
+    {
+      "name": "research_runner_done",
+      "pro_balance": 99980
+    },
+    {
+      "name": "A6_created_while_worker_down",
+      "body": {
+        "run_id": "17d57277-c192-44bc-a925-fc13b59759cf",
+        "status": "queued"
+      },
+      "balance": 99960,
+      "expected": 99960
+    },
+    {
+      "name": "A6_cancel_queued",
+      "status_code": 200,
+      "final_status": "cancelled",
+      "balance": 99980,
+      "expected": 99980
+    },
+    {
+      "name": "A6_after_worker_restart",
+      "status": "cancelled",
+      "error": "cancelled by user",
+      "logs": "",
+      "balance": 99980,
+      "expected": 99980
+    },
+    {
+      "name": "B0_vectorbt_native_available",
+      "version": "0.27.3"
+    },
+    {
+      "name": "B_BTC",
+      "status": "completed",
+      "engine_result": "vectorbt",
+      "provider": "binance",
+      "bar_count": 365,
+      "window_start": "2025-07-25T04:23:50.767350+00:00",
+      "window_end": "2026-07-25T04:23:50.767350+00:00",
+      "fee_bps": 10.0,
+      "slippage_bps": 0.0,
+      "lookahead": "signals executed on next bar close",
+      "equity_points": 365,
+      "drawdown_points": 365,
+      "benchmark_points": 365,
+      "trades": 15,
+      "positions": 365,
+      "final_equity": 82992.90547314545,
+      "credits_spent": 50,
+      "balance": 99930,
+      "charged": 50
+    },
+    {
+      "name": "B_ETH",
+      "status": "completed",
+      "engine_result": "vectorbt",
+      "provider": "binance",
+      "bar_count": 365,
+      "window_start": "2025-07-25T04:23:58.807999+00:00",
+      "window_end": "2026-07-25T04:23:58.807999+00:00",
+      "fee_bps": 10.0,
+      "slippage_bps": 0.0,
+      "lookahead": "signals executed on next bar close",
+      "equity_points": 365,
+      "drawdown_points": 365,
+      "benchmark_points": 365,
+      "trades": 17,
+      "positions": 365,
+      "final_equity": 88250.82686734397,
+      "credits_spent": 50,
+      "balance": 99880,
+      "charged": 50
+    },
+    {
+      "name": "B_SOL",
+      "status": "completed",
+      "engine_result": "vectorbt",
+      "provider": "binance",
+      "bar_count": 365,
+      "window_start": "2025-07-25T04:24:06.877340+00:00",
+      "window_end": "2026-07-25T04:24:06.877340+00:00",
+      "fee_bps": 10.0,
+      "slippage_bps": 0.0,
+      "lookahead": "signals executed on next bar close",
+      "equity_points": 365,
+      "drawdown_points": 365,
+      "benchmark_points": 365,
+      "trades": 14,
+      "positions": 365,
+      "final_equity": 91874.1712570534,
+      "credits_spent": 50,
+      "balance": 99830,
+      "charged": 50
+    },
+    {
+      "name": "B_HYPE",
+      "status": "completed",
+      "engine_result": "vectorbt",
+      "provider": "hyperliquid",
+      "bar_count": 365,
+      "window_start": "2025-07-25T04:24:14.946710+00:00",
+      "window_end": "2026-07-25T04:24:14.946710+00:00",
+      "fee_bps": 10.0,
+      "slippage_bps": 0.0,
+      "lookahead": "signals executed on next bar close",
+      "equity_points": 365,
+      "drawdown_points": 365,
+      "benchmark_points": 365,
+      "trades": 18,
+      "positions": 365,
+      "final_equity": 140142.524214882,
+      "credits_spent": 50,
+      "balance": 99780,
+      "charged": 50
+    },
+    {
+      "name": "C_equity_keys",
+      "configured_providers": []
+    },
+    {
+      "name": "C_AAPL",
+      "status": "SKIPPED",
+      "reason": "no equity provider keys configured in staging env"
+    },
+    {
+      "name": "C_unknown_equity_unavailable",
+      "status": "failed",
+      "error": {
+        "message": "US equity daily data unavailable for ZZQXZ: fmp: no API key configured; alpha_vantage: no API key configured; massive: no API key configured",
+        "type": "EquityDataUnavailable",
+        "code": "EQUITY_DATA_UNAVAILABLE",
+        "reasons": [
+          "fmp: no API key configured",
+          "alpha_vantage: no API key configured",
+          "massive: no API key configured"
+        ]
+      },
+      "charged": 0
+    },
+    {
+      "name": "B_slippage_effect",
+      "base_final": 82992.90547314545,
+      "slip_final": 71436.4669882297,
+      "base_trades": 15,
+      "slip_assumption": 100.0
+    },
+    {
+      "name": "D_agent_tool_queued",
+      "tool": "run_nautilus_backtest",
+      "run_id": "e1065cf8-b09c-4736-a847-ed80dda969ab",
+      "status": "queued",
+      "poll_url": "/backtest-lab/runs/e1065cf8-b09c-4736-a847-ed80dda969ab"
+    },
+    {
+      "name": "D_agent_run_completed",
+      "status": "completed",
+      "engine": "vectorbt",
+      "trades": 15
+    },
+    {
+      "name": "D_artifact",
+      "artifact_id": "53f2e999-52ae-45f3-b471-5c122cc59d9a",
+      "size_bytes": 321247,
+      "checksum": "2b047c62938c7abe",
+      "download_status": 200,
+      "download_bytes": 321247,
+      "credits_spent": 50
+    },
+    {
+      "name": "D_save_as_strategy",
+      "first_id": "d964ac15-4935-496f-9a28-d050fd469cb3",
+      "first_created": true,
+      "first_status": "DRAFT",
+      "execution_mode": "PAPER",
+      "second_id": "d964ac15-4935-496f-9a28-d050fd469cb3",
+      "second_created": false
+    },
+    {
+      "name": "D_backtest_cancel",
+      "cancel_response": "cancelled",
+      "final_status": "cancelled",
+      "credits_spent": 0,
+      "charged": 0
+    }
+  ],
+  "A6_run_id": "17d57277-c192-44bc-a925-fc13b59759cf",
+  "A6_balance_after_cancel": 99980
+}

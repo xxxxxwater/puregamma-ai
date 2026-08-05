@@ -1,0 +1,61 @@
+{
+  "seo": {
+    "title": "Backtest Lab - PureGamma AI",
+    "description": "Generate Nautilus-spec daily and cross-sectional strategies from your research context and backtest them on three years of BTC/ETH data."
+  },
+  "title": "Backtest Lab",
+  "subtitle": "",
+  "coverage": {
+    "title": "Shared market dataset",
+    "bars": "bars",
+    "refresh": "Refresh data",
+    "refreshing": "Refreshing...",
+    "empty": "No candles yet. Refresh data before running a backtest."
+  },
+  "generate": {
+    "title": "1. Generate strategy spec",
+    "ideaPlaceholder": "Describe your trading idea, or leave blank for a robust BTC/ETH baseline...",
+    "useMemory": "Use my secretary and agent conversation context",
+    "button": "Generate spec",
+    "generating": "Generating...",
+    "fallbackNotice": "LLM output was not valid; a safe baseline spec is shown instead.",
+    "contextNotes": "context notes used"
+  },
+  "run": {
+    "title": "2. Review spec and run backtest",
+    "specLabel": "Strategy spec (editable JSON)",
+    "invalidSpec": "Spec JSON is invalid. Fix it before running.",
+    "window": "Window",
+    "button": "Run backtest",
+    "running": "Running...",
+    "creditsHint": "credits per run",
+    "dailyLimit": "Daily limit reached. Try again tomorrow.",
+    "days1": "1 day",
+    "weeks1": "1 week",
+    "months1": "1 month"
+  },
+  "performance": {
+    "title": "Performance",
+    "totalReturn": "Total return",
+    "sharpe": "Sharpe",
+    "maxDrawdown": "Max drawdown",
+    "winRate": "Win rate",
+    "tradeCount": "Trades",
+    "turnover": "Turnover",
+    "exposure": "Exposure time",
+    "tailLoss": "Tail loss (95%)",
+    "equityCurve": "Equity curve",
+    "perAsset": "Per-asset breakdown",
+    "assumptions": "Assumptions"
+  },
+  "history": {
+    "title": "Recent runs",
+    "empty": "No backtest runs yet."
+  },
+  "errors": {
+    "loadFailed": "Failed to load backtest lab.",
+    "generateFailed": "Spec generation failed.",
+    "runFailed": "Backtest run failed.",
+    "loginRequired": "Please sign in to use the backtest lab."
+  }
+}

@@ -1,0 +1,193 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@keyframes secretary-portrait-blink {
+  0%, 41.8%, 43.6%, 45.3%, 100% { opacity: 0; }
+  42.3%, 43.1%, 44.1%, 44.8% { opacity: 1; }
+}
+
+.secretary-portrait-blink {
+  animation: secretary-portrait-blink 7.2s linear infinite;
+  opacity: 0;
+}
+
+.secretary-theme-light {
+  display: none;
+}
+
+:root[data-theme="light"] .secretary-theme-dark {
+  display: none;
+}
+
+:root[data-theme="light"] .secretary-theme-light {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .secretary-portrait-blink {
+    animation: none;
+  }
+}
+
+:root {
+  --background: #030303;
+  --foreground: #ededed;
+  --panel: #0d0d0d;
+  --panel-muted: #111111;
+  --panel-strong: #161616;
+  --secretary-assistant-bg: #3b2a25;
+  --secretary-assistant-text: #f1e4dc;
+  --secretary-assistant-border: #5f443c;
+  --secretary-assistant-muted: #c9aea2;
+  --border: rgba(255, 255, 255, 0.10);
+  --border-strong: rgba(255, 255, 255, 0.18);
+  --muted: #a3a3a3;
+  --muted-2: #737373;
+  --positive: #d9f99d;
+  --negative: #fca5a5;
+  --warning: #fde68a;
+  --info: #d4d4d8;
+  --bg-app: var(--background);
+  --bg-card: var(--panel);
+  --bg-card-muted: var(--panel-muted);
+  --border-subtle: var(--border);
+  --text-primary: var(--foreground);
+  --text-secondary: var(--muted);
+  --accent-cyan: var(--info);
+  --accent-emerald: var(--positive);
+  --accent-amber: var(--warning);
+  --accent-red: var(--negative);
+}
+
+:root[data-theme="light"] {
+  --background: #f6f7f8;
+  --foreground: #171717;
+  --panel: #ffffff;
+  --panel-muted: #f0f1f2;
+  --panel-strong: #e7e8ea;
+  --secretary-assistant-bg: #dbeafe;
+  --secretary-assistant-text: #172554;
+  --secretary-assistant-border: #93c5fd;
+  --secretary-assistant-muted: #3b5ba9;
+  --border: rgba(0, 0, 0, 0.12);
+  --border-strong: rgba(0, 0, 0, 0.24);
+  --muted: #525252;
+  --muted-2: #737373;
+  --positive: #166534;
+  --negative: #b91c1c;
+  --warning: #92400e;
+  --info: #3f3f46;
+}
+
+:root[data-font-scale="compact"] { font-size: 14px; }
+:root[data-font-scale="default"] { font-size: 16px; }
+:root[data-font-scale="large"] { font-size: 18px; }
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1;
+}
+
+body::before {
+  content: "";
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
+  background-size: 56px 56px;
+  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 82%);
+}
+
+:root[data-theme="light"] body::before {
+  background:
+    linear-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 0, 0, 0.035) 1px, transparent 1px);
+  background-size: 56px 56px;
+}
+
+a {
+  color: inherit;
+  text-decoration: none;
+}
+
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+
+.data-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+}
+
+.sparkline {
+  height: 34px;
+  width: 100%;
+  background:
+    linear-gradient(90deg, rgba(255, 255, 255, 0.10) 1px, transparent 1px),
+    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 18px 100%, 100% 11px;
+  position: relative;
+  overflow: hidden;
+}
+
+.sparkline::after {
+  content: "";
+  position: absolute;
+  inset: 8px 0 5px 0;
+  background: linear-gradient(135deg, transparent 0 12%, #ededed 13% 15%, transparent 16% 28%, #a3a3a3 29% 31%, transparent 32% 49%, #737373 50% 52%, transparent 53% 68%, #ededed 69% 71%, transparent 72%);
+}
+
+::selection {
+  background: #ededed;
+  color: #030303;
+}
+
+.secretary-bubble-assistant {
+  background: var(--secretary-assistant-bg);
+  color: var(--secretary-assistant-text);
+  border-color: var(--secretary-assistant-border);
+}
+
+@keyframes market-cell-flash {
+  0% { background-color: var(--flash-bg); }
+  100% { background-color: transparent; }
+}
+
+:root {
+  --flash-bg: rgba(255, 255, 255, 0.18);
+}
+
+:root[data-theme="light"] {
+  --flash-bg: rgba(23, 37, 84, 0.10);
+}
+
+.market-cell-flash {
+  animation: market-cell-flash 0.7s ease-out;
+}
+
+.secretary-bubble-assistant .secretary-bubble-muted {
+  color: var(--secretary-assistant-muted);
+}
+
+:root[data-theme="light"] ::selection {
+  background: #172554;
+  color: #dbeafe;
+}

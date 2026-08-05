@@ -1,0 +1,48 @@
+{
+  "seo": {
+    "title": "Signal Review Board",
+    "description": "Structured research signals with taxonomy, confidence, catalysts, invalidation, source trail, and explicit risk review."
+  },
+  "eyebrow": "SIGNAL REVIEW BOARD",
+  "title": "Signal Review Board",
+  "subtitle": "Structured research signals with taxonomy, confidence, catalysts, invalidation, source trail, and explicit risk review.",
+  "metrics": {
+    "longWatch": "Long Watch",
+    "shortWatch": "Short Watch",
+    "monitor": "Monitor",
+    "highConfidence": "High Confidence",
+    "highRisk": "High Risk",
+    "directionalResearchOnly": "Directional research only",
+    "noActiveShortReview": "No active short review",
+    "noAllocationAction": "No allocation action",
+    "confidenceAbove": "Confidence above 65%",
+    "riskAbove": "Risk score at or above 65"
+  },
+  "table": {
+    "id": "ID",
+    "asset": "Asset",
+    "signalType": "Signal Type",
+    "direction": "Direction",
+    "confidence": "Confidence",
+    "risk": "Risk",
+    "catalyst": "Catalyst",
+    "invalidation": "Invalidation",
+    "timeframe": "Timeframe",
+    "source": "Source"
+  },
+  "detail": {
+    "eyebrow": "Signal Detail Drawer",
+    "title": "Evidence review preview",
+    "thesis": "Thesis",
+    "evidence": "Evidence",
+    "risk": "Risk",
+    "riskCopy": "Funding, liquidity, and invalidation distance require review.",
+    "invalidation": "Invalidation",
+    "dataFreshness": "Data Freshness",
+    "freshnessCopy": "shared intelligence demo snapshot."
+  },
+  "confidenceDistribution": "Confidence Distribution",
+  "reviewDensity": "Review density",
+  "emptyTitle": "No signals",
+  "emptyDescription": "No long-side signals currently meet the research bar. Data refreshes automatically."
+}

@@ -1,0 +1,43 @@
+{
+  "seo": {
+    "title": "运营控制台",
+    "description": "面向用户、订阅、Credits 账本、Stripe Webhook、通知投递、iMessage Relay、数据源、Worker 队列与 Agent 评测状态的角色受控审计视图。"
+  },
+  "eyebrow": "管理控制平面",
+  "title": "运营控制台",
+  "subtitle": "面向用户、订阅、Credits 账本、Stripe Webhook、通知投递、iMessage Relay、数据源、Worker 队列与 Agent 评测状态的角色受控审计视图。",
+  "sensitiveNotice": "敏感字段默认已遮罩。",
+  "unauthorizedTitle": "访问控制已启用",
+  "unauthorizedDescription": "Admin 接口需要携带具备 admin 角色的有效 bearer token。本页面正在渲染 Mock 运营状态用于 UI 复核。",
+  "modules": {
+    "users": "用户",
+    "subscriptions": "订阅",
+    "creditLedger": "Credits 账本",
+    "stripeWebhookEvents": "Stripe Webhook 事件",
+    "notificationDeliveries": "通知投递",
+    "imessageRelay": "iMessage Relay",
+    "dataSourceStatus": "数据源状态",
+    "workerQueue": "Worker 队列",
+    "agentEvalStatus": "Agent 评测状态",
+    "reports": "报告",
+    "signals": "信号"
+  },
+  "details": {
+    "maskedAuditView": "遮罩审计视图",
+    "generatedResearch": "已生成研究",
+    "activeBoard": "活跃面板",
+    "webhookAudit": "Webhook 审计",
+    "mockSubscriptionMirror": "Mock 订阅镜像",
+    "subscriptionRecords": "Stripe 订阅记录可通过已认证的 Admin API 查看。",
+    "sensitiveMasked": "客户与订阅敏感标识在 UI 中已遮罩。",
+    "noWebhookEvents": "Mock 状态下暂无 Webhook 事件。",
+    "noDeliveries": "Mock 状态下暂无投递记录。",
+    "creditLedgerCopy": "Credit 变动可通过 billing 使用记录和已认证 Admin 审计 API 查看。",
+    "relayCopy": "生产 Relay 需要 IMESSAGE_RELAY_SECRET 与 HMAC 校验。",
+    "workerCopy": "市场情报、报告个性化与投递任务均由队列支持。",
+    "agentEvalCopy": "研究输出检查会强制执行披露与禁止交易边界。",
+    "ledgerIdempotent": "账本幂等",
+    "mockProvider": "Mock provider",
+    "mockEvalSuite": "Mock 评测套件"
+  }
+}

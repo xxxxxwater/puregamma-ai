@@ -1,0 +1,75 @@
+services:
+  postgres:
+    image: postgres:16
+    environment:
+      POSTGRES_DB: puregamma
+      POSTGRES_USER: puregamma
+      POSTGRES_PASSWORD: puregamma
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U puregamma -d puregamma"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  redis:
+    image: redis:7
+    ports:
+      - "6379:6379"
+
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    env_file: .env
+    environment:
+      DATABASE_URL: postgresql+psycopg://puregamma:puregamma@postgres:5432/puregamma
+      REDIS_URL: redis://redis:6379/0
+      NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      nautilus-runtime:
+        condition: service_healthy
+
+  nautilus-runtime:
+    build:
+      context: .
+      dockerfile: services/nautilus-runtime/Dockerfile
+    env_file: .env
+    environment:
+      NAUTILUS_EXECUTION_MODE: paper
+      NAUTILUS_LIVE_TRADING_ENABLED: "false"
+      NAUTILUS_ALLOW_LIVE_ORDER: "false"
+      NAUTILUS_ALLOW_WITHDRAWAL: "false"
+      NAUTILUS_ALLOW_TRANSFER: "false"
+      NAUTILUS_RUNTIME_STATE_DB: /runtime/state/nautilus_runtime.sqlite3
+      NAUTILUS_PUBLIC_MARKET_DATA_ENABLED: "true"
+    ports:
+      - "8090:8090"
+    volumes:
+      - nautilus_state:/runtime/state
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8090/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  imessage-relay:
+    build:
+      context: ./apps/imessage-relay
+      dockerfile: Dockerfile
+    env_file: .env
+    ports:
+      - "8787:8787"
+
+volumes:
+  pgdata:
+  nautilus_state:

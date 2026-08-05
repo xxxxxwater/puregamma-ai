@@ -1,0 +1,29 @@
+{
+  "seo": {
+    "title": "Research Desk",
+    "description": "Structured market, portfolio, event, strategy, and risk memos with source freshness and controlled delivery."
+  },
+  "eyebrow": "RESEARCH DESK",
+  "title": "Research Desk",
+  "subtitle": "A concise daily brief under 200 words, combining real-time market data, sources, and your agent conversation memory. Pushed to your channels.",
+  "filters": ["Daily Brief", "Portfolio Review", "Event Note", "Strategy Memo", "Risk Review"],
+  "archive": {
+    "eyebrow": "Research Archive",
+    "title": "Available reports",
+    "created": "Created",
+    "sourceFreshness": "Source freshness",
+    "openReport": "Open report",
+    "emptyTitle": "No reports",
+    "emptyDescription": "Research archive is empty for the current account."
+  },
+  "detail": {
+    "eyebrow": "Detail Memo",
+    "noSelectionTitle": "No report selected",
+    "noSelectionDescription": "Generate a daily brief to populate the research desk.",
+    "language": "Language"
+  },
+  "mock": {
+    "title": "PureGamma Daily Brief",
+    "content": "Risk-on momentum persists with contained leverage. BTC at $62,340 leads the rally; ETH follows at $3,410. SOL and HYPE show high-beta momentum but funding rates are elevated, suggesting caution. Key watch: ETF inflows remain positive for the fifth consecutive day. On-chain activity shows accumulation at support levels. Moderate overall risk; favor liquid assets with clear invalidation. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+  }
+}

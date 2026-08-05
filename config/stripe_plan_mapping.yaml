@@ -1,0 +1,33 @@
+plans:
+  Pro:
+    price_env: STRIPE_PRICE_PRO
+    payment_link_env: STRIPE_PAYMENT_LINK_PRO
+    monthly_credits: 1000
+    allowed_features:
+      - daily_market_report
+      - portfolio_nav
+      - telegram
+      - email
+
+  Max:
+    price_env: STRIPE_PRICE_MAX
+    payment_link_env: STRIPE_PAYMENT_LINK_MAX
+    monthly_credits: 10000
+    allowed_features:
+      - daily_market_report
+      - portfolio_nav
+      - imessage
+      - x_kol_scan
+      - onchain_scan
+      - cex_sync
+      - nautilus_advanced_backtest
+
+  Enterprise:
+    price_env: STRIPE_PRICE_ENTERPRISE
+    payment_link_env: STRIPE_PAYMENT_LINK_ENTERPRISE
+    monthly_credits: 50000
+    allowed_features:
+      - bloomberg_adapter
+      - private_deployment
+      - api_access
+      - custom_data_sources

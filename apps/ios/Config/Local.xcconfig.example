@@ -1,0 +1,2 @@
+// Copy to Local.xcconfig and set the Apple Developer team shown in Xcode.
+PUREGAMMA_DEVELOPMENT_TEAM = YOUR_TEAM_ID

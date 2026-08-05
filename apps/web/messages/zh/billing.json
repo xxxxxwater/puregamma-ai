@@ -1,0 +1,156 @@
+{
+  "seo": {
+    "title": "访问权限与订阅",
+    "description": "Stripe 订阅状态、每月 Credits 与高成本研究权限控制。"
+  },
+  "eyebrow": "访问控制",
+  "title": "访问权限与订阅",
+  "subtitle": "选择适合你的研究覆盖、监控频率与决策工作流。",
+  "valueTitle": "你购买的是更高效、更有纪律的研究流程",
+  "valueProps": [
+    {
+      "title": "节省时间",
+      "detail": "减少重复筛选、整理和跨平台核对。"
+    },
+    {
+      "title": "信息覆盖",
+      "detail": "在一个工作流内覆盖资产、事件与组合。"
+    },
+    {
+      "title": "风险可见性",
+      "detail": "持续识别集中度、数据过期与重大事件。"
+    },
+    {
+      "title": "决策纪律",
+      "detail": "使用固定复盘、引用和 Playbook 约束决策。"
+    }
+  ],
+  "summary": {
+    "currentPlan": "当前套餐",
+    "subscription": "订阅",
+    "creditBalance": "Credits 余额",
+    "periodEnd": "周期结束",
+    "accountSource": "账户来源",
+    "checkoutMode": "Checkout 模式",
+    "primaryPaymentLink": "已配置 Primary Payment Link",
+    "creditUsage": "Credit 使用",
+    "usageHistory": "使用记录"
+  },
+  "checkoutModes": {
+    "session": "Checkout Session",
+    "paymentLink": "Payment Link"
+  },
+  "accountSources": {
+    "google": "Google OAuth",
+    "email": "Email"
+  },
+  "cancelSubscription": "取消订阅",
+  "reactivateSubscription": "恢复订阅",
+  "cancelWarning": "取消会在当前周期结束时生效，期间权限继续保留。",
+  "cancelAtPeriodEnd": "将在 {date} 取消",
+  "subscriptionCanceled": "订阅取消已排期。",
+  "paymentLinkMissing": "该套餐尚未配置 Stripe Payment Link。",
+  "checkoutFailed": "无法创建结账会话。请先登录。",
+  "plans": [
+    {
+      "name": "Free",
+      "price": "$0",
+      "credits": "150",
+      "tagline": "建立基础市场观察习惯。",
+      "benefits": [
+        "核心资产观察",
+        "1 个组合账户连接",
+        "共享市场简报",
+        "基础事件视图",
+        "Email 投递"
+      ]
+    },
+    {
+      "name": "Pro",
+      "price": "$29.9",
+      "credits": "3,000",
+      "tagline": "适合持续跟踪个人组合的主动投资者。",
+      "benefits": [
+        "20–50 项资产",
+        "每日组合简报",
+        "重要事件提醒",
+        "限量深度研究",
+        "Telegram / Email",
+        "基础回测"
+      ]
+    },
+    {
+      "name": "Max",
+      "price": "$199",
+      "credits": "15,000",
+      "tagline": "适合多组合与高频研究工作流。",
+      "benefits": [
+        "包含全部 Pro 权益",
+        "多组合",
+        "更高 Agent 额度",
+        "iMessage",
+        "高频监控",
+        "高级回测",
+        "私有 Playbook"
+      ]
+    },
+    {
+      "name": "Enterprise",
+      "price": "Custom",
+      "credits": "Custom",
+      "tagline": "适合团队、定制数据与私有部署。",
+      "benefits": [
+        "团队工作区",
+        "API 访问",
+        "自定义数据源",
+        "私有部署",
+        "专属支持与合规配置"
+      ]
+    }
+  ],
+  "featureLabels": {
+    "monthlyCredits": "每月 Credits",
+    "researchAccess": "研究权限",
+    "dataAccess": "数据权限",
+    "notificationAccess": "通知权限",
+    "strategyLabAccess": "策略实验室权限",
+    "perMonth": " / 月"
+  },
+  "features": [
+    "每月 Credits",
+    "每日市场简报",
+    "组合净值 NAV",
+    "iMessage 推送",
+    "X KOL 扫描",
+    "链上扫描",
+    "NautilusTrader 回测",
+    "Bloomberg 适配器",
+    "私有化部署"
+  ],
+  "noPerformancePromise": "订阅提供研究工具与工作流，不承诺投资收益或结果。",
+  "usageTable": {
+    "action": "操作",
+    "delta": "变化",
+    "balanceAfter": "变动后余额",
+    "created": "创建时间"
+  },
+  "billingUnavailable": "计费数据暂不可用",
+  "billingUnavailableDesc": "请稍后重试；页面不会以演示余额、预算或奖励记录代替真实结果。",
+  "noUsage": "暂无使用记录",
+  "noUsageDesc": "研究任务产生 Credit 记录后将在此显示。",
+  "budgetsTitle": "自动化 Credits 预算",
+  "hardStop": "不足时自动暂停",
+  "automation": "自动化",
+  "thisMonth": "本月",
+  "nextEstimate": "下次预计",
+  "status": "状态",
+  "paused": "已暂停",
+  "active": "运行中",
+  "disabled": "已关闭",
+  "noBudgets": "暂无自动化预算",
+  "noBudgetsDesc": "开启日报、组合监控或推送后会自动建立预算。",
+  "rewardHistory": "奖励记录",
+  "noRewards": "暂无奖励",
+  "noRewardsDesc": "邀请、完善组合和反馈奖励会在此显示。",
+  "creditsPerMonth": "Credits / 月"
+}

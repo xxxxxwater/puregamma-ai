@@ -1,0 +1,39 @@
+{
+  "seo": {
+    "title": "Data Verification Ledger",
+    "description": "Track source freshness, ingestion status, and downstream intelligence readiness."
+  },
+  "eyebrow": "DATA PIPELINE",
+  "title": "Data Verification Ledger",
+  "subtitle": "Track source freshness, ingestion status, and downstream intelligence readiness.",
+  "batchScan": "Batch market scan enabled",
+  "headers": {
+    "source": "Source",
+    "category": "Category",
+    "provider": "Provider",
+    "status": "Status",
+    "lastSync": "Last Sync",
+    "requiredPlan": "Required Plan",
+    "items": "Items",
+    "error": "Error",
+    "manualSync": "Manual Sync"
+  },
+  "freshnessTimeline": "Freshness timeline",
+  "pipelineFlow": "Pipeline flow",
+  "flow": [
+    { "label": "Raw Ingestion", "detail": "Source payloads are collected once for shared intelligence." },
+    { "label": "Normalize", "detail": "Market, news, portfolio, and sentiment records enter a common schema." },
+    { "label": "Deduplicate", "detail": "Repeated headlines, ticks, and source events are collapsed." },
+    { "label": "Entity Link", "detail": "Assets, tickers, wallets, and issuers are mapped to research entities." },
+    { "label": "Score", "detail": "Freshness, source quality, and event severity are scored." },
+    { "label": "Shared Intelligence", "detail": "Batch intelligence is generated before user personalization." },
+    { "label": "Personalized Brief", "detail": "Reports adapt to portfolio, plan, and preference context." },
+    { "label": "iMessage Push", "detail": "Entitlement, credit, and delivery ledger checks run before send." }
+  ],
+  "mockTypes": {
+    "sentiment": "Sentiment",
+    "market": "Market",
+    "portfolio": "Portfolio"
+  },
+  "sync": "Sync"
+}

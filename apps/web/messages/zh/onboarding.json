@@ -1,0 +1,131 @@
+{
+  "assets": {
+    "step": "第 1 步 / 共 3 步",
+    "kicker": "选择资产",
+    "title": "选择需要跟踪的资产",
+    "subtitle": "选择你希望 PureGamma 持续研究的资产。每日简报与信号将围绕这些资产展开，后续可随时调整。",
+    "selectAll": "全选",
+    "clear": "清空",
+    "selected": "已选择 {count} 个资产",
+    "selectedSingular": "已选择 {count} 个资产",
+    "continue": "继续",
+    "items": [
+      {
+        "symbol": "BTC",
+        "name": "Bitcoin",
+        "category": "Crypto Blue Chip",
+        "description": "数字黄金，加密资产市场的核心基准。"
+      },
+      {
+        "symbol": "ETH",
+        "name": "Ethereum",
+        "category": "智能合约平台",
+        "description": "领先的 L1 网络，具备 DeFi、质押与机构需求基础。"
+      },
+      {
+        "symbol": "SOL",
+        "name": "Solana",
+        "category": "高性能 L1",
+        "description": "高吞吐链，开发者生态与链上活跃度较强。"
+      },
+      {
+        "symbol": "HYPE",
+        "name": "Hyperliquid",
+        "category": "DeFi / 永续 DEX",
+        "description": "永续合约 DEX，具备手续费收入与生态扩展观察价值。"
+      },
+      {
+        "symbol": "MSTR",
+        "name": "MicroStrategy",
+        "category": "权益代理资产",
+        "description": "BTC 储备型上市公司，常被视为带杠杆的 BTC 敞口。"
+      },
+      {
+        "symbol": "STRC",
+        "name": "Strategy Credit",
+        "category": "信用代理资产",
+        "description": "与 BTC 抵押品相关的事件驱动信用敞口。"
+      }
+    ]
+  },
+  "style": {
+    "step": "第 2 步 / 共 3 步",
+    "kicker": "选择研究风格",
+    "title": "选择你的研究风格",
+    "subtitle": "研究风格会影响报告中风险指标、动量信号、宏观背景或催化因素分析的权重。本系统不生成交易建议。",
+    "continue": "继续",
+    "riskProfile": "{label} - {risk} 风险画像",
+    "items": [
+      {
+        "id": "risk-controlled",
+        "label": "风险控制",
+        "description": "优先关注资本保护。研究应强调回撤风险、相关性与防御性配置。",
+        "risk": "保守"
+      },
+      {
+        "id": "momentum",
+        "label": "动量跟踪",
+        "description": "关注趋势与价格动量。研究应突出趋势强度、成交量确认与延续信号。",
+        "risk": "中等"
+      },
+      {
+        "id": "macro-sensitive",
+        "label": "宏观敏感",
+        "description": "关注宏观、利率与流动性周期。研究应纳入 DXY、收益率与美联储政策背景。",
+        "risk": "中等"
+      },
+      {
+        "id": "event-driven",
+        "label": "事件驱动",
+        "description": "基于催化因素、新闻与链上事件开展研究。系统应突出事件风险与情景分析。",
+        "risk": "进取"
+      },
+      {
+        "id": "high-beta",
+        "label": "高 Beta",
+        "description": "关注波动资产中的高风险机会。研究应提示凸性收益结构与清算集群。",
+        "risk": "进取"
+      }
+    ]
+  },
+  "channels": {
+    "step": "第 3 步 / 共 3 步",
+    "kicker": "连接渠道",
+    "title": "你希望通过什么渠道接收研究内容？",
+    "subtitle": "选择 PureGamma 发送每日简报的方式。后续可在设置中新增或移除渠道。",
+    "required": "需要 {plan}",
+    "free": "Free",
+    "locked": "iMessage 每日简报是高级功能。升级至 Max 后可启用。",
+    "selected": "已选择 {count} 个渠道",
+    "selectedSingular": "已选择 {count} 个渠道",
+    "settingUp": "正在设置...",
+    "complete": "完成设置",
+    "footer": "你可以随时在控制台 -> 每日推送中调整通知设置。使用该服务用户自行承担风险。提供本服务的主体概不负责AI生成所有责任。",
+    "items": [
+      {
+        "id": "email",
+        "label": "Email",
+        "description": "每日研究简报发送至你的邮箱，适用于所有套餐。",
+        "planRequired": "",
+        "placeholder": "you@example.com",
+        "type": "email"
+      },
+      {
+        "id": "telegram",
+        "label": "Telegram",
+        "description": "通过 Telegram bot 发送即时推送，适用于 Pro 及以上套餐。",
+        "planRequired": "Pro",
+        "placeholder": "Telegram Chat ID 或 @username",
+        "type": "text"
+      },
+      {
+        "id": "imessage",
+        "label": "iMessage",
+        "description": "通过 iMessage 向你的 iPhone 发送高级每日简报，适用于 Max 和 Enterprise。",
+        "planRequired": "Max",
+        "placeholder": "+1 (555) 555-0100",
+        "type": "tel"
+      }
+    ]
+  }
+}

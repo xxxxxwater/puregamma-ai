@@ -1,0 +1,131 @@
+{
+  "assets": {
+    "step": "Step 1 of 3",
+    "kicker": "Select Assets",
+    "title": "Choose assets to track",
+    "subtitle": "Select the assets you want PureGamma to research. Your daily brief and signals will focus on these. You can change this anytime.",
+    "selectAll": "Select All",
+    "clear": "Clear",
+    "selected": "{count} assets selected",
+    "selectedSingular": "{count} asset selected",
+    "continue": "Continue",
+    "items": [
+      {
+        "symbol": "BTC",
+        "name": "Bitcoin",
+        "category": "Crypto Blue Chip",
+        "description": "Digital gold. The benchmark for all crypto assets."
+      },
+      {
+        "symbol": "ETH",
+        "name": "Ethereum",
+        "category": "Smart Contract Platform",
+        "description": "Leading L1 with DeFi, staking, and institutional demand."
+      },
+      {
+        "symbol": "SOL",
+        "name": "Solana",
+        "category": "High-Performance L1",
+        "description": "High throughput chain with strong developer and ecosystem activity."
+      },
+      {
+        "symbol": "HYPE",
+        "name": "Hyperliquid",
+        "category": "DeFi / Perp DEX",
+        "description": "Perpetual DEX with fee generation and ecosystem growth."
+      },
+      {
+        "symbol": "MSTR",
+        "name": "MicroStrategy",
+        "category": "Equity Proxy",
+        "description": "BTC treasury company. Trades as levered BTC exposure."
+      },
+      {
+        "symbol": "STRC",
+        "name": "Strategy Credit",
+        "category": "Credit Proxy",
+        "description": "Event-driven credit exposure linked to BTC collateral."
+      }
+    ]
+  },
+  "style": {
+    "step": "Step 2 of 3",
+    "kicker": "Choose Style",
+    "title": "Choose your research style",
+    "subtitle": "Your research style affects how reports emphasize risk metrics, momentum signals, macro context, or catalyst analysis. This does not generate trade recommendations.",
+    "continue": "Continue",
+    "riskProfile": "{label} - {risk} risk profile",
+    "items": [
+      {
+        "id": "risk-controlled",
+        "label": "Risk-Controlled",
+        "description": "I prioritize capital preservation. Research should emphasize drawdown risk, correlations, and defensive positioning.",
+        "risk": "Conservative"
+      },
+      {
+        "id": "momentum",
+        "label": "Momentum",
+        "description": "I follow trends and price momentum. Research should highlight trend strength, volume confirmation, and continuation signals.",
+        "risk": "Moderate"
+      },
+      {
+        "id": "macro-sensitive",
+        "label": "Macro-Sensitive",
+        "description": "I care about macro, rates, and liquidity cycles. Research should incorporate DXY, yields, and Fed policy context.",
+        "risk": "Moderate"
+      },
+      {
+        "id": "event-driven",
+        "label": "Event-Driven",
+        "description": "I trade based on catalysts, news, and on-chain events. Research should surface event risks and scenario analysis.",
+        "risk": "Aggressive"
+      },
+      {
+        "id": "high-beta",
+        "label": "High Beta",
+        "description": "I seek higher-risk setups in volatile assets. Research should flag convex payoff opportunities and liquidation clusters.",
+        "risk": "Aggressive"
+      }
+    ]
+  },
+  "channels": {
+    "step": "Step 3 of 3",
+    "kicker": "Connect Channels",
+    "title": "How would you like to receive research?",
+    "subtitle": "Choose how PureGamma delivers your daily brief. You can add or remove channels later in settings.",
+    "required": "{plan} required",
+    "free": "Free",
+    "locked": "iMessage Daily Brief is a premium feature. Upgrade to Max to unlock.",
+    "selected": "{count} channels selected",
+    "selectedSingular": "{count} channel selected",
+    "settingUp": "Setting up...",
+    "complete": "Complete Setup",
+    "footer": "You can change notification settings anytime in Dashboard -> Daily Push. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
+    "items": [
+      {
+        "id": "email",
+        "label": "Email",
+        "description": "Daily research brief delivered to your inbox. Works on any plan.",
+        "planRequired": "",
+        "placeholder": "you@example.com",
+        "type": "email"
+      },
+      {
+        "id": "telegram",
+        "label": "Telegram",
+        "description": "Instant push notifications via Telegram bot. Available on Pro and above.",
+        "planRequired": "Pro",
+        "placeholder": "Telegram Chat ID or @username",
+        "type": "text"
+      },
+      {
+        "id": "imessage",
+        "label": "iMessage",
+        "description": "Premium daily brief delivered via iMessage to your iPhone. Available on Max and Enterprise.",
+        "planRequired": "Max",
+        "placeholder": "+1 (555) 555-0100",
+        "type": "tel"
+      }
+    ]
+  }
+}

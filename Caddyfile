@@ -1,0 +1,35 @@
+puregamma.ai, www.puregamma.ai {
+    redir https://app.puregamma.ai{uri} permanent
+}
+{$APP_DOMAIN} {
+	encode zstd gzip
+	@secretary path /zh/secretary /en/secretary
+	header @secretary Cache-Control "no-store, no-cache, must-revalidate"
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		Permissions-Policy "camera=(), microphone=(self), geolocation=()"
+		-Server
+	}
+	reverse_proxy web:3000
+}
+
+{$API_DOMAIN} {
+	encode zstd gzip
+	request_body {
+		max_size 2MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+	reverse_proxy api:8000 {
+		# The origin must accept 80/443 only from Cloudflare. With that network
+		# boundary, CF-Connecting-IP is safe to pass to the gateway's per-key
+		# rate limiter and IP block list; direct requests fall back to remote_host.
+		header_up X-Real-IP {http.request.header.CF-Connecting-IP}
+	}
+}

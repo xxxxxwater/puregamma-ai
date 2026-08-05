@@ -1,0 +1,22 @@
+{
+  "seo": {
+    "title": "组合数据源连接",
+    "description": "连接券商、交易所、链上钱包与通知渠道，用于组合感知研究流程。"
+  },
+  "eyebrow": "数据源连接",
+  "title": "组合数据源连接",
+  "subtitle": "连接券商、交易所、链上钱包与通知渠道，用于组合感知研究流程。",
+  "securityNotice": "安全提示",
+  "securityCopy": "仅使用只读 API Key。不要提供提现权限、私钥或助记词。Plaid 仅用于读取持仓和投资交易数据，不用于交易执行。",
+  "cardLabels": {
+    "requiredPlan": "所需套餐",
+    "creditCost": "Credit 成本",
+    "lastSync": "上次同步"
+  },
+  "mock": [
+    { "name": "Plaid 券商", "description": "仅同步持仓与投资交易数据。", "status": "过期警告", "failureReason": "Demo 券商需要手动刷新。" },
+    { "name": "Binance 只读", "description": "通过只读 API Key 同步 CEX 余额。", "status": "健康", "failureReason": "" },
+    { "name": "Ethereum 钱包", "description": "链上钱包持仓与稳定币资产。", "status": "健康", "failureReason": "" },
+    { "name": "iMessage", "description": "用于每日简报推送的自托管 Mac Relay。", "status": "需要 Max", "failureReason": "" }
+  ]
+}

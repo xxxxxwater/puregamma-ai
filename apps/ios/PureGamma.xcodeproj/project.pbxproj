@@ -1,0 +1,55 @@
+// !$*UTF8*$!
+{
+	archiveVersion = 1;
+	classes = {};
+	objectVersion = 77;
+	objects = {
+		A001 = {isa = PBXProject; attributes = {BuildIndependentTargetsInParallel = YES; LastSwiftUpdateCheck = 2650; LastUpgradeCheck = 2650; TargetAttributes = {A002 = {CreatedOnToolsVersion = 26.5;}; B002 = {CreatedOnToolsVersion = 26.5; TestTargetID = A002;}; C002 = {CreatedOnToolsVersion = 26.5; TestTargetID = A002;};};}; buildConfigurationList = A100; developmentRegion = en; knownRegions = (en, Base, "zh-Hans"); mainGroup = A003; packageReferences = (A021); productRefGroup = A004; projectDirPath = ""; projectRoot = ""; targets = (A002, B002, C002); };
+		A002 = {isa = PBXNativeTarget; buildConfigurationList = A101; buildPhases = (A006, A007, A008); buildRules = (); dependencies = (); fileSystemSynchronizedGroups = (A009); name = PureGamma; packageProductDependencies = (A020); productName = PureGamma; productReference = A005; productType = "com.apple.product-type.application"; };
+		B002 = {isa = PBXNativeTarget; buildConfigurationList = B101; buildPhases = (B006, B007, B008); buildRules = (); dependencies = (B030); fileSystemSynchronizedGroups = (B009); name = PureGammaTests; productName = PureGammaTests; productReference = B005; productType = "com.apple.product-type.bundle.unit-test"; };
+		C002 = {isa = PBXNativeTarget; buildConfigurationList = C101; buildPhases = (C006, C007, C008); buildRules = (); dependencies = (C030); fileSystemSynchronizedGroups = (C009); name = PureGammaUITests; productName = PureGammaUITests; productReference = C005; productType = "com.apple.product-type.bundle.ui-testing"; };
+		A003 = {isa = PBXGroup; children = (A009, B009, C009, D000, A004); sourceTree = "<group>"; };
+		A004 = {isa = PBXGroup; children = (A005, B005, C005); name = Products; sourceTree = "<group>"; };
+		A005 = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = PureGamma.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		B005 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PureGammaTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		C005 = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = PureGammaUITests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
+		A006 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A007 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (A022); runOnlyForDeploymentPostprocessing = 0; };
+		A008 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		B006 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		B007 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		B008 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C006 = {isa = PBXSourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C007 = {isa = PBXFrameworksBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		C008 = {isa = PBXResourcesBuildPhase; buildActionMask = 2147483647; files = (); runOnlyForDeploymentPostprocessing = 0; };
+		A009 = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (); explicitFileTypes = {}; explicitFolders = (); path = PureGamma; sourceTree = "<group>"; };
+		B009 = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (); explicitFileTypes = {}; explicitFolders = (); path = PureGammaTests; sourceTree = "<group>"; };
+		C009 = {isa = PBXFileSystemSynchronizedRootGroup; exceptions = (); explicitFileTypes = {}; explicitFolders = (); path = PureGammaUITests; sourceTree = "<group>"; };
+		A020 = {isa = XCSwiftPackageProductDependency; package = A021; productName = LinkKit; };
+		A021 = {isa = XCRemoteSwiftPackageReference; repositoryURL = "https://github.com/plaid/plaid-link-ios.git"; requirement = {kind = upToNextMajorVersion; minimumVersion = 7.0.3;}; };
+		A022 = {isa = PBXBuildFile; productRef = A020; };
+		B030 = {isa = PBXTargetDependency; target = A002; targetProxy = B031; };
+		B031 = {isa = PBXContainerItemProxy; containerPortal = A001; proxyType = 1; remoteGlobalIDString = A002; remoteInfo = PureGamma; };
+		C030 = {isa = PBXTargetDependency; target = A002; targetProxy = C031; };
+		C031 = {isa = PBXContainerItemProxy; containerPortal = A001; proxyType = 1; remoteGlobalIDString = A002; remoteInfo = PureGamma; };
+		D000 = {isa = PBXGroup; children = (D001, D002, D003, D004, D005); path = Config; sourceTree = "<group>"; };
+		D001 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Debug.xcconfig; sourceTree = "<group>"; };
+		D002 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Release.xcconfig; sourceTree = "<group>"; };
+		D003 = {isa = PBXFileReference; lastKnownFileType = text.xcconfig; path = Shared.xcconfig; sourceTree = "<group>"; };
+		D004 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		D005 = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = "Info-Debug.plist"; sourceTree = "<group>"; };
+		A100 = {isa = XCConfigurationList; buildConfigurations = (A110, A111); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A101 = {isa = XCConfigurationList; buildConfigurations = (A112, A113); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		B101 = {isa = XCConfigurationList; buildConfigurations = (B112, B113); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		C101 = {isa = XCConfigurationList; buildConfigurations = (C112, C113); defaultConfigurationIsVisible = 0; defaultConfigurationName = Release; };
+		A110 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_OPTIMIZATION_LEVEL = "-Onone"; SWIFT_VERSION = 6.0;}; name = Debug; };
+		A111 = {isa = XCBuildConfiguration; buildSettings = {CLANG_ENABLE_MODULES = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; SDKROOT = iphoneos; SWIFT_VERSION = 6.0;}; name = Release; };
+		A112 = {isa = XCBuildConfiguration; baseConfigurationReference = D001; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_ENTITLEMENTS = PureGamma/SupportingFiles/PureGamma.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; ENABLE_STRICT_OBJC_MSGSEND = YES; ENABLE_TESTABILITY = YES; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = "Config/Info-Debug.plist"; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1;}; name = Debug; };
+		A113 = {isa = XCBuildConfiguration; baseConfigurationReference = D002; buildSettings = {ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon; CODE_SIGN_ENTITLEMENTS = PureGamma/SupportingFiles/PureGamma.entitlements; CODE_SIGN_STYLE = Automatic; CURRENT_PROJECT_VERSION = 1; ENABLE_STRICT_OBJC_MSGSEND = YES; GENERATE_INFOPLIST_FILE = NO; INFOPLIST_FILE = Config/Info.plist; IPHONEOS_DEPLOYMENT_TARGET = 17.0; MARKETING_VERSION = 1.0; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_APPROACHABLE_CONCURRENCY = YES; SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor; SWIFT_EMIT_LOC_STRINGS = YES; SWIFT_STRICT_CONCURRENCY = complete; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1;}; name = Release; };
+		B112 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = ai.puregamma.ios.tests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PureGamma.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PureGamma";}; name = Debug; };
+		B113 = {isa = XCBuildConfiguration; buildSettings = {BUNDLE_LOADER = "$(TEST_HOST)"; CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = ai.puregamma.ios.tests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; TEST_HOST = "$(BUILT_PRODUCTS_DIR)/PureGamma.app/$(BUNDLE_EXECUTABLE_FOLDER_PATH)/PureGamma";}; name = Release; };
+		C112 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = ai.puregamma.ios.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = PureGamma;}; name = Debug; };
+		C113 = {isa = XCBuildConfiguration; buildSettings = {CODE_SIGN_STYLE = Automatic; GENERATE_INFOPLIST_FILE = YES; IPHONEOS_DEPLOYMENT_TARGET = 17.0; PRODUCT_BUNDLE_IDENTIFIER = ai.puregamma.ios.uitests; PRODUCT_NAME = "$(TARGET_NAME)"; SWIFT_VERSION = 6.0; TARGETED_DEVICE_FAMILY = 1; TEST_TARGET_NAME = PureGamma;}; name = Release; };
+	};
+	rootObject = A001;
+}
