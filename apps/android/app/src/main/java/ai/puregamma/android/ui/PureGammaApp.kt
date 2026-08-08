@@ -256,7 +256,7 @@ private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
                     },
                     enabled = !model.signingIn && email.isNotBlank() && password.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(0.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = BrandGold, contentColor = Color(0xFF030303)),
                 ) {
                     if (model.signingIn) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFF030303))
@@ -271,7 +271,7 @@ private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
                     onClick = { model.beginGoogleSignIn(openBrowser) },
                     enabled = !model.signingIn,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(0.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 ) {

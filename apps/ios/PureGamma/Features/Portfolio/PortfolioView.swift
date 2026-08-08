@@ -148,7 +148,7 @@ private struct PortfolioConnections: View {
                     .textInputAutocapitalization(.never)
                     .font(.caption.monospaced())
                     .padding(9)
-                    .background(PGTheme.secondaryBackground)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(PGTheme.secondaryBackground))
                 Button("Connect") { Task { await model.connectHyperliquid() } }
                     .disabled(model.walletAddress.isEmpty || model.busy != "")
             }
