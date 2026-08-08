@@ -122,31 +122,31 @@ export function OptionsSurface({ locale, initialCurrency = "BTC" }: { locale: Lo
 
       <div className="mt-4 flex flex-wrap items-center gap-2">
         {tickers.map((item) => (
-          <button key={item.symbol} type="button" disabled={loading} onClick={() => setCurrency(item.symbol)} title={item.market_cap} className={`border px-3 py-1.5 text-sm disabled:opacity-50 ${currency === item.symbol ? "border-border-pg-strong bg-bg-panel-muted font-semibold" : "border-border-pg text-text-pg-muted"}`}>{item.symbol}</button>
+          <button key={item.symbol} type="button" disabled={loading} onClick={() => setCurrency(item.symbol)} title={item.market_cap} className={`border px-3 py-1.5 text-sm disabled:opacity-50  rounded-lg${currency === item.symbol ? "border-border-pg-strong bg-bg-panel-muted font-semibold" : "border-border-pg text-text-pg-muted"}`}>{item.symbol}</button>
         ))}
       </div>
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {SURFACE_TYPES.map((type) => (
-          <button key={type} type="button" disabled={loading} onClick={() => setSurfaceType(type)} className={`border px-2.5 py-1 text-xs disabled:opacity-50 ${surfaceType === type ? "border-border-pg-strong bg-pg-white font-semibold text-pg-black" : "border-border-pg text-text-pg-muted"}`}>{surfaceLabel(copy, type)}</button>
+          <button key={type} type="button" disabled={loading} onClick={() => setSurfaceType(type)} className={`border px-2.5 py-1 text-xs disabled:opacity-50  rounded-lg${surfaceType === type ? "border-border-pg-strong bg-pg-white font-semibold text-pg-black" : "border-border-pg text-text-pg-muted"}`}>{surfaceLabel(copy, type)}</button>
         ))}
-        <button type="button" disabled={loading} onClick={() => void load(currency, surfaceType)} className="ml-auto inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1 text-xs text-text-pg-muted disabled:opacity-50"><RefreshCw className="h-3 w-3" />{copy.refresh}</button>
+        <button type="button" disabled={loading} onClick={() => void load(currency, surfaceType)} className="ml-auto inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1 text-xs text-text-pg-muted disabled:opacity-50 rounded-lg"><RefreshCw className="h-3 w-3" />{copy.refresh}</button>
       </div>
 
-      {loading ? <div className="mt-4 h-72 border border-border-pg bg-bg-panel-muted" /> : null}
+      {loading ? <div className="mt-4 h-72 border border-border-pg bg-bg-panel-muted rounded-xl" /> : null}
       {!loading && data && data.surface.rows.length ? <div className="mt-4"><PlotlyChart figure={{ data: traces, layout }} className="h-[540px]" /></div> : null}
       {!loading && data && (!data.surface.rows.length || data.error) ? (
         <div className="mt-4"><EmptyState title={data.error ? copy.emptyErrorTitle : copy.emptyTitle} description={data.error || copy.emptyDescription} /></div>
       ) : null}
 
       {!loading && data && data.surface.rows.length ? (
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border border-border-pg bg-bg-panel-muted p-3 text-xs">
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border border-border-pg bg-bg-panel-muted p-3 text-xs rounded-lg">
           <span>{copy.insights.atm30}: <strong>{insights?.atm_iv != null ? `${(insights.atm_iv * 100).toFixed(2)}%` : "-"}</strong></span>
           <span>{copy.insights.put25}: <strong>{insights?.put25_iv != null ? `${(insights.put25_iv * 100).toFixed(2)}%` : "-"}</strong></span>
           <span>{copy.insights.call25}: <strong>{insights?.call25_iv != null ? `${(insights.call25_iv * 100).toFixed(2)}%` : "-"}</strong></span>
           <span>{copy.insights.skew}: <strong className={insights?.skew_pct != null && insights.skew_pct > 0.05 ? "text-status-negative" : ""}>{insights?.skew_pct != null ? `${(insights.skew_pct * 100).toFixed(2)}pp` : "-"}</strong></span>
           <span>{copy.insights.underlying}: <strong>{insights?.underlying_price ? insights.underlying_price.toLocaleString(locale) : "-"}</strong></span>
-          <span className="ml-auto flex items-center gap-2"><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong" title={copy.insights.alertTitle}><Bell className="h-3 w-3" />{copy.insights.alert}</button><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong" title={copy.insights.exportTitle}><Download className="h-3 w-3" />{copy.insights.export}</button><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong" title={copy.insights.agentTitle}><MessageCircleQuestion className="h-3 w-3" />{copy.insights.askAgent}</button></span>
+          <span className="ml-auto flex items-center gap-2"><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong rounded-lg" title={copy.insights.alertTitle}><Bell className="h-3 w-3" />{copy.insights.alert}</button><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong rounded-lg" title={copy.insights.exportTitle}><Download className="h-3 w-3" />{copy.insights.export}</button><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong rounded-lg" title={copy.insights.agentTitle}><MessageCircleQuestion className="h-3 w-3" />{copy.insights.askAgent}</button></span>
         </div>
       ) : null}
 

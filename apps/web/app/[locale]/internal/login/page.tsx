@@ -41,13 +41,13 @@ export default function InternalAdminLoginPage() {
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center">
-      <div className="w-full max-w-sm border border-border-pg bg-bg-panel p-6">
+      <div className="w-full max-w-sm border border-border-pg bg-bg-panel p-6 rounded-2xl">
         <div className="mb-6 text-center">
           <Image src="/logo.png" alt="PureGamma" width={36} height={36} className="mx-auto" />
           <h1 className="mt-4 text-xl font-semibold">PureGamma Internal</h1>
           <p className="mt-2 text-xs text-text-pg-muted">{zh ? "仅限授权内部人员" : "Authorized personnel only"}</p>
         </div>
-        {error ? <p className="mb-4 border border-status-negative/40 p-3 text-sm text-status-negative">{error}</p> : null}
+        {error ? <p className="mb-4 border border-status-negative/40 p-3 text-sm text-status-negative rounded-lg">{error}</p> : null}
         <form className="space-y-4" onSubmit={submit}>
           <label className="block text-xs text-text-pg-muted">{zh ? "管理员用户名" : "Administrator username"}<input className={`${inputClass} mt-1`} autoComplete="username" value={username} onChange={(event) => setUsername(event.target.value)} required /></label>
           <label className="block text-xs text-text-pg-muted">{zh ? "密码" : "Password"}<input className={`${inputClass} mt-1`} type="password" autoComplete="current-password" value={password} onChange={(event) => setPassword(event.target.value)} required /></label>

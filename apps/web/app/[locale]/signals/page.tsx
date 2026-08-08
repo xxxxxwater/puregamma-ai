@@ -43,7 +43,7 @@ export default async function SignalsPage({ params }: { params: { locale: Locale
             <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-muted">{copy.confidenceDistribution}</div>
             <h2 className="mt-2 font-semibold">{copy.reviewDensity}</h2>
           </div>
-          {rows.length ? <><ConfidenceDistributionChart data={chart} /><div className="mt-4 space-y-2 text-sm">{rows.map((row) => <div key={row.id} className="flex items-center justify-between border border-border-pg bg-bg-panel-muted p-2"><span>{row.asset}</span><RiskBadge locale={locale} score={row.risk_score} /></div>)}</div></> : null}
+          {rows.length ? <><ConfidenceDistributionChart data={chart} /><div className="mt-4 space-y-2 text-sm">{rows.map((row) => <div key={row.id} className="flex items-center justify-between border border-border-pg bg-bg-panel-muted p-2 rounded-lg"><span>{row.asset}</span><RiskBadge locale={locale} score={row.risk_score} /></div>)}</div></> : null}
         </ResearchCard>
       </div>
       <ResearchCard>
@@ -53,7 +53,7 @@ export default async function SignalsPage({ params }: { params: { locale: Locale
         </div>
         <div className="grid gap-3 md:grid-cols-3">
           {rows.map((row, index) => (
-            <div key={row.id} className="border border-border-pg bg-bg-panel-muted p-3 text-sm">
+            <div key={row.id} className="border border-border-pg bg-bg-panel-muted p-3 text-sm rounded-lg">
               <div className="flex items-start justify-between gap-3">
                 <div>
                   <div className="text-xs text-text-pg-dim">{String(index + 1).padStart(2, "0")} / {row.id}</div>

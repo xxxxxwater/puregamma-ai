@@ -55,7 +55,7 @@ export function GlobalMarketTerminal({ locale }: { locale: Locale }) {
         </div>
         <div className="flex items-center gap-2">
           <Badge tone={data?.status === "HEALTHY" ? "emerald" : "amber"}>{data?.status ?? "-"}</Badge>
-          <button type="button" disabled={loading} onClick={() => void load()} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted disabled:opacity-50"><RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />{zh ? "刷新" : "Refresh"}</button>
+          <button type="button" disabled={loading} onClick={() => void load()} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted disabled:opacity-50 rounded-lg"><RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />{zh ? "刷新" : "Refresh"}</button>
         </div>
       </div>
       <div className="overflow-x-auto">

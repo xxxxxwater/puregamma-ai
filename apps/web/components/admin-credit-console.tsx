@@ -160,7 +160,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
                 key={account.id}
                 type="button"
                 onClick={() => setSelectedId(account.id)}
-                className={`w-full border p-3 text-left transition ${selectedId === account.id ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg hover:border-border-pg-strong"}`}
+                className={`w-full border p-3 text-left transition  rounded-lg${selectedId === account.id ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg hover:border-border-pg-strong"}`}
               >
                 <div className="truncate text-sm font-medium">{account.email}</div>
                 <div className="mt-2 flex items-center justify-between gap-2 text-xs text-text-pg-muted">
@@ -174,8 +174,8 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
         </ResearchCard>
 
         <div className="min-w-0 space-y-4">
-          {error ? <div className="flex gap-2 border border-status-negative/40 bg-bg-panel p-3 text-sm text-status-negative"><ShieldAlert className="h-4 w-4 shrink-0" />{error}</div> : null}
-          {success ? <div className="flex gap-2 border border-status-positive/40 bg-bg-panel p-3 text-sm text-status-positive"><CheckCircle2 className="h-4 w-4 shrink-0" />{success}</div> : null}
+          {error ? <div className="flex gap-2 border border-status-negative/40 bg-bg-panel p-3 text-sm text-status-negative rounded-lg"><ShieldAlert className="h-4 w-4 shrink-0" />{error}</div> : null}
+          {success ? <div className="flex gap-2 border border-status-positive/40 bg-bg-panel p-3 text-sm text-status-positive rounded-lg"><CheckCircle2 className="h-4 w-4 shrink-0" />{success}</div> : null}
           {detailLoading ? <ResearchCard><p className="text-sm text-text-pg-muted">{zh ? "正在读取数据库账本…" : "Loading database ledger…"}</p></ResearchCard> : null}
           {detail && !detailLoading ? (
             <>
@@ -209,7 +209,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
                 <h2 className="mb-3 font-semibold">{zh ? "预扣与结算" : "Reservations & settlements"}</h2>
                 <div className="space-y-2">
                   {detail.reservations.map((row) => (
-                    <div key={row.id} className="grid gap-3 border border-border-pg bg-bg-panel-muted p-3 text-sm md:grid-cols-[1fr_auto_auto] md:items-center">
+                    <div key={row.id} className="grid gap-3 border border-border-pg bg-bg-panel-muted p-3 text-sm md:grid-cols-[1fr_auto_auto] md:items-center rounded-lg">
                       <div><div className="font-medium">{row.task_type}</div><div className="mt-1 font-mono text-xs text-text-pg-muted">{row.id} · {formatTime(row.created_at, locale)}</div></div>
                       <div className="flex items-center gap-2"><Badge tone="neutral">{row.status}</Badge><span>{row.settled_credits ?? row.reserved_credits}/{row.reserved_credits}</span></div>
                       <Button variant="secondary" disabled={busy || !row.refundable} onClick={() => void executeRefund("reservation", row.id, row.reserved_credits)}>{row.refundable ? (zh ? "退回预扣" : "Refund reservation") : (zh ? "不可退款" : "Terminal")}</Button>

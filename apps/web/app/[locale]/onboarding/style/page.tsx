@@ -47,18 +47,18 @@ export default function LocalizedOnboardingStylePage({ params }: { params: { loc
             <button
               key={style.id}
               onClick={() => setSelected(style.id)}
-              className={`w-full border p-5 text-left transition ${
+              className={`w-full border p-5 text-left transition  rounded-xl${
                 isSelected ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"
               }`}
             >
               <div className="flex items-start gap-4">
-                <div className={`mt-0.5 border p-2.5 ${isSelected ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel-muted"}`}>
+                <div className={`mt-0.5 border p-2.5  rounded-lg${isSelected ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel-muted"}`}>
                   <Icon className={`h-5 w-5 ${isSelected ? "text-text-pg" : "text-text-pg-muted"}`} aria-hidden />
                 </div>
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">{style.label}</span>
-                    <span className={`border border-border-pg px-2 py-0.5 text-[0.65rem] font-medium ${riskTone(style.id)}`}>{style.risk}</span>
+                    <span className={`border border-border-pg px-2 py-0.5 text-[0.65rem] font-medium  rounded-lg${riskTone(style.id)}`}>{style.risk}</span>
                   </div>
                   <p className="mt-1.5 text-sm leading-5 text-text-pg-muted">{style.description}</p>
                 </div>
@@ -69,12 +69,12 @@ export default function LocalizedOnboardingStylePage({ params }: { params: { loc
         })}
       </div>
 
-      <div className="mt-8 flex items-center justify-between gap-4 border border-border-pg bg-bg-panel-muted px-4 py-3">
+      <div className="mt-8 flex items-center justify-between gap-4 border border-border-pg bg-bg-panel-muted px-4 py-3 rounded-lg">
         <div className="flex items-center gap-2 text-sm text-text-pg-muted">
           <Info className="h-4 w-4 shrink-0" aria-hidden />
           {t(locale, "onboarding.style.riskProfile", { label: selectedStyle.label, risk: selectedStyle.risk })}
         </div>
-        <button onClick={handleContinue} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-5 py-2.5 text-sm font-semibold text-pg-black transition hover:bg-pg-white-soft">
+        <button onClick={handleContinue} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-5 py-2.5 text-sm font-semibold text-pg-black transition hover:bg-pg-white-soft rounded-lg">
           {copy.continue} <ArrowRight className="h-4 w-4" aria-hidden />
         </button>
       </div>

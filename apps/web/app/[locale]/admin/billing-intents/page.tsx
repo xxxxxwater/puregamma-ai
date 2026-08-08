@@ -57,7 +57,7 @@ export default async function BillingIntentsPage({ params }: { params: { locale:
         <h2 className="mb-3 font-semibold">BillingCheckoutIntent</h2>
         <div className="space-y-2">
           {data.billing_intents.length ? data.billing_intents.map((intent) => (
-            <div key={intent.id} className="grid gap-3 border border-border-pg bg-bg-panel-muted p-3 text-sm xl:grid-cols-[1.5fr_1fr_1fr_auto]">
+            <div key={intent.id} className="grid gap-3 border border-border-pg bg-bg-panel-muted p-3 text-sm xl:grid-cols-[1.5fr_1fr_1fr_auto] rounded-lg">
               <div>
                 <div className="font-medium">{intent.public_reference}</div>
                 <div className="mt-1 text-xs text-text-pg-muted">{intent.user_id}</div>

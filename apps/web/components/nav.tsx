@@ -119,7 +119,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
                 const Icon = item.icon;
                 const active = item.href === "/" ? activePathname === "/" : activePathname.startsWith(item.href);
                 return (
-                  <Link key={item.href} href={withLocale(locale, item.href)} className={`flex items-center gap-2 border px-3 py-2 text-sm ${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
+                  <Link key={item.href} href={withLocale(locale, item.href)} className={`flex items-center gap-2 border px-3 py-2 text-sm  rounded-lg${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
                     <Icon className="h-4 w-4" aria-hidden />
                     {t(locale, item.labelKey)}
                   </Link>
@@ -129,7 +129,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
           </div>
         ))}
       </nav>
-      <Link href={withLocale(locale, "/account#imessage-bind")} className="absolute bottom-5 left-4 right-4 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg">
+      <Link href={withLocale(locale, "/account#imessage-bind")} className="absolute bottom-5 left-4 right-4 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg">
         <MessageCircle className="h-4 w-4" aria-hidden />
         {locale === "zh" ? "绑定 iMessage" : "Bind iMessage"}
       </Link>
@@ -186,15 +186,15 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
           <LanguageSwitcher compact />
           <AppearanceControls locale={locale} />
           {storedUser ? (
-            <Link href={withLocale(locale, "/account")} className="ml-2 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-2 py-1 hover:border-border-pg-strong">
+            <Link href={withLocale(locale, "/account")} className="ml-2 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-2 py-1 hover:border-border-pg-strong rounded-lg">
               {storedUser.avatar_url ? <span aria-hidden className="h-5 w-5 rounded-full bg-cover bg-center" style={{ backgroundImage: `url(${storedUser.avatar_url})` }} /> : null}
               {storedUser.auth_provider === "google" ? <Chrome className="h-3.5 w-3.5" aria-label="Google" /> : null}
               <span className="max-w-[140px] truncate">{storedUser.name || storedUser.email}</span>
             </Link>
           ) : (
             <>
-              <Link href={withLocale(locale, "/signup")} className="ml-2 border border-border-pg-strong bg-pg-white px-3 py-1 text-xs font-semibold text-pg-black hover:bg-pg-white-soft">{t(locale, "common.nav.signup")}</Link>
-              <Link href={withLocale(locale, "/login")} className="border border-border-pg px-3 py-1 text-xs text-text-pg hover:border-border-pg-strong">{t(locale, "common.nav.signin")}</Link>
+              <Link href={withLocale(locale, "/signup")} className="ml-2 border border-border-pg-strong bg-pg-white px-3 py-1 text-xs font-semibold text-pg-black hover:bg-pg-white-soft rounded-lg">{t(locale, "common.nav.signup")}</Link>
+              <Link href={withLocale(locale, "/login")} className="border border-border-pg px-3 py-1 text-xs text-text-pg hover:border-border-pg-strong rounded-lg">{t(locale, "common.nav.signin")}</Link>
             </>
           )}
         </div>
@@ -204,7 +204,7 @@ export function TopStatusBar({ locale }: { locale: Locale }) {
       </div>
       <nav className="flex snap-x snap-mandatory gap-1 overflow-x-auto overscroll-x-contain border-t border-border-pg px-3 py-2 lg:hidden">
         {groups.flatMap((group) => group.items).map((item) => (
-          <Link key={item.href} href={withLocale(locale, item.href)} className="inline-flex min-h-11 shrink-0 snap-start items-center whitespace-nowrap border border-transparent px-3 text-sm text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted">
+          <Link key={item.href} href={withLocale(locale, item.href)} className="inline-flex min-h-11 shrink-0 snap-start items-center whitespace-nowrap border border-transparent px-3 text-sm text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted rounded-lg">
             {t(locale, item.labelKey)}
           </Link>
         ))}

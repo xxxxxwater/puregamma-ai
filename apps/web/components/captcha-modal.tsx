@@ -54,7 +54,7 @@ export function CaptchaModal({
       onClick={onClose}
     >
       <div
-        className="w-full max-w-[360px] space-y-4 border border-border-pg bg-bg-panel p-5 shadow-2xl"
+        className="w-full max-w-[360px] space-y-4 border border-border-pg bg-bg-panel p-5 shadow-2xl rounded-2xl"
         onClick={(event) => event.stopPropagation()}
       >
         <div className="flex items-center justify-between">
@@ -73,7 +73,7 @@ export function CaptchaModal({
         </div>
 
         {error ? (
-          <p className="border border-border-pg bg-bg-panel-muted px-3 py-2 text-xs text-status-negative">{error}</p>
+          <p className="border border-border-pg bg-bg-panel-muted px-3 py-2 text-xs text-status-negative rounded-lg">{error}</p>
         ) : null}
 
         <PuzzleCaptcha

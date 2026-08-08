@@ -27,9 +27,9 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
   return <><Script src="https://cdn.plot.ly/plotly-2.35.2.min.js" strategy="afterInteractive" /><div className="space-y-5">
     <PageHeader eyebrow="DERIBIT OPTIONS" title={zh ? "期权与 Long Gamma 研究" : "Options and Long Gamma Research"} description={zh ? "基于 Deribit 公开行情的只读期权研究。AI 负责排序与解释，Greeks 和价格均来自真实接口。" : "Read-only options research from Deribit public market data. AI ranks and explains; prices and Greeks come from the live source."} sectionNumber="04" />
 
-    <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border-pg py-3">
+    <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border-pg py-3 rounded-lg">
       <div className="flex gap-2">
-        {(["BTC", "ETH"] as const).map((item) => <a key={item} href={`?currency=${item}`} className={`border px-3 py-2 text-sm ${currency === item ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg text-text-pg-muted"}`}>{item}</a>)}
+        {(["BTC", "ETH"] as const).map((item) => <a key={item} href={`?currency=${item}`} className={`border px-3 py-2 text-sm  rounded-lg${currency === item ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg text-text-pg-muted"}`}>{item}</a>)}
       </div>
       <div className="flex items-center gap-2"><DataSourceStatusBadge locale={locale} status={gamma.status} /><Badge tone="neutral">READ ONLY</Badge></div>
     </div>
@@ -41,7 +41,7 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
       <MetricCard label={zh ? "数据源" : "Source"} value="Deribit Public" tone="neutral" />
     </section>
 
-    {gamma.error ? <div className="border border-status-warning p-4 text-sm text-status-warning">{gamma.error}</div> : null}
+    {gamma.error ? <div className="border border-status-warning p-4 text-sm text-status-warning rounded-xl">{gamma.error}</div> : null}
 
     <OptionsSurface locale={locale} initialCurrency={currency} />
 
@@ -55,7 +55,7 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
       <PGTable minWidth={800} empty={<p className="text-sm text-text-pg-muted">{zh ? "暂无财报候选。数据将在下一个美股交易日自动刷新。" : "No earnings candidates. Data refreshes on the next US market day."}</p>} columns={[{ key: "symbol", header: zh ? "标的" : "Symbol", render: (item: typeof earnings.candidates[number]) => <span className="font-semibold">{item.symbol}</span> }, { key: "name", header: zh ? "名称" : "Name", render: (item: typeof earnings.candidates[number]) => <span className="text-text-pg-muted">{item.name}</span> }, { key: "score", header: zh ? "评分" : "Score", render: (item: typeof earnings.candidates[number]) => item.research_score.toFixed(1) }, { key: "sector", header: zh ? "行业" : "Sector", render: (item: typeof earnings.candidates[number]) => item.sector }, { key: "cap", header: zh ? "市值" : "Cap", render: (item: typeof earnings.candidates[number]) => item.market_cap_category }, { key: "earnings", header: zh ? "财报日期" : "Earnings", render: (item: typeof earnings.candidates[number]) => item.earnings_date || "-" }, { key: "news", header: zh ? "关联新闻" : "News", render: (item: typeof earnings.candidates[number]) => <span className="max-w-[240px] truncate text-text-pg-dim">{item.news_snippet || "-"}</span> }]} rows={earnings.candidates} />
     </ResearchCard>
 
-    <div className="flex flex-wrap items-center justify-between gap-3 border border-border-pg bg-bg-panel-muted p-4 text-xs text-text-pg-muted"><span>{zh ? "研究排序不是收益承诺；最大损失、Theta 衰减、流动性和到期风险需要独立评估。" : "Research ranking is not a return promise. Maximum loss, theta decay, liquidity, and expiry risk require independent review."}</span>{gamma.source_url ? <a className="inline-flex items-center gap-1 text-text-pg" href={gamma.source_url} target="_blank" rel="noreferrer">Deribit API <ExternalLink className="h-3.5 w-3.5" /></a> : null}</div>
+    <div className="flex flex-wrap items-center justify-between gap-3 border border-border-pg bg-bg-panel-muted p-4 text-xs text-text-pg-muted rounded-xl"><span>{zh ? "研究排序不是收益承诺；最大损失、Theta 衰减、流动性和到期风险需要独立评估。" : "Research ranking is not a return promise. Maximum loss, theta decay, liquidity, and expiry risk require independent review."}</span>{gamma.source_url ? <a className="inline-flex items-center gap-1 text-text-pg" href={gamma.source_url} target="_blank" rel="noreferrer">Deribit API <ExternalLink className="h-3.5 w-3.5" /></a> : null}</div>
   </div></>;
 }
 

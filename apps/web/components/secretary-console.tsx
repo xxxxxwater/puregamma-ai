@@ -344,15 +344,15 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
 
   return (
     <div className="relative xl:pr-[300px]">
-      <div className="grid border border-border-pg bg-bg-panel lg:h-[calc(100dvh-6.5rem)] lg:min-h-[520px] lg:grid-cols-[minmax(0,1fr)_260px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_240px]">
+      <div className="grid border border-border-pg bg-bg-panel lg:h-[calc(100dvh-6.5rem)] lg:min-h-[520px] lg:grid-cols-[minmax(0,1fr)_260px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_240px] rounded-2xl">
       <section className="flex h-[calc(100dvh-10rem)] min-h-[408px] min-w-0 flex-col overflow-hidden lg:h-auto lg:min-h-0">
         <header className="shrink-0 flex flex-wrap items-start justify-between gap-4 border-b border-border-pg p-5">
           <div><div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">{copy.eyebrow}</div><h1 className="mt-2 text-2xl font-semibold">{copy.title}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-text-pg-muted">{copy.description}</p></div>
-          <div className="flex flex-wrap gap-2 text-xs"><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1"><Volume2 className="h-3.5 w-3.5" />{copy.voiceName} · {copy.fixedVoice}</span><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1"><Coins className="h-3.5 w-3.5" />{creditsPerReply} {copy.creditsPerReply}</span><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 text-status-positive"><Brain className="h-3.5 w-3.5" />{copy.memoryOn}</span></div>
+          <div className="flex flex-wrap gap-2 text-xs"><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 rounded-lg"><Volume2 className="h-3.5 w-3.5" />{copy.voiceName} · {copy.fixedVoice}</span><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 rounded-lg"><Coins className="h-3.5 w-3.5" />{creditsPerReply} {copy.creditsPerReply}</span><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 text-status-positive rounded-lg"><Brain className="h-3.5 w-3.5" />{copy.memoryOn}</span></div>
         </header>
 
         <div ref={messageListRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 md:p-6">
-          {messages.length === 0 ? <div className="mx-auto flex min-h-[360px] max-w-lg flex-col items-center justify-center text-center"><div className="flex h-12 w-12 items-center justify-center border border-border-pg bg-bg-panel-muted"><Mic className="h-5 w-5" /></div><h2 className="mt-5 text-xl font-semibold">{copy.emptyTitle}</h2><p className="mt-2 text-sm leading-6 text-text-pg-muted">{copy.emptyDescription}</p></div> : messages.map((message) => {
+          {messages.length === 0 ? <div className="mx-auto flex min-h-[360px] max-w-lg flex-col items-center justify-center text-center"><div className="flex h-12 w-12 items-center justify-center border border-border-pg bg-bg-panel-muted rounded-lg"><Mic className="h-5 w-5" /></div><h2 className="mt-5 text-xl font-semibold">{copy.emptyTitle}</h2><p className="mt-2 text-sm leading-6 text-text-pg-muted">{copy.emptyDescription}</p></div> : messages.map((message) => {
             const assistant = message.role === "assistant";
             const active = activeAudioId === message.id;
             const loading = loadingAudioId === message.id;
@@ -362,10 +362,10 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
             const remaining = active ? Math.max(0, knownDuration - audioProgress) : knownDuration;
             return (
               <div key={message.id} className={`flex ${assistant ? "justify-start" : "justify-end"}`}>
-                <div className={`max-w-[86%] border px-4 py-3 text-sm leading-6 ${assistant ? "secretary-bubble-assistant" : "border-border-pg-strong bg-pg-white text-pg-black"}`}>
+                <div className={`max-w-[86%] border px-4 py-3 text-sm leading-6  rounded-lg${assistant ? "secretary-bubble-assistant" : "border-border-pg-strong bg-pg-white text-pg-black"}`}>
                   <div className="whitespace-pre-wrap">{String(message.content || "")}</div>
                   {assistant ? (
-                    <div className="mt-3 flex min-h-14 w-[min(320px,72vw)] items-center gap-3 rounded-[8px] bg-[#229ed9] px-3 py-2 text-white shadow-sm">
+                    <div className="mt-3 flex min-h-14 w-[min(320px,72vw)] items-center gap-3 rounded-lg bg-[#229ed9] px-3 py-2 text-white shadow-sm">
                       <button type="button" title={playing ? copy.stop : copy.play} disabled={loading} onClick={() => void playMessage(message)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-60">
                         {loading ? <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-white" /> : playing ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
                       </button>
@@ -397,17 +397,17 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
               onKeyDown={(event) => { if ((event.key === " " || event.key === "Enter") && !event.repeat) { event.preventDefault(); void startHoldRecording(); } }}
               onKeyUp={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); stopHoldRecording(); } }}
               onContextMenu={(event) => event.preventDefault()}
-              className={`flex h-11 w-[150px] shrink-0 touch-none select-none items-center justify-center gap-2 border px-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40 ${recording ? "border-status-positive bg-status-positive text-white" : "border-border-pg text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"}`}
+              className={`flex h-11 w-[150px] shrink-0 touch-none select-none items-center justify-center gap-2 border px-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40  rounded-lg${recording ? "border-status-positive bg-status-positive text-white" : "border-border-pg text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"}`}
             >
               <Mic className="h-4 w-4" />{recording ? `${copy.releaseToSend} ${formatTime(recordingRemaining)}` : copy.holdToTalk}
             </button>
-            <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendContent(input); } }} rows={2} maxLength={4000} placeholder={copy.placeholder} className="min-h-11 min-w-0 flex-1 resize-none border border-border-pg bg-bg-app px-3 py-2 text-sm outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong" />
-            <button type="button" title={copy.send} disabled={!input.trim() || busy || transcribing} onClick={() => void sendContent(input)} className="flex h-11 w-11 shrink-0 items-center justify-center border border-border-pg-strong bg-pg-white text-pg-black disabled:cursor-not-allowed disabled:opacity-40"><Send className="h-4 w-4" /></button>
+            <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendContent(input); } }} rows={2} maxLength={4000} placeholder={copy.placeholder} className="min-h-11 min-w-0 flex-1 resize-none border border-border-pg bg-bg-app px-3 py-2 text-sm outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong rounded-lg" />
+            <button type="button" title={copy.send} disabled={!input.trim() || busy || transcribing} onClick={() => void sendContent(input)} className="flex h-11 w-11 shrink-0 items-center justify-center border border-border-pg-strong bg-pg-white text-pg-black disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"><Send className="h-4 w-4" /></button>
           </div>
         </div>
       </section>
 
-      <aside className="border-t border-border-pg p-5 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0"><div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" />{copy.skills}</div><div className="mt-4 divide-y divide-border-pg border-y border-border-pg">{skills.map((skill) => <div key={skill.id} className="py-3"><div className="text-sm font-medium">{skillLabels[skill.id] || skill.id}</div><div className={`mt-1 text-xs ${skill.status === "active" ? "text-status-positive" : skill.status === "confirmation_required" ? "text-status-warning" : "text-text-pg-muted"}`}>{statusLabel(skill.status)}</div></div>)}</div><p className="mt-5 text-xs leading-5 text-text-pg-muted">{copy.privacy}</p><button type="button" onClick={() => void clearMemory()} className="mt-5 inline-flex items-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-muted hover:border-status-negative hover:text-status-negative"><Trash2 className="h-3.5 w-3.5" />{copy.clearMemory}</button></aside>
+      <aside className="border-t border-border-pg p-5 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0"><div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" />{copy.skills}</div><div className="mt-4 divide-y divide-border-pg border-y border-border-pg rounded-xl overflow-hidden">{skills.map((skill) => <div key={skill.id} className="py-3"><div className="text-sm font-medium">{skillLabels[skill.id] || skill.id}</div><div className={`mt-1 text-xs ${skill.status === "active" ? "text-status-positive" : skill.status === "confirmation_required" ? "text-status-warning" : "text-text-pg-muted"}`}>{statusLabel(skill.status)}</div></div>)}</div><p className="mt-5 text-xs leading-5 text-text-pg-muted">{copy.privacy}</p><button type="button" onClick={() => void clearMemory()} className="mt-5 inline-flex items-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-muted hover:border-status-negative hover:text-status-negative rounded-lg"><Trash2 className="h-3.5 w-3.5" />{copy.clearMemory}</button></aside>
       </div>
 
       <aside className="pointer-events-none absolute bottom-0 right-[-50px] top-0 z-10 hidden w-[400px] xl:block" aria-label={locale === "zh" ? "抓住技能面板边框的亲密秘书" : "Private Secretary holding the Skills panel edge"}>

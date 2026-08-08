@@ -20,7 +20,7 @@ type AllocationPoint = { name: string; value: number; weight?: number };
 export function ChartTooltip({ active, payload, label }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="border border-border-pg bg-bg-panel px-3 py-2 text-xs">
+    <div className="border border-border-pg bg-bg-panel px-3 py-2 text-xs rounded-lg">
       <div className="mb-1 text-text-pg-muted">{label}</div>
       {payload.map((item) => <div key={item.name} className="text-text-pg">{item.name}: {Number(item.value).toLocaleString()}</div>)}
     </div>
@@ -67,7 +67,7 @@ export function CreditUsageChart({ data }: { data: Point[] }) {
           <XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} />
           <YAxis stroke={text} tickLine={false} axisLine={false} />
           <Tooltip content={<ChartTooltip />} />
-          <Bar dataKey="value" fill={white} radius={[0, 0, 0, 0]} />
+          <Bar dataKey="value" fill={white} radius={[6, 6, 0, 0]} />
         </BarChart>
       </ResponsiveContainer>
     </div>
@@ -83,7 +83,7 @@ export function ConfidenceDistributionChart({ data }: { data: Point[] }) {
           <XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval={0} minTickGap={10} />
           <YAxis stroke={text} tickLine={false} axisLine={false} width={36} domain={[0, 100]} />
           <Tooltip content={<ChartTooltip />} />
-          <Bar dataKey="confidence" fill={white} radius={[0, 0, 0, 0]} maxBarSize={44} />
+          <Bar dataKey="confidence" fill={white} radius={[6, 6, 0, 0]} maxBarSize={44} />
         </BarChart>
       </ResponsiveContainer>
     </div>

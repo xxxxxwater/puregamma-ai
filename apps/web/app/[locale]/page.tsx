@@ -19,7 +19,7 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
 
   return (
     <div className="space-y-16 py-4">
-      <section className="border border-border-pg bg-bg-panel p-6 md:p-10">
+      <section className="border border-border-pg bg-bg-panel p-6 md:p-10 rounded-2xl">
         <div className="flex flex-wrap items-center gap-4 border-b border-border-pg pb-5 text-sm">
           <div className="flex items-center gap-2 font-semibold"><Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI</div>
         </div>
@@ -29,17 +29,17 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
             <h1 className="mt-7 max-w-5xl text-4xl font-semibold tracking-normal md:text-6xl">{copy.hero.headline}</h1>
             <p className="mt-6 max-w-3xl text-base leading-7 text-text-pg-muted">{copy.hero.subheadline}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href={withLocale(locale, "/chat")} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-3 text-sm font-semibold text-pg-black">
+              <Link href={withLocale(locale, "/chat")} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-3 text-sm font-semibold text-pg-black rounded-lg">
                 {copy.hero.primaryCta} <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href={withLocale(locale, "/api")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong">
+              <Link href={withLocale(locale, "/api")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong rounded-lg">
                 {locale === "zh" ? "API 快速接入" : "API Quickstart"} <ArrowRight className="h-4 w-4" />
               </Link>
             </div>
           </div>
           <PGResearchCard>
             <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">{copy.engine.eyebrow}</div>
-            <div className="mt-6 divide-y divide-border-pg border border-border-pg">
+            <div className="mt-6 divide-y divide-border-pg border border-border-pg rounded-xl overflow-hidden">
               {copy.engine.rows.map((row, index) => (
                 <div key={row.label} className="grid grid-cols-[52px_1fr] gap-4 p-4">
                   <span className="text-text-pg-dim">{String(index + 1).padStart(2, "0")}</span>
@@ -51,7 +51,7 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
         </div>
       </section>
 
-      <section className="grid gap-px border border-border-pg bg-border-pg md:grid-cols-4">
+      <section className="grid gap-px border border-border-pg bg-border-pg md:grid-cols-4 rounded-xl overflow-hidden">
         {copy.stats.map((item) => <div key={item} className="bg-bg-panel p-5 text-sm font-semibold">{item}</div>)}
       </section>
 

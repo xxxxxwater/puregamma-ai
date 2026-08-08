@@ -65,7 +65,7 @@ export default function VerifyEmailPage() {
           <h1 className="mt-6 text-2xl font-semibold">{t(locale, "common.auth.verifyEmailTitle")}</h1>
         </div>
 
-        <div className="space-y-4 border border-border-pg bg-bg-panel p-6">
+        <div className="space-y-4 border border-border-pg bg-bg-panel p-6 rounded-2xl">
           {status === "loading" ? (
             <div className="flex flex-col items-center gap-3 py-4">
               <Loader2 className="h-8 w-8 animate-spin text-text-pg-muted" />
@@ -88,13 +88,13 @@ export default function VerifyEmailPage() {
                     value={resendEmail}
                     onChange={(e) => setResendEmail(e.target.value)}
                     placeholder={t(locale, "common.auth.emailPlaceholder")}
-                    className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong"
+                    className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong rounded-lg"
                     required
                   />
                   <button
                     type="submit"
                     disabled={resending || !resendEmail}
-                    className="inline-flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2 text-sm font-medium text-text-pg transition hover:border-border-pg-strong disabled:opacity-50"
+                    className="inline-flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2 text-sm font-medium text-text-pg transition hover:border-border-pg-strong disabled:opacity-50 rounded-lg"
                   >
                     {resending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                     {t(locale, "common.auth.resendVerification")}

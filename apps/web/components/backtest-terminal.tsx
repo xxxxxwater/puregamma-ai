@@ -122,7 +122,7 @@ export function BacktestTerminal({ run, localeStr }: Props) {
 
   if (!run) {
     return (
-      <div className="border border-border-pg bg-bg-panel p-4 text-xs text-text-pg-dim">
+      <div className="border border-border-pg bg-bg-panel p-4 text-xs text-text-pg-dim rounded-xl">
         <div className="flex items-center gap-2">
           <Terminal className="h-4 w-4" />
           {zh ? "运行回测后将在此显示终端输出" : "Run a backtest to see terminal output here"}
@@ -136,7 +136,7 @@ export function BacktestTerminal({ run, localeStr }: Props) {
       type="button"
       onClick={() => setOpen((previous) => !previous)}
       aria-expanded={open}
-      className="flex w-full items-center justify-between border border-border-pg bg-bg-panel px-4 py-2.5 text-left text-xs font-semibold"
+      className="flex w-full items-center justify-between border border-border-pg bg-bg-panel px-4 py-2.5 text-left text-xs font-semibold rounded-lg"
     >
       <span className="flex items-center gap-2">
         <Terminal className="h-4 w-4" />
@@ -165,7 +165,7 @@ export function BacktestTerminal({ run, localeStr }: Props) {
         ref={containerRef}
         role="log"
         aria-live="polite"
-        className="max-h-96 overflow-y-auto border-x border-b border-border-pg bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] leading-[1.55]"
+        className="max-h-96 overflow-y-auto border-x border-b border-border-pg bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] leading-[1.55] rounded-xl"
       >
         {lines.length === 0 ? (
           <span className="text-neutral-600">

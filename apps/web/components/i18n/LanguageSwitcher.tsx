@@ -33,7 +33,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div className={clsx("inline-flex items-center border border-border-pg bg-bg-panel-muted", compact ? "text-xs" : "text-sm")} aria-label={t(locale, "common.language.label")}>
+    <div className={clsx("inline-flex items-center border border-border-pg bg-bg-panel-muted rounded-lg", compact ? "text-xs" : "text-sm")} aria-label={t(locale, "common.language.label")}>
       {targets.map((target) => {
         const active = target.locale === locale;
         return (

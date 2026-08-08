@@ -49,7 +49,7 @@ export default function ReportsPage({ locale, reports, copy, filters }: { locale
               const freshness = reportFreshness(report, locale);
               const isSelected = report.id === selected?.id;
               return (
-              <button key={report.id} type="button" onClick={() => setSelectedId(report.id)} className={`grid w-full grid-cols-[42px_1fr] gap-3 border p-3 text-left transition ${isSelected ? "border-border-pg-strong bg-bg-panel" : "border-border-pg bg-bg-panel-muted hover:border-border-pg-strong"}`}>
+              <button key={report.id} type="button" onClick={() => setSelectedId(report.id)} className={`grid w-full grid-cols-[42px_1fr] gap-3 border p-3 text-left transition  rounded-lg${isSelected ? "border-border-pg-strong bg-bg-panel" : "border-border-pg bg-bg-panel-muted hover:border-border-pg-strong"}`}>
                 <div className="text-sm text-text-pg-dim">{String(index + 1).padStart(2, "0")}</div>
                 <div>
                   <div className="font-medium">{report.title}</div>

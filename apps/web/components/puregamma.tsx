@@ -60,7 +60,7 @@ export type IntegrationRow = {
 
 export function PGResearchCard({ children, className = "", ...props }: HTMLAttributes<HTMLElement> & { children: ReactNode; className?: string }) {
   return (
-    <section className={clsx("min-w-0 border border-border-pg bg-bg-panel p-4 text-text-pg transition hover:border-border-pg-strong", className)} {...props}>
+    <section className={clsx("min-w-0 border border-border-pg bg-bg-panel p-4 text-text-pg transition hover:border-border-pg-strong rounded-xl", className)} {...props}>
       {children}
     </section>
   );
@@ -138,7 +138,7 @@ export function MetricCard({
 }
 
 export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: Tone }) {
-  return <span className={clsx("inline-flex items-center gap-1 border px-2 py-0.5 text-xs font-medium", badgeClass(tone))}>{children}</span>;
+  return <span className={clsx("inline-flex items-center gap-1 border px-2 py-0.5 text-xs font-medium rounded-lg", badgeClass(tone))}>{children}</span>;
 }
 
 export function StatusDot({ tone = "neutral" }: { tone?: Tone }) {
@@ -223,7 +223,7 @@ export function PlanBadge({ plan, locale = defaultLocale }: { plan: string; loca
     ? { silver: "白银", gold: "黄金", "black-gold": "黑金", prestige: "尊贵" }
     : { silver: "Silver", gold: "Gold", "black-gold": "Black Gold", prestige: "Prestige" };
   return (
-    <span title={`${plan} · ${labels[identity]}`} className={clsx("inline-flex items-center gap-1.5 border px-2 py-0.5 text-xs font-semibold", planIdentityStyles[identity])}>
+    <span title={`${plan} · ${labels[identity]}`} className={clsx("inline-flex items-center gap-1.5 border px-2 py-0.5 text-xs font-semibold rounded-lg", planIdentityStyles[identity])}>
       <PlanIdentityIcon identity={identity} />
       <span>{plan}</span>
       <span className="font-normal opacity-75">· {labels[identity]}</span>
@@ -242,7 +242,7 @@ export function MockModeBadge({ live = false, locale = defaultLocale }: { live?:
 
 export function MarketRegimeBanner({ regime, freshness, summary, locale = defaultLocale }: { regime: string; freshness: string; summary: string; locale?: Locale }) {
   return (
-    <section className="border border-border-pg bg-bg-panel p-5">
+    <section className="border border-border-pg bg-bg-panel p-5 rounded-xl">
       <div className="flex flex-wrap items-center justify-between gap-3">
         <div>
           <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">01 / {t(locale, "common.shared.marketRegime")}</div>
@@ -286,7 +286,7 @@ export function NAVCurveCard({ title, data, locale = defaultLocale }: { title: s
 
 export function AllocationTable({ rows, locale = defaultLocale }: { rows: { name: string; weight: number; value: number }[]; locale?: Locale }) {
   return (
-    <div className="divide-y divide-border-pg border border-border-pg">
+    <div className="divide-y divide-border-pg border border-border-pg rounded-xl overflow-hidden">
       {rows.map((row) => (
         <div key={row.name} className="grid grid-cols-[1fr_auto_auto] gap-3 px-3 py-2 text-sm">
           <span>{row.name}</span>
@@ -301,7 +301,7 @@ export function AllocationTable({ rows, locale = defaultLocale }: { rows: { name
 export function PositionsTable({ rows, locale = defaultLocale }: { rows: PositionRow[]; locale?: Locale }) {
   const headers = ["asset", "source", "qty", "price", "value", "costBasis", "unrealizedPnl", "risk"] as const;
   return (
-    <div className="overflow-x-auto border border-border-pg">
+    <div className="overflow-x-auto border border-border-pg rounded-xl">
       <table className="w-full min-w-[860px] text-sm">
         <thead className="text-left text-xs uppercase tracking-[0.12em] text-text-pg-muted">
           <tr>{headers.map((h) => <th key={h} className="border-b border-border-pg px-3 py-2 font-medium">{t(locale, `portfolio.tables.${h}`)}</th>)}</tr>
@@ -315,7 +315,7 @@ export function PositionsTable({ rows, locale = defaultLocale }: { rows: Positio
 export function SignalTable({ rows, locale = defaultLocale }: { rows: SignalRow[]; locale?: Locale }) {
   const headers = ["id", "asset", "signalType", "direction", "confidence", "risk", "catalyst", "invalidation", "timeframe", "source"] as const;
   return (
-    <div className="max-w-full overflow-x-auto border border-border-pg">
+    <div className="max-w-full overflow-x-auto border border-border-pg rounded-xl">
       <table className="w-full min-w-[1060px] text-sm">
         <thead className="text-left text-xs uppercase tracking-[0.12em] text-text-pg-muted">
           <tr>{headers.map((h) => <th key={h} className="border-b border-border-pg px-3 py-2 font-medium">{t(locale, `signals.table.${h}`)}</th>)}</tr>
@@ -340,15 +340,15 @@ export function StrategyCard({ item, locale = defaultLocale }: { item: StrategyR
 }
 
 export function BacktestResultCard({ metrics, locale = defaultLocale }: { metrics: { label: string; value: string }[]; locale?: Locale }) {
-  return <PGResearchCard><h3 className="mb-3 font-semibold">{t(locale, "nautilus.modules.backtestResults")}</h3><div className="grid grid-cols-2 gap-px border border-border-pg bg-border-pg text-sm md:grid-cols-4">{metrics.map((metric) => <div key={metric.label} className="bg-bg-panel p-3"><div className="text-text-pg-muted">{metric.label}</div><div className="mt-1 text-lg font-semibold">{metric.value}</div></div>)}</div><p className="mt-3 text-xs text-text-pg-dim">{t(locale, "compliance.backtestShort")}</p></PGResearchCard>;
+  return <PGResearchCard><h3 className="mb-3 font-semibold">{t(locale, "nautilus.modules.backtestResults")}</h3><div className="grid grid-cols-2 gap-px border border-border-pg bg-border-pg text-sm md:grid-cols-4 rounded-xl overflow-hidden">{metrics.map((metric) => <div key={metric.label} className="bg-bg-panel p-3"><div className="text-text-pg-muted">{metric.label}</div><div className="mt-1 text-lg font-semibold">{metric.value}</div></div>)}</div><p className="mt-3 text-xs text-text-pg-dim">{t(locale, "compliance.backtestShort")}</p></PGResearchCard>;
 }
 
 export function DailyBriefPreview({ locale = defaultLocale }: { locale?: Locale }) {
   return (
     <PGResearchCard>
-      <div className="mx-auto max-w-sm border border-border-pg bg-bg-app p-4">
+      <div className="mx-auto max-w-sm border border-border-pg bg-bg-app p-4 rounded-xl">
         <div className="text-xs uppercase tracking-[0.14em] text-text-pg-muted">{t(locale, "daily-push.preview.label")}</div>
-        <div className="mt-4 whitespace-pre-line border border-border-pg bg-bg-panel-muted p-4 text-sm leading-6">
+        <div className="mt-4 whitespace-pre-line border border-border-pg bg-bg-panel-muted p-4 text-sm leading-6 rounded-xl">
           {t(locale, "daily-push.preview.message")}
         </div>
       </div>
@@ -365,7 +365,7 @@ export function IntegrationConnectorCard({ item, locale = defaultLocale, manageH
       <div className="flex items-start justify-between gap-3 border-b border-border-pg pb-3"><div><h3 className="font-semibold">{item.name}</h3><p className="mt-1 text-sm text-text-pg-muted">{item.description}</p></div><DataSourceStatusBadge locale={locale} status={item.status} /></div>
       <div className="mt-4 grid grid-cols-2 gap-3 text-sm"><span className="text-text-pg-muted">{t(locale, "integrations.cardLabels.requiredPlan")}</span><PlanBadge plan={item.plan} /><span className="text-text-pg-muted">{t(locale, "integrations.cardLabels.creditCost")}</span><CreditCostBadge locale={locale} cost={item.cost} /><span className="text-text-pg-muted">{t(locale, "integrations.cardLabels.lastSync")}</span><span>{item.lastSync}</span></div>
       {item.failureReason ? <p className="mt-3 text-sm text-status-warning">{item.failureReason}</p> : null}
-      <div className="mt-4 flex gap-2"><a href={manage} className="border border-border-pg px-3 py-2 text-sm transition hover:border-border-pg-strong">{t(locale, "common.actions.connect")}</a><a href={manage} className="border border-border-pg px-3 py-2 text-sm transition hover:border-border-pg-strong">{t(locale, "common.actions.sync")}</a></div>
+      <div className="mt-4 flex gap-2"><a href={manage} className="border border-border-pg px-3 py-2 text-sm transition hover:border-border-pg-strong rounded-lg">{t(locale, "common.actions.connect")}</a><a href={manage} className="border border-border-pg px-3 py-2 text-sm transition hover:border-border-pg-strong rounded-lg">{t(locale, "common.actions.sync")}</a></div>
     </PGResearchCard>
   );
 }
@@ -392,7 +392,7 @@ export function DiligenceLedger({ items, locale = defaultLocale }: { items: { la
 
 export function ProcessStepper({ steps }: { steps: { label: string; detail: string }[] }) {
   return (
-    <div className="grid gap-px border border-border-pg bg-border-pg md:grid-cols-4">
+    <div className="grid gap-px border border-border-pg bg-border-pg md:grid-cols-4 rounded-xl overflow-hidden">
       {steps.map((step, index) => (
         <div key={step.label} className="bg-bg-panel p-4">
           <div className="text-xs text-text-pg-dim">{String(index + 1).padStart(2, "0")}</div>
@@ -408,21 +408,21 @@ export function ReportMarkdown({ content, locale = defaultLocale }: { content: s
   return (
     <article className="pg-report prose prose-invert max-w-none text-sm leading-7 prose-headings:text-text-pg prose-p:text-text-pg-muted prose-li:text-text-pg-muted prose-strong:text-text-pg">
       <ReactMarkdown>{content}</ReactMarkdown>
-      <div className="mt-6 border border-border-pg bg-bg-panel-muted p-3 text-xs text-text-pg-muted">{t(locale, "compliance.notFinancialAdvice")}</div>
+      <div className="mt-6 border border-border-pg bg-bg-panel-muted p-3 text-xs text-text-pg-muted rounded-lg">{t(locale, "compliance.notFinancialAdvice")}</div>
     </article>
   );
 }
 
 export function EmptyState({ title, description }: { title: string; description: string }) {
-  return <div className="border border-dashed border-border-pg bg-bg-panel p-8 text-center"><Clock className="mx-auto h-6 w-6 text-text-pg-muted" /><h3 className="mt-3 font-semibold">{title}</h3><p className="mt-2 text-sm text-text-pg-muted">{description}</p></div>;
+  return <div className="border border-dashed border-border-pg bg-bg-panel p-8 text-center rounded-2xl"><Clock className="mx-auto h-6 w-6 text-text-pg-muted" /><h3 className="mt-3 font-semibold">{title}</h3><p className="mt-2 text-sm text-text-pg-muted">{description}</p></div>;
 }
 
 export function LoadingSkeleton() {
-  return <div className="animate-pulse space-y-3"><div className="h-5 w-1/3 bg-bg-panel-muted" /><div className="h-32 border border-border-pg bg-bg-panel-muted" /><div className="h-32 border border-border-pg bg-bg-panel-muted" /></div>;
+  return <div className="animate-pulse space-y-3"><div className="h-5 w-1/3 bg-bg-panel-muted" /><div className="h-32 border border-border-pg bg-bg-panel-muted rounded-xl" /><div className="h-32 border border-border-pg bg-bg-panel-muted rounded-xl" /></div>;
 }
 
 export function ErrorState({ title, description }: { title: string; description: string }) {
-  return <div className="border border-border-pg-strong bg-bg-panel p-4"><div className="flex gap-2 text-status-negative"><ShieldAlert className="h-5 w-5" /><strong>{title}</strong></div><p className="mt-2 text-sm text-text-pg-muted">{description}</p></div>;
+  return <div className="border border-border-pg-strong bg-bg-panel p-4 rounded-xl"><div className="flex gap-2 text-status-negative"><ShieldAlert className="h-5 w-5" /><strong>{title}</strong></div><p className="mt-2 text-sm text-text-pg-muted">{description}</p></div>;
 }
 
 export function DisclaimerFooter({ locale = defaultLocale }: { locale?: Locale }) {
@@ -432,7 +432,7 @@ export function DisclaimerFooter({ locale = defaultLocale }: { locale?: Locale }
 }
 
 export function ActionLink({ href, children }: { href: string; children: ReactNode }) {
-  return <Link href={href} className="inline-flex items-center border border-border-pg px-3 py-2 text-sm font-medium hover:border-border-pg-strong hover:bg-bg-panel-muted">{children}</Link>;
+  return <Link href={href} className="inline-flex items-center border border-border-pg px-3 py-2 text-sm font-medium hover:border-border-pg-strong hover:bg-bg-panel-muted rounded-lg">{children}</Link>;
 }
 
 function badgeClass(tone: Tone) {

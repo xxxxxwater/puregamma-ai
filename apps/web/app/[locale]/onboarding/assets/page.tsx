@@ -37,10 +37,10 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
         <h1 className="mt-4 text-3xl font-semibold">{copy.title}</h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-text-pg-muted">{copy.subtitle}</p>
         <div className="mt-4 flex gap-2">
-          <button onClick={() => setSelected(new Set(copy.items.map((asset) => asset.symbol)))} className="border border-border-pg px-3 py-1.5 text-xs hover:border-border-pg-strong">
+          <button onClick={() => setSelected(new Set(copy.items.map((asset) => asset.symbol)))} className="border border-border-pg px-3 py-1.5 text-xs hover:border-border-pg-strong rounded-lg">
             {copy.selectAll}
           </button>
-          <button onClick={() => setSelected(new Set())} className="border border-border-pg px-3 py-1.5 text-xs hover:border-border-pg-strong">
+          <button onClick={() => setSelected(new Set())} className="border border-border-pg px-3 py-1.5 text-xs hover:border-border-pg-strong rounded-lg">
             {copy.clear}
           </button>
         </div>
@@ -53,7 +53,7 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
             <button
               key={asset.symbol}
               onClick={() => toggle(asset.symbol)}
-              className={`border p-5 text-left transition ${
+              className={`border p-5 text-left transition  rounded-xl${
                 isSelected ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"
               }`}
             >
@@ -72,7 +72,7 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
         })}
       </div>
 
-      <div className="mt-8 flex items-center justify-between gap-4 border border-border-pg bg-bg-panel-muted px-4 py-3">
+      <div className="mt-8 flex items-center justify-between gap-4 border border-border-pg bg-bg-panel-muted px-4 py-3 rounded-lg">
         <div className="flex items-center gap-2 text-sm text-text-pg-muted">
           <Info className="h-4 w-4 shrink-0" aria-hidden />
           {selectedLabel(locale, selected.size)}
@@ -80,7 +80,7 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
         <button
           onClick={handleContinue}
           disabled={selected.size === 0}
-          className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-5 py-2.5 text-sm font-semibold text-pg-black transition hover:bg-pg-white-soft disabled:cursor-not-allowed disabled:opacity-40"
+          className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-5 py-2.5 text-sm font-semibold text-pg-black transition hover:bg-pg-white-soft disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
         >
           {copy.continue} <ArrowRight className="h-4 w-4" aria-hidden />
         </button>

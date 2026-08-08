@@ -59,7 +59,7 @@ function MockCheckoutInner() {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <div className="w-full max-w-md border border-border-pg bg-bg-panel p-6 text-center">
+      <div className="w-full max-w-md border border-border-pg bg-bg-panel p-6 text-center rounded-2xl">
         {status === "processing" && (
           <>
             <Loader2 className="mx-auto h-6 w-6 animate-spin text-text-pg" />
@@ -91,7 +91,7 @@ function MockCheckoutInner() {
             <p className="mt-3 text-sm text-text-pg-muted">{error}</p>
             <Link
               href={withLocale(locale, "/billing")}
-              className="mt-5 inline-flex border border-border-pg px-4 py-2 text-sm text-text-pg hover:border-border-pg-strong"
+              className="mt-5 inline-flex border border-border-pg px-4 py-2 text-sm text-text-pg hover:border-border-pg-strong rounded-lg"
             >
               {locale === "zh" ? "返回订阅页面" : "Back to Billing"}
             </Link>

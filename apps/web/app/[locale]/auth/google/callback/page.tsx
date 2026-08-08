@@ -40,12 +40,12 @@ function GoogleCallbackInner() {
 
   return (
     <div className="flex min-h-[70vh] items-center justify-center px-4">
-      <div className="w-full max-w-md border border-border-pg bg-bg-panel p-6 text-center">
+      <div className="w-full max-w-md border border-border-pg bg-bg-panel p-6 text-center rounded-2xl">
         {error ? (
           <>
             <h1 className="text-xl font-semibold">{t(locale, "common.auth.googleCallbackError")}</h1>
             <p className="mt-3 text-sm text-text-pg-muted">{error}</p>
-            <Link href={withLocale(locale, "/login")} className="mt-5 inline-flex border border-border-pg px-4 py-2 text-sm text-text-pg hover:border-border-pg-strong">
+            <Link href={withLocale(locale, "/login")} className="mt-5 inline-flex border border-border-pg px-4 py-2 text-sm text-text-pg hover:border-border-pg-strong rounded-lg">
               {t(locale, "common.nav.signin")}
             </Link>
           </>

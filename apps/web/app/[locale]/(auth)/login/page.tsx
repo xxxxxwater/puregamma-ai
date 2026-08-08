@@ -97,10 +97,10 @@ export default function LoginPage() {
           <h1 className="mt-6 text-2xl font-semibold">{t(locale, "common.auth.loginTitle")}</h1>
         </div>
 
-        <div className="space-y-4 border border-border-pg bg-bg-panel p-6">
-          {error ? <p className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative">{error}</p> : null}
+        <div className="space-y-4 border border-border-pg bg-bg-panel p-6 rounded-2xl">
+          {error ? <p className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative rounded-lg">{error}</p> : null}
           {verifyError ? (
-            <div className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 space-y-2">
+            <div className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 space-y-2 rounded-lg">
               <p className="text-sm text-status-negative">{t(locale, "common.auth.emailNotVerified")}</p>
               <button type="button" onClick={async () => { setVerifyError(""); try { await resendVerificationEmail(verifyError); setError(t(locale, "common.auth.verificationResent")); } catch { setError(zh ? "发送失败，请稍后重试" : "Failed to send"); } }} className="text-sm font-medium text-text-pg underline underline-offset-2">{t(locale, "common.auth.resendVerification")}</button>
             </div>
@@ -112,7 +112,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t(locale, "common.auth.emailPlaceholder")}
-              className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong"
+              className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong rounded-lg"
               required
             />
             <PasswordInput
@@ -124,7 +124,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy || !email || !password}
-              className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-pg-white px-4 py-2.5 text-sm font-semibold text-pg-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-pg-white px-4 py-2.5 text-sm font-semibold text-pg-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t(locale, "common.auth.emailLogin")}
@@ -140,7 +140,7 @@ export default function LoginPage() {
             <div className="h-px flex-1 bg-border-pg" />
           </div>
 
-          <button type="button" disabled={busy} onClick={handleGoogleLogin} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm font-semibold text-text-pg transition hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-50">
+          <button type="button" disabled={busy} onClick={handleGoogleLogin} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm font-semibold text-text-pg transition hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-50 rounded-lg">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Chrome className="h-4 w-4" />}
             {t(locale, "common.auth.googleLogin")}
           </button>

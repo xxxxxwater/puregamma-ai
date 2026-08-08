@@ -25,7 +25,7 @@ const num = (value: number) => value.toLocaleString();
 function UsageTooltip({ active, payload, label, prefix }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string; prefix?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div className="border border-border-pg bg-bg-panel px-3 py-2 text-xs">
+    <div className="border border-border-pg bg-bg-panel px-3 py-2 text-xs rounded-lg">
       <div className="mb-1 text-text-pg-muted">{label}</div>
       {payload.map((item) => <div key={item.name} className="text-text-pg">{item.name}: {prefix || ""}{num(Number(item.value))}</div>)}
     </div>
@@ -145,7 +145,7 @@ export function UsagePanel({ locale, initialUsage }: Props) {
   const totalTokens = totals.input_tokens + totals.output_tokens + totals.cache_tokens;
 
   return <div className="space-y-5">
-    {usage?.unavailable ? <div className="border border-status-warning bg-bg-panel p-4 text-sm text-text-pg-muted">{zh ? "用量数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Usage data is unavailable. Confirm that the gateway is enabled and you are signed in."}</div> : null}
+    {usage?.unavailable ? <div className="border border-status-warning bg-bg-panel p-4 text-sm text-text-pg-muted rounded-xl">{zh ? "用量数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Usage data is unavailable. Confirm that the gateway is enabled and you are signed in."}</div> : null}
 
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -153,24 +153,24 @@ export function UsagePanel({ locale, initialUsage }: Props) {
         <h2 className="mt-1 font-semibold">{zh ? "用量" : "Usage"}</h2>
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        {presets.map((item) => <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)} className={`border px-3 py-1.5 text-sm disabled:opacity-50 ${preset === item.id ? "border-text-pg bg-text-pg font-semibold text-bg-panel" : "border-border-pg bg-bg-panel-muted"}`}>{item.label}</button>)}
+        {presets.map((item) => <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)} className={`border px-3 py-1.5 text-sm disabled:opacity-50  rounded-lg${preset === item.id ? "border-text-pg bg-text-pg font-semibold text-bg-panel" : "border-border-pg bg-bg-panel-muted"}`}>{item.label}</button>)}
         <div className="flex items-end gap-2">
-          <label className="text-xs text-text-pg-muted">{zh ? "起" : "From"}<input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm" /></label>
-          <label className="text-xs text-text-pg-muted">{zh ? "止" : "To"}<input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm" /></label>
-          <button type="button" disabled={loading || !customStart || !customEnd} onClick={applyCustom} className="border border-border-pg bg-bg-panel-muted px-3 py-1.5 text-sm disabled:opacity-50">{zh ? "应用" : "Apply"}</button>
+          <label className="text-xs text-text-pg-muted">{zh ? "起" : "From"}<input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>
+          <label className="text-xs text-text-pg-muted">{zh ? "止" : "To"}<input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>
+          <button type="button" disabled={loading || !customStart || !customEnd} onClick={applyCustom} className="border border-border-pg bg-bg-panel-muted px-3 py-1.5 text-sm disabled:opacity-50 rounded-lg">{zh ? "应用" : "Apply"}</button>
         </div>
-        <select value={modelFilter ?? ""} onChange={(event) => selectModel(event.target.value || null)} className="border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm" aria-label="Filter by model">
+        <select value={modelFilter ?? ""} onChange={(event) => selectModel(event.target.value || null)} className="border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" aria-label="Filter by model">
           <option value="">{zh ? "全部模型" : "All models"}</option>
           {models.map((name) => <option key={name} value={name}>{name}</option>)}
         </select>
-        <select value={keyFilter ?? ""} onChange={(event) => selectKey(event.target.value || null)} className="border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm" aria-label="Filter by API key">
+        <select value={keyFilter ?? ""} onChange={(event) => selectKey(event.target.value || null)} className="border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" aria-label="Filter by API key">
           <option value="">{zh ? "全部密钥" : "All keys"}</option>
           {keys.map((key) => <option key={key.api_key_id} value={key.api_key_id}>{key.name || key.prefix || key.api_key_id}</option>)}
         </select>
       </div>
     </div>
 
-    {loading ? <div className="border border-border-pg bg-bg-panel p-4 text-sm text-text-pg-muted">{zh ? "加载中…" : "Loading…"}</div> : null}
+    {loading ? <div className="border border-border-pg bg-bg-panel p-4 text-sm text-text-pg-muted rounded-xl">{zh ? "加载中…" : "Loading…"}</div> : null}
 
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
       <MetricCard label={zh ? "总 Tokens" : "Total tokens"} value={num(totalTokens)} detail={zh ? "输入 + 输出 + 缓存" : "Input + output + cache"} tone="emerald" />
@@ -187,7 +187,7 @@ export function UsagePanel({ locale, initialUsage }: Props) {
 
     {hasData ? <div className="grid gap-4 xl:grid-cols-2">
       <ResearchCard><h3 className="font-semibold">{zh ? "Tokens 时间序列" : "Tokens over time"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={tokenSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<ChartTooltip />} /><Area type="monotone" dataKey="input" name={zh ? "输入" : "Input"} stackId="1" stroke={positive} fill={positiveFill} strokeWidth={2} /><Area type="monotone" dataKey="output" name={zh ? "输出" : "Output"} stackId="1" stroke={white} fill={whiteFill} strokeWidth={2} /><Area type="monotone" dataKey="cache" name={zh ? "缓存" : "Cache"} stackId="1" stroke={warning} fill={warningFill} strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
-      <ResearchCard><h3 className="font-semibold">{zh ? "请求与错误" : "Requests and errors"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={requestSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={36} /><Tooltip content={<ChartTooltip />} /><Bar dataKey="success" name={zh ? "成功" : "Success"} fill={positive} radius={[0, 0, 0, 0]} /><Bar dataKey="errors" name={zh ? "错误" : "Errors"} fill={negative} radius={[0, 0, 0, 0]} /></BarChart></ResponsiveContainer></div></ResearchCard>
+      <ResearchCard><h3 className="font-semibold">{zh ? "请求与错误" : "Requests and errors"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={requestSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={36} /><Tooltip content={<ChartTooltip />} /><Bar dataKey="success" name={zh ? "成功" : "Success"} fill={positive} radius={[6, 6, 0, 0]} /><Bar dataKey="errors" name={zh ? "错误" : "Errors"} fill={negative} radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div></ResearchCard>
       <ResearchCard><h3 className="font-semibold">{zh ? "消费金额" : "Spend"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={costSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip prefix="$" />} /><Area type="monotone" dataKey="cost" name="USD" stroke={warning} fill={warningFill} strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
       <ResearchCard><h3 className="font-semibold">{zh ? "平均延迟" : "Average latency"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><LineChart data={latencySeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip />} /><Line type="monotone" dataKey="latency" name="ms" stroke={positive} strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div></ResearchCard>
     </div> : null}

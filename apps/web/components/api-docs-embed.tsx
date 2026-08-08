@@ -118,7 +118,7 @@ function CopyButton({ value, label, copiedLabel }: { value: string; label: strin
     <button
       type="button"
       onClick={() => void copy()}
-      className="inline-flex min-h-9 items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg"
+      className="inline-flex min-h-9 items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg"
     >
       {copied ? <Check className="h-3.5 w-3.5 text-status-positive" /> : <Copy className="h-3.5 w-3.5" />}
       {copied ? copiedLabel : label}
@@ -140,7 +140,7 @@ function CodeBlock({
   compact?: boolean;
 }) {
   return (
-    <div className="overflow-hidden border border-border-pg bg-bg-app">
+    <div className="overflow-hidden border border-border-pg bg-bg-app rounded-xl">
       <div className="flex items-center justify-between border-b border-border-pg px-3 py-2">
         <span className="font-mono text-[10px] uppercase tracking-[0.14em] text-text-pg-dim">{language}</span>
         <CopyButton value={value} label={copyLabel} copiedLabel={copiedLabel} />
@@ -204,7 +204,7 @@ function PriceCompare({
   const officialLabel = zh ? "官方价格" : "Official price";
   const finalLabel = zh ? "PureGamma 价格" : "PureGamma price";
   return (
-    <div className="border border-border-pg bg-bg-panel-muted p-3">
+    <div className="border border-border-pg bg-bg-panel-muted p-3 rounded-lg">
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{label}</div>
       {official && final ? (
         <>
@@ -431,8 +431,8 @@ PUREGAMMA_MODEL=${selectedId}
         title={content.title}
         description={content.description}
         actions={<>
-          <Link href={withLocale(locale, "/gateway")} className="inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black"><KeyRound className="h-3.5 w-3.5" />{content.console}</Link>
-          <a href={docsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg"><ExternalLink className="h-3.5 w-3.5" />{content.fullDocs}</a>
+          <Link href={withLocale(locale, "/gateway")} className="inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black rounded-lg"><KeyRound className="h-3.5 w-3.5" />{content.console}</Link>
+          <a href={docsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ExternalLink className="h-3.5 w-3.5" />{content.fullDocs}</a>
         </>}
       />
 
@@ -457,7 +457,7 @@ PUREGAMMA_MODEL=${selectedId}
                 type="button"
                 onClick={() => setSelectedId(id)}
                 aria-pressed={isSelected}
-                className={`min-w-0 border p-4 text-left transition ${isSelected ? "border-text-pg bg-bg-panel shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"}`}
+                className={`min-w-0 border p-4 text-left transition  rounded-xl${isSelected ? "border-text-pg bg-bg-panel shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"}`}
               >
                 <div className="flex items-start justify-between gap-3"><div><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{info.badge}</div><h3 className="mt-2 text-sm font-semibold text-text-pg">{info.title}</h3></div><ChevronMark active={isSelected} /></div>
                 <code className="mt-3 block text-[11px] text-text-pg-muted">{id}</code>
@@ -484,43 +484,43 @@ PUREGAMMA_MODEL=${selectedId}
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(390px,0.84fr)] xl:items-start">
         <main className="order-2 min-w-0 space-y-5 xl:order-1">
-          <section className="border border-border-pg bg-bg-panel p-4 sm:p-5">
+          <section className="border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
-              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span></div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
-              <div className="w-full border border-border-pg bg-bg-panel-muted p-3 text-left sm:w-auto sm:text-right"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.modelId}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg">{selectedId}</code><div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.upstream}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg-muted">{selectedCatalog?.provider_model_id || "—"}</code></div>
+              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span></div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
+              <div className="w-full border border-border-pg bg-bg-panel-muted p-3 text-left sm:w-auto sm:text-right rounded-lg"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.modelId}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg">{selectedId}</code><div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.upstream}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg-muted">{selectedCatalog?.provider_model_id || "—"}</code></div>
             </div>
-            <div className="mt-5 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3">
+            <div className="mt-5 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3 rounded-xl overflow-hidden">
               <div className="bg-bg-panel p-4"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.context}</div><div className="mt-3 text-xl font-semibold text-text-pg">{compactTokens(selectedCatalog?.capabilities.max_context_tokens)}</div><div className="mt-1 text-xs text-text-pg-muted">{narrative.bestFor}</div></div>
               <div className="bg-bg-panel p-4"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.output}</div><div className="mt-3 text-xl font-semibold text-text-pg">{compactTokens(selectedCatalog?.capabilities.max_output_tokens)}</div><div className="mt-1 text-xs text-text-pg-muted">{zh ? "请求级 max_tokens 控制" : "Controlled by request max_tokens"}</div></div>
-              <div className="bg-bg-panel p-4"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.capabilities}</div><div className="mt-3 flex flex-wrap gap-1.5">{[["stream", "Stream"], ["tool_calling", "Tools"], ["json_mode", "JSON"], ["reasoning", "Reasoning"]].map(([key, label]) => supports(selectedCatalog, key) ? <span key={key} className="border border-border-pg px-1.5 py-0.5 text-[10px] text-text-pg-muted">{label}</span> : null)}</div><div className="mt-3 text-xs text-text-pg-muted">{content.catalogNote}</div></div>
+              <div className="bg-bg-panel p-4"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.capabilities}</div><div className="mt-3 flex flex-wrap gap-1.5">{[["stream", "Stream"], ["tool_calling", "Tools"], ["json_mode", "JSON"], ["reasoning", "Reasoning"]].map(([key, label]) => supports(selectedCatalog, key) ? <span key={key} className="border border-border-pg px-1.5 py-0.5 text-[10px] text-text-pg-muted rounded-lg">{label}</span> : null)}</div><div className="mt-3 text-xs text-text-pg-muted">{content.catalogNote}</div></div>
             </div>
           </section>
 
-          <section className="border border-border-pg bg-bg-panel p-4 sm:p-5">
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4"><div><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><CircleDollarSign className="h-3.5 w-3.5" />02 / {content.pricing}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{pricingHeading}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{priceComparisonDescription}</p></div>{selectedCatalog?.source_reference ? <a href={selectedCatalog.source_reference} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 border border-border-pg px-2.5 py-2 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"><ExternalLink className="h-3.5 w-3.5" />{content.source}</a> : null}</div>
+          <section className="border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4"><div><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><CircleDollarSign className="h-3.5 w-3.5" />02 / {content.pricing}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{pricingHeading}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{priceComparisonDescription}</p></div>{selectedCatalog?.source_reference ? <a href={selectedCatalog.source_reference} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 border border-border-pg px-2.5 py-2 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ExternalLink className="h-3.5 w-3.5" />{content.source}</a> : null}</div>
             <div className="mt-5 grid gap-3 md:grid-cols-3"><PriceCompare label={zh ? "输入 / cache miss" : "Input / cache miss"} official={official.input} final={final.input} currency={currency} zh={zh} /><PriceCompare label={zh ? "输出" : "Output"} official={official.output} final={final.output} currency={currency} zh={zh} /><PriceCompare label={zh ? "缓存命中" : "Cache hit"} official={official.cache} final={final.cache} currency={currency} zh={zh} /></div>
             {selectedCatalog?.pricing?.status === "requires_currency_policy" ? <p className="mt-4 border-l-2 border-status-warning pl-3 text-xs leading-5 text-status-warning">{content.currencyNote}</p> : null}
           </section>
 
-          <section className="border border-border-pg bg-bg-panel p-4 sm:p-5">
+          <section className="border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><SlidersHorizontal className="h-3.5 w-3.5" />03 / {content.parameters}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{content.parameters}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{content.parameterDescription}</p>
-            <div className="mt-5 touch-pan-x overflow-x-auto overscroll-x-contain border border-border-pg"><table className="w-full min-w-[640px] text-left text-xs"><thead className="bg-bg-panel-muted text-[10px] uppercase tracking-[0.14em] text-text-pg-dim"><tr><th className="px-3 py-3 font-medium">Parameter</th><th className="px-3 py-3 font-medium">Type / range</th><th className="px-3 py-3 font-medium">{zh ? "说明" : "Description"}</th></tr></thead><tbody>{content.parameterRows.map(([name, range, description]) => <tr key={name} className="border-t border-border-pg align-top"><td className="px-3 py-3 font-mono text-text-pg">{name}</td><td className="px-3 py-3 text-text-pg-muted">{range}</td><td className="px-3 py-3 leading-5 text-text-pg-muted">{description}</td></tr>)}</tbody></table></div>
+            <div className="mt-5 touch-pan-x overflow-x-auto overscroll-x-contain border border-border-pg rounded-xl"><table className="w-full min-w-[640px] text-left text-xs"><thead className="bg-bg-panel-muted text-[10px] uppercase tracking-[0.14em] text-text-pg-dim"><tr><th className="px-3 py-3 font-medium">Parameter</th><th className="px-3 py-3 font-medium">Type / range</th><th className="px-3 py-3 font-medium">{zh ? "说明" : "Description"}</th></tr></thead><tbody>{content.parameterRows.map(([name, range, description]) => <tr key={name} className="border-t border-border-pg align-top"><td className="px-3 py-3 font-mono text-text-pg">{name}</td><td className="px-3 py-3 text-text-pg-muted">{range}</td><td className="px-3 py-3 leading-5 text-text-pg-muted">{description}</td></tr>)}</tbody></table></div>
           </section>
 
-          <section className="border border-border-pg bg-bg-panel p-4 sm:p-5">
+          <section className="border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><ServerCog className="h-3.5 w-3.5" />04 / {content.backend}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{content.backend}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{content.backendDescription}</p><div className="mt-5"><CodeBlock language=".env.production" value={snippets.backend} copyLabel={content.copy} copiedLabel={content.copied} /></div>
           </section>
 
           <div className="grid gap-5 lg:grid-cols-2">
-            <section className="border border-border-pg bg-bg-panel p-4 sm:p-5"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><Zap className="h-3.5 w-3.5" />{content.streamTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.streamDescription}</p><div className="mt-4"><CodeBlock language="TypeScript" value={snippets.streamTools} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></section>
-            <section className="border border-border-pg bg-bg-panel p-4 sm:p-5"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><WalletCards className="h-3.5 w-3.5" />{content.walletTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.walletDescription}</p><div className="mt-5 border-t border-border-pg pt-4 text-xs leading-5 text-text-pg-muted"><LockKeyhole className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />{content.safety}</div></section>
+            <section className="border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><Zap className="h-3.5 w-3.5" />{content.streamTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.streamDescription}</p><div className="mt-4"><CodeBlock language="TypeScript" value={snippets.streamTools} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></section>
+            <section className="border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><WalletCards className="h-3.5 w-3.5" />{content.walletTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.walletDescription}</p><div className="mt-5 border-t border-border-pg pt-4 text-xs leading-5 text-text-pg-muted"><LockKeyhole className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />{content.safety}</div></section>
           </div>
         </main>
 
-        <aside className="order-1 border border-border-pg bg-bg-panel xl:sticky xl:top-6 xl:order-2">
-          <div className="border-b border-border-pg px-4 py-4 sm:px-5"><div className="flex flex-wrap items-start justify-between gap-2"><div className="inline-flex items-center gap-2 text-lg font-semibold text-text-pg"><Sparkles className="h-4 w-4" />{content.quickStart}</div><span className="max-w-full overflow-x-auto whitespace-nowrap border border-border-pg px-2 py-1 font-mono text-[10px] text-text-pg-muted">{selectedId}</span></div><p className="mt-2 text-sm leading-6 text-text-pg-muted">{content.quickDescription}</p></div>
+        <aside className="order-1 border border-border-pg bg-bg-panel xl:sticky xl:top-6 xl:order-2 rounded-lg">
+          <div className="border-b border-border-pg px-4 py-4 sm:px-5"><div className="flex flex-wrap items-start justify-between gap-2"><div className="inline-flex items-center gap-2 text-lg font-semibold text-text-pg"><Sparkles className="h-4 w-4" />{content.quickStart}</div><span className="max-w-full overflow-x-auto whitespace-nowrap border border-border-pg px-2 py-1 font-mono text-[10px] text-text-pg-muted rounded-lg">{selectedId}</span></div><p className="mt-2 text-sm leading-6 text-text-pg-muted">{content.quickDescription}</p></div>
           <div className="space-y-5 p-4 sm:p-5">
-            <div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">1</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepKey}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepKeyDescription}</p><Link href={withLocale(locale, "/gateway")} className="mt-3 inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black"><KeyRound className="h-3.5 w-3.5" />{content.createKey}</Link></div></div><div className="mt-4"><CodeBlock language=".env" value={snippets.env} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
+            <div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">1</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepKey}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepKeyDescription}</p><Link href={withLocale(locale, "/gateway")} className="mt-3 inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black rounded-lg"><KeyRound className="h-3.5 w-3.5" />{content.createKey}</Link></div></div><div className="mt-4"><CodeBlock language=".env" value={snippets.env} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
             <div className="border-t border-border-pg pt-5"><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">2</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepRequest}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepRequestDescription}</p></div></div><div className="mt-4 flex flex-wrap gap-1 border-b border-border-pg"><CodeTab active={language === "curl"} onClick={() => setLanguage("curl")} label="cURL" /><CodeTab active={language === "python"} onClick={() => setLanguage("python")} label="Python" /><CodeTab active={language === "node"} onClick={() => setLanguage("node")} label="Node.js" /></div><div className="mt-3"><CodeBlock language={tabLabel} value={activeSnippet} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
             <div className="border-t border-border-pg pt-5"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.activeModel}</div><div className="mt-2 flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-text-pg">{selectedName}</div><code className="break-all text-xs text-text-pg-muted">{selectedId}</code></div><Code2 className="h-5 w-5 shrink-0 text-text-pg-dim" /></div><p className="mt-3 text-xs leading-5 text-text-pg-muted">{content.stack}</p></div>
           </div>
@@ -532,7 +532,7 @@ PUREGAMMA_MODEL=${selectedId}
 }
 
 function ChevronMark({ active }: { active: boolean }) {
-  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border ${active ? "border-text-pg bg-pg-white text-pg-black" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
+  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border  rounded-lg${active ? "border-text-pg bg-pg-white text-pg-black" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
 }
 
 function CodeTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {

@@ -12,7 +12,7 @@ export function PGTable<T>({ columns, rows, minWidth = 720, empty }: { columns: 
     <div className="overflow-x-auto">
       <table className="w-full text-sm" style={{ minWidth }}>
         <thead>
-          <tr className="border-y border-border-pg text-left text-xs text-text-pg-muted">
+          <tr className="border-y border-border-pg text-left text-xs text-text-pg-muted rounded-lg">
             {columns.map((column) => <th key={column.key} className={`px-3 py-2 font-medium ${column.align === "right" ? "text-right" : ""}`}>{column.header}</th>)}
           </tr>
         </thead>

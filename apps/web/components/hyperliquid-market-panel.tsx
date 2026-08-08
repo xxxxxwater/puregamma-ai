@@ -179,7 +179,7 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
     : { title: "Autopilot live market watch", subtitle: "Hyperliquid · 15-minute candles", collapse: "Collapse market list", expand: "Expand market list", price: "Last", change: "15m", volume: "24h notional", oi: "Open interest", funding: "Funding", updated: "UTC" };
 
   return (
-    <section className="overflow-hidden border border-border-pg bg-bg-panel">
+    <section className="overflow-hidden border border-border-pg bg-bg-panel rounded-xl">
       <div className="flex items-center justify-between gap-4 px-4 py-3">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-muted">
@@ -189,7 +189,7 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
           <h2 className="mt-1 text-lg font-semibold text-text-pg">{copy.title}</h2>
           <p className="mt-1 text-xs text-text-pg-muted">{copy.subtitle}</p>
         </div>
-        <button type="button" onClick={() => setIsOpen((open) => !open)} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg" aria-expanded={isOpen} aria-label={isOpen ? copy.collapse : copy.expand} title={isOpen ? copy.collapse : copy.expand}>
+        <button type="button" onClick={() => setIsOpen((open) => !open)} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg" aria-expanded={isOpen} aria-label={isOpen ? copy.collapse : copy.expand} title={isOpen ? copy.collapse : copy.expand}>
           {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </div>
@@ -203,7 +203,7 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
               <td className="px-4 py-3"><div className="font-semibold text-text-pg">{instrument.symbol}</div><div className="mt-1 text-[10px] text-text-pg-dim">{instrument.leverage}x · {instrument.venue}</div></td>
               <td key={`px-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right text-text-pg">{price(last)}</td>
               <td key={`chg-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right">
-                <span className="inline-block border border-border-pg-strong bg-pg-white px-1.5 py-0.5 font-semibold text-pg-black">{percent(change)}</span>
+                <span className="inline-block border border-border-pg-strong bg-pg-white px-1.5 py-0.5 font-semibold text-pg-black rounded-lg">{percent(change)}</span>
               </td>
               <td className="px-3 py-3 text-right text-text-pg-muted">{compactUsd(context?.dayNtlVlm)}</td>
               <td className="px-3 py-3 text-right text-text-pg-muted">{compactUsd(openInterestUsd)}</td>

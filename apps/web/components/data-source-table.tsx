@@ -46,14 +46,14 @@ export function DataSourceTable({ initialSources, locale }: { initialSources: Da
     finally { setBusy(""); }
   };
 
-  if (!sources.length) return <div className="border border-status-warning p-4 text-sm text-status-warning">{zh ? "无法读取数据源状态。请确认管理员登录和 API 连接。" : "Unable to load data sources. Confirm admin authentication and API connectivity."}</div>;
+  if (!sources.length) return <div className="border border-status-warning p-4 text-sm text-status-warning rounded-xl">{zh ? "无法读取数据源状态。请确认管理员登录和 API 连接。" : "Unable to load data sources. Confirm admin authentication and API connectivity."}</div>;
   return <div className="space-y-4">
-    {error ? <div className="border border-status-negative p-3 text-sm text-status-negative">{error}</div> : null}
+    {error ? <div className="border border-status-negative p-3 text-sm text-status-negative rounded-lg">{error}</div> : null}
     <div className="grid gap-4 lg:grid-cols-2">
       {sources.map((source) => {
         const isBusy = busy.startsWith(`${source.id}:`);
         const quota = source.quotaLimit == null ? "-" : `${source.quotaRemaining ?? 0} / ${source.quotaLimit}`;
-        return <article key={source.id} className="border border-border-pg bg-bg-panel">
+        return <article key={source.id} className="border border-border-pg bg-bg-panel rounded-lg">
           <div className="flex items-start justify-between gap-4 border-b border-border-pg p-4">
             <div className="min-w-0"><p className="text-xs uppercase text-text-pg-dim">{source.type}</p><h2 className="mt-1 text-base font-semibold">{source.source}</h2><p className="mt-1 truncate text-xs text-text-pg-muted">{source.provider}</p></div>
             <DataSourceStatusBadge locale={locale} status={source.status} />
@@ -90,4 +90,4 @@ export function DataSourceTable({ initialSources, locale }: { initialSources: Da
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <div className="min-w-0"><dt className="text-xs text-text-pg-dim">{label}</dt><dd className="mt-1 truncate font-medium" title={value}>{value}</dd></div>; }
-function IconButton({ title, disabled, onClick, icon: Icon, spin = false }: { title: string; disabled: boolean; onClick: () => void; icon: LucideIcon; spin?: boolean }) { return <button type="button" onClick={onClick} disabled={disabled} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-35" title={title} aria-label={title}><Icon className={`h-4 w-4 ${spin ? "animate-spin" : ""}`} /></button>; }
+function IconButton({ title, disabled, onClick, icon: Icon, spin = false }: { title: string; disabled: boolean; onClick: () => void; icon: LucideIcon; spin?: boolean }) { return <button type="button" onClick={onClick} disabled={disabled} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-35 rounded-lg" title={title} aria-label={title}><Icon className={`h-4 w-4 ${spin ? "animate-spin" : ""}`} /></button>; }

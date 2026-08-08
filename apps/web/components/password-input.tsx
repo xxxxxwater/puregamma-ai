@@ -24,7 +24,7 @@ export function PasswordInput({
         value={value}
         onChange={(event) => onChange(event.target.value)}
         placeholder={placeholder}
-        className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 pr-10 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong"
+        className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 pr-10 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong rounded-lg"
         required
         minLength={minLength}
         autoComplete={autoComplete}

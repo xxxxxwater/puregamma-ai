@@ -64,7 +64,7 @@ export default async function StripeEventsPage({ params, searchParams }: { param
         </div>
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
           {products.items.length ? products.items.map((item) => (
-            <div key={item.plan_name} className="border border-border-pg bg-bg-panel-muted p-3 text-sm">
+            <div key={item.plan_name} className="border border-border-pg bg-bg-panel-muted p-3 text-sm rounded-lg">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{item.plan_name}</span>
                 <Badge tone="neutral"><StatusDot tone={item.status === "in_sync" ? "emerald" : item.status === "mismatch" ? "amber" : "neutral"} /> {item.status}</Badge>
@@ -79,15 +79,15 @@ export default async function StripeEventsPage({ params, searchParams }: { param
         <div className="mb-3 flex flex-wrap items-center justify-between gap-3">
           <h2 className="font-semibold">{copy.modules.stripeWebhookEvents}</h2>
           <div className="flex flex-wrap gap-2 text-xs">
-            <Link className="border border-border-pg px-2 py-1 hover:border-border-pg-strong" href={withLocale(locale, "/admin/stripe-events")}>all</Link>
+            <Link className="border border-border-pg px-2 py-1 hover:border-border-pg-strong rounded-lg" href={withLocale(locale, "/admin/stripe-events")}>all</Link>
             {eventTypes.slice(0, 8).map((eventType) => (
-              <Link key={eventType} className="border border-border-pg px-2 py-1 hover:border-border-pg-strong" href={`${withLocale(locale, "/admin/stripe-events")}?event_type=${encodeURIComponent(eventType)}`}>{eventType}</Link>
+              <Link key={eventType} className="border border-border-pg px-2 py-1 hover:border-border-pg-strong rounded-lg" href={`${withLocale(locale, "/admin/stripe-events")}?event_type=${encodeURIComponent(eventType)}`}>{eventType}</Link>
             ))}
           </div>
         </div>
         <div className="space-y-2">
           {visibleEvents.length ? visibleEvents.map((event) => (
-            <div key={event.id} className="grid gap-2 border border-border-pg bg-bg-panel-muted p-3 text-sm lg:grid-cols-[1.5fr_1fr_auto]">
+            <div key={event.id} className="grid gap-2 border border-border-pg bg-bg-panel-muted p-3 text-sm lg:grid-cols-[1.5fr_1fr_auto] rounded-lg">
               <div>
                 <div className="font-medium">{event.event_type}</div>
                 <div className="mt-1 text-xs text-text-pg-muted">{event.stripe_event_id || event.id}</div>
