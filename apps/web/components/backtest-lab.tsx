@@ -200,7 +200,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <span className="text-text-pg-muted">{copy.run.window}</span>
             {WINDOW_OPTIONS.map((option) => (
-              <button key={option.days} type="button" onClick={() => setWindowDays(option.days)} className={`border px-2.5 py-1  rounded-lg${windowDays === option.days ? "border-border-pg-strong bg-pg-white text-pg-black font-semibold" : "border-border-pg text-text-pg-muted"}`}>
+              <button key={option.days} type="button" onClick={() => setWindowDays(option.days)} className={`border px-2.5 py-1  rounded-lg ${windowDays === option.days ? "border-border-pg-strong bg-pg-white text-pg-black font-semibold" : "border-border-pg text-text-pg-muted"}`}>
                 {copy.run[option.key]}
               </button>
             ))}

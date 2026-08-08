@@ -90,7 +90,7 @@ export default function LocalizedOnboardingChannelsPage({ params }: { params: { 
           return (
             <div
               key={channel.id}
-              className={`border p-5 transition  rounded-xl${
+              className={`border p-5 transition  rounded-xl ${
                 active ? "border-border-pg-strong bg-bg-panel-muted" : locked ? "border-border-pg bg-bg-panel opacity-60" : "border-border-pg bg-bg-panel"
               }`}
             >
@@ -98,7 +98,7 @@ export default function LocalizedOnboardingChannelsPage({ params }: { params: { 
                 <button
                   onClick={() => !locked && toggle(channel.id)}
                   disabled={locked}
-                  className={`mt-0.5 border p-2.5 transition  rounded-lg${active ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel-muted"} ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
+                  className={`mt-0.5 border p-2.5 transition  rounded-lg ${active ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel-muted"} ${locked ? "cursor-not-allowed" : "cursor-pointer"}`}
                   aria-label={channel.label}
                 >
                   <Icon className={`h-5 w-5 ${active ? "text-text-pg" : locked ? "text-text-pg-dim" : "text-text-pg-muted"}`} aria-hidden />
@@ -122,7 +122,7 @@ export default function LocalizedOnboardingChannelsPage({ params }: { params: { 
                 <button
                   onClick={() => !locked && toggle(channel.id)}
                   disabled={locked}
-                  className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center border transition  rounded-lg${active ? "border-border-pg-strong bg-pg-white" : "border-border-pg"} ${locked ? "cursor-not-allowed opacity-30" : ""}`}
+                  className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center border transition  rounded-lg ${active ? "border-border-pg-strong bg-pg-white" : "border-border-pg"} ${locked ? "cursor-not-allowed opacity-30" : ""}`}
                   aria-label={channel.label}
                 >
                   {active ? <span className="text-xs text-pg-black">✓</span> : null}

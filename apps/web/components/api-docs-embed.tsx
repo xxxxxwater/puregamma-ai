@@ -457,7 +457,7 @@ PUREGAMMA_MODEL=${selectedId}
                 type="button"
                 onClick={() => setSelectedId(id)}
                 aria-pressed={isSelected}
-                className={`min-w-0 border p-4 text-left transition  rounded-xl${isSelected ? "border-text-pg bg-bg-panel shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"}`}
+                className={`min-w-0 border p-4 text-left transition  rounded-xl ${isSelected ? "border-text-pg bg-bg-panel shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"}`}
               >
                 <div className="flex items-start justify-between gap-3"><div><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{info.badge}</div><h3 className="mt-2 text-sm font-semibold text-text-pg">{info.title}</h3></div><ChevronMark active={isSelected} /></div>
                 <code className="mt-3 block text-[11px] text-text-pg-muted">{id}</code>
@@ -532,7 +532,7 @@ PUREGAMMA_MODEL=${selectedId}
 }
 
 function ChevronMark({ active }: { active: boolean }) {
-  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border  rounded-lg${active ? "border-text-pg bg-pg-white text-pg-black" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
+  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border  rounded-lg ${active ? "border-text-pg bg-pg-white text-pg-black" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
 }
 
 function CodeTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {

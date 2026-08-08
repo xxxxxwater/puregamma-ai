@@ -47,18 +47,18 @@ export default function LocalizedOnboardingStylePage({ params }: { params: { loc
             <button
               key={style.id}
               onClick={() => setSelected(style.id)}
-              className={`w-full border p-5 text-left transition  rounded-xl${
+              className={`w-full border p-5 text-left transition  rounded-xl ${
                 isSelected ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"
               }`}
             >
               <div className="flex items-start gap-4">
-                <div className={`mt-0.5 border p-2.5  rounded-lg${isSelected ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel-muted"}`}>
+                <div className={`mt-0.5 border p-2.5  rounded-lg ${isSelected ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel-muted"}`}>
                   <Icon className={`h-5 w-5 ${isSelected ? "text-text-pg" : "text-text-pg-muted"}`} aria-hidden />
                 </div>
                 <div className="flex-1">
                   <div className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold">{style.label}</span>
-                    <span className={`border border-border-pg px-2 py-0.5 text-[0.65rem] font-medium  rounded-lg${riskTone(style.id)}`}>{style.risk}</span>
+                    <span className={`border border-border-pg px-2 py-0.5 text-[0.65rem] font-medium  rounded-lg ${riskTone(style.id)}`}>{style.risk}</span>
                   </div>
                   <p className="mt-1.5 text-sm leading-5 text-text-pg-muted">{style.description}</p>
                 </div>

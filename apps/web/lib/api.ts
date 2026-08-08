@@ -1116,7 +1116,7 @@ export function getAgentCapabilities() {
 }
 
 export type AgentQuoteResponse = CreditQuoteResponse & { task_type: string; planned_tools: string[]; plan: AgentRuntimePlan };
-export function getAgentQuote(payload: { content: string; data_sources: string[]; skill_refs: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model: string }) {
+export function getAgentQuote(payload: { content: string; research_mode?: boolean; data_sources: string[]; skill_refs: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model: string }) {
   return requestStrict<AgentQuoteResponse>("/api/agent/quote", { method: "POST", body: JSON.stringify(payload) });
 }
 

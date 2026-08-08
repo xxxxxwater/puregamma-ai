@@ -29,7 +29,7 @@ export default async function OptionsPage({ params, searchParams }: { params: { 
 
     <div className="flex flex-wrap items-center justify-between gap-3 border-y border-border-pg py-3 rounded-lg">
       <div className="flex gap-2">
-        {(["BTC", "ETH"] as const).map((item) => <a key={item} href={`?currency=${item}`} className={`border px-3 py-2 text-sm  rounded-lg${currency === item ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg text-text-pg-muted"}`}>{item}</a>)}
+        {(["BTC", "ETH"] as const).map((item) => <a key={item} href={`?currency=${item}`} className={`border px-3 py-2 text-sm  rounded-lg ${currency === item ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg text-text-pg-muted"}`}>{item}</a>)}
       </div>
       <div className="flex items-center gap-2"><DataSourceStatusBadge locale={locale} status={gamma.status} /><Badge tone="neutral">READ ONLY</Badge></div>
     </div>

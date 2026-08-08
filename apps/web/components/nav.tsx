@@ -119,7 +119,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
                 const Icon = item.icon;
                 const active = item.href === "/" ? activePathname === "/" : activePathname.startsWith(item.href);
                 return (
-                  <Link key={item.href} href={withLocale(locale, item.href)} className={`flex items-center gap-2 border px-3 py-2 text-sm  rounded-lg${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
+                  <Link key={item.href} href={withLocale(locale, item.href)} className={`flex items-center gap-2 border px-3 py-2 text-sm  rounded-lg ${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
                     <Icon className="h-4 w-4" aria-hidden />
                     {t(locale, item.labelKey)}
                   </Link>

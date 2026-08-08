@@ -53,7 +53,7 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
             <button
               key={asset.symbol}
               onClick={() => toggle(asset.symbol)}
-              className={`border p-5 text-left transition  rounded-xl${
+              className={`border p-5 text-left transition  rounded-xl ${
                 isSelected ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"
               }`}
             >

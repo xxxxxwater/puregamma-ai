@@ -362,7 +362,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
             const remaining = active ? Math.max(0, knownDuration - audioProgress) : knownDuration;
             return (
               <div key={message.id} className={`flex ${assistant ? "justify-start" : "justify-end"}`}>
-                <div className={`max-w-[86%] border px-4 py-3 text-sm leading-6  rounded-lg${assistant ? "secretary-bubble-assistant" : "border-border-pg-strong bg-pg-white text-pg-black"}`}>
+                <div className={`max-w-[86%] border px-4 py-3 text-sm leading-6  rounded-lg ${assistant ? "secretary-bubble-assistant" : "border-border-pg-strong bg-pg-white text-pg-black"}`}>
                   <div className="whitespace-pre-wrap">{String(message.content || "")}</div>
                   {assistant ? (
                     <div className="mt-3 flex min-h-14 w-[min(320px,72vw)] items-center gap-3 rounded-lg bg-[#229ed9] px-3 py-2 text-white shadow-sm">
@@ -397,7 +397,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
               onKeyDown={(event) => { if ((event.key === " " || event.key === "Enter") && !event.repeat) { event.preventDefault(); void startHoldRecording(); } }}
               onKeyUp={(event) => { if (event.key === " " || event.key === "Enter") { event.preventDefault(); stopHoldRecording(); } }}
               onContextMenu={(event) => event.preventDefault()}
-              className={`flex h-11 w-[150px] shrink-0 touch-none select-none items-center justify-center gap-2 border px-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40  rounded-lg${recording ? "border-status-positive bg-status-positive text-white" : "border-border-pg text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"}`}
+              className={`flex h-11 w-[150px] shrink-0 touch-none select-none items-center justify-center gap-2 border px-3 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-40  rounded-lg ${recording ? "border-status-positive bg-status-positive text-white" : "border-border-pg text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"}`}
             >
               <Mic className="h-4 w-4" />{recording ? `${copy.releaseToSend} ${formatTime(recordingRemaining)}` : copy.holdToTalk}
             </button>

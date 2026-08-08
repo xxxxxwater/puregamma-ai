@@ -153,7 +153,7 @@ export function UsagePanel({ locale, initialUsage }: Props) {
         <h2 className="mt-1 font-semibold">{zh ? "用量" : "Usage"}</h2>
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        {presets.map((item) => <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)} className={`border px-3 py-1.5 text-sm disabled:opacity-50  rounded-lg${preset === item.id ? "border-text-pg bg-text-pg font-semibold text-bg-panel" : "border-border-pg bg-bg-panel-muted"}`}>{item.label}</button>)}
+        {presets.map((item) => <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)} className={`border px-3 py-1.5 text-sm disabled:opacity-50  rounded-lg ${preset === item.id ? "border-text-pg bg-text-pg font-semibold text-bg-panel" : "border-border-pg bg-bg-panel-muted"}`}>{item.label}</button>)}
         <div className="flex items-end gap-2">
           <label className="text-xs text-text-pg-muted">{zh ? "起" : "From"}<input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>
           <label className="text-xs text-text-pg-muted">{zh ? "止" : "To"}<input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>

@@ -160,7 +160,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
                 key={account.id}
                 type="button"
                 onClick={() => setSelectedId(account.id)}
-                className={`w-full border p-3 text-left transition  rounded-lg${selectedId === account.id ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg hover:border-border-pg-strong"}`}
+                className={`w-full border p-3 text-left transition  rounded-lg ${selectedId === account.id ? "border-border-pg-strong bg-bg-panel-muted" : "border-border-pg hover:border-border-pg-strong"}`}
               >
                 <div className="truncate text-sm font-medium">{account.email}</div>
                 <div className="mt-2 flex items-center justify-between gap-2 text-xs text-text-pg-muted">

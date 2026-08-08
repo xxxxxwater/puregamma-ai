@@ -137,11 +137,11 @@ export function PuzzleCaptcha({
             finishDrag();
           }
         }}
-        className={`relative h-9 border text-[11px]  rounded-lg${disabled ? "cursor-wait opacity-70" : "cursor-ew-resize"} ${verified ? "border-status-positive bg-bg-panel-muted text-status-positive" : "border-border-pg bg-bg-panel-muted text-text-pg-dim"}`}
+        className={`relative h-9 border text-[11px]  rounded-lg ${disabled ? "cursor-wait opacity-70" : "cursor-ew-resize"} ${verified ? "border-status-positive bg-bg-panel-muted text-status-positive" : "border-border-pg bg-bg-panel-muted text-text-pg-dim"}`}
       >
         <div className={`absolute inset-y-0 left-0 ${verified ? "bg-status-positive/20" : "bg-border-pg"}`} style={{ width: 30 + dragX }} />
         <div
-          className={`absolute top-1/2 grid h-7 w-10 -translate-y-1/2 place-items-center border font-semibold  rounded-lg${verified ? "border-status-positive bg-status-positive/20" : "border-border-pg-strong bg-bg-panel"}`}
+          className={`absolute top-1/2 grid h-7 w-10 -translate-y-1/2 place-items-center border font-semibold  rounded-lg ${verified ? "border-status-positive bg-status-positive/20" : "border-border-pg-strong bg-bg-panel"}`}
           style={{ left: dragX }}
         >
           ⇢

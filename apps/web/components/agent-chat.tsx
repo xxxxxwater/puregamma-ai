@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
 import { Bot, CheckCircle2, ChevronDown, CircleStop, Compass, Database, FilePlus2, Loader2, MessageSquarePlus, Paperclip, RefreshCw, SearchCheck, Send, Settings2, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
 import { ReportMarkdown } from "@/components/puregamma";
+import { ResearchModeSwitch } from "@/components/research-mode-switch";
 import { ContextControls, nextActionLabel, nextActionPrompt, StrategyToolResult } from "@/components/chat-panels";
 import { type Locale, withLocale } from "@/i18n/routing";
 import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentSource, SkillContextRef, SkillSummary, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getMe, streamAgentMessage } from "@/lib/api";
@@ -31,6 +32,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [skillCatalog, setSkillCatalog] = useState<SkillSummary[]>([]);
   const [skills, setSkills] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState("");
+  const [researchMode, setResearchMode] = useState(true);
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [runtimePlan, setRuntimePlan] = useState<AgentRuntimePlan | null>(null);
   const [evidenceStatus, setEvidenceStatus] = useState<AgentEvidenceSummary | null>(null);
@@ -145,7 +147,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       setInput("");
       const now = new Date().toISOString();
       const skillRefs: SkillContextRef[] = skillCatalog.filter((skill) => skills.includes(skill.skill_id)).map((skill) => ({ skill_id: skill.skill_id, slug: skill.slug, version: skill.current_version, installation_id: skill.installation_id }));
-      const context = { data_sources: dataSources, skills: skillRefs, skill_refs: skillRefs, custom_prompt: customPrompt, attachments, model: selectedModel };
+      const context = { research_mode: researchMode, data_sources: researchMode ? dataSources : [], skills: researchMode ? skillRefs : [], skill_refs: researchMode ? skillRefs : [], custom_prompt: researchMode ? customPrompt : "", attachments, model: selectedModel };
       setMessages((current) => [...current, { id: `local-${Date.now()}`, conversation_id: id, role: "user", content, status: "completed", input_tokens: 0, output_tokens: 0, created_at: now, context, sources: [] }]);
       const controller = new AbortController();
       controllerRef.current = controller;
@@ -237,12 +239,12 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     }
     const skillRefs: SkillContextRef[] = skillCatalog.filter((skill) => skills.includes(skill.skill_id)).map((skill) => ({ skill_id: skill.skill_id, slug: skill.slug, version: skill.current_version, installation_id: skill.installation_id }));
     const timer = window.setTimeout(() => {
-      getAgentQuote({ content: input, data_sources: dataSources, skill_refs: skillRefs, custom_prompt: customPrompt, attachments, model: selectedModel })
+      getAgentQuote({ content: input, research_mode: researchMode, data_sources: researchMode ? dataSources : [], skill_refs: researchMode ? skillRefs : [], custom_prompt: researchMode ? customPrompt : "", attachments, model: selectedModel })
         .then(setCreditQuote)
         .catch(() => setCreditQuote({ estimated_min: 0, estimated_max: 0, unavailable: true }));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [selectedModel, dataSources, skills, skillCatalog, attachments, input, customPrompt]);
+  }, [selectedModel, dataSources, skills, skillCatalog, attachments, input, customPrompt, researchMode]);
   const estimatedCredits = creditQuote
     ? creditQuote.estimated_min === creditQuote.estimated_max
       ? String(creditQuote.estimated_min)
@@ -275,7 +277,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         <div className="flex-1 overflow-y-auto p-2 lg:space-y-1">
           {conversations.map((conversation) => (
             <div key={conversation.id} className="group flex items-center">
-              <button type="button" onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); openConversation(conversation.id); }} className={`min-w-0 flex-1 border px-3 py-2 text-left text-sm  rounded-lg${conversation.id === conversationId ? "border-border-pg-strong bg-bg-panel-muted" : "border-transparent text-text-pg-muted hover:border-border-pg"}`}>
+              <button type="button" onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); openConversation(conversation.id); }} className={`min-w-0 flex-1 border px-3 py-2 text-left text-sm  rounded-lg ${conversation.id === conversationId ? "border-border-pg-strong bg-bg-panel-muted" : "border-transparent text-text-pg-muted hover:border-border-pg"}`}>
                 <div className="truncate font-medium">{conversation.title}</div>
                 <div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div>
               </button>
@@ -307,7 +309,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
               {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput(messages.find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
               {message.role === "assistant" && message.credits_refunded ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "Credits 已退款" : "Credits refunded"}</div> : null}
-              {message.role === "assistant" && message.context?.evidence ? <div className={`mt-3 flex flex-wrap items-center gap-2 border px-2.5 py-2 text-[11px]  rounded-lg${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3.5 w-3.5" /><span>{message.context.evidence.sufficient ? (zh ? "证据检查通过" : "Evidence requirements met") : (zh ? `证据不完整：${message.context.evidence.missing.join(", ")}` : `Evidence incomplete: ${message.context.evidence.missing.join(", ")}`)}</span><span className="ml-auto text-text-pg-dim">{message.context.evidence.source_count} {zh ? "条来源" : "sources"}</span></div> : null}
+              {message.role === "assistant" && message.context?.evidence ? <div className={`mt-3 flex flex-wrap items-center gap-2 border px-2.5 py-2 text-[11px]  rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3.5 w-3.5" /><span>{message.context.evidence.sufficient ? (zh ? "证据检查通过" : "Evidence requirements met") : (zh ? `证据不完整：${message.context.evidence.missing.join(", ")}` : `Evidence incomplete: ${message.context.evidence.missing.join(", ")}`)}</span><span className="ml-auto text-text-pg-dim">{message.context.evidence.source_count} {zh ? "条来源" : "sources"}</span></div> : null}
               {message.role === "assistant" && message.sources.length ? <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] text-text-pg-dim"><span className="font-semibold">{zh ? "来源" : "Sources"}:</span>{message.sources.map((source) => source.url ? <a href={source.url} target="_blank" rel="noreferrer" key={`${message.id}-${source.citation_index}`} className="max-w-[190px] truncate border border-border-pg px-1.5 py-0.5 hover:border-border-pg-strong rounded-lg">[{source.citation_index}] {source.title}</a> : <span key={`${message.id}-${source.citation_index}`} className="max-w-[190px] truncate border border-border-pg px-1.5 py-0.5 rounded-lg">[{source.citation_index}] {source.title}</span>)}</div> : null}
               {message.id === latestAssistantId && message.context?.runtime?.next_actions?.length ? <div className="mt-4 flex flex-wrap gap-2">{message.context.runtime.next_actions.slice(0, 3).map((action) => <button key={action} type="button" onClick={() => choosePrompt(nextActionPrompt(action, zh))} className="inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><CheckCircle2 className="h-3 w-3" />{nextActionLabel(action, zh)}</button>)}</div> : null}
             </div>)}
@@ -318,29 +320,47 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         </div>
         <div className="shrink-0 border-t border-border-pg bg-bg-app p-3 md:p-4">
           <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-3">
+            <div className="flex min-w-0 items-center gap-2.5">
+              <ResearchModeSwitch enabled={researchMode} onChange={setResearchMode} labels={{ on: "ON", off: "OFF" }} />
+              <div className="min-w-0 text-[11px] leading-tight">
+                <span className="block font-medium text-text-pg">{zh ? "研究模式" : "Research mode"}</span>
+                <span className="mt-0.5 block truncate text-text-pg-muted">{researchMode ? (zh ? "内部 Skills + 数据管道" : "Internal Skills + data pipeline") : (zh ? "联网模式：直接联网检索，不使用内部 Skill 与数据管道" : "Online mode: direct web search, no internal Skills or data pipeline")}</span>
+              </div>
+            </div>
+          </div>
+          <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-3">
             <label htmlFor="agent-model" className="text-[11px] text-text-pg-muted"><span className="block">{zh ? "本轮模型" : "Model for this turn"}</span>{selectedModelOption?.id !== "default" ? <span className="mt-0.5 block text-[10px] text-text-pg-dim">{zh ? "高质量、较轻度使用的深度市场研究模型" : selectedModelOption?.description}</span> : null}</label>
             <select id="agent-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={busy} className="border border-border-pg bg-bg-panel px-2 py-1 text-xs outline-none focus:border-border-pg-strong disabled:opacity-50 rounded-lg">
               {models.map((model) => <option key={model.id} value={model.id} disabled={!model.available}>{model.display_name}{model.id === "default" ? "" : model.available ? (zh ? " · 按实际使用计费" : " · usage-metered") : model.reason === "plan_required" ? (zh ? " · 需要 Max/Enterprise" : " · Max/Enterprise required") : (zh ? " · 当前不可用" : " · unavailable")}</option>)}
             </select>
           </div>
           <div className="mx-auto mb-3 max-w-3xl border border-border-pg bg-bg-panel rounded-lg">
-            <button type="button" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)} className="flex w-full cursor-pointer items-center gap-2 p-3 text-left text-xs font-medium">
-              <Settings2 className="h-4 w-4" />{zh ? "高级研究设置（可选）" : "Advanced research settings (optional)"}
-              <span className="ml-auto flex items-center gap-1.5 text-text-pg-dim">{dataSources.length + skills.length + attachments.length || (zh ? "自动" : "Auto")}<ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${settingsOpen ? "rotate-180" : ""}`} /></span>
-            </button>
-            {settingsOpen ? (
-              <div className="border-t border-border-pg">
-                <div className="max-h-[55vh] overflow-y-auto p-3">
-                  <ContextControls locale={locale} dataSources={dataSources} skills={skills} skillCatalog={skillCatalog} customPrompt={customPrompt} attachments={attachments} allowedSources={capabilities?.allowed_data_sources || []} onToggleSource={(value) => toggle(value, dataSources, setDataSources)} onToggleSkill={(value) => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={(name) => setAttachments((current) => current.filter((file) => file.name !== name))} />
-                </div>
-                <div className="flex items-center justify-between border-t border-border-pg px-3 py-2 text-[11px] text-text-pg-dim">
-                  <span>{zh ? "按 Esc 可快速收起" : "Press Esc to collapse"}</span>
-                  <button type="button" onClick={() => setSettingsOpen(false)} className="border border-border-pg px-3 py-1.5 text-xs font-medium text-text-pg transition hover:border-border-pg-strong rounded-lg">
-                    {zh ? "完成" : "Done"}
-                  </button>
-                </div>
+            {researchMode ? (
+              <>
+                <button type="button" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)} className="flex w-full cursor-pointer items-center gap-2 p-3 text-left text-xs font-medium">
+                  <Settings2 className="h-4 w-4" />{zh ? "高级研究设置（可选）" : "Advanced research settings (optional)"}
+                  <span className="ml-auto flex items-center gap-1.5 text-text-pg-dim">{dataSources.length + skills.length + attachments.length || (zh ? "自动" : "Auto")}<ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${settingsOpen ? "rotate-180" : ""}`} /></span>
+                </button>
+                {settingsOpen ? (
+                  <div className="border-t border-border-pg">
+                    <div className="max-h-[55vh] overflow-y-auto p-3">
+                      <ContextControls locale={locale} dataSources={dataSources} skills={skills} skillCatalog={skillCatalog} customPrompt={customPrompt} attachments={attachments} allowedSources={capabilities?.allowed_data_sources || []} onToggleSource={(value) => toggle(value, dataSources, setDataSources)} onToggleSkill={(value) => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={(name) => setAttachments((current) => current.filter((file) => file.name !== name))} />
+                    </div>
+                    <div className="flex items-center justify-between border-t border-border-pg px-3 py-2 text-[11px] text-text-pg-dim">
+                      <span>{zh ? "按 Esc 可快速收起" : "Press Esc to collapse"}</span>
+                      <button type="button" onClick={() => setSettingsOpen(false)} className="border border-border-pg px-3 py-1.5 text-xs font-medium text-text-pg transition hover:border-border-pg-strong rounded-lg">
+                        {zh ? "完成" : "Done"}
+                      </button>
+                    </div>
+                  </div>
+                ) : null}
+              </>
+            ) : (
+              <div className="flex items-center gap-2 p-3 text-xs text-text-pg-dim">
+                <Settings2 className="h-4 w-4 shrink-0" />
+                {zh ? "联网模式已开启：本轮直接联网检索，不使用内部 Skill 与数据管道。" : "Online mode is on: this turn searches the web directly, without internal Skills or the data pipeline."}
               </div>
-            ) : null}
+            )}
           </div>
           <form onSubmit={send} className="mx-auto flex max-w-3xl items-end gap-2">
             <input ref={fileRef} type="file" multiple accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json" className="hidden" onChange={(event) => void addFiles(event.target.files)} />
@@ -348,7 +368,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             <textarea ref={composerRef} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={2} placeholder={zh ? "说出目标或正在判断的问题，Shift + Enter 换行" : "State your goal or decision, Shift + Enter for a new line"} className="min-h-14 flex-1 resize-none border border-border-pg bg-bg-panel px-3 py-2 text-sm outline-none focus:border-border-pg-strong rounded-lg" />
             {busy ? <button type="button" onClick={stop} className="grid h-14 w-12 place-items-center border border-border-pg text-status-negative rounded-lg" title={zh ? "停止生成" : "Stop generation"}><CircleStop className="h-5 w-5" /></button> : <button type="submit" disabled={!input.trim()} className="grid h-14 w-12 place-items-center border border-border-pg-strong bg-pg-white text-pg-black disabled:opacity-40 rounded-lg" title={zh ? "发送" : "Send"}><Send className="h-5 w-5" /></button>}
           </form>
-          <div className="mx-auto mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 text-[11px] text-text-pg-dim"><span>{creditQuote?.plan?.intent ? `${zh ? "自动识别" : "Detected"}: ${creditQuote.plan.intent.replaceAll("_", " ")}` : (zh ? "留空高级设置时，Agent 会自动选择 Skills 与证据。" : "Leave advanced settings blank for automatic Skills and evidence selection.")}</span><span>{creditQuote?.unavailable ? (zh ? "计费报价暂不可用" : "Credit quote unavailable") : `${zh ? "预计消耗" : "Estimated cost"}: ${estimatedCredits} Credits`}</span></div>
+          <div className="mx-auto mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 text-[11px] text-text-pg-dim"><span>{!researchMode ? (zh ? "联网模式：直接联网检索" : "Online mode: direct web search") : (creditQuote?.plan?.intent ? `${zh ? "自动识别" : "Detected"}: ${creditQuote.plan.intent.replaceAll("_", " ")}` : (zh ? "留空高级设置时，Agent 会自动选择 Skills 与证据。" : "Leave advanced settings blank for automatic Skills and evidence selection."))}</span><span>{creditQuote?.unavailable ? (zh ? "计费报价暂不可用" : "Credit quote unavailable") : `${zh ? "预计消耗" : "Estimated cost"}: ${estimatedCredits} Credits`}</span></div>
           {error ? <p className="mx-auto mt-2 max-w-3xl text-xs text-status-negative">{error}</p> : null}
         </div>
       </section>
