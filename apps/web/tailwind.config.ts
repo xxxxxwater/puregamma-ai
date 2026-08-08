@@ -94,10 +94,6 @@ const config: Config = {
         "glow-cyan": "none",
         "glow-emerald": "none",
       },
-      borderRadius: {
-        "2xl": "1rem",
-        "3xl": "1.25rem",
-      },
       animation: {
         "pulse-slow": "pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite",
         "fade-in": "fadeIn 0.3s ease-out",
@@ -120,6 +116,17 @@ const config: Config = {
       backgroundSize: {
         "grid": "40px 40px",
       },
+    },
+    borderRadius: {
+      none: "0px",
+      sm: "0.375rem",
+      DEFAULT: "0.5rem",
+      md: "0.625rem",
+      lg: "0.75rem",
+      xl: "1rem",
+      "2xl": "1.25rem",
+      "3xl": "1.5rem",
+      full: "9999px",
     },
   },
   plugins: [],
