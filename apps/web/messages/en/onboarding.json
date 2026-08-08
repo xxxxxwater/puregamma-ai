@@ -100,7 +100,7 @@
     "selectedSingular": "{count} channel selected",
     "settingUp": "Setting up...",
     "complete": "Complete Setup",
-    "footer": "You can change notification settings anytime in Dashboard -> Daily Push. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
+    "footer": "You can change notification settings anytime in Dashboard -> Daily Push.",
     "items": [
       {
         "id": "email",

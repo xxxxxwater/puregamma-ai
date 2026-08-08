@@ -264,7 +264,7 @@ class BacktestEngine:
                 "is_live": False,
                 "paper_trading": False,
                 "live_trading": live_trading_status(),
-                "disclaimer": "Research backtest using NautilusTrader. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
+                "disclaimer": "Research backtest using NautilusTrader.",
             }
         except Exception as exc:
             return {
@@ -331,7 +331,7 @@ class BacktestEngine:
             else "research_simulation",
             "live_trading": live_trading_status(),
             "execution_model": "no-lookahead moving-average simulation with configured fee_bps",
-            "disclaimer": "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content. Simulation results use PureGamma data catalog.",
+            "disclaimer": "Simulation results use PureGamma data catalog.",
         }
 
 
@@ -365,5 +365,5 @@ def run_backtest_for_agent(
         "mode": result.get("mode", "unknown"),
         "data_freshness": result.get("data_freshness", "unknown"),
         "bar_count": result.get("bar_count", 0),
-        "disclaimer": result.get("disclaimer", "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."),
+        "disclaimer": result.get("disclaimer", ""),
     }

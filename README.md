@@ -1,152 +1,208 @@
 # PureGamma AI
-
+PureGamma AI is an AI-native investment research and decision-support platform for crypto and equity-aware portfolios. It combines market intelligence, portfolio NAV context, agent-based research, options surface analysis, strategy playbooks, simulated backtests, billing entitlements, an OpenAI-compatible API gateway, and notification delivery into one research console.
 The versioned declarative Skills Library is documented in
 [`docs/SKILLS_LIBRARY.md`](docs/SKILLS_LIBRARY.md).
-
-Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), and [implementation report](docs/IMPLEMENTATION_REPORT.md).
-
-The first-party OpenAI-compatible API Gateway is documented in
-[`docs/AI_API_GATEWAY.md`](docs/AI_API_GATEWAY.md).
-
-PureGamma AI is an AI-native crypto and equity investment research SaaS. It combines market data, sentiment, portfolio context, strategy playbooks, simulated backtests, billing entitlements, credit controls, and notification delivery into one research console.
-
-PureGamma AI is research software only. It does not place trades, custody funds, automate execution, give tax advice, or promise investment returns. Every report, signal, playbook, backtest, portfolio view, and push notification must include or preserve the disclaimer: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
-
+Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), [implementation report](docs/IMPLEMENTATION_REPORT.md), and [AI API gateway](docs/AI_API_GATEWAY.md).
 Start with the full documentation index: [docs/README.md](./docs/README.md).
-
 ## What is PureGamma AI?
-
-PureGamma AI helps active crypto and equity investors answer three daily questions:
-
+PureGamma AI is an AI decision-support system for individual secondary-market investors. It helps users answer three daily questions:
 - What changed in the market?
 - How does it affect my portfolio and risk?
 - Which research actions or playbooks are worth reviewing?
-
-The product is built around a daily research workflow: shared market intelligence is generated once, user reports are personalized with preferences and portfolio context, and selected channels deliver the result through the web app, email, Telegram, Slack, or a self-hosted iMessage relay.
-
+The product is built around a daily research workflow: shared market intelligence is generated once, user reports are personalized with preferences and portfolio context, and selected channels deliver the result through the web app, mobile apps, Telegram, iMessage, email, or Slack.
+Current positioning focuses on three decision surfaces: understanding **Beta** exposure, discovering **evidence-backed Alpha**, and evaluating **Long Gamma** opportunities — all with explicit data sources and risk context.
 ## Core Features
-
-- Daily crypto market report.
-- Portfolio NAV brief and portfolio-aware research experience.
-- iMessage daily push through a self-hosted Mac relay.
-- Stripe subscriptions with Checkout Sessions, Payment Links, credits, entitlements, and manual review.
-- OpenAI-compatible LLM provider abstraction with DeepSeek and mock fallback.
-- Google OAuth login with mock login retained for local development.
-- Plaid investments data design for brokerage holdings, securities, and investment transactions.
-- Exchange read-only balance and trade sync design for Binance, OKX, Bybit, and Hyperliquid.
-- On-chain wallet sync design for public wallet holdings.
-- CoinDesk/RSS, X KOL, Bloomberg, market, on-chain, and macro data pipeline docs.
-- Strategy drafts, versioned activation intents, mock/native backtests, and PAPER/SHADOW runtime control.
-- Admin dashboard for users, reports, data sources, Stripe events, notifications, and subscriptions.
-- Mock mode for local product demos without third-party credentials.
-
+Research and decision support:
+- Daily market report, event reports, signals, and strategy playbooks.
+- **Agent chat**: persistent conversations with SSE streaming, citations, tool calls, cancellation, plan quotas, and optional GPT-5.6 Luna model.
+- **Private Secretary**: voice-based secretary interaction with iMessage verification (Max/Enterprise) and user-scoped memory policy.
+- **Options research**: read-only Deribit BTC/ETH chains, Polygon.io equity chains, moneyness×DTE surfaces, and Long Gamma candidate scoring.
+- **Backtest Lab**: unified backtest engine with quant metrics, artifacts, and candle data.
+- **Research Runner**: user code executed in a no-network, read-only, resource-limited Docker sandbox with static AST validation.
+- **Skills library**: versioned declarative skills (schema 1.0) with layered tool whitelists and deterministic YAML DAG workflows.
+Portfolio and trading:
+- **Portfolio NAV**: consolidated NAV and history across Plaid Investments, Interactive Brokers (OAuth), and Hyperliquid (public), with encrypted token storage and freshness windows.
+- **Portfolio Autopilot**: scheduled review records with NAV, concentration, and freshness findings; Telegram/iMessage delivery.
+- **Strategy library**: six built-in strategies (BTC momentum, ETH/BTC rotation, SOL high-beta, HYPE trend, MSTR BTC proxy, STRC event-driven credit).
+- **Trading control plane**: accounts, positions, order preview/confirm/cancel, reconciliation, and kill-switch against an isolated Nautilus runtime (BACKTEST / PAPER / SHADOW only).
+- **Nautilus runtime**: isolated execution data plane with risk gateways (kill switch, nominal/leverage/daily-loss/frequency limits), execution journaling, restart recovery, and public market data adapters (Binance testnet, Hyperliquid, Coinbase Advanced). Live trading, withdrawals, and transfers remain disabled.
+AI gateway and billing:
+- **First-party OpenAI-compatible API Gateway** (`/v1/chat/completions`) with HMAC-hashed `sk-pg-…` keys, model catalog (Kimi K3, DeepSeek V4, GLM 5.2), admin-approved price revisions, per-key RPM limits, and fail-closed Redis.
+- **Gateway prepaid wallet**: USD wallet independent of subscriptions/credits with Stripe Checkout top-ups, line-item ledger, idempotent crediting, and per-request locking (402 on insufficient balance).
+- Stripe subscriptions with Checkout Sessions, Payment Links, credits, entitlements, and manual review; persisted credit reservation/settlement/refund state with an append-only ledger, automation budgets, and reward ledger.
+Authentication and delivery:
+- Google OIDC (PKCE/nonce), Sign in with Apple, email/password auth, and mobile OAuth sessions.
+- Notifications: email, Telegram, Slack, APNs push, and a self-hosted iMessage relay (outbound and inbound).
+- Daily brief with five delivery controls (market, portfolio, signals, risk, source sentiment).
+Apps and admin:
+- Next.js web app (en/zh), SwiftUI iOS app (Today, Agent, Research, Portfolio, Account), and Android app (Compose shell with WebView).
+- Admin dashboard for users, reports, data sources, Stripe events, gateway pricing approvals, billing intents, and notifications.
 ## Architecture Overview
-
 ```mermaid
 flowchart TD
   User["User"] --> Web["Next.js web app"]
+  User --> iOS["iOS app (SwiftUI)"]
+  User --> Android["Android app (Compose + WebView)"]
   Web --> API["FastAPI API"]
-  API --> Auth["Auth and users"]
-  API --> Billing["Stripe, credits, entitlements"]
-  API --> Reports["Reports, signals, playbooks"]
+  iOS --> API
+  Android --> API
+  API --> Auth["Google / Apple / Email / JWT"]
+  API --> Billing["Stripe, credits, entitlements, wallet"]
+  API --> Agent["Agent engine + Secretary"]
+  API --> Gateway["OpenAI-compatible API gateway"]
+  Gateway --> LLM["DeepSeek / Kimi / GLM / Luna"]
+  API --> Options["Options research (Deribit / Polygon)"]
+  API --> Backtest["Backtest Lab + unified engine"]
+  API --> ResearchRunner["Research sandbox (Docker)"]
+  API --> Skills["Skills library + workflows"]
+  API --> Portfolio["Plaid / IBKR / Hyperliquid NAV"]
+  API --> Trading["Trading control plane"]
+  Trading -->|HMAC-signed| Runtime["Nautilus runtime: PAPER / SHADOW / BACKTEST"]
   API --> Notify["Notification dispatcher"]
   Notify --> Email["Email"]
   Notify --> Telegram["Telegram"]
   Notify --> Slack["Slack"]
+  Notify --> APNs["APNs push"]
   Notify --> Relay["Self-hosted iMessage relay"]
-  API --> Data["Market and sentiment providers"]
-  API --> Portfolio["Portfolio NAV connectors"]
-  API --> Backtest["Backtest research layer"]
-  API --> Runtime["Nautilus runtime control"]
-  Runtime --> MockExchange["Mock Exchange: PAPER / SHADOW"]
+  API --> Data["Market / sentiment / document providers"]
   API --> DB["Postgres or local SQLite"]
-  API --> Redis["Redis and workers"]
+  API --> Redis["Redis and Celery workers"]
 ```
-
+Backend layers:
+| Layer | Location | Responsibility |
+| --- | --- | --- |
+| Routers | `apps/api/routers` | HTTP endpoints (auth, agent, gateway, options, trading, skills, backtest, portfolio, billing, admin, …) |
+| Services | `apps/api/services` | Business logic |
+| Database | `packages/database` | SQLAlchemy models, Alembic migrations, seed data |
+| Agents | `packages/agents` | Research, market, risk, strategy, report composition |
+| Gateway | `packages/gateway` | Model catalog, pricing, security, usage metering |
+| Skills | `packages/skills` | Skill registry, permissions, deterministic workflows |
+| Billing | `packages/billing` | Plans, credit costs, entitlements, metering |
+| Trading | `packages/trading` | Order intents, state machines, safety policies, runtime client |
+| Nautilus | `packages/nautilus`, `services/nautilus-runtime` | Data adapter, guardrails, isolated runtime |
+| Options | `packages/options` | Chain, surface, Long Gamma scoring |
+| Research Runner | `packages/research_runner` | Sandboxed user-code execution |
+| Data | `packages/data` | Market, on-chain, RSS, FinTwit, macro providers |
+| Notifications | `packages/notifications` | Channel providers and dispatcher |
+| Workers | `packages/workers` | Celery tasks and schedules |
+Key design principles:
+- **Control plane / data plane separation**: the FastAPI control plane never connects to exchanges directly; it talks to the isolated Nautilus runtime over HMAC-signed internal commands.
+- **Deterministic core, LLM explanation**: `API -> policy/entitlement -> metering quote/reservation -> deterministic service -> evidence/artifact -> LLM explanation`; no model bypasses policy or billing.
+- **Sandboxed user code**: user research scripts run only inside the no-network Docker sandbox; the API process never executes user code.
+- **Fail-closed defaults**: mock providers are development-only; missing credentials report `NOT_CONFIGURED`; live trading, withdrawal, and transfer are disabled by policy.
 Current implementation status:
-
-- Implemented: FastAPI, Next.js app, auth mock login, reports, signals, playbooks, Stripe Billing, Payment Links, credits, DeepSeek/mock LLM provider, notifications, iMessage relay, worker tasks, mock market data, mock/native backtest selection, strategy control, and PAPER/SHADOW Nautilus runtime.
-- Partially implemented or placeholder: real market provider adapters and external exchange adapter execution.
-- Planned or documented contract: Plaid account sync, exchange read-only account sync, on-chain wallet sync, full Portfolio NAV backend, Bloomberg enterprise import.
-
-More detail: [Architecture](./docs/developer/ARCHITECTURE.md).
-
+- Implemented: FastAPI + Next.js, Agent chat + Secretary, options research, Backtest Lab, Skills, gateway (phase 1) + prepaid wallet, Stripe billing with credit state machine, NAV connectors (Plaid/IBKR/Hyperliquid) + Autopilot, trading control plane with PAPER/SHADOW runtime, notifications, iMessage relay + verification, Google/Apple/Email auth, admin consoles, iOS/Android apps (code complete, not published).
+- Partially implemented or placeholder: real-time market stream parity, some P2+ internal surfaces (Risk/Realtime/MCP contracts return `NOT_IMPLEMENTED`), Redis Streams event pipeline, Bloomberg enterprise import.
+- Planned or documented contract: production launch gating, App Store/Play release, full deterministic pre-trade risk gate.
+More detail: [Architecture](./docs/developer/ARCHITECTURE.md), [Target Architecture](./docs/review/TARGET_ARCHITECTURE.md), [V5 Initial Launch Review](./docs/V5_INITIAL_LAUNCH_REVIEW.md).
+## Repository Layout
+```
+apps/
+  api/                 FastAPI backend (routers, services)
+  web/                 Next.js web app (en/zh)
+  ios/                 SwiftUI iOS app
+  android/             Kotlin/Compose Android app
+  imessage-relay/      Self-hosted macOS iMessage relay
+  site/                Vinext/Cloudflare Sites experiment
+packages/
+  agents/              LLM agents, prompts, routing
+  backtest/            Backtest engines and metrics
+  billing/             Plans, credits, metering, entitlements
+  capabilities/        Capability status registry
+  config/              SecretStore, settings
+  data/                Market/data provider adapters
+  database/            Models + Alembic migrations (0001–0023)
+  gateway/             AI gateway catalog, pricing, security, usage
+  nautilus/            Nautilus data adapter + guardrails
+  notifications/       Dispatcher and channel providers
+  options/             Options research domain
+  research_runner/     Sandboxed research execution
+  reports/             Report composition
+  risk/                Deterministic risk engine
+  security/            Password hashing and security helpers
+  skills/              Skills library + workflows
+  strategies/          Built-in strategy library
+  trading/             Trading domain, state machines, policies
+  workers/             Celery tasks and scheduler
+services/
+  nautilus-runtime/    Isolated execution data plane
+config/                gateway catalog, LLM costs, strategy specs, sources
+deploy/                Production compose, systemd units, scripts
+scripts/               Ops, migration, and verification scripts
+docs/                  Documentation (product, developer, ops, security)
+tests/                 pytest unit/integration + Playwright e2e
+```
 ## Quickstart
-
 ```bash
 cp .env.example .env
-docker compose up -d postgres redis
+docker compose up -d postgres redis nautilus-runtime
 python3 -m pip install -r apps/api/requirements.txt
 uvicorn apps.api.main:app --reload --host 127.0.0.1 --port 8000
 ```
-
 In a second shell:
-
 ```bash
 cd apps/web
 pnpm install
 NEXT_PUBLIC_API_URL=http://localhost:8000 pnpm dev
 ```
-
 Open `http://localhost:3000/en/dashboard` or `http://localhost:3000/zh/dashboard`.
-
-Full 15 minute guide: [Quickstart](./docs/getting-started/QUICKSTART.md).
-
+Full guide: [Quickstart](./docs/getting-started/QUICKSTART.md).
 ## Environment Variables
-
 Copy the template and never commit real secrets:
-
 ```bash
 cp .env.example .env
 ```
-
 Important groups:
-
-- Core/Auth: `APP_ENV`, `LOG_LEVEL`, `JWT_SECRET`, `AUTH_ALLOW_DEMO_FALLBACK`, `NEXT_PUBLIC_API_URL`, `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI`
+- Core/Auth: `APP_ENV`, `LOG_LEVEL`, `JWT_SECRET`, `AUTH_ALLOW_DEMO_FALLBACK`, `NEXT_PUBLIC_API_URL`, Google OAuth, Apple Sign-in, email auth settings
 - Database and Redis: `DATABASE_URL`, `REDIS_URL`, `WORKER_CONCURRENCY`
-- LLM: `LLM_PROVIDER`, OpenAI-compatible variables, DeepSeek variables
+- LLM: `LLM_PROVIDER`, DeepSeek variables, `OPENAI_LUNA_ENABLED` (optional GPT-5.6 Luna)
+- Gateway: `GATEWAY_ENABLED`, `GATEWAY_API_KEY_PEPPER`, `GATEWAY_ENABLED_PROVIDERS`, provider keys and regional pricing catalogs
 - Billing: `BILLING_MODE`, `BILLING_CHECKOUT_MODE`, `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, recurring Price IDs, Payment Link URLs
-- Notifications: `TELEGRAM_BOT_TOKEN`, `SLACK_WEBHOOK_URL`, SMTP settings, iMessage relay settings
-- Portfolio connectors: Plaid, exchange read-only keys, on-chain RPC settings
-- Data providers: CoinDesk RSS, CoinGecko, X, CryptoPanic, Glassnode, Coinglass, FRED, Bloomberg import
-- Safety: `NAUTILUS_LIVE_TRADING_ENABLED=false`, `NAUTILUS_ALLOW_LIVE_ORDER=false`
-
+- Portfolio connectors: `PORTFOLIO_TOKEN_ENCRYPTION_KEY` (Fernet), Plaid, IBKR OAuth, Hyperliquid
+- Push: APNs `.p8` key settings, push device registration
+- Notifications: `TELEGRAM_BOT_TOKEN`, `SLACK_WEBHOOK_URL`, SMTP settings, iMessage relay settings and verification limits
+- Data providers: CoinDesk RSS, FinTwit, X, CoinGecko, CryptoPanic, Glassnode, Coinglass, DefiLlama, FRED, EVM RPC endpoints, Bloomberg import
+- Safety: `NAUTILUS_LIVE_TRADING_ENABLED=false`, `NAUTILUS_ALLOW_LIVE_ORDER=false`, `NAUTILUS_ALLOW_WITHDRAWAL=false`, `NAUTILUS_ALLOW_TRANSFER=false`
 Reference: [Environment Variables](./docs/getting-started/ENVIRONMENT_VARIABLES.md).
-
 ## Mock Mode
-
 Mock mode is the default local development path:
-
 - `BILLING_MODE=mock` returns local checkout and portal URLs.
 - `POST /auth/mock-login` creates a local HMAC-signed bearer token.
 - Market data uses `MockMarketDataProvider`.
 - Notification providers return mock success when credentials are missing.
 - iMessage uses `IMESSAGE_PROVIDER=mock` unless the relay is enabled.
-- Portfolio, integrations, data sources, daily push, and Nautilus UI pages use frontend fallback data where backend routes are not implemented yet.
-
+- Mock providers are never treated as healthy capabilities in production mode.
 Reference: [Mock Mode](./docs/getting-started/MOCK_MODE.md).
-
 ## Docker Compose
-
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
-
 Services:
-
 - API: `http://localhost:8000`
 - Postgres: `localhost:5432`
 - Redis: `localhost:6379`
 - iMessage relay: `http://localhost:8787`
 - Nautilus runtime: `http://localhost:8090` (private service in production)
-
-Reference: [Docker Compose](./docs/getting-started/DOCKER_COMPOSE.md).
-
+Production deployment uses `docker compose -f docker-compose.production.yml up -d --build` with non-root images, a Next.js standalone web image, Caddy TLS, systemd units, and validation via `scripts/production-smoke.sh`. See [Deployment Overview](./docs/deployment/DEPLOYMENT_OVERVIEW.md) and [Production Checklist](./docs/deployment/PRODUCTION_CHECKLIST.md).
+## AI API Gateway
+PureGamma exposes a first-party OpenAI-compatible API for paid users:
+```python
+from openai import OpenAI
+client = OpenAI(api_key="sk-pg-…", base_url="https://api.puregamma.ai/v1")
+response = client.chat.completions.create(
+    model="deepseek-v4-pro",
+    messages=[{"role": "user", "content": "Hello"}],
+)
+```
+- Create a `sk-pg-…` key at `/gateway` (shown once; raw key material is never stored).
+- Phase-1 model IDs: `kimi-k3-max`, `deepseek-v4-pro`, `deepseek-v4-flash`, `glm-5.2`.
+- `POST /v1/chat/completions` supports streaming, JSON mode, and tools; `GET /v1/models` lists only approved models.
+- Activation requires the database migration, `GATEWAY_ENABLED=true`, an allow-listed provider set, admin bootstrap/sync, and price-revision approval.
+- Usage can be prepaid through the gateway wallet (Stripe top-up) or metered against the subscription.
+Details: [AI API Gateway](./docs/AI_API_GATEWAY.md).
 ## Stripe Setup
-
 PureGamma uses Stripe Billing with recurring Prices, Checkout Sessions, Payment Links, Customer Portal, webhooks, manual review, and credit grants.
-
 ```bash
 BILLING_MODE=stripe
 BILLING_CHECKOUT_MODE=session
@@ -158,124 +214,74 @@ STRIPE_PRICE_ENTERPRISE=price_...
 STRIPE_PAYMENT_LINK_PRO=https://buy.stripe.com/...
 STRIPE_PAYMENT_LINK_MAX=https://buy.stripe.com/...
 ```
-
 Local webhook test:
-
 ```bash
 stripe listen --forward-to localhost:8000/stripe/webhook
 stripe trigger checkout.session.completed
 stripe trigger invoice.paid
 ```
-
-Duplicate webhook events are idempotent by `stripe_event_id`. Unknown Payment Link plan mapping enters `/admin/billing-intents` manual review. Details: [Stripe](./docs/integrations/STRIPE.md).
-
-## Google OAuth Setup
-
-Configure a Google OAuth Web client and set the redirect URI to the same value used by `GOOGLE_OAUTH_REDIRECT_URI`.
-
-```bash
-GOOGLE_CLIENT_ID=
-GOOGLE_CLIENT_SECRET=
-GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/auth/google/callback
-```
-
-The backend validates OAuth state, Google issuer, ID token audience, and `email_verified`. Mock login remains available for local development.
-
-## DeepSeek Setup
-
+Duplicate webhook events are idempotent by `stripe_event_id`. Unknown Payment Link plan mapping enters `/admin/billing-intents` manual review. Credit operations use a persisted reservation → settlement/refund state machine with an append-only ledger. Details: [Stripe](./docs/integrations/STRIPE.md), [Credit and Entitlements](./docs/developer/CREDIT_AND_ENTITLEMENTS.md).
+## Auth Setup
+Supported sign-in flows:
+- **Google OAuth** (web + mobile PKCE): `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_OAUTH_REDIRECT_URI=http://localhost:8000/auth/google/callback`.
+- **Sign in with Apple** (mobile): server-side code exchange with hashed nonce.
+- **Email/password**: hashed credentials via `packages/security`.
+- **Mock login** remains available for local development and is rejected in production.
+## LLM Setup
 DeepSeek is available through the shared OpenAI-compatible LLM provider abstraction.
-
 ```bash
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
 DEEPSEEK_MODEL=deepseek-v4-flash
 ```
-
-Keep real API keys only in local `.env` or a secret manager. Missing keys fall back to mock mode and are visible through `/admin/llm-status`. Details: [DeepSeek](./docs/integrations/DEEPSEEK.md).
-
+Keep real API keys only in local `.env` or a secret manager. Missing keys fall back to mock mode locally and report `NOT_CONFIGURED` in production. Details: [DeepSeek](./docs/integrations/DEEPSEEK.md).
 ## iMessage Relay Setup
-
 iMessage has no general server API. PureGamma uses a self-hosted Mac relay for users or deployments that opt in.
-
 ```bash
 cd apps/imessage-relay
 python3 -m pip install -r requirements.txt
 export IMESSAGE_RELAY_SECRET=change-me
 uvicorn relay:app --host 127.0.0.1 --port 8787
 ```
-
-API to relay calls are signed with HMAC-SHA256 over `{timestamp}.{raw_body}` and use idempotency keys. The relay does not read the private Messages database.
-
-Details: [iMessage Relay](./docs/integrations/IMESSAGE_RELAY.md).
-
-## Plaid Setup
-
-Plaid is documented for investments data only: holdings, securities, and investment transactions. It is not used for trading or money movement. The backend routes are not implemented yet; the docs define the expected secure integration contract.
-
-Details: [Plaid](./docs/integrations/PLAID.md).
-
-## Exchange Read-only Setup
-
-Exchange integrations must use read-only API keys only. Never enable withdrawals, trading, margin transfer, or custody permissions. Never collect seed phrases or private keys.
-
-Supported design targets:
-
-- Binance
-- OKX
-- Bybit
-- Hyperliquid
-
-Details: [Exchange Read-only Keys](./docs/integrations/EXCHANGE_READONLY_KEYS.md).
-
-## Portfolio NAV
-
+API-to-relay calls are signed with HMAC-SHA256 over `{timestamp}.{raw_body}` and use idempotency keys. The relay supports outbound delivery and inbound events, and does not read the private Messages database. iMessage verification (Max/Enterprise) uses E.164 normalization with per-user/per-recipient rate limits.
+Details: [iMessage Relay](./docs/integrations/IMESSAGE_RELAY.md), [iMessage Security](./docs/security/IMESSAGE_SECURITY.md).
+## Portfolio NAV and Connectors
 Portfolio NAV is the estimated value of synced brokerage, exchange, and on-chain positions using current or most recent available prices. It is not a broker statement, custodian statement, tax statement, or audit record.
-
-Current status: the web app includes a portfolio UI with mock/fallback data; the backend portfolio sync and NAV persistence are planned.
-
-Details: [Portfolio NAV](./docs/product/PORTFOLIO_NAV.md).
-
-## NautilusTrader
-
+- Plaid Investments (holdings, securities, transactions) — sandbox-ready.
+- Interactive Brokers via OAuth (all returned accounts aggregated).
+- Hyperliquid public accounts (perpetual + spot).
+- Multi-account NAV history, capped/downsampled charts, explicit freshness windows (Plaid 36h; IBKR/Hyperliquid 15min), encrypted refresh-token storage (`PORTFOLIO_TOKEN_ENCRYPTION_KEY` Fernet key).
+- Portfolio Autopilot creates persisted review records and delivers findings via Telegram/iMessage.
+Details: [Plaid](./docs/integrations/PLAID.md), [Exchange Read-only Keys](./docs/integrations/EXCHANGE_READONLY_KEYS.md), [On-chain Wallets](./docs/integrations/ONCHAIN_WALLETS.md), [Portfolio NAV](./docs/product/PORTFOLIO_NAV.md), [Portfolio Autopilot Review](./docs/PORTFOLIO_AUTOPILOT_PRODUCTION_REVIEW.md).
+## NautilusTrader Runtime
 PureGamma uses an isolated Nautilus-compatible runtime for research, backtesting, and PAPER/SHADOW strategy execution. Live trading remains disabled.
-
-Current status: strategy control, public market-driven paper fills, persistent paper positions, restart recovery, and idempotent main-database projection are implemented. Native Nautilus is used where a supported wheel is available; otherwise the runtime reports Mock Bridge explicitly.
-
-Details: [NautilusTrader](./docs/integrations/NAUTILUS_TRADER.md).
-
-- [Phase 2 public market runtime](./docs/trading/PHASE_2_PUBLIC_MARKET_RUNTIME.md)
-- [Phase 3 persistent paper portfolio sync](./docs/trading/PHASE_3_PAPER_PORTFOLIO_SYNC.md)
-
-Product direction:
-
-- [V3 commercial design](./docs/product/V3_COMMERCIAL_DESIGN.md)
-- [V4 Deribit and Long Gamma](./docs/product/V4_DERIBIT_LONG_GAMMA.md)
-
+- Execution modes: BACKTEST, PAPER, SHADOW, Mock. Native Nautilus is used where a supported wheel is available; otherwise the runtime reports Mock Bridge explicitly.
+- Risk gateway: kill switch, pause-new-orders, nominal/leverage/daily-loss/frequency limits.
+- Execution gateway: idempotent journal-based order handling; reconciliation failures pause opening.
+- Persistent paper positions, restart recovery of uncertain orders, and idempotent main-database projection.
+- Public market data adapters: Binance spot testnet, Hyperliquid, Coinbase Advanced (read-only).
+- The control plane reaches the runtime only through HMAC-signed internal commands.
+Details: [NautilusTrader](./docs/integrations/NAUTILUS_TRADER.md), [Phase 2 public market runtime](./docs/trading/PHASE_2_PUBLIC_MARKET_RUNTIME.md), [Phase 3 persistent paper portfolio sync](./docs/trading/PHASE_3_PAPER_PORTFOLIO_SYNC.md), [Trading Safety](./docs/trading/TRADING_SAFETY.md).
 ## Data Pipeline
-
-Data adapters live in `packages/data`. Mock data is active by default. Current provider files include Binance, CoinGecko, DefiLlama, RSS/CryptoPanic, X, Reddit, Glassnode, Coinglass, on-chain, and macro placeholders.
-
+Data adapters live in `packages/data`. Mock data is active by default in development. The primary document pipeline is RSS, curated FinTwit, the official X API, and authorized Bloomberg data; normalized records carry provenance, license status, retention policy, entity mentions, sentiment components, event fingerprints, and provider sync logs. Optional extension providers: Binance, DefiLlama, EVM RPC, and an allow-listed Subgraph registry (disabled by default).
 Pipeline docs:
-
 - [Adding a Data Provider](./docs/developer/ADDING_DATA_PROVIDER.md)
+- [Data Sources](./docs/DATA_SOURCES.md)
+- [Data License](./docs/DATA_LICENSE.md)
+- [Agent Evidence Pipeline](./docs/AGENT_DATA_PIPELINE.md)
 - [CoinDesk RSS](./docs/integrations/COINDESK_RSS.md)
 - [X KOL](./docs/integrations/X_KOL.md)
 - [Bloomberg](./docs/integrations/BLOOMBERG.md)
-
 ## Credits and Plans
-
-Plans are defined in `packages/billing/plans.py`.
-
+Plans are defined in `packages/billing/plans.py`. Entitlement responses distinguish `subscribed_plan` from `effective_plan`: active and trialing subscriptions receive their purchased capabilities; past-due subscriptions run on the Free baseline with read-only portfolio access; unpaid or canceled subscriptions use the complete Free baseline without deleting historical data.
 | Plan | Monthly credits | Channels | High-cost tasks |
 | --- | ---: | --- | --- |
 | Free | 30 | Email | No |
 | Pro | 1000 | Telegram, Email | Yes |
 | Max | 10000 | Telegram, Slack, Email, iMessage | Yes |
 | Enterprise | 50000 default/custom | Telegram, Slack, Email, iMessage | Yes |
-
 Key credit costs:
-
 - Daily market report: 10
 - Event report: 5
 - Sentiment scan: 8
@@ -284,58 +290,41 @@ Key credit costs:
 - Backtest: 25
 - Playbook generation: 30
 - iMessage alert: 3
-
+Portfolio account limits: Free and restricted users cannot add accounts, Pro can add one, and Max can add five. Gateway access requires an active paid Stripe-backed plan; gateway wallet balance is settled independently.
 Reference: [Credit and Entitlements](./docs/developer/CREDIT_AND_ENTITLEMENTS.md).
-
 ## Security Notes
-
-- Use strong `JWT_SECRET` values outside local development.
-- Keep `AUTH_ALLOW_DEMO_FALLBACK=false` outside isolated demos.
-- Store Stripe, Plaid, exchange, SMTP, and relay secrets only in a secret manager or environment store.
-- Use read-only exchange keys only.
-- Encrypt Plaid access tokens and exchange API key material before persistence when those connectors are implemented.
+- Use strong `JWT_SECRET` values outside local development; keep `AUTH_ALLOW_DEMO_FALLBACK=false` outside isolated demos.
+- Store Stripe, Plaid, exchange, SMTP, relay, and provider secrets only in a secret manager or environment store.
+- Use read-only exchange keys only; never enable withdrawals, trading, margin transfer, or custody permissions.
+- Encrypt portfolio access tokens and exchange API key material (`PORTFOLIO_TOKEN_ENCRYPTION_KEY` Fernet) before persistence.
+- Gateway API keys are HMAC-hashed with a separate `GATEWAY_API_KEY_PEPPER`; raw key material is never stored or logged; prompts and provider response bodies are not retained.
 - Restrict `/admin/*` endpoints to users with `role=admin`.
-- iMessage relay must be network-restricted and signed with `IMESSAGE_RELAY_SECRET`.
-
-Reference: [Security Overview](./docs/security/SECURITY_OVERVIEW.md).
-
+- The iMessage relay must be network-restricted and signed with `IMESSAGE_RELAY_SECRET`.
+- Mock providers are not healthy production capabilities; production fails closed with `NOT_CONFIGURED`.
+- Live trading, withdrawals, and transfers are disabled by policy and cannot be enabled by configuration alone.
+Reference: [Security Overview](./docs/security/SECURITY_OVERVIEW.md), [Secret Handling](./docs/security/SECRET_HANDLING.md).
 ## Compliance Disclaimer
-
 PureGamma produces research, summaries, simulated backtests, risk views, and notifications. It does not provide personalized investment advice, tax advice, legal advice, custody, brokerage, or trade execution. Backtests are hypothetical and do not predict future results. Portfolio NAV is an estimate and not an official statement.
-
-Reference: [Disclaimer Guide](./docs/compliance/DISCLAIMER_GUIDE.md).
-
+Reference: [Disclaimer Guide](./docs/compliance/DISCLAIMER_GUIDE.md), [Backtest Disclosure](./docs/compliance/BACKTEST_DISCLOSURE.md), [Portfolio NAV Disclosure](./docs/compliance/PORTFOLIO_NAV_DISCLOSURE.md).
 ## Testing
-
 ```bash
 python3 -m pytest
 ```
-
+Backend uses pytest (unit, integration, gateway, security, quant, workers); frontend uses Playwright e2e:
+```bash
+cd apps/web && pnpm typecheck && pnpm lint && pnpm test:e2e
+```
 Useful manual checks:
-
 ```bash
 curl http://localhost:8000/health
 curl -X POST http://localhost:8000/auth/mock-login \
   -H "Content-Type: application/json" \
   -d '{"email":"demo@puregamma.ai","name":"Demo User"}'
 ```
-
 ## Roadmap
-
-- Implement Portfolio NAV backend tables, sync jobs, and API routes.
-- Implement Plaid Link token, public token exchange, encrypted token storage, and investments sync.
-- Implement exchange read-only and on-chain wallet sync with encrypted credential storage.
-- Replace mock market providers with production data routers and source health SLAs.
-- Integrate real NautilusTrader research/backtest runtime while keeping live trading disabled.
-- Add durable queue retries and dead-letter handling for worker tasks.
+- Launch gating: hide internal research, mock, admin, and runtime surfaces from customer routes; finish `unavailable/stale/partial` visual states.
+- Production launch configuration: real credentials, DNS/TLS, backups, target-host smoke, App Store/Play release for iOS and Android.
+- Complete the deterministic pre-trade risk gate and Redis Streams event pipeline with DLQ.
+- Extend gateway catalog (CNY→USD pricing policy for GLM) and wallet settlement reconciliation in staging.
+- Replace mock market providers with production data routers and source health SLAs where real licenses allow.
 - Add enterprise tenant isolation, audit export, data deletion workflow, and private deployment controls.
-- Add richer observability for LLM usage, source freshness, credits, webhook failures, and notification delivery.
-## Research document data sources
-
-The primary document pipeline is now RSS, curated FinTwit, the official X API, and authorized Bloomberg data. It stores raw and normalized records with provenance, license status, retention policy, entity mentions, sentiment components, event fingerprints, and provider sync logs. Binance, DefiLlama, Subgraph, and RPC adapters remain optional extension providers and are not scheduled as this pipeline's main flow.
-
-Configuration and operating details:
-
-- [Data source setup](docs/DATA_SOURCES.md)
-- [License and redistribution rules](docs/DATA_LICENSE.md)
-- [Agent evidence pipeline](docs/AGENT_DATA_PIPELINE.md)

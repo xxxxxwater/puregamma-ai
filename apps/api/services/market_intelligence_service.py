@@ -33,7 +33,6 @@ def generate_shared_market_intelligence(db: Session, assets: list[str] | None = 
             f"Market regime: {research['market_regime']}",
             f"Risk: {research['risk_summary']}",
             "Shared intelligence is generated once and reused for user-personalized reports.",
-            "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
         ]
     )
     intelligence = SharedMarketIntelligence(

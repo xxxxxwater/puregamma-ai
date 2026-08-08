@@ -57,7 +57,4 @@ def _llm_daily_fallback(
     except Exception:
         return baseline
 
-    disclaimer = "使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" if language == "zh" else "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
-    if disclaimer not in generated:
-        generated = f"{generated.rstrip()}\n\n{disclaimer}"
     return generated if generated.lstrip().startswith("#") else baseline

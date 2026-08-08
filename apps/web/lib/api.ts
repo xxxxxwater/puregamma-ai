@@ -15,6 +15,14 @@ function notifyAuthExpired() {
   window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
 }
 
+let insufficientRedirecting = false;
+function redirectIfInsufficientCredits() {
+  if (typeof window === "undefined" || insufficientRedirecting) return;
+  if (window.location.pathname.includes("/billing")) return;
+  insufficientRedirecting = true;
+  window.location.href = `${window.location.origin}/zh/billing`;
+}
+
 async function forwardedSessionHeaders(): Promise<Record<string, string>> {
   if (typeof window !== "undefined") return {};
   const { cookies } = await import("next/headers");
@@ -162,6 +170,7 @@ export function extractApiError(err: unknown): { status?: number; code?: string;
   } catch {
     /* non-JSON error body */
   }
+  if (e?.status === 402 || code === "INSUFFICIENT_CREDITS") redirectIfInsufficientCredits();
   return { status: e?.status, code, message, rule };
 }
 
@@ -784,7 +793,7 @@ export function getReport(id: string, locale: Locale = defaultLocale) {
 }
 
 export function sendReport(channel: string, locale: Locale = defaultLocale) {
-  return requestStrict<{ delivery: { status: string } }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, message: locale === "zh" ? "PureGamma AI 报告已生成。使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" : "PureGamma AI report is ready. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.", locale }) });
+  return requestStrict<{ delivery: { status: string } }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, message: locale === "zh" ? "PureGamma AI 报告已生成。" : "PureGamma AI report is ready.", locale }) });
 }
 
 export function getSignals(locale: Locale = defaultLocale) {
@@ -943,6 +952,7 @@ async function requestStrict<T>(path: string, init: RequestInit = {}): Promise<T
   });
   if (!response.ok) {
     if (response.status === 401) notifyAuthExpired();
+    if (response.status === 402) redirectIfInsufficientCredits();
     const detail = await response.text();
     const error = new Error(detail || `Request failed with HTTP ${response.status}`) as Error & { status?: number };
     error.status = response.status;
@@ -1157,6 +1167,7 @@ export async function streamAgentMessage(
     signal
   });
   if (!response.ok || !response.body) {
+    if (response.status === 402) redirectIfInsufficientCredits();
     const raw = await response.text();
     let message = raw || `Agent request failed (${response.status})`;
     try {
@@ -1486,7 +1497,7 @@ export function updateDailyPushPreferences(preference: Partial<DailyPushPreferen
 }
 
 export function sendDailyPushTest(channel: DailyPushPreference["channel"], locale: Locale = defaultLocale) {
-  const message = locale === "zh" ? "PureGamma AI 每日简报测试。使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" : "PureGamma AI daily brief test. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.";
+  const message = locale === "zh" ? "PureGamma AI 每日简报测试。" : "PureGamma AI daily brief test.";
   return requestStrict<{ delivery: DeliveryRecord }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, message, locale, metadata: { idempotency_key: `daily-push-test-${Date.now()}` } }) });
 }
 

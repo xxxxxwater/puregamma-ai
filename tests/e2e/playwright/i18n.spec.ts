@@ -84,11 +84,6 @@ test.describe("localized routes", () => {
     await expect(page.getByText("LIVE DISABLED")).toBeVisible();
   });
 
-  test("disclaimers localized", async ({ page }) => {
-    await page.goto("/zh/signals");
-    await expect(page.getByText("使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。").first()).toBeVisible();
-  });
-
   test("metadata localized", async ({ page }) => {
     await page.goto("/zh");
     await expect(page).toHaveTitle("PureGamma AI - Beta、Alpha 与 Long Gamma AI 决策助手");

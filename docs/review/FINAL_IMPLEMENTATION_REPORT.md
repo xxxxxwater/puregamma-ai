@@ -1,7 +1,5 @@
 # Production Baseline implementation report
-
 ## This delivery
-
 * **Implemented:** production environment validator, fail-fast Compose, Docker CLI compatibility, production smoke script, liveness/readiness endpoints, non-root images, authenticated SecretStore, capability registry, unified Credits metering, persisted reservation/settlement/refund state, append-only ledger, automation budgets, reward ledger, Agent/Luna provider-usage settlement, report/notification/backtest/strategy/signal/preview metering, frontend server Quote and actual-cost display, and production frontend fallback boundary.
 * **Partially implemented:** several hidden P2+ pages still need complete `unavailable/stale/partial` visual states; reward trigger workflows beyond portfolio onboarding/admin grant are policy-ready but not all exposed as product actions.
 * **Hidden compatibility routes:** `/internal/capabilities` and `/internal/portfolio-ai/snapshot` are admin + internal-secret protected and disabled by default. Risk, realtime and Trading MCP expose status contracts only; they return `NOT_IMPLEMENTED` until their deterministic backends exist.
@@ -12,9 +10,7 @@
 * **Production ready:** P1 metering code and the existing Auth/Stripe webhook/PAPER-SHADOW safety boundaries passed local production Compose smoke; real credentials, DNS/TLS, backup/restore and target-host smoke are still required before users.
 * **Blocked:** unrestricted live trading, withdrawal and transfer remain disabled by policy.
 * **Known risk:** real provider invoice reconciliation and calendar-boundary budget rollover need staging observation; P2+ Portfolio/Risk/Realtime/MCP capabilities remain hidden and are not production claims.
-
 ## Files and APIs
-
 * Configuration: `apps/api/config.py`, `.env.example`, `scripts/validate-production-env.py`.
 * Deployment: `docker-compose.production.yml`, `scripts/resolve-docker-cli.sh`, `scripts/production-smoke.sh`.
 * Metering: `packages/billing/metering.py`, `apps/api/services/credit_service.py`, `apps/api/routers/billing.py`.
@@ -23,19 +19,14 @@
 * User API: `POST /billing/quote`, `GET /billing/ledger`, `GET/PUT /billing/budget`, `GET /billing/rewards`.
 * Server-only boundary: reservation, settlement, refund and actual usage are not exposed to ordinary users.
 * Migrations: `0006_credit_state_machine`, `0007_credit_ledger_immutability`.
-
 ## Current defaults
-
 * Default Agent model is unchanged.
 * GPT-5.6 Luna remains optional and plan-gated; its flag is controlled by `OPENAI_LUNA_ENABLED` and its real API key is server-side only.
 * Mock providers are not allowed as healthy production capabilities.
 * LIVE, withdrawal and transfer remain disabled.
 * Portfolio/Risk/Realtime/MCP are not claimed complete in this delivery.
-
 ## Evidence
-
 Passed on macOS with the repository `.venv` and Docker Desktop 28.4.0:
-
 * full `.venv/bin/pytest -q` suite (exit 0; existing P2+ contract xfails remain explicit);
 * frontend typecheck, ESLint and Next.js production build (89 pages, including `/health`);
 * production environment validation and Compose `config --quiet` with redacted dummy values;
@@ -46,5 +37,4 @@ Passed on macOS with the repository `.venv` and Docker Desktop 28.4.0:
 * raw PostgreSQL and SQLite UPDATE probes rejected by the append-only ledger trigger;
 * Caddy configuration validation;
 * `git diff --check`.
-
 The system Anaconda pytest command has an unrelated global `web3`/`eth_typing` plugin conflict; the repository `.venv/bin/pytest` is the validated project runner.

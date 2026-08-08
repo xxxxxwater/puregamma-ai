@@ -13,7 +13,7 @@ from apps.api.services.report_service import create_daily_report, create_typed_d
 from apps.api.services.cost_control_service import DailyLimitExceededError
 from apps.api.services.signal_service import scan_signals
 from apps.api.services.runtime_sync_service import sync_runtime_account
-from apps.api.services.portfolio_service import PlaidDataPending, sync_account
+from apps.api.services.portfolio_service import PlaidDataPending, _snapshot_is_stale, sync_account
 from apps.api.services.data_source_service import sync_all_providers, sync_provider
 from apps.api.services.daily_push_service import next_delivery
 from apps.api.services.entitlement_service import get_user_entitlement
@@ -534,7 +534,7 @@ def sync_portfolio_autopilot_accounts() -> dict:
                     delivery = config.get("delivery", "in_app")
                     if delivery in {"telegram", "imessage"}:
                         findings = "; ".join(item["title"] for item in review["findings"][:5])
-                        send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content.", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"], "automation_key": "portfolio_monitor_delivery"})
+                        send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"], "automation_key": "portfolio_monitor_delivery"})
                     settle_task(db, user.id, reservation, quote.credits, metadata={"reviewed_at": review["last_review"]})
                     db.commit()
                 except AutomationBudgetExceeded as exc:
@@ -555,6 +555,53 @@ def sync_portfolio_autopilot_accounts() -> dict:
                     logger.exception("portfolio_autopilot_review_failed user_id=%s", preference.user_id)
                     errors += 1
         return {"synced": synced, "errors": errors}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.sync_all_portfolio_accounts")
+def sync_all_portfolio_accounts() -> dict:
+    """General scheduled NAV refresh for every connected portfolio account.
+
+    Unlike ``sync_portfolio_autopilot_accounts`` this is not gated on an
+    Autopilot configuration, so any connected portfolio keeps a fresh snapshot
+    and NAV history even when Autopilot is off. Accounts are processed
+    independently: a failing source (Plaid delay, EVM RPC, CEX outage) records
+    an error for that account only and never overwrites another account's last
+    valid snapshot. Accounts whose latest snapshot is still fresh are skipped.
+    """
+    db = SessionLocal()
+    synced = 0
+    skipped = 0
+    errors = 0
+    accounts_seen = 0
+    try:
+        accounts = db.query(TradingAccount).filter_by(account_type="READ_ONLY", status="ACTIVE").all()
+        user_cache: dict[str, User | None] = {}
+        for account in accounts:
+            if account.user_id not in user_cache:
+                user_cache[account.user_id] = db.get(User, account.user_id)
+            user = user_cache[account.user_id]
+            if user is None:
+                continue
+            try:
+                if get_user_entitlement(db, user.id).get("portfolio_access") != "standard":
+                    continue
+            except Exception:
+                continue
+            accounts_seen += 1
+            latest = db.query(AccountSnapshot).filter_by(user_id=user.id, account_id=account.id).order_by(AccountSnapshot.captured_at.desc()).first()
+            if latest and not _snapshot_is_stale(account, latest):
+                skipped += 1
+                continue
+            try:
+                sync_account(db, user, account)
+                synced += 1
+            except Exception:
+                db.rollback()
+                logger.exception("portfolio_nav_sync_failed user_id=%s account_id=%s", user.id, account.id)
+                errors += 1
+        return {"synced": synced, "skipped": skipped, "errors": errors, "accounts": accounts_seen}
     finally:
         db.close()
 

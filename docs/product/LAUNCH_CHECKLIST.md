@@ -1,18 +1,11 @@
 # PureGamma AI — MVP 上线清单
-
 **版本**: v1.0  
 **日期**: 2026-07-06
-
 ---
-
 ## 上线标准
-
 每个模块必须满足 "Ready for Production" 标准才能上线。
-
 ---
-
 ## 一、产品体验标准
-
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
 | P1 | Landing page 清晰传达产品价值，CTA 可点击 | ✅ 已有 | — |
@@ -21,13 +14,9 @@
 | P4 | 所有页面有 Loading / Empty / Error 三种状态 | ⚠️ 部分 | HIGH |
 | P5 | 所有页面有响应式设计（Desktop + Mobile） | ⚠️ 部分 | MEDIUM |
 | P6 | 所有 CTA 按钮有明确的点击反馈 | ✅ 已有 | — |
-| P7 | 所有研究内容包含 "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." | ⚠️ 部分 | **BLOCKER** |
 | P8 | 所有错误信息对用户友好（不暴露技术细节） | ⚠️ 部分 | HIGH |
-
 ---
-
 ## 二、计费标准
-
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
 | B1 | Stripe Checkout 流程端到端可用 | ⚠️ Mock only | HIGH |
@@ -40,11 +29,8 @@
 | B8 | Credit 不足时返回 402 + 明确提示 | ✅ | — |
 | B9 | 升级/降级逻辑正确（不丢失数据） | ✅ | — |
 | B10 | Mock mode 和 Production mode 切换正确 | ⚠️ | HIGH |
-
 ---
-
 ## 三、iMessage 推送标准
-
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
 | I1 | iMessage relay 认证安全（非默认密钥） | ❌ | **BLOCKER** |
@@ -56,11 +42,8 @@
 | I7 | 消息内容不泄露敏感信息 | ✅ | — |
 | I8 | 仅 Max/Enterprise 用户可收到 iMessage | ✅ | — |
 | I9 | Fallback 到 Email（relay 不可达时） | ❌ | HIGH |
-
 ---
-
 ## 四、Portfolio NAV 标准
-
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
 | N1 | 手动持仓输入可用 | ❌ | HIGH (Pro 核心) |
@@ -68,11 +51,8 @@
 | N3 | PnL 计算正确 | ❌ | — |
 | N4 | 用户 A 不能看到用户 B 的 portfolio | ⚠️ API 已检查 | — |
 | N5 | Portfolio 数据变化时显示 freshness 标记 | ❌ | MEDIUM |
-
 ---
-
 ## 五、数据管道标准
-
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
 | D1 | 至少 1 个数据源有真实数据（非 mock） | ❌ | HIGH |
@@ -80,11 +60,8 @@
 | D3 | Stale data 检测和标记 | ❌ | MEDIUM |
 | D4 | 数据源状态页正确反映连接状态 | ✅ | — |
 | D5 | Mock/Real 隔离（生产不误用 mock） | ⚠️ | HIGH |
-
 ---
-
 ## 六、安全标准
-
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
 | S1 | JWT 认证（非 header-based） | ❌ | **BLOCKER** |
@@ -95,25 +72,18 @@
 | S6 | Rate limiting on public endpoints | ❌ | HIGH |
 | S7 | SQL injection 防护（使用 ORM） | ✅ | — |
 | S8 | CORS 配置正确 | ✅ | — |
-
 ---
-
 ## 七、合规标准
-
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
-| C1 | 所有研究和信号标注 "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." | ⚠️ 部分 | **BLOCKER** |
 | C2 | 无自动交易功能 | ✅ | — |
 | C3 | 不托管用户资金 | ✅ | — |
 | C4 | Privacy Policy 页面 | ❌ | **BLOCKER** |
 | C5 | Terms of Service 页面 | ❌ | **BLOCKER** |
 | C6 | 用户可请求数据删除 | ❌ | HIGH (GDPR) |
 | C7 | Cookie consent（如适用） | ❌ | MEDIUM |
-
 ---
-
 ## 八、文档标准
-
 | # | 标准 | 状态 | 优先级 |
 |---|------|------|--------|
 | O1 | PRD | ✅ 已创建 | — |
@@ -128,13 +98,9 @@
 | O10 | Backlog | ✅ 已创建 | — |
 | O11 | API Documentation | ❌ | HIGH |
 | O12 | Self-host README | ✅ | — |
-
 ---
-
 ## 九、阻塞项汇总
-
 上线前必须解决的 **BLOCKER** 清单：
-
 | # | 问题 | 文件 | 修复工作量 |
 |---|------|------|-----------|
 | 1 | 无 JWT 认证 | dependencies.py | 3-5 天 |
@@ -147,11 +113,8 @@
 | 8 | Privacy / ToS 页面不存在 | web/ | 2 页面 |
 | 9 | Onboarding 流程不存在 | web/ | 3 页面 |
 | 10 | 无真实数据源 | data/ | 1-2 周 |
-
 ---
-
 ## 九（续）. 产品功能 BLOCKER（来自 PM Gap 分析）
-
 | # | 问题 | 优先级 | 修复方向 |
 |---|------|--------|---------|
 | 11 | Onboarding flow 缺失 — 用户从注册到首次 Daily Brief 无引导 | 🔴 BLOCKER | 创建 3 步 onboarding |
@@ -160,11 +123,8 @@
 | 14 | 用户偏好设置不完整 — 缺少推送时间、研究风格选择 | 🟡 HIGH | 补充 UserPreference 字段 |
 | 15 | CoinGecko 真实数据未接入 — 全部 mock | 🟡 HIGH | 接入 CoinGecko 免费 API |
 | 16 | Daily push 时间不可配 — 固定 UTC 00:20 | 🟡 MEDIUM | 添加用户时区 + 时间设置 |
-
 ---
-
 ## 十、上线就绪判定
-
 | 类别 | 状态 | BLOCKER 数 |
 |------|------|-----------|
 | 安全 | ❌ | 6 |
@@ -172,11 +132,8 @@
 | 推送 | ❌ | 3 |
 | 合规 | ❌ | 2 |
 | 产品体验 | ❌ | 4 (含新增 3 个) |
-
 **总体判定**: **未就绪。** 需要解决 17 个 BLOCKER（10 个原有 + 3 个产品功能 + 4 个与原有重叠更新）后进入 Beta，再经过 2-4 周 Beta 测试后正式上线。
-
 ### 预计上线时间线
-
 ```
 Week 1-2: 安全 + 计费 BLOCKER（10 个）
 Week 3-4: 产品体验 BLOCKER（Onboarding + iMessage 模板 + Portfolio-aware）
@@ -185,9 +142,7 @@ Week 7-8: CoinGecko 接入 + Beta 用户邀请
 Week 9-10: Beta 反馈修复
 Week 11:   v1.0 Public Launch 🚀
 ```
-
 ### MVP 上线必须满足的最小条件
-
 1. ✅ 用户能注册/登录（JWT）
 2. ✅ 用户能看到 Daily Market Report
 3. ✅ Max 用户能收到 iMessage Daily Brief

@@ -6,25 +6,6 @@
   "eyebrow": "访问控制",
   "title": "访问权限与订阅",
   "subtitle": "选择适合你的研究覆盖、监控频率与决策工作流。",
-  "valueTitle": "你购买的是更高效、更有纪律的研究流程",
-  "valueProps": [
-    {
-      "title": "节省时间",
-      "detail": "减少重复筛选、整理和跨平台核对。"
-    },
-    {
-      "title": "信息覆盖",
-      "detail": "在一个工作流内覆盖资产、事件与组合。"
-    },
-    {
-      "title": "风险可见性",
-      "detail": "持续识别集中度、数据过期与重大事件。"
-    },
-    {
-      "title": "决策纪律",
-      "detail": "使用固定复盘、引用和 Playbook 约束决策。"
-    }
-  ],
   "summary": {
     "currentPlan": "当前套餐",
     "subscription": "订阅",

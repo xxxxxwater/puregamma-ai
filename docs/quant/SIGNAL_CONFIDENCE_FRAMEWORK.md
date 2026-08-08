@@ -1,9 +1,6 @@
 # Signal Confidence Framework
-
 Signal confidence is not conviction. It is a quality score for whether the current evidence supports publishing a research signal.
-
 ## Inputs
-
 - Raw signal strength
 - Required data availability
 - Data freshness
@@ -12,9 +9,7 @@ Signal confidence is not conviction. It is a quality score for whether the curre
 - Backtest quality
 - Whether KOL sentiment is the only supporting input
 - Liquidity and capacity constraints
-
 ## Caps
-
 - Missing required data lowers confidence.
 - `risk_high` caps confidence unless there is strong confirmation.
 - `risk_extreme` caps confidence at low-confidence research language.
@@ -22,13 +17,9 @@ Signal confidence is not conviction. It is a quality score for whether the curre
 - KOL sentiment alone cannot produce high confidence.
 - Mock or insufficient backtests cap confidence.
 - Research-only and Do not launch strategies cannot emit actionable language.
-
 ## SignalSpec
-
 The canonical schema is implemented in `packages/strategies/signal_spec.py` and mirrored in `config/strategy_specs.yaml`.
-
 Required fields:
-
 - `strategy_name`
 - `asset_universe`
 - `signal_type`

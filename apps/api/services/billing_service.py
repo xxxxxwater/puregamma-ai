@@ -698,7 +698,7 @@ def _handle_trial_will_end(db: Session, obj: dict) -> None:
         user = db.get(User, sub.user_id) if sub else None
     if not user:
         return
-    message = "Your PureGamma AI trial will end soon. Review your subscription settings in Billing. Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+    message = "Your PureGamma AI trial will end soon. Review your subscription settings in Billing."
     try:
         send_notification(db, user.id, "email", message, {"source": "customer.subscription.trial_will_end", "subscription_id": obj.get("id")})
     except Exception as exc:

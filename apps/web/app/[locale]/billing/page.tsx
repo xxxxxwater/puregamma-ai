@@ -82,10 +82,6 @@ export default async function BillingPage({ params }: { params: { locale: Locale
           ) : <EmptyState title={copy.noRewards} description={copy.noRewardsDesc} />}
         </ResearchCard>
       </div>
-      <ResearchCard className="p-0">
-        <div className="border-b border-border-pg p-4"><h2 className="font-semibold">{copy.valueTitle}</h2></div>
-        <div className="grid gap-px bg-border-pg sm:grid-cols-2 xl:grid-cols-4">{copy.valueProps.map((item) => <div key={item.title} className="bg-bg-panel p-4"><div className="text-sm font-semibold">{item.title}</div><p className="mt-2 text-xs leading-5 text-text-pg-muted">{item.detail}</p></div>)}</div>
-      </ResearchCard>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         {copy.plans.map((plan) => (
           <ResearchCard key={plan.name} className={`flex flex-col ${plan.name === "Pro" || plan.name === "Max" ? "border-border-pg-strong" : ""}`}>

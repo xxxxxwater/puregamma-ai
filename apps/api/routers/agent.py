@@ -30,6 +30,7 @@ class ConversationPatch(BaseModel):
 class MessageRequest(BaseModel):
     content: str
     locale: str = "en"
+    research_mode: bool = True
     data_sources: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     skill_refs: list[dict] = Field(default_factory=list, max_length=8)
@@ -40,6 +41,7 @@ class MessageRequest(BaseModel):
 
 class AgentQuoteRequest(BaseModel):
     content: str = ""
+    research_mode: bool = True
     data_sources: list[str] = Field(default_factory=list)
     skills: list[str] = Field(default_factory=list)
     skill_refs: list[dict] = Field(default_factory=list, max_length=8)
@@ -63,6 +65,7 @@ def capabilities(db: Session = Depends(get_db), user: User = Depends(get_current
 def agent_quote(payload: AgentQuoteRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     try:
         return quote_agent_run(db, user, payload.content, context={
+            "research_mode": payload.research_mode,
             "data_sources": payload.data_sources,
             "skills": payload.skills,
             "skill_refs": payload.skill_refs,
@@ -152,7 +155,7 @@ def messages(conversation_id: str, db: Session = Depends(get_db), user: User = D
 def send_message(conversation_id: str, payload: MessageRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> StreamingResponse:
     try:
         row = owned_conversation(db, user, conversation_id)
-        run = start_run(db, user, row, payload.content, context={"data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model})
+        run = start_run(db, user, row, payload.content, context={"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model})
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AgentLimitError as exc:
@@ -181,8 +184,8 @@ def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(g
     if not previous:
         raise HTTPException(status_code=400, detail="Original user message not found")
     conversation = owned_conversation(db, user, assistant.conversation_id)
-    supplied = bool(payload.data_sources or payload.skills or payload.skill_refs or payload.custom_prompt or payload.attachments or payload.model)
-    context = {"data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model} if supplied else (previous.context_json or {})
+    supplied = bool(payload.data_sources or payload.skills or payload.skill_refs or payload.custom_prompt or payload.attachments or payload.model or not payload.research_mode)
+    context = {"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model} if supplied else (previous.context_json or {})
     try:
         run = start_run(db, user, conversation, previous.content, context=context)
     except AgentLimitError as exc:

@@ -1,12 +1,9 @@
 from __future__ import annotations
-
 from datetime import date, datetime, timezone
 import re
 import uuid
-
 from sqlalchemy import text
 from sqlalchemy.orm import Session
-
 from apps.api.config import get_settings
 from apps.api.services.cost_control_service import assert_daily_report_limit, cached_daily_report
 from apps.api.services.credit_service import quote_task, refund_task, reserve_task, settle_task
@@ -19,8 +16,6 @@ from packages.database.models import CreditReservationRecord, LLMCallLog, Report
 from packages.reports.event_report import render_event_report
 from packages.reports.playbook_report import render_playbook_report
 from packages.strategies.registry import generate_playbooks
-
-
 def create_daily_report(
     db: Session,
     user_id: str,
@@ -99,8 +94,6 @@ def create_daily_report(
     db.commit()
     db.refresh(report)
     return report
-
-
 def create_typed_daily_report(
     db: Session,
     user_id: str,
@@ -112,11 +105,9 @@ def create_typed_daily_report(
     automation_key: str | None = None,
 ) -> Report:
     """Generate-once-per-user-per-local-day for one typed daily report.
-
     Generalized form of :func:`create_daily_report` keyed by
     ``daily-report:{user}:{lang}:{report_type}:{local_date}`` (LOCAL date in the
     preference timezone, supplied by the caller).
-
     ``scheduled=True`` is used by the unified daily orchestrator: it SKIPS
     ``assert_daily_report_limit`` so scheduled dispatch never consumes the
     manual daily-report allowance, but it KEEPS the entitlement check and the
@@ -204,8 +195,6 @@ def create_typed_daily_report(
     db.commit()
     db.refresh(report)
     return report
-
-
 def create_event_report(db: Session, user_id: str, asset: str, event: str, language: str = "en") -> Report:
     quote = quote_task(task_type="event_report", requested_model="default")
     reservation = reserve_task(db, user_id, quote, f"event-report-charge:{user_id}:{uuid.uuid4()}")
@@ -230,8 +219,6 @@ def create_event_report(db: Session, user_id: str, asset: str, event: str, langu
         raise
     db.refresh(report)
     return report
-
-
 def create_playbook_report(db: Session, user_id: str, language: str = "en") -> Report:
     assert_action_allowed(db, user_id, "playbook_generation")
     quote = quote_task(task_type="playbook_generation", requested_model="default")
@@ -243,15 +230,14 @@ def create_playbook_report(db: Session, user_id: str, language: str = "en") -> R
     try:
         from packages.agents.llm.provider_factory import get_llm_provider
         generated = get_llm_provider().complete(
-            f"Generate a concise strategy playbook report in locale={language}. Keep disclaimer. Playbooks: {playbooks}",
+            f"Generate a concise strategy playbook report in locale={language}. Playbooks: {playbooks}",
             task_type="deepseek_playbook_generation",
             locale=language,
             user_id=user_id,
             db=db,
         )
-        disclaimer = "使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。" if language == "zh" else "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
         if generated.lstrip().startswith("#"):
-            content = generated if disclaimer in generated else f"{generated.rstrip()}\n\n{disclaimer}"
+            content = generated
     except Exception as exc:
         if get_settings().app_environment.lower() == "production":
             refund_task(db, user_id, reservation, "PLAYBOOK_MODEL_FAILED")
@@ -290,18 +276,10 @@ def create_playbook_report(db: Session, user_id: str, language: str = "en") -> R
     return report
 
 
-_REPORT_DISCLAIMERS = (
-    "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
-    "使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。",
-)
-
-
 def _display_content(report: Report) -> str:
     content = report.content_markdown
     if report.report_type != "daily_market_report":
         return content
-    for disclaimer in _REPORT_DISCLAIMERS:
-        content = content.replace(disclaimer, "")
     content = re.sub(
         r"Users bear all risks of using this service\.\s*The service provider is not responsible for any AI[^A-Za-z0-9\n]{0,3}generated content\.",
         "",

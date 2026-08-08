@@ -99,3 +99,53 @@ def test_online_tool_requires_rss_entitlement(db, normal_user, monkeypatch):
 
     with pytest.raises(PermissionError, match="TOOL_ENTITLEMENT_DENIED"):
         registry.call("search_online_sources", {"query": "latest BTC news"})
+
+
+def test_online_mode_skips_skills_and_pipeline_uses_web_search_only(db, normal_user, monkeypatch):
+    """research_mode=False: no internal skills/data pipeline, direct web search."""
+    monkeypatch.setenv("AGENT_ONLINE_RESEARCH_ENABLED", "true")
+    monkeypatch.setenv("ONLINE_SEARCH_PROVIDER", "google_news")
+    settings = Settings(enable_mock_agent=True, llm_provider="mock", agent_model="mock-model")
+    monkeypatch.setattr(agent_service, "get_settings", lambda: settings)
+    monkeypatch.setattr(agent_service, "get_agent_llm_provider", lambda selected_model=None: MockLLMProvider())
+
+    fetched_at = datetime.now(timezone.utc)
+
+    def fake_search(self, query, count=8):
+        return [
+            OnlineResearchResult(
+                provider="google_news_rss",
+                publisher="Example News",
+                title="Online mode result",
+                snippet="Public web metadata.",
+                url="https://news.google.com/rss/articles/online-mode",
+                published_at=fetched_at,
+                fetched_at=fetched_at,
+            )
+        ]
+
+    monkeypatch.setattr(OnlineResearchProvider, "search", fake_search)
+
+    conversation = agent_service.create_conversation(db, normal_user)
+    run = agent_service.start_run(
+        db,
+        normal_user,
+        conversation,
+        "Summarize the latest crypto news",
+        context={"research_mode": False, "data_sources": ["market", "rss"], "skills": ["market_research"]},
+    )
+    user_message = db.get(agent_service.AgentMessage, run.user_message_id)
+    context = user_message.context_json
+    assert context["research_mode"] is False
+    assert context["data_sources"] == []
+    assert context["skills"] == []
+    assert context["runtime"]["intent"] == "online_research"
+    assert context["runtime"]["auto_selected_skills"] is False
+
+    events = list(agent_service.stream_run(db, normal_user, run.id, "en"))
+    event_names = [line for event in events for line in event.split("\n") if line.startswith("event: ")]
+    assert "event: tool.started" in event_names
+
+    calls = db.query(AgentToolCall).filter_by(run_id=run.id).all()
+    assert [call.tool_name for call in calls] == ["search_online_sources"]
+    assert calls[0].status == "completed"

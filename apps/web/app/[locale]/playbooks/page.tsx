@@ -28,7 +28,6 @@ export default async function PlaybooksPage({ params }: { params: { locale: Loca
       <ResearchCard>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <p className="text-sm text-text-pg-muted">{copy.notice}</p>
-          <Badge tone="neutral">{t(locale, "compliance.notFinancialAdvice")}</Badge>
         </div>
       </ResearchCard>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">

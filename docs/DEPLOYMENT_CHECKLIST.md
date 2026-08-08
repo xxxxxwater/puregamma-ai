@@ -1,5 +1,4 @@
 # Deployment Checklist
-
 - Set `APP_ENV=production`, a high-entropy `SESSION_SECRET`, HTTPS web/API origins, and exact CORS origins.
 - Back up PostgreSQL, run `python -m scripts.db_migrate check`, then apply `python -m scripts.db_migrate upgrade`; verify `alembic current` reports head.
 - Configure Google client ID/secret and every localized callback URI.

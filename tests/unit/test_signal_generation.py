@@ -11,7 +11,6 @@ def test_signal_contains_required_research_fields(db):
     assert payload["catalyst"]
     assert payload["invalidation"]
     assert payload["timeframe"]
-    assert payload["disclaimer"] == "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
 
 
 def test_signal_confidence_and_risk_are_bounded(db):

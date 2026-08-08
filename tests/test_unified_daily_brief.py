@@ -34,8 +34,6 @@ def test_generate_unified_brief_bilingual_and_capped(db):
     assert "Trend continuation" in en
     assert len(zh.encode("utf-8")) <= MAX_IMESSAGE_BYTES
     assert len(en.encode("utf-8")) <= MAX_IMESSAGE_BYTES
-    assert "使用该服务用户自行承担风险" in zh
-    assert "Users bear all risks" in en
 
 
 def test_generate_unified_brief_survives_empty_database(db):

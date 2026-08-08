@@ -44,7 +44,6 @@ def test_shared_market_intelligence_generated(db):
 
     assert intelligence.id
     assert intelligence.assets == ["BTC", "ETH"]
-    assert "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." in intelligence.summary_markdown
 
 
 @pytest.mark.contract

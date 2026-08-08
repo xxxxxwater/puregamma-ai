@@ -1,5 +1,4 @@
 # Mock and fallback inventory
-
 | Location | Capability | Status | Production rule |
 |---|---|---|---|
 | `packages/agents/llm/mock_provider.py` | Agent response | MOCK_ONLY | disabled unless explicitly enabled in non-production |
@@ -11,6 +10,4 @@
 | `apps/web/lib/api.ts` | integrations demo rows | FRONTEND_FALLBACK | remove from production pages before public launch |
 | Nautilus quant fixtures | backtest | MOCK_ONLY | research fixture only; never label live or official performance |
 | notification mock providers | delivery | MOCK_ONLY | development/test only; real delivery requires provider credentials |
-
 Every mock response used by a real endpoint must carry `is_mock=true`, `source=mock`, `environment` and `generated_at`. The current audit found some legacy UI constants that still need migration to this envelope.
-

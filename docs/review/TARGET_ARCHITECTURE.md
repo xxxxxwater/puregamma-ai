@@ -1,6 +1,3 @@
 # Target architecture
-
 `API -> policy/entitlement -> metering quote/reservation -> deterministic service -> evidence/artifact -> LLM explanation`.
-
 Portfolio is the fact layer: connectors produce idempotent, provenance-tagged Decimal snapshots. Risk consumes only fresh non-mock snapshots and returns deterministic assessments. Trading requests pass permission, freshness, instrument and risk gates before a one-time confirmation reaches the Nautilus runtime. A Redis Streams event contract will carry raw, normalized, enriched and feature events with checkpoints and DLQ. The Agent Tool Registry is the common surface for default and Luna models; no model bypasses policy or billing.
-

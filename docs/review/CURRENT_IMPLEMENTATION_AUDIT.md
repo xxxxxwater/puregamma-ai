@@ -1,7 +1,5 @@
 # Current implementation audit
-
 Audit basis: source and tests in the current `main` working tree, not product documentation alone.
-
 | Area | Status | Evidence / boundary |
 |---|---|---|
 | FastAPI API and Next.js App Router | IMPLEMENTED | `apps/api/main.py`, `apps/web/app`, health/readiness and i18n routes |

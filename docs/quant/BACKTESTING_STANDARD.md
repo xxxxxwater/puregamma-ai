@@ -1,9 +1,6 @@
 # Backtesting Standard
-
 PureGamma backtests must satisfy the following controls before being used in product research.
-
 ## Mandatory Controls
-
 1. Data must not contain future information.
 2. Signals become available only after bar close.
 3. Funding and OI require timestamp alignment.
@@ -19,9 +16,7 @@ PureGamma backtests must satisfy the following controls before being used in pro
 13. Drawdown and tail risk must be output.
 14. Trade count and turnover must be output.
 15. Exposure time must be output.
-
 ## Required Metrics
-
 - Total return
 - Sharpe or another risk-adjusted return
 - Max drawdown
@@ -32,11 +27,7 @@ PureGamma backtests must satisfy the following controls before being used in pro
 - Exposure time
 - Fee and slippage paid
 - Capacity and liquidity utilization
-
 ## Bias Checks
-
 Look-ahead bias: reject a run if any feature timestamp is later than the simulated decision time.
-
 Survivorship bias: universes must be point-in-time where possible. Newer assets such as HYPE must include delisting, venue, and missing-history disclaimers.
-
 Parameter overfitting: parameter choices must be stable across nearby values and out-of-sample periods. If the edge exists only at one narrow setting, readiness is capped at Research-only.

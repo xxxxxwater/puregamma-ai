@@ -28,11 +28,11 @@ class MockLLMProvider(LLMProvider):
     ) -> LLMResponse:
         prompt = "\n".join(message.content for message in messages)
         if response_format == "json_object":
-            content = '{"summary":"mock structured output","disclaimer":"Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."}'
+            content = '{"summary":"mock structured output","disclaimer":""}'
         elif locale == "zh":
-            content = "Mock LLM 生成的机构投研摘要。\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+            content = "Mock LLM 生成的机构投研摘要。"
         else:
-            content = "Mock LLM synthesis for institutional research.\n\nUsers bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+            content = "Mock LLM synthesis for institutional research."
         prompt_tokens = max(1, len(prompt.split()))
         completion_tokens = max(1, len(content.split()))
         status = "fallback_mock" if self.status == "fallback_mock" else "success"

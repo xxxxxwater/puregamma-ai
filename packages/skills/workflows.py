@@ -785,12 +785,6 @@ def _tool_render_report(ctx: WorkflowContext, args: dict, deps: list) -> dict:
     }
 
 
-_DISCLAIMERS = {
-    "en": "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
-    "zh": "使用该服务用户自行承担风险，提供本服务的主体概不负责AI生成所有责任。",
-}
-
-
 def _tool_compose_markdown(ctx: WorkflowContext, args: dict, deps: list) -> dict:
     """Deterministic bilingual composition over step evidence only.
 
@@ -888,7 +882,6 @@ def _tool_compose_markdown(ctx: WorkflowContext, args: dict, deps: list) -> dict
         for citation in citations:
             lines.append(f"- [{citation['title']}]({citation['url']}) ({citation.get('published_at')})")
     lines.append("")
-    lines.append(_DISCLAIMERS["zh"] if zh else _DISCLAIMERS["en"])
     markdown = "\n".join(lines)
     return {
         "output": {"markdown": markdown, "citations": citations, "gaps": deduped_gaps, "locale": "zh" if zh else "en"},

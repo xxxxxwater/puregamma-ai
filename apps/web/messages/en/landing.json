@@ -20,13 +20,30 @@
   "engine": {
     "eyebrow": "PG AI Research Engine",
     "rows": [
-      { "label": "BETA", "detail": "direction - exposure - market regime" },
-      { "label": "ALPHA", "detail": "evidence - catalysts - independent sources" },
-      { "label": "LONG GAMMA", "detail": "IV - Greeks - liquidity - theta cost" },
-      { "label": "DECISION", "detail": "brief - risks - source trail" }
+      {
+        "label": "BETA",
+        "detail": "direction - exposure - market regime"
+      },
+      {
+        "label": "ALPHA",
+        "detail": "evidence - catalysts - independent sources"
+      },
+      {
+        "label": "LONG GAMMA",
+        "detail": "IV - Greeks - liquidity - theta cost"
+      },
+      {
+        "label": "DECISION",
+        "detail": "brief - risks - source trail"
+      }
     ]
   },
-  "stats": ["Live Market Context", "Sourced Alpha Research", "Long Gamma Screening", "Risk-first Decisions"],
+  "stats": [
+    "Live Market Context",
+    "Sourced Alpha Research",
+    "Long Gamma Screening",
+    "Risk-first Decisions"
+  ],
   "sections": {
     "researchProcess": "Research Process",
     "portfolioAware": "Portfolio-aware Intelligence",
@@ -40,37 +57,91 @@
     "eyebrow": "About",
     "headline": "Three different return questions require three different decision frameworks.",
     "cards": [
-      { "title": "Beta Exposure", "body": "Understand the market regime, direction, volatility, and the risk you are taking with the broader market." },
-      { "title": "Alpha Discovery", "body": "Look for differentiated information, catalysts, and relative-value evidence that is not explained by market Beta alone." },
-      { "title": "Long Gamma", "body": "Evaluate convex option exposure using implied volatility, Gamma, Theta cost, liquidity, and event timing." }
+      {
+        "title": "Beta Exposure",
+        "body": "Understand the market regime, direction, volatility, and the risk you are taking with the broader market."
+      },
+      {
+        "title": "Alpha Discovery",
+        "body": "Look for differentiated information, catalysts, and relative-value evidence that is not explained by market Beta alone."
+      },
+      {
+        "title": "Long Gamma",
+        "body": "Evaluate convex option exposure using implied volatility, Gamma, Theta cost, liquidity, and event timing."
+      }
     ]
   },
   "trust": [
-    { "title": "Governance", "body": "Transparent review materials and suitability boundaries." },
-    { "title": "Verification", "body": "Source freshness and data lineage are visible before relying on an output." },
-    { "title": "Access", "body": "Plans, credits, and entitlements control high-cost research workflows." },
-    { "title": "Disclosure", "body": "Investment limits and research-only boundaries are present across the system." }
+    {
+      "title": "Governance",
+      "body": "Transparent review materials and suitability boundaries."
+    },
+    {
+      "title": "Verification",
+      "body": "Source freshness and data lineage are visible before relying on an output."
+    },
+    {
+      "title": "Access",
+      "body": "Plans, credits, and entitlements control high-cost research workflows."
+    },
+    {
+      "title": "Disclosure",
+      "body": "Investment limits and research-only boundaries are present across the system."
+    }
   ],
   "process": [
-    { "label": "Input / Signal Generation", "detail": "Market, portfolio, KOL, and risk data are captured." },
-    { "label": "Fusion / Signal Fusion", "detail": "Signals are scored against source freshness and risk." },
-    { "label": "Allocation / Portfolio Management", "detail": "NAV context informs research prioritization." },
-    { "label": "Review / Risk Governance", "detail": "Every output is reviewed against disclosure boundaries." }
+    {
+      "label": "Input / Signal Generation",
+      "detail": "Market, portfolio, KOL, and risk data are captured."
+    },
+    {
+      "label": "Fusion / Signal Fusion",
+      "detail": "Signals are scored against source freshness and risk."
+    },
+    {
+      "label": "Allocation / Portfolio Management",
+      "detail": "NAV context informs research prioritization."
+    },
+    {
+      "label": "Review / Risk Governance",
+      "detail": "Every output is reviewed against disclosure boundaries."
+    }
   ],
   "deskItems": [
-    { "title": "Market Beta", "body": "Track direction, breadth, funding, volatility, and broad risk exposure." },
-    { "title": "Alpha Evidence", "body": "Compare catalysts and independent sources without presenting inference as fact." },
-    { "title": "Long Gamma Research", "body": "Screen live Deribit options using IV, Greeks, liquidity, and theta cost." },
-    { "title": "Concise Daily Brief", "body": "Turn the evidence into a short decision memo with sources and risks." }
+    {
+      "title": "Market Beta",
+      "body": "Track direction, breadth, funding, volatility, and broad risk exposure."
+    },
+    {
+      "title": "Alpha Evidence",
+      "body": "Compare catalysts and independent sources without presenting inference as fact."
+    },
+    {
+      "title": "Long Gamma Research",
+      "body": "Screen live Deribit options using IV, Greeks, liquidity, and theta cost."
+    },
+    {
+      "title": "Concise Daily Brief",
+      "body": "Turn the evidence into a short decision memo with sources and risks."
+    }
   ],
   "portfolioTitle": "Net Value / Portfolio Snapshot",
   "accessCards": [
-    { "title": "Observe", "body": "Use live market and option data to understand the current decision environment." },
-    { "title": "Verify", "body": "Review sources, freshness, assumptions, and conflicting evidence before acting." },
-    { "title": "Decide", "body": "Choose exposure with explicit invalidation, cost, and maximum-risk context." }
+    {
+      "title": "Observe",
+      "body": "Use live market and option data to understand the current decision environment."
+    },
+    {
+      "title": "Verify",
+      "body": "Review sources, freshness, assumptions, and conflicting evidence before acting."
+    },
+    {
+      "title": "Decide",
+      "body": "Choose exposure with explicit invalidation, cost, and maximum-risk context."
+    }
   ],
   "footerSlides": [
     "Now live: Kimi K3, GPT-5.6 Luna, DeepSeek V4 Flash 0731, open routing API and Agent.",
-    "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
+    ""
   ]
 }

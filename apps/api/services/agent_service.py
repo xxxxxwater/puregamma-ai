@@ -120,6 +120,7 @@ def _sanitize_context(context: dict | None) -> dict:
         "custom_prompt": str(context.get("custom_prompt", ""))[:2_000],
         "attachments": attachments,
         "model": str(context.get("model") or "default")[:120],
+        "research_mode": bool(context.get("research_mode", True)),
     }
 
 
@@ -140,6 +141,30 @@ def _requested_skill_slugs(context: dict) -> list[str]:
     return values
 
 
+def _online_research_plan(content: str) -> dict:
+    """Minimal runtime plan for 联网模式 (research mode OFF).
+
+    Mirrors AgentPlan.as_dict() so downstream consumers (plan.ready SSE,
+    prompt bundle, metering) keep working unchanged.
+    """
+    goal = content.strip().replace("\n", " ")[:240]
+    return {
+        "intent": "online_research",
+        "goal": goal,
+        "assets": [],
+        "horizon": None,
+        "skill_slugs": [],
+        "data_sources": [],
+        "evidence_requirements": [],
+        "clarification_recommended": False,
+        "clarification_fields": [],
+        "next_actions": [],
+        "confidence": 1.0,
+        "runtime_plan_version": "1.0",
+        "lexicon_version": "",
+    }
+
+
 def _prepare_agent_context(
     db: Session,
     user: User,
@@ -149,26 +174,40 @@ def _prepare_agent_context(
     enforce_skill_rate_limit: bool,
 ) -> tuple[dict, list, str, str, list[str]]:
     clean_context = _sanitize_context(context)
-    explicit_skill_slugs = _requested_skill_slugs(clean_context)
-    runtime_plan = plan_agent_request(
-        content,
-        requested_skill_slugs=explicit_skill_slugs,
-        requested_data_sources=clean_context.get("data_sources", []),
-    )
-    auto_execute_plan = not runtime_plan.clarification_recommended
-    if not explicit_skill_slugs and auto_execute_plan:
-        clean_context["skills"] = list(runtime_plan.skill_slugs)
-    if not clean_context.get("data_sources") and auto_execute_plan:
-        clean_context["data_sources"] = list(runtime_plan.data_sources)
+    research_mode = bool(clean_context.get("research_mode", True))
+    explicit_skill_slugs = _requested_skill_slugs(clean_context) if research_mode else []
+    if research_mode:
+        runtime_plan = plan_agent_request(
+            content,
+            requested_skill_slugs=explicit_skill_slugs,
+            requested_data_sources=clean_context.get("data_sources", []),
+        )
+        auto_execute_plan = not runtime_plan.clarification_recommended
+        if not explicit_skill_slugs and auto_execute_plan:
+            clean_context["skills"] = list(runtime_plan.skill_slugs)
+        if not clean_context.get("data_sources") and auto_execute_plan:
+            clean_context["data_sources"] = list(runtime_plan.data_sources)
+    else:
+        # 联网模式: bypass internal skills and the data pipeline, answer from
+        # public web search directly.
+        runtime_plan = _online_research_plan(content)
+        clean_context["skills"] = []
+        clean_context["skill_refs"] = []
+        clean_context["data_sources"] = []
     clean_context = _entitled_context(db, user, clean_context)
     registry = skill_registry(db, user)
-    resolved_skills = registry.resolve_many(
-        clean_context.get("skill_refs", []),
-        legacy_slugs=clean_context.get("skills", []),
-        trigger_source="agent_chat",
-        enforce_rate_limit=enforce_skill_rate_limit,
+    resolved_skills = (
+        registry.resolve_many(
+            clean_context.get("skill_refs", []),
+            legacy_slugs=clean_context.get("skills", []),
+            trigger_source="agent_chat",
+            enforce_rate_limit=enforce_skill_rate_limit,
+        )
+        if research_mode
+        else []
     )
-    registry.validate_chat_contract(resolved_skills, content)
+    if research_mode:
+        registry.validate_chat_contract(resolved_skills, content)
     if resolved_skills:
         allowed_by_skills = set().union(*(set(item.manifest.data_sources) for item in resolved_skills))
         denied_by_skill = [source for source in clean_context.get("data_sources", []) if source not in allowed_by_skills]
@@ -180,7 +219,7 @@ def _prepare_agent_context(
     clean_context["skills"] = [item.context_ref() for item in resolved_skills]
     clean_context.pop("skill_refs", None)
     clean_context["runtime"] = {
-        **runtime_plan.as_dict(),
+        **(runtime_plan.as_dict() if research_mode else runtime_plan),
         "auto_selected_skills": not bool(explicit_skill_slugs) and bool(resolved_skills),
         "prompt_refs": prompt_references(),
     }
@@ -188,23 +227,28 @@ def _prepare_agent_context(
     clean_context["model"] = selection
     tool_registry = AgentToolRegistry(db, user.id)
     skill_tools = registry.allowed_tools(resolved_skills) if resolved_skills else set()
-    tool_plan = [] if runtime_plan.clarification_recommended else tool_registry.plan(
-        content,
-        skills=sorted(_skill_slugs(clean_context)),
-        data_sources=clean_context.get("data_sources", []),
-        skill_tool_allowlist=skill_tools if resolved_skills else None,
-    )
-    tool_names = [name for name, _ in tool_plan]
-    if not runtime_plan.clarification_recommended and _online_fallback_allowed(
-        content,
-        clean_context["runtime"],
-        allowed_data_sources=tool_registry.allowed_data_sources,
-        skill_tools=skill_tools,
-        has_selected_skills=bool(resolved_skills),
-    ) and "search_online_sources" not in tool_names:
-        # Reserve for the possible fallback. Settlement refunds the difference
-        # when synchronized pipeline evidence was already sufficient.
-        tool_names.append("search_online_sources")
+    if research_mode:
+        clarification_recommended = runtime_plan.clarification_recommended
+        tool_plan = [] if clarification_recommended else tool_registry.plan(
+            content,
+            skills=sorted(_skill_slugs(clean_context)),
+            data_sources=clean_context.get("data_sources", []),
+            skill_tool_allowlist=skill_tools if resolved_skills else None,
+        )
+        tool_names = [name for name, _ in tool_plan]
+        if not clarification_recommended and _online_fallback_allowed(
+            content,
+            clean_context["runtime"],
+            allowed_data_sources=tool_registry.allowed_data_sources,
+            skill_tools=skill_tools,
+            has_selected_skills=bool(resolved_skills),
+        ) and "search_online_sources" not in tool_names:
+            # Reserve for the possible fallback. Settlement refunds the difference
+            # when synchronized pipeline evidence was already sufficient.
+            tool_names.append("search_online_sources")
+    else:
+        # 联网模式: web search is the only tool.
+        tool_names = ["search_online_sources"]
     return clean_context, resolved_skills, selection, model, tool_names
 
 
@@ -493,6 +537,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         registry = AgentToolRegistry(db, user.id, conversation.id)
         run_context = user_message.context_json or {}
         runtime_plan = run_context.get("runtime", {})
+        research_mode = bool(run_context.get("research_mode", True))
         yield _sse("plan.ready", {
             "runId": run.id,
             "intent": runtime_plan.get("intent", "general_research"),
@@ -501,26 +546,28 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             "clarificationRecommended": runtime_plan.get("clarification_recommended", False),
             "evidenceRequirements": runtime_plan.get("evidence_requirements", []),
         })
-        # Unified conversational entry (P0-4): native intents are answered from
-        # deterministic stored facts with the LLM only phrasing the evidence.
-        # Everything else falls through to the existing tool chain unchanged.
-        from apps.api.services import agent_answer_service
+        if research_mode:
+            # Unified conversational entry (P0-4): native intents are answered from
+            # deterministic stored facts with the LLM only phrasing the evidence.
+            # Everything else falls through to the existing tool chain unchanged.
+            # 联网模式 (research mode OFF) skips this internal-data fast path.
+            from apps.api.services import agent_answer_service
 
-        fast_path_intent = agent_answer_service.classify_intent(user_message.content, db=db, user_id=user.id)
-        if fast_path_intent:
-            yield from agent_answer_service.stream_fast_path(
-                db,
-                user,
-                run=run,
-                conversation=conversation,
-                user_message=user_message,
-                assistant=assistant,
-                intent=fast_path_intent,
-                started=started,
-                locale=locale,
-                runtime_plan=runtime_plan,
-            )
-            return
+            fast_path_intent = agent_answer_service.classify_intent(user_message.content, db=db, user_id=user.id)
+            if fast_path_intent:
+                yield from agent_answer_service.stream_fast_path(
+                    db,
+                    user,
+                    run=run,
+                    conversation=conversation,
+                    user_message=user_message,
+                    assistant=assistant,
+                    intent=fast_path_intent,
+                    started=started,
+                    locale=locale,
+                    runtime_plan=runtime_plan,
+                )
+                return
         selected_skills = skill_registry(db, user).resolve_many(
             run_context.get("skills", []),
             trigger_source="agent_chat",
@@ -536,12 +583,16 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         ])
         unique_sources: list[ToolSource] = []
         source_keys = set()
-        planned_calls = [] if runtime_plan.get("clarification_recommended") else registry.plan(
-            user_message.content,
-            skills=sorted(_skill_slugs(run_context)),
-            data_sources=run_context.get("data_sources", []),
-            skill_tool_allowlist=skill_tools if selected_skills else None,
-        )
+        if research_mode:
+            planned_calls = [] if runtime_plan.get("clarification_recommended") else registry.plan(
+                user_message.content,
+                skills=sorted(_skill_slugs(run_context)),
+                data_sources=run_context.get("data_sources", []),
+                skill_tool_allowlist=skill_tools if selected_skills else None,
+            )
+        else:
+            # 联网模式: direct web search only.
+            planned_calls = [("search_online_sources", {"query": user_message.content, "count": 8})]
         for tool_name, arguments in planned_calls:
             if time.perf_counter() > skill_deadline:
                 raise TimeoutError("SKILL_RUNTIME_TIMEOUT")
@@ -569,7 +620,15 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             yield _sse("tool.started", {"toolCallId": call.id, "tool": tool_name})
             tool_started = time.perf_counter()
             try:
-                result = registry.call(tool_name, arguments)
+                if not research_mode and tool_name == "search_online_sources":
+                    # 联网模式 bypasses the rss-entitlement gate: the web search
+                    # touches public endpoints only, never the internal pipeline.
+                    result = registry.search_online_sources(
+                        query=arguments.get("query", user_message.content),
+                        count=int(arguments.get("count", 8)),
+                    )
+                else:
+                    result = registry.call(tool_name, arguments)
                 call.status = "completed"
                 call.result_summary = result.summary[:1000]
                 call.latency_ms = int((time.perf_counter() - tool_started) * 1000)
@@ -589,7 +648,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 db.commit()
                 yield _sse("tool.completed", {"toolCallId": call.id, "tool": tool_name, "error": call.error_message})
 
-        if (
+        if research_mode and (
             evidence_pack.count("source_document") == 0
             and _online_fallback_allowed(
                 user_message.content,
@@ -723,11 +782,6 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             content += delta
             assistant.content += delta
             db.flush()
-            yield _sse("message.delta", {"messageId": assistant.id, "delta": delta})
-        if "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." not in content:
-            delta = "\n\n<small>Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.</small>"
-            content += delta
-            assistant.content += delta
             yield _sse("message.delta", {"messageId": assistant.id, "delta": delta})
         assistant.status = "completed"
         assistant.model = response_model

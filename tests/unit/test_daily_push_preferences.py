@@ -74,5 +74,4 @@ def test_daily_push_content_controls_change_delivery_body(db, pro_user):
     assert "\nPortfolio\n" not in message
     assert "\nSignals\n" not in message
     assert "\nRisk\n" in message
-    assert message.endswith("Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.")
     assert len(message) <= 500

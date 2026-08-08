@@ -1,11 +1,6 @@
 # PureGamma AI Documentation
-
 This documentation turns PureGamma AI from a code project into an operating manual for users, developers, administrators, operators, and enterprise customers.
-
-PureGamma AI is investment research software. It does not trade, custody assets, provide tax advice, or guarantee returns. Investment content must keep the disclaimer: `Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.`
-
 ## Current Implementation Status
-
 | Area | Status |
 | --- | --- |
 | Web dashboard | Implemented |
@@ -21,35 +16,27 @@ PureGamma AI is investment research software. It does not trade, custody assets,
 | Plaid, exchange, on-chain wallet sync | Planned; documented contract |
 | NautilusTrader runtime | Planned; mock backtest engine exists |
 | Bloomberg import | Planned enterprise import |
-
 ## Product
-
 - [Overview](./product/OVERVIEW.md)
 - [Pricing and Plans](./product/PRICING_AND_PLANS.md)
 - [Daily Brief](./product/DAILY_BRIEF.md)
 - [Portfolio NAV](./product/PORTFOLIO_NAV.md)
 - [Signals and Playbooks](./product/SIGNALS_AND_PLAYBOOKS.md)
 - [PRD](./product/PRD.md)
-
 ## Getting Started
-
 - [Quickstart](./getting-started/QUICKSTART.md)
 - [Local Development](./getting-started/LOCAL_DEVELOPMENT.md)
 - [Environment Variables](./getting-started/ENVIRONMENT_VARIABLES.md)
 - [Mock Mode](./getting-started/MOCK_MODE.md)
 - [Docker Compose](./getting-started/DOCKER_COMPOSE.md)
-
 ## Deployment
-
 - [Deployment Overview](./deployment/DEPLOYMENT_OVERVIEW.md)
 - [Production Checklist](./deployment/PRODUCTION_CHECKLIST.md)
 - [Workers and Scheduler](./deployment/WORKERS_AND_SCHEDULER.md)
 - [Database and Redis](./deployment/DATABASE_AND_REDIS.md)
 - [Secrets Management](./deployment/SECRETS_MANAGEMENT.md)
 - [Observability](./deployment/OBSERVABILITY.md)
-
 ## Integrations
-
 - [Stripe](./integrations/STRIPE.md)
 - [DeepSeek](./integrations/DEEPSEEK.md)
 - [iMessage Relay](./integrations/IMESSAGE_RELAY.md)
@@ -63,9 +50,7 @@ PureGamma AI is investment research software. It does not trade, custody assets,
 - [X KOL](./integrations/X_KOL.md)
 - [Bloomberg](./integrations/BLOOMBERG.md)
 - [NautilusTrader](./integrations/NAUTILUS_TRADER.md)
-
 ## Developer
-
 - [Architecture](./developer/ARCHITECTURE.md)
 - [API Reference](./developer/API_REFERENCE.md)
 - [Database Schema](./developer/DATABASE_SCHEMA.md)
@@ -76,33 +61,25 @@ PureGamma AI is investment research software. It does not trade, custody assets,
 - [Adding a Notification Provider](./developer/ADDING_NOTIFICATION_PROVIDER.md)
 - [Agent Architecture](./developer/AGENT_ARCHITECTURE.md)
 - [Credit and Entitlements](./developer/CREDIT_AND_ENTITLEMENTS.md)
-
 ## Admin
-
 - [Admin Guide](./admin/ADMIN_GUIDE.md)
 - [User Management](./admin/USER_MANAGEMENT.md)
 - [Billing Operations](./admin/BILLING_OPERATIONS.md)
 - [Data Source Monitoring](./admin/DATA_SOURCE_MONITORING.md)
 - [Notification Deliveries](./admin/NOTIFICATION_DELIVERIES.md)
 - [Incident Runbook](./admin/INCIDENT_RUNBOOK.md)
-
 ## Security
-
 - [Security Overview](./security/SECURITY_OVERVIEW.md)
 - [Data Privacy](./security/DATA_PRIVACY.md)
 - [Secret Handling](./security/SECRET_HANDLING.md)
 - [Tenant Isolation](./security/TENANT_ISOLATION.md)
 - [iMessage Security](./security/IMESSAGE_SECURITY.md)
-
 ## Compliance
-
 - [Disclaimer Guide](./compliance/DISCLAIMER_GUIDE.md)
 - [Investment Research Limits](./compliance/INVESTMENT_RESEARCH_LIMITS.md)
 - [Backtest Disclosure](./compliance/BACKTEST_DISCLOSURE.md)
 - [Portfolio NAV Disclosure](./compliance/PORTFOLIO_NAV_DISCLOSURE.md)
-
 ## Troubleshooting
-
 - [Common Errors](./troubleshooting/COMMON_ERRORS.md)
 - [Stripe Webhooks](./troubleshooting/STRIPE_WEBHOOKS.md)
 - [iMessage Relay](./troubleshooting/IMESSAGE_RELAY.md)
@@ -110,32 +87,23 @@ PureGamma AI is investment research software. It does not trade, custody assets,
 - [Portfolio NAV](./troubleshooting/PORTFOLIO_NAV.md)
 - [Worker Queue](./troubleshooting/WORKER_QUEUE.md)
 - [Nautilus](./troubleshooting/NAUTILUS.md)
-
 ## Recommended Reading Paths
-
 New user:
-
 1. [Overview](./product/OVERVIEW.md)
 2. [Daily Brief](./product/DAILY_BRIEF.md)
 3. [Portfolio NAV](./product/PORTFOLIO_NAV.md)
 4. [Pricing and Plans](./product/PRICING_AND_PLANS.md)
-
 Developer:
-
 1. [Quickstart](./getting-started/QUICKSTART.md)
 2. [Local Development](./getting-started/LOCAL_DEVELOPMENT.md)
 3. [Architecture](./developer/ARCHITECTURE.md)
 4. [API Reference](./developer/API_REFERENCE.md)
-
 Operator or administrator:
-
 1. [Deployment Overview](./deployment/DEPLOYMENT_OVERVIEW.md)
 2. [Production Checklist](./deployment/PRODUCTION_CHECKLIST.md)
 3. [Admin Guide](./admin/ADMIN_GUIDE.md)
 4. [Incident Runbook](./admin/INCIDENT_RUNBOOK.md)
-
 Enterprise customer:
-
 1. [Security Overview](./security/SECURITY_OVERVIEW.md)
 2. [Data Privacy](./security/DATA_PRIVACY.md)
 3. [Tenant Isolation](./security/TENANT_ISOLATION.md)

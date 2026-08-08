@@ -357,7 +357,6 @@ def test_coinbase_provider_parses_public_ticker_and_stats_payload():
 def test_daily_report_generation(db, demo_user):
     report = create_daily_report(db, demo_user.id)
     assert report.content_markdown.strip()
-    assert "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content." in report.content_markdown
 
 
 def test_signal_scan(db):

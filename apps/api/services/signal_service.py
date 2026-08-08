@@ -46,5 +46,4 @@ def serialize_signal(signal: Signal) -> dict:
         "invalidation": signal.invalidation,
         "timeframe": signal.timeframe,
         "created_at": signal.created_at.isoformat(),
-        "disclaimer": "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content.",
     }

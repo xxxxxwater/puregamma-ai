@@ -68,7 +68,6 @@ export default async function SignalsPage({ params }: { params: { locale: Locale
                 <p><span className="text-text-pg">{copy.detail.invalidation}:</span> {row.invalidation}</p>
                 <p><span className="text-text-pg">{copy.detail.dataFreshness}:</span> {copy.detail.freshnessCopy}</p>
               </div>
-              <div className="mt-4 border-t border-border-pg pt-3 text-xs text-text-pg-dim">{t(locale, "compliance.notFinancialAdvice")}</div>
             </div>
           ))}
         </div>

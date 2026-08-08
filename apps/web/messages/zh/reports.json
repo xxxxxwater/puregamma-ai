@@ -1,12 +1,18 @@
 {
   "seo": {
     "title": "研究台",
-    "description": "市场、组合、事件、策略与风险备忘录，包含数据新鲜度与受控投递记录。"
+    "description": "市场、组合、事件、策略与风险备忘录，包含数据新鲜度与受控投递记录"
   },
   "eyebrow": "研究台",
   "title": "研究台",
-  "subtitle": "结合实时行情、数据源与你与 Agent 的对话记忆，生成每日200字内的简短简报并推送。",
-  "filters": ["每日简报", "组合复盘", "事件笔记", "策略备忘录", "风险复盘"],
+  "subtitle": "结合实时行情、数据源与你与 Agent 的对话记忆，生成每日200字内的简短简报并推送",
+  "filters": [
+    "每日简报",
+    "组合复盘",
+    "事件笔记",
+    "策略备忘录",
+    "风险复盘"
+  ],
   "archive": {
     "eyebrow": "研究归档",
     "title": "可用报告",
@@ -14,16 +20,16 @@
     "sourceFreshness": "数据新鲜度",
     "openReport": "打开报告",
     "emptyTitle": "暂无报告",
-    "emptyDescription": "当前账户的研究归档为空。"
+    "emptyDescription": "当前账户的研究归档为空"
   },
   "detail": {
     "eyebrow": "详细备忘录",
     "noSelectionTitle": "未选择报告",
-    "noSelectionDescription": "生成每日简报后将填充研究台。",
+    "noSelectionDescription": "生成每日简报后将填充研究台",
     "language": "语言"
   },
   "mock": {
     "title": "PureGamma 每日简报",
-    "content": "风险偏好延续，杠杆水平可控。BTC $62,340 领涨，ETH $3,410 跟随。SOL 与 HYPE 高 Beta 表现突出但资金费率偏高需警惕。ETF 连续五日净流入。链上数据显示支撑位有吸筹迹象。整体风险中等，优先关注高流动性资产与明确失效条件。使用该服务用户自行承担风险 提供本服务的主体概不负责AI生成所有责任。"
+    "content": "风险偏好延续，杠杆水平可控。BTC $62,340 领涨，ETH $3,410 跟随。SOL 与 HYPE 高 Beta 表现突出但资金费率偏高需警惕。ETF 连续五日净流入。链上数据显示支撑位有吸筹迹象。整体风险中等，优先关注高流动性资产与明确失效条件"
   }
 }

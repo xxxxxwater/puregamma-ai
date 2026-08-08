@@ -6,25 +6,6 @@
   "eyebrow": "ACCESS CONTROL",
   "title": "Access & Subscription",
   "subtitle": "Choose the research coverage, monitoring cadence, and decision workflow that fit you.",
-  "valueTitle": "Pay for a faster, more disciplined research process",
-  "valueProps": [
-    {
-      "title": "Save time",
-      "detail": "Reduce repetitive screening, organization, and cross-platform checks."
-    },
-    {
-      "title": "Broader coverage",
-      "detail": "Track assets, events, and portfolios in one workflow."
-    },
-    {
-      "title": "Risk visibility",
-      "detail": "Surface concentration, stale data, and important events."
-    },
-    {
-      "title": "Decision discipline",
-      "detail": "Use consistent reviews, citations, and Playbooks."
-    }
-  ],
   "summary": {
     "currentPlan": "Current Plan",
     "subscription": "Subscription",

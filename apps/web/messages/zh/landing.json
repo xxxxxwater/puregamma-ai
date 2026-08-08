@@ -1,7 +1,7 @@
 {
   "seo": {
     "title": "PureGamma AI - Beta、Alpha 与 Long Gamma AI 决策助手",
-    "description": "面向个人投资者的二级市场 AI 决策支持，研究市场 Beta、证据型 Alpha 与 Long Gamma 机会。"
+    "description": "面向个人投资者的二级市场 AI 决策支持，研究市场 Beta、证据型 Alpha 与 Long Gamma 机会"
   },
   "header": {
     "research": "研究",
@@ -13,20 +13,37 @@
   },
   "hero": {
     "eyebrow": "面向二级市场的 AI 决策支持",
-    "headline": "判断何时承担 Beta、哪里可能存在 Alpha，Long Gamma NAV 1 > 50。",
-    "subheadline": "PureGamma AI 帮助个人投资者理解市场方向、验证差异化机会，并用实时数据、来源证据和风险上下文评估 Long Gamma。",
+    "headline": "判断何时承担 Beta、哪里可能存在 Alpha，Long Gamma NAV 1 > 50",
+    "subheadline": "PureGamma AI 帮助个人投资者理解市场方向、验证差异化机会，并用实时数据、来源证据和风险上下文评估 Long Gamma",
     "primaryCta": "开始对话"
   },
   "engine": {
     "eyebrow": "PG AI 研究引擎",
     "rows": [
-      { "label": "BETA", "detail": "方向 - 敞口 - 市场状态" },
-      { "label": "ALPHA", "detail": "证据 - 催化 - 独立来源" },
-      { "label": "LONG GAMMA", "detail": "IV - Greeks - 流动性 - Theta 成本" },
-      { "label": "决策", "detail": "简报 - 风险 - 来源链路" }
+      {
+        "label": "BETA",
+        "detail": "方向 - 敞口 - 市场状态"
+      },
+      {
+        "label": "ALPHA",
+        "detail": "证据 - 催化 - 独立来源"
+      },
+      {
+        "label": "LONG GAMMA",
+        "detail": "IV - Greeks - 流动性 - Theta 成本"
+      },
+      {
+        "label": "决策",
+        "detail": "简报 - 风险 - 来源链路"
+      }
     ]
   },
-  "stats": ["实时市场背景", "证据型 Alpha 研究", "Long Gamma 筛选", "风险优先决策"],
+  "stats": [
+    "实时市场背景",
+    "证据型 Alpha 研究",
+    "Long Gamma 筛选",
+    "风险优先决策"
+  ],
   "sections": {
     "researchProcess": "研究流程",
     "portfolioAware": "组合感知情报",
@@ -38,39 +55,93 @@
   },
   "research": {
     "eyebrow": "关于",
-    "headline": "三类收益问题，需要三套不同的决策框架。",
+    "headline": "三类收益问题，需要三套不同的决策框架",
     "cards": [
-      { "title": "Beta 敞口", "body": "理解市场状态、方向和波动，明确承担的是大盘风险还是个体机会。" },
-      { "title": "Alpha 发掘", "body": "寻找无法仅由市场 Beta 解释的差异化信息、催化因素和相对价值证据。" },
-      { "title": "Long Gamma", "body": "结合隐含波动率、Gamma、Theta 成本、流动性和事件窗口评估凸性机会。" }
+      {
+        "title": "Beta 敞口",
+        "body": "理解市场状态、方向和波动，明确承担的是大盘风险还是个体机会"
+      },
+      {
+        "title": "Alpha 发掘",
+        "body": "寻找无法仅由市场 Beta 解释的差异化信息、催化因素和相对价值证据"
+      },
+      {
+        "title": "Long Gamma",
+        "body": "结合隐含波动率、Gamma、Theta 成本、流动性和事件窗口评估凸性机会"
+      }
     ]
   },
   "trust": [
-    { "title": "治理", "body": "提供透明的审查材料与适用边界。" },
-    { "title": "验证", "body": "在参考输出之前展示数据新鲜度与来源链路。" },
-    { "title": "访问权限", "body": "套餐、Credits 与权限控制高成本研究流程。" },
-    { "title": "披露", "body": "系统内持续展示投资限制与仅供研究边界。" }
+    {
+      "title": "治理",
+      "body": "提供透明的审查材料与适用边界"
+    },
+    {
+      "title": "验证",
+      "body": "在参考输出之前展示数据新鲜度与来源链路"
+    },
+    {
+      "title": "访问权限",
+      "body": "套餐、Credits 与权限控制高成本研究流程"
+    },
+    {
+      "title": "披露",
+      "body": "系统内持续展示投资限制与仅供研究边界"
+    }
   ],
   "process": [
-    { "label": "输入 / 信号生成", "detail": "采集市场、组合、KOL 与风险数据。" },
-    { "label": "融合 / 信号融合", "detail": "根据信息新鲜度与风险对信号进行评分。" },
-    { "label": "配置 / 组合管理", "detail": "NAV 上下文用于确定研究优先级。" },
-    { "label": "复核 / 风险治理", "detail": "每项输出均经过披露边界复核。" }
+    {
+      "label": "输入 / 信号生成",
+      "detail": "采集市场、组合、KOL 与风险数据"
+    },
+    {
+      "label": "融合 / 信号融合",
+      "detail": "根据信息新鲜度与风险对信号进行评分"
+    },
+    {
+      "label": "配置 / 组合管理",
+      "detail": "NAV 上下文用于确定研究优先级"
+    },
+    {
+      "label": "复核 / 风险治理",
+      "detail": "每项输出均经过披露边界复核"
+    }
   ],
   "deskItems": [
-    { "title": "市场 Beta", "body": "跟踪方向、市场广度、资金费率、波动和整体风险敞口。" },
-    { "title": "Alpha 证据", "body": "比较催化因素与独立来源，不把 AI 推断包装为市场事实。" },
-    { "title": "Long Gamma 研究", "body": "使用 Deribit 实时期权的 IV、Greeks、流动性和 Theta 成本筛选机会。" },
-    { "title": "简短每日决策简报", "body": "把证据整理成带来源、假设和风险的简短研究备忘录。" }
+    {
+      "title": "市场 Beta",
+      "body": "跟踪方向、市场广度、资金费率、波动和整体风险敞口"
+    },
+    {
+      "title": "Alpha 证据",
+      "body": "比较催化因素与独立来源，不把 AI 推断包装为市场事实"
+    },
+    {
+      "title": "Long Gamma 研究",
+      "body": "使用 Deribit 实时期权的 IV、Greeks、流动性和 Theta 成本筛选机会"
+    },
+    {
+      "title": "简短每日决策简报",
+      "body": "把证据整理成带来源、假设和风险的简短研究备忘录"
+    }
   ],
   "portfolioTitle": "净值 / 组合快照",
   "accessCards": [
-    { "title": "观察", "body": "使用实时市场与期权数据理解当前决策环境。" },
-    { "title": "验证", "body": "行动前检查来源、新鲜度、假设和相互冲突的证据。" },
-    { "title": "决策", "body": "在明确失效条件、成本和最大风险后选择敞口。" }
+    {
+      "title": "观察",
+      "body": "使用实时市场与期权数据理解当前决策环境"
+    },
+    {
+      "title": "验证",
+      "body": "行动前检查来源、新鲜度、假设和相互冲突的证据"
+    },
+    {
+      "title": "决策",
+      "body": "在明确失效条件、成本和最大风险后选择敞口"
+    }
   ],
   "footerSlides": [
-    "已上线 Kimi K3、GPT5.6 Luna、DeepSeek v4 flash 0731 等 Model，开放路由 API 和 Agent 均已上线。",
-    "使用该服务用户自行承担风险。提供本服务的主体概不负责AI生成所有责任。"
+    "已上线 Kimi K3、GPT5.6 Luna、DeepSeek v4 flash 0731 等 Model，开放路由 API 和 Agent 均已上线",
+    ""
   ]
 }

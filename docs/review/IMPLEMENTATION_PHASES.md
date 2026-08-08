@@ -1,5 +1,4 @@
 # Implementation phases
-
 * **P0 Production baseline — code complete, deployment config pending:** startup env validation, Compose/CLI smoke scripts, no production mock/fallback, liveness/readiness, non-root images and local production smoke are implemented. Real secrets, DNS/TLS, backup/restore and target-host topology remain.
 * **P1 Metering — implemented:** public Quote/Ledger/Budget/Reward-history APIs; server-only Reservation/Settlement/Refund; append-only ledger and dedicated lifecycle tables; provider usage settlement; automation budgets and rewards.
 * **P2 Capability boundary:** registry/status policy and explicit stale/partial/mock UI states.

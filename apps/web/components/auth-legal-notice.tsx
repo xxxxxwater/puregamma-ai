@@ -34,11 +34,6 @@ export function AuthLegalNotice({ locale, mode }: { locale: Locale; mode: "login
           {zh ? "。" : "."}
         </>
       )}
-      <span className="mt-1 block">
-        {zh
-          ? "用户自行承担使用本服务的风险；AI 生成内容仅供研究参考。"
-          : "Users bear the risks of using this service; AI-generated content is for research only."}
-      </span>
     </p>
   );
 }

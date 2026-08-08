@@ -1,18 +1,12 @@
 # Environment Variables
-
 Copy `.env.example` to `.env` and fill only the values needed for your environment.
-
 Do not put real secrets in documentation, tests, screenshots, or commits. Use a secret manager in production.
-
 Sensitivity levels:
-
 - Public: safe in frontend or logs.
 - Internal: operational setting; avoid public exposure.
 - Secret: credential or signing key; never log.
 - Restricted: user or enterprise sensitive connector credential; encrypt if stored.
-
 ## Core
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `APP_ENV` | No | `development` | `production` | Use for deployment labeling and runtime policy. | Internal |
@@ -23,22 +17,16 @@ Sensitivity levels:
 | `GOOGLE_CLIENT_ID` | Required for Google OAuth | empty | `...apps.googleusercontent.com` | Server-side OAuth client ID used for authorize URL and ID token audience check. | Internal |
 | `GOOGLE_CLIENT_SECRET` | Required for Google OAuth | empty | `...` | Never expose to the frontend. | Secret |
 | `GOOGLE_OAUTH_REDIRECT_URI` | Required for Google OAuth | `http://127.0.0.1:8000/auth/google/callback` | `https://api.example.com/auth/google/callback` | Must exactly match the URI configured in Google Cloud and token exchange; the API sets the session cookie and redirects to `SITE_URL`. | Public |
-
 ## Database
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `DATABASE_URL` | Yes | `postgresql+psycopg://puregamma:puregamma@localhost:5432/puregamma` | `postgresql+psycopg://user:pass@db:5432/puregamma` | Use managed Postgres, TLS, backups, and least-privilege credentials. | Secret |
-
 ## Redis and Workers
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `REDIS_URL` | Yes for workers | `redis://localhost:6379/0` | `rediss://:pass@redis.example.com:6379/0` | Use TLS and auth in production. | Secret |
 | `WORKER_CONCURRENCY` | No | `2` | `4` | Size based on queue latency and provider rate limits. | Internal |
-
 ## LLM
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `LLM_PROVIDER` | No | `mock` | `deepseek` | Use `mock`, `openai`, or `deepseek`. Missing real keys fall back to mock. | Internal |
@@ -55,9 +43,7 @@ Sensitivity levels:
 | `DEEPSEEK_MODEL` | No | `deepseek-v4-flash` | `deepseek-v4-flash` | Default DeepSeek model for research generation. | Internal |
 | `DEEPSEEK_THINKING_MODE` | No | `disabled` | `disabled` | Reserved for provider-specific reasoning controls. | Internal |
 | `DEEPSEEK_TIMEOUT_SECONDS` | No | `60` | `60` | Keep finite to protect worker latency. | Internal |
-
 ## Stripe
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `BILLING_MODE` | Yes | `mock` | `stripe` | Use `stripe` only after webhook signing and prices are configured. | Internal |
@@ -76,9 +62,7 @@ Sensitivity levels:
 | `STRIPE_PAYMENT_LINK_ENTERPRISE` | Required for Enterprise Payment Link mode | empty | `https://buy.stripe.com/...` | Plan-specific Payment Link for Enterprise. | Internal |
 | `STRIPE_SUCCESS_URL` | Yes | `http://localhost:3000/billing/success` | `https://app.example.com/billing/success` | Must be on trusted app domain. | Public |
 | `STRIPE_CANCEL_URL` | Yes | `http://localhost:3000/billing/cancel` | `https://app.example.com/billing/cancel` | Must be on trusted app domain. | Public |
-
 ## iMessage
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `IMESSAGE_PROVIDER` | Yes | `mock` | `macos_relay` | Use `mock` unless a secured Mac relay is deployed. | Internal |
@@ -90,32 +74,23 @@ Sensitivity levels:
 | `IMESSAGE_RATE_LIMIT_PER_USER_PER_DAY` | No | `20` | `20` | Lower for production launch if abuse risk is high. | Internal |
 | `IMESSAGE_REPLAY_TOLERANCE_SECONDS` | No | `300` | `300` | HMAC replay window. | Internal |
 | `IMESSAGE_APPLESCRIPT_PATH` | No | bundled script | `/opt/puregamma/send_imessage.applescript` | Lock file permissions. | Internal |
-
 ## Telegram
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `TELEGRAM_BOT_TOKEN` | Required for real Telegram | empty | `123456:ABC...` | Rotate if leaked. | Secret |
-
 ## Slack
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `SLACK_WEBHOOK_URL` | Required for shared Slack fallback | empty | `https://hooks.slack.com/services/...` | Prefer per-user webhook storage when implemented. | Secret |
-
 ## Email
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `SMTP_HOST` | Required for real email | empty | `smtp.sendgrid.net` | Use provider with bounce handling. | Internal |
 | `SMTP_PORT` | No | `587` | `587` | TLS is started by the current provider. | Internal |
 | `SMTP_USER` | Required for authenticated SMTP | empty | `apikey` | Do not log. | Secret |
 | `SMTP_PASSWORD` | Required for authenticated SMTP | empty | `SG...` | Do not log. | Secret |
-
 ## Plaid
-
 Plaid backend routes are planned. These variables define the expected contract.
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `PLAID_ENV` | Yes for Plaid | `sandbox` | `production` | Use `sandbox` for local and test. | Internal |
@@ -123,11 +98,8 @@ Plaid backend routes are planned. These variables define the expected contract.
 | `PLAID_SECRET` | Yes for Plaid | empty | `secret` | Store in secret manager. | Secret |
 | `PLAID_PRODUCTS` | No | `investments` | `investments` | PureGamma uses investments data only. | Internal |
 | `PLAID_REDIRECT_URI` | Conditional | local callback | `https://app.example.com/integrations/plaid/callback` | Must match Plaid dashboard configuration. | Public |
-
 ## Exchange
-
 Exchange sync is planned. All keys must be read-only.
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `EXCHANGE_KEY_ENCRYPTION_KEY` | Yes before storing keys | empty | `base64-32-byte-key` | Required for encrypted credential storage. | Secret |
@@ -139,9 +111,7 @@ Exchange sync is planned. All keys must be read-only.
 | `BYBIT_API_KEY` | Optional | empty | `...` | Read-only only. | Restricted |
 | `BYBIT_API_SECRET` | Optional | empty | `...` | Encrypt if persisted. | Restricted |
 | `HYPERLIQUID_WALLET_ADDRESS` | Optional | empty | `0x...` | Public address is lower sensitivity, but still user data. | Restricted |
-
 ## On-chain
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `ONCHAIN_RPC_URL` | Optional | empty | `https://eth-mainnet.g.alchemy.com/v2/...` | Prefer provider-specific URLs. | Secret |
@@ -150,9 +120,7 @@ Exchange sync is planned. All keys must be read-only.
 | `ARBITRUM_RPC_URL` | Optional | empty | `https://...` | Rate-limit and monitor. | Secret |
 | `ALCHEMY_API_KEY` | Optional | empty | `...` | Do not expose in browser. | Secret |
 | `PORTFOLIO_TOKEN_ENCRYPTION_KEY` | Required before token storage | empty | `base64-32-byte-key` | Use for Plaid and connector token encryption. | Secret |
-
 ## Data Providers
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `COINDESK_RSS_URL` | No | CoinDesk RSS URL | `https://www.coindesk.com/arc/outboundfeeds/rss/` | RSS does not require a secret. | Public |
@@ -164,11 +132,8 @@ Exchange sync is planned. All keys must be read-only.
 | `GLASSNODE_API_KEY` | Optional | empty | `...` | Do not log. | Secret |
 | `COINGLASS_API_KEY` | Optional | empty | `...` | Do not log. | Secret |
 | `FRED_API_KEY` | Optional | empty | `...` | Lower sensitivity, still keep server-side. | Secret |
-
 ## Bloomberg
-
 Bloomberg import is planned for enterprise/private deployments.
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `BLOOMBERG_ENABLED` | No | `false` | `true` | Enable only in enterprise environments with licensed access. | Internal |
@@ -176,18 +141,14 @@ Bloomberg import is planned for enterprise/private deployments.
 | `BLOOMBERG_SFTP_HOST` | Conditional | empty | `sftp.example.com` | Use allowlists and key auth. | Internal |
 | `BLOOMBERG_SFTP_USER` | Conditional | empty | `puregamma` | Least privilege. | Internal |
 | `BLOOMBERG_SFTP_PRIVATE_KEY` | Conditional | empty | `/run/secrets/bbg_key` | Store as file secret, not inline. | Secret |
-
 ## NautilusTrader
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `NAUTILUS_ENABLED` | No | `false` | `true` | Current runtime is mock; real integration is planned. | Internal |
 | `NAUTILUS_DATA_DIR` | No | `./data/nautilus` | `/var/lib/puregamma/nautilus` | Persist and back up research data if used. | Internal |
 | `NAUTILUS_LIVE_TRADING_ENABLED` | Required safety flag | `false` | `false` | Must remain false for MVP. | Internal |
 | `NAUTILUS_ALLOW_LIVE_ORDER` | Required safety flag | `false` | `false` | Must remain false unless an audited future release enables trading. | Internal |
-
 ## Security and Observability
-
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `SENTRY_DSN` | Optional | empty | `https://...@sentry.io/...` | Scrub secrets and PII before sending events. | Secret |

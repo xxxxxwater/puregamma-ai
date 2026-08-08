@@ -45,7 +45,6 @@ from packages.skills.registry import update_skill_runs
 logger = logging.getLogger(__name__)
 
 ANSWER_ENVELOPE_SCHEMA = "answer-envelope-1.0"
-DISCLAIMER = "Users bear all risks of using this service. The service provider is not responsible for any AI-generated content."
 
 FAST_PATH_INTENTS = ("overnight_brief", "portfolio_review", "event_impact", "long_gamma_scan")
 
@@ -534,11 +533,6 @@ def stream_fast_path(
         content += delta
         assistant.content += delta
         db.flush()
-        yield agent_service._sse("message.delta", {"messageId": assistant.id, "delta": delta})
-    if DISCLAIMER not in content:
-        delta = f"\n\n<small>{DISCLAIMER}</small>"
-        content += delta
-        assistant.content += delta
         yield agent_service._sse("message.delta", {"messageId": assistant.id, "delta": delta})
 
     assistant.status = "completed"

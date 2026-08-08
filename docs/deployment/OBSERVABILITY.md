@@ -1,25 +1,16 @@
 # Observability
-
 Observability should answer whether PureGamma AI is healthy, accurate enough for research use, and delivering user-visible workflows on time.
-
 ## Health Checks
-
 API:
-
 ```bash
 curl https://api.example.com/health
 ```
-
 iMessage relay:
-
 ```bash
 curl https://relay.example.com/health
 ```
-
 ## Metrics
-
 Track:
-
 - API request latency and error rate.
 - Auth failures and admin access attempts.
 - Report generation count, latency, and failures.
@@ -31,31 +22,23 @@ Track:
 - Data source freshness and item counts.
 - Portfolio NAV stale or partial-data count when implemented.
 - LLM request cost, latency, and failure rate when real LLM is enabled.
-
 ## Logs
-
 Logs should include:
-
 - Request ID.
 - User ID when safe and necessary.
 - Action.
 - Provider.
 - Idempotency key for notification and webhook flows.
 - Error class and safe error detail.
-
 Logs must not include:
-
 - API keys.
 - JWTs.
 - Stripe signatures.
 - Plaid access tokens.
 - Exchange secrets.
 - Full iMessage recipient content in shared logs.
-
 ## Alerts
-
 Suggested alerts:
-
 - API 5xx rate above threshold.
 - Stripe webhook failures.
 - Worker queue backlog.
@@ -65,11 +48,8 @@ Suggested alerts:
 - Data source stale beyond SLA.
 - Payment failure spike.
 - Suspected secret leak.
-
 ## Dashboards
-
 Minimum dashboards:
-
 - API health.
 - Billing and webhooks.
 - Notifications and iMessage.
@@ -77,5 +57,4 @@ Minimum dashboards:
 - Worker queue.
 - Admin operations.
 - Security events.
-
 See [Admin Guide](../admin/ADMIN_GUIDE.md) and [Incident Runbook](../admin/INCIDENT_RUNBOOK.md).

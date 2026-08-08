@@ -1,17 +1,11 @@
 # Portfolio NAV Disclosure
-
 Portfolio NAV is an estimate for research context.
-
 ## Required Disclosure
-
 ```text
 Portfolio NAV is an estimate based on available data. It is not tax advice, not financial advice, and not an official broker, custodian, or exchange statement.
 ```
-
 ## Required Warnings
-
 Show warnings when:
-
 - Data is partial.
 - Source is stale.
 - Price is stale or missing.
@@ -19,11 +13,7 @@ Show warnings when:
 - Stablecoin peg may be impaired.
 - A connector is disconnected.
 - Manual positions are included.
-
 ## Current Implementation
-
 The current web Portfolio page uses fallback data. Backend NAV sync and persistence are planned.
-
 ## User Support Rule
-
 If a user reports incorrect NAV, do not state that the product value is official. Ask for source, timestamp, account, and position details, then follow [Portfolio NAV Troubleshooting](../troubleshooting/PORTFOLIO_NAV.md).
