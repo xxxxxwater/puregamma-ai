@@ -1,11 +1,18 @@
 import Foundation
+import os
 
 @MainActor
 final class APIClient: @unchecked Sendable {
     let configuration: APIConfiguration
     private let tokenStore: TokenStoring
     private let session: URLSession
+    private let logger = Logger(subsystem: "ai.puregamma.ios", category: "api")
     var onUnauthorized: (@MainActor () -> Void)?
+
+    /// Transient-failure retries for idempotent requests only (GET/PUT/DELETE).
+    private static let maxRetries = 2
+    private static let retryableMethods: Set<String> = ["GET", "PUT", "DELETE"]
+    private static let retryBaseDelay: TimeInterval = 0.5
 
     init(configuration: APIConfiguration, tokenStore: TokenStoring, session: URLSession = .shared) {
         self.configuration = configuration; self.tokenStore = tokenStore; self.session = session
@@ -17,17 +24,37 @@ final class APIClient: @unchecked Sendable {
         guard let url = components?.url else { throw APIError.invalidRequest }
         var request = URLRequest(url: url); request.httpMethod = method; request.timeoutInterval = 20
         request.setValue("application/json", forHTTPHeaderField: "Accept")
-        request.setValue(Locale.current.language.languageCode?.identifier ?? "en", forHTTPHeaderField: "X-PG-Locale")
+        request.setValue(Self.localeHeader, forHTTPHeaderField: "X-PG-Locale")
         if let token = tokenStore.read() { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         if let body { request.httpBody = try JSONEncoder.pg.encode(body); request.setValue("application/json", forHTTPHeaderField: "Content-Type") }
-        do {
-            let (data, response) = try await session.data(for: request)
-            try validate(response, data: data)
-            do { return try JSONDecoder.pg.decode(Response.self, from: data) }
-            catch { throw APIError.decoding(error.localizedDescription) }
-        } catch is CancellationError { throw APIError.canceled }
-        catch let error as APIError { throw error }
-        catch { throw APIError.transport(error.localizedDescription) }
+        let maxAttempts = Self.retryableMethods.contains(method) ? Self.maxRetries : 0
+        var attempt = 0
+        while true {
+            do {
+                let (data, response) = try await session.data(for: request)
+                try validate(response, data: data)
+                do { return try JSONDecoder.pg.decode(Response.self, from: data) }
+                catch { throw APIError.decoding(error.localizedDescription) }
+            } catch is CancellationError { throw APIError.canceled }
+            catch let error as APIError {
+                if attempt < maxAttempts, Self.shouldRetry(error) {
+                    attempt += 1
+                    try? await Task.sleep(for: .seconds(Self.retryBaseDelay * Double(attempt)))
+                    continue
+                }
+                logFailure(path: path, statusCode: error.statusCode, detail: error.localizedDescription)
+                throw error
+            }
+            catch {
+                if attempt < maxAttempts {
+                    attempt += 1
+                    try? await Task.sleep(for: .seconds(Self.retryBaseDelay * Double(attempt)))
+                    continue
+                }
+                logFailure(path: path, statusCode: nil, detail: error.localizedDescription)
+                throw APIError.transport(error.localizedDescription)
+            }
+        }
     }
 
     func request<Response: Decodable>(_ path: String, method: String = "GET", query: [URLQueryItem] = []) async throws -> Response {
@@ -38,6 +65,7 @@ final class APIClient: @unchecked Sendable {
         let url = configuration.baseURL.appending(path: path)
         var request = URLRequest(url: url); request.httpMethod = "POST"; request.timeoutInterval = 120
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept"); request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Self.localeHeader, forHTTPHeaderField: "X-PG-Locale")
         if let token = tokenStore.read() { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
         request.httpBody = try JSONEncoder.pg.encode(body)
         do {
@@ -61,6 +89,43 @@ final class APIClient: @unchecked Sendable {
         case 429: throw APIError.rateLimited(retryAfter: Int(http.value(forHTTPHeaderField: "Retry-After") ?? ""))
         case 503: throw APIError.unavailable(message)
         default: throw APIError.server(status: http.statusCode, message: message)
+        }
+    }
+
+    private static func shouldRetry(_ error: APIError) -> Bool {
+        switch error {
+        case .transport: true
+        case .unavailable: true
+        case .server(let status, _): status >= 500
+        default: false
+        }
+    }
+
+    /// The effective in-app language so server responses match the user's choice,
+    /// not just the device locale (the app overrides `\.locale` at the root).
+    private static var localeHeader: String {
+        switch UserDefaults.standard.string(forKey: "app.language") {
+        case "chinese": "zh-Hans"
+        case "english": "en"
+        default: Locale.current.language.languageCode?.identifier ?? "en"
+        }
+    }
+
+    private func logFailure(path: String, statusCode: Int?, detail: String) {
+        logger.error("API \(path) failed (status: \(statusCode.map(String.init) ?? "transport"), detail: \(detail, privacy: .public))")
+    }
+}
+
+extension APIError {
+    var statusCode: Int? {
+        if case .server(let status, _) = self { return status }
+        switch self {
+        case .unauthorized: return 401
+        case .paymentRequired: return 402
+        case .forbidden: return 403
+        case .rateLimited: return 429
+        case .unavailable: return 503
+        default: return nil
         }
     }
 }

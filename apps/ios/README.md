@@ -82,3 +82,18 @@ paired iPhone and development team. Backend mobile-auth and deletion tests are
 in `tests/test_mobile_auth.py` and
 `tests/test_apple_auth_and_account_deletion.py`. See `DELIVERY_REPORT.md` for
 current validation and release blockers.
+
+## Release packaging (macOS only)
+
+iOS IPAs cannot be built on Windows/Linux; Apple requires Xcode plus a signing
+team. On a Mac, one command produces a versioned, signed IPA into
+`releases/`, mirroring the Android `releases/` convention:
+
+```bash
+bash scripts/ios-build-release.sh info        # version state
+bash scripts/ios-build-release.sh bump        # bump build number
+bash scripts/ios-build-release.sh app-store   # TestFlight/App Store IPA
+bash scripts/ios-build-release.sh ad-hoc      # registered-device IPA
+```
+
+See `releases/README.md` for the full gate list before first upload.

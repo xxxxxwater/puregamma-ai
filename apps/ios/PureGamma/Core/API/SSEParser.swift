@@ -7,6 +7,9 @@ struct SSEParser: Sendable {
     private var dataLines: [String] = []
 
     mutating func consume(_ line: String) -> ServerSentEvent? {
+        // Defensive: tolerate CRLF line endings if the transport ever delivers
+        // them raw (URLSession lines are usually already stripped).
+        let line = line.hasSuffix("\r") ? String(line.dropLast()) : line
         if line.isEmpty {
             defer { eventName = "message"; dataLines.removeAll(keepingCapacity: true) }
             guard !dataLines.isEmpty else { return nil }

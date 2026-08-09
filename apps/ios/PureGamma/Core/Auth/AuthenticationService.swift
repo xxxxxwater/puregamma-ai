@@ -72,7 +72,14 @@ final class AuthenticationService: NSObject, ASWebAuthenticationPresentationCont
         return exchange.user.domain
     }
 
-    func handleCallbackURL(_ url: URL) { guard url.scheme == client.configuration.callbackScheme else { return }; resolveCallback(url) }
+    /// Cold-start/background deep link handling. Only the two documented app
+    /// routes may resume a pending OAuth exchange; anything else is ignored.
+    func handleCallbackURL(_ url: URL) {
+        guard url.scheme == client.configuration.callbackScheme,
+              url.host == "oauth",
+              url.path == "/callback" || url.path == "/ibkr" else { return }
+        resolveCallback(url)
+    }
     private func resolveCallback(_ url: URL) { callbackContinuation?.resume(returning: url); callbackContinuation = nil; webSession = nil }
     private func rejectCallback(_ error: Error) { callbackContinuation?.resume(throwing: error); callbackContinuation = nil; webSession = nil }
     func presentationAnchor(for session: ASWebAuthenticationSession) -> ASPresentationAnchor {

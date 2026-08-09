@@ -86,6 +86,9 @@ private struct PortfolioSummary: View {
                     Text(PGFormat.money(portfolio.nav))
                         .font(.system(.largeTitle, design: .rounded).weight(.semibold))
                         .contentTransition(.numericText())
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.5)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
                 Spacer()
                 Text(portfolio.stale ? "STALE" : "CURRENT")
@@ -145,7 +148,7 @@ private struct PortfolioConnections: View {
                     .textInputAutocapitalization(.never)
                     .font(.caption.monospaced())
                     .padding(9)
-                    .background(PGTheme.secondaryBackground)
+                    .background(RoundedRectangle(cornerRadius: 10, style: .continuous).fill(PGTheme.secondaryBackground))
                 Button("Connect") { Task { await model.connectHyperliquid() } }
                     .disabled(model.walletAddress.isEmpty || model.busy != "")
             }
@@ -309,7 +312,8 @@ struct NAVChart: View {
                 let ratio = value.location.x / Swift.max(width, 1)
                 selected = Swift.min(points.count - 1, Swift.max(0, Int(round(ratio * CGFloat(points.count - 1)))))
             }
-            .onEnded { _ in selected = nil }
+            // The last selection is kept after release so the value can be
+            // read without keeping a finger on the screen.
     }
 
     @ViewBuilder private var tooltip: some View {

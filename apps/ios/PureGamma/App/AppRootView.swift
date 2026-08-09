@@ -6,6 +6,25 @@ struct AppRootView: View {
         switch app.session {
         case .restoring: ProgressView("Restoring session…").frame(maxWidth: .infinity, maxHeight: .infinity)
         case .signedOut: LoginView()
+        case .offline:
+            VStack(spacing: 16) {
+                Image(systemName: "wifi.slash")
+                    .font(.system(size: 36))
+                    .foregroundStyle(.secondary)
+                Text("You're offline")
+                    .font(.headline)
+                Text("Your session is still saved. Check your connection and retry.")
+                    .font(.subheadline)
+                    .foregroundStyle(.secondary)
+                    .multilineTextAlignment(.center)
+                Button("Retry") {
+                    Task { await app.restoreSession() }
+                }
+                .buttonStyle(.borderedProminent)
+                .tint(PGTheme.accent)
+            }
+            .padding(32)
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
         case .authenticated:
             @Bindable var state = app
             TabView(selection: $state.selectedTab) {

@@ -57,7 +57,15 @@ def test_due_daily_push_reuses_report_and_is_idempotent(monkeypatch, db, pro_use
     # day and dispatches each to the channel exactly once.
     assert db.query(Report).filter_by(user_id=user_id).count() == 4
     assert {report.report_type for report in db.query(Report).filter_by(user_id=user_id)} == {"crypto_daily", "us_daily", "week_ahead_events", "portfolio_daily"}
-    assert db.query(NotificationDelivery).filter_by(user_id=user_id, channel="email").count() == 4
+    # Email is consolidated into a single merged mail; web inbox keeps one
+    # audit row per report type.
+    email_rows = db.query(NotificationDelivery).filter_by(user_id=user_id, channel="email").all()
+    assert len(email_rows) == 1
+    assert email_rows[0].status == "sent"
+    combined = email_rows[0].payload.get("message", "")
+    assert "US Daily" in combined
+    assert "Week Ahead" in combined
+    assert "Portfolio Daily" in combined
     assert db.query(NotificationDelivery).filter_by(user_id=user_id, channel="web").count() == 4
 
 

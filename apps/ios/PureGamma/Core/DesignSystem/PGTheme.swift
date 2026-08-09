@@ -25,9 +25,4 @@ struct StateView: View {
     var body: some View { ContentUnavailableView { Label(title, systemImage: symbol) } description: { Text(detail) } actions: { if let retry { Button("Retry", action: retry).buttonStyle(.bordered) } }.frame(maxWidth: .infinity, minHeight: 220).accessibilityElement(children: .contain) }
 }
 
-struct StaleBanner: View {
-    let date: Date
-    var body: some View { Label("Data may be stale · \(PGFormat.dateTime(date))", systemImage: "clock.badge.exclamationmark").font(.caption).foregroundStyle(PGTheme.warning).frame(maxWidth: .infinity, alignment: .leading).padding(10).background(PGTheme.warning.opacity(0.1)) }
-}
-
 struct TerminalDivider: View { var body: some View { Rectangle().fill(PGTheme.separator).frame(height: 1) } }

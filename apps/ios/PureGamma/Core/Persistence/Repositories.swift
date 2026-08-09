@@ -113,19 +113,21 @@ private func canUseCache(_ error: Error) -> Bool {
 
 @MainActor struct AccountRepository {
     let client: APIClient
+    private static var pushEnvironment: String {
+        #if DEBUG
+        "sandbox"
+        #else
+        "production"
+        #endif
+    }
     func subscription() async throws -> BillingSummary { let dto: SubscriptionDTO = try await client.request("/billing/subscription"); return .init(plan: dto.plan, status: dto.subscriptionStatus, credits: dto.creditBalance, periodEnd: dto.currentPeriodEnd, cancelAtPeriodEnd: dto.cancelAtPeriodEnd ?? false, availableSources: dto.entitlement.allowedDataSources ?? []) }
     func pushPreference() async throws -> DailyPushPreference { let dto: DailyPushEnvelopeDTO = try await client.request("/notifications/preferences/daily-brief"); return dto.preference.domain }
     func updatePush(_ value: DailyPushPreference) async throws -> DailyPushPreference { let body = DailyPushDTO(enabled: value.enabled, timezone: value.timezone, localTime: value.localTime, channel: value.channel, locale: value.locale, includePortfolio: value.includePortfolio, includeMarket: value.includeMarket, includeSignals: value.includeSignals, includeRisk: value.includeRisk, includeSentiment: value.includeSentiment, nextDeliveryAt: value.nextDelivery); let dto: DailyPushEnvelopeDTO = try await client.request("/notifications/preferences/daily-brief", method: "PUT", body: body); return dto.preference.domain }
     func registerPushDevice(token: String) async throws -> Bool {
-        #if DEBUG
-        let environment = "sandbox"
-        #else
-        let environment = "production"
-        #endif
-        let body = PushDeviceRequestDTO(token: token, environment: environment, locale: Locale.current.identifier, timezone: TimeZone.current.identifier)
+        let body = PushDeviceRequestDTO(token: token, environment: Self.pushEnvironment, locale: Locale.current.identifier, timezone: TimeZone.current.identifier)
         let dto: PushDeviceRegistrationDTO = try await client.request("/notifications/devices", method: "POST", body: body)
         return dto.deliveryAvailable
     }
-    func unregisterPushDevice(token: String) async throws { let body = PushDeviceRequestDTO(token: token, environment: "production", locale: Locale.current.identifier, timezone: TimeZone.current.identifier); let _: EmptyResponseDTO = try await client.request("/notifications/devices/unregister", method: "POST", body: body) }
+    func unregisterPushDevice(token: String) async throws { let body = PushDeviceRequestDTO(token: token, environment: Self.pushEnvironment, locale: Locale.current.identifier, timezone: TimeZone.current.identifier); let _: EmptyResponseDTO = try await client.request("/notifications/devices/unregister", method: "POST", body: body) }
     func deleteAccount(confirmation: String) async throws { let _: EmptyResponseDTO = try await client.request("/me", method: "DELETE", body: ["confirmation": confirmation]) }
 }

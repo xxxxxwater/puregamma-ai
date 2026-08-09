@@ -25,7 +25,6 @@
 "Ask with sources…" = "带来源提问…";
 "Attach TXT, MD, CSV or JSON" = "添加 TXT、MD、CSV 或 JSON";
 "Attach text file" = "添加文本文件";
-"Attachment must be UTF-8 text and no larger than 20 KB." = "附件必须是 UTF-8 文本且不超过 20 KB。";
 "Attachments" = "附件";
 "Autopilot review" = "Autopilot 复盘";
 "Autopilot unavailable" = "Autopilot 暂不可用";
@@ -52,7 +51,6 @@
 "DECISION SUPPORT / UTC INPUT" = "决策支持 / UTC 输入";
 "Daily research brief" = "每日研究简报";
 "Dark" = "深色";
-"Data may be stale · %@" = "数据可能已过期 · %@";
 "Data sources" = "数据源";
 "Delete" = "删除";
 "Disconnect" = "断开连接";
@@ -152,3 +150,8 @@
 "OAuth callback verification failed" = "OAuth 回调校验失败";
 "Attachments must be UTF-8 text, no larger than 20 KB each or 50 KB total." = "附件必须为 UTF-8 文本，每个不超过 20 KB，总计不超过 50 KB。";
 "Offline · showing server data saved %@" = "离线 · 正在显示 %@ 保存的服务端数据";
+"Stale data saved %@" = "数据保存于 %@";
+"About" = "关于";
+"Version" = "版本";
+"Plaid Link timed out. Please try again." = "Plaid Link 已超时，请重试。";
+"OAuth session timed out. Please try again." = "OAuth 会话已超时，请重试。";

@@ -161,7 +161,7 @@ class NotificationDispatcher:
             uq_notification_idempotency constraint)."""
             extras = {
                 key: metadata[key]
-                for key in ("automation_key", "report_id")
+                for key in ("automation_key", "report_id", "report_ids")
                 if metadata.get(key)
             }
             if existing is not None:

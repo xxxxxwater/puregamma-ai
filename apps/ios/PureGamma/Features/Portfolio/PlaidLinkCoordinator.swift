@@ -4,6 +4,8 @@ import UIKit
 
 @MainActor
 enum PlaidLinkCoordinator {
+    private static let timeout: TimeInterval = 300
+
     private final class SessionBox {
         var session: PlaidLinkSession?
         var completed = false
@@ -44,6 +46,12 @@ enum PlaidLinkCoordinator {
                 session.open(using: .viewController(controller))
             } catch {
                 box.finish { continuation.resume(throwing: error) }
+            }
+            // Safety net: if Link never settles (no success/exit), the button
+            // must not stay busy forever. `box` guarantees a single resume.
+            Task {
+                try? await Task.sleep(for: .seconds(timeout))
+                box.finish { continuation.resume(throwing: APIError.transport(String(localized: "Plaid Link timed out. Please try again."))) }
             }
         }
     }

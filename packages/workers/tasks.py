@@ -238,6 +238,23 @@ def _already_delivered(db, user_id: str, channel: str, report_id: str) -> bool:
     return existing is not None
 
 
+def _combined_email_message(preference: DailyBriefPreference, reports: list) -> str:
+    """Consolidate all due report types into a single email body.
+
+    Each report keeps its own max_length truncation (same content volume as
+    before), then the parts are joined into one mail so users get a single
+    consolidated brief instead of one mail per report type.
+    """
+    parts = []
+    for _report_type, report in reports:
+        message = _delivery_message(preference, report)
+        if message.strip():
+            parts.append(message)
+    if not parts:
+        return ""
+    return "\n\n---\n\n".join(parts)
+
+
 def _process_due_preference(db, user: User, preference: DailyBriefPreference, scheduled_for) -> dict:
     """Generate cached typed reports for one due preference and dispatch them.
 
@@ -266,9 +283,14 @@ def _process_due_preference(db, user: User, preference: DailyBriefPreference, sc
         reports.append((report_type, report))
 
     sent = skipped = 0
+    email_bundle: list = []
     for report_type, report in reports:
         message = _delivery_message(preference, report)
         for channel in [*channels, "web"]:
+            if channel == "email":
+                # Merge all due report types into ONE email (consolidated brief).
+                email_bundle.append((report_type, report))
+                continue
             if _already_delivered(db, user.id, channel, report.id):
                 skipped += 1
                 continue
@@ -290,6 +312,31 @@ def _process_due_preference(db, user: User, preference: DailyBriefPreference, sc
                 skipped += 1
                 logger.exception("daily_brief_channel_dispatch_failed user_id=%s channel=%s report_type=%s", user.id, channel, report_type)
                 continue
+            if delivery.status == "sent":
+                sent += 1
+            else:
+                skipped += 1
+    if email_bundle:
+        email_message = _combined_email_message(preference, email_bundle)
+        email_report_ids = [report.id for _report_type, report in email_bundle]
+        try:
+            delivery = send_notification(
+                db,
+                user.id,
+                "email",
+                email_message,
+                {
+                    "idempotency_key": f"daily-brief:{user.id}:email:combined:{scheduled_for.isoformat()}",
+                    "locale": preference.locale,
+                    "report_ids": email_report_ids,
+                    "automation_key": "daily_brief_delivery",
+                },
+            )
+        except Exception:
+            db.rollback()
+            skipped += 1
+            logger.exception("daily_brief_email_merge_failed user_id=%s", user.id)
+        else:
             if delivery.status == "sent":
                 sent += 1
             else:

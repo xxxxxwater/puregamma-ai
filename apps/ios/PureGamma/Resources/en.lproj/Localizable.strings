@@ -28,3 +28,8 @@
 "OAuth callback verification failed" = "OAuth callback verification failed";
 "Attachments must be UTF-8 text, no larger than 20 KB each or 50 KB total." = "Attachments must be UTF-8 text, no larger than 20 KB each or 50 KB total.";
 "Offline · showing server data saved %@" = "Offline · showing server data saved %@";
+"Stale data saved %@" = "Stale data saved %@";
+"About" = "About";
+"Version" = "Version";
+"Plaid Link timed out. Please try again." = "Plaid Link timed out. Please try again.";
+"OAuth session timed out. Please try again." = "OAuth session timed out. Please try again.";

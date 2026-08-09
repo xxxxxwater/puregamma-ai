@@ -24,19 +24,20 @@ struct LoginView: View {
             .disabled(app.authentication.isSigningIn)
             .accessibilityIdentifier("apple-sign-in")
             .accessibilityHint("Creates or signs in to your PureGamma account with Apple")
-            Button { Task { do { app.completeLogin(try await app.authentication.signInWithGoogle()) } catch APIError.canceled { self.error = nil } catch { self.error = error.localizedDescription } } } label: {
+            Button { Task { error = nil; do { app.completeLogin(try await app.authentication.signInWithGoogle()) } catch APIError.canceled { self.error = nil } catch { self.error = error.localizedDescription } } } label: {
                 HStack { Image(systemName: "safari"); Text("Continue securely with Google"); Spacer(); if app.authentication.isSigningIn { ProgressView() } else { Image(systemName: "arrow.up.right") } }.frame(maxWidth: .infinity).padding(.vertical, 8)
             }.buttonStyle(.borderedProminent).tint(PGTheme.accent).foregroundStyle(.black).disabled(app.authentication.isSigningIn).accessibilityIdentifier("google-sign-in").accessibilityHint("Opens Google sign in in a secure system browser")
             HStack(spacing: 18) {
-                Link("Privacy", destination: AppLinks.privacyPolicy)
-                Link("Terms", destination: AppLinks.terms)
-                Link("Support", destination: AppLinks.support)
+                if let url = AppLinks.privacyPolicy { Link("Privacy", destination: url) }
+                if let url = AppLinks.terms { Link("Terms", destination: url) }
+                if let url = AppLinks.support { Link("Support", destination: url) }
             }.font(.caption).foregroundStyle(.secondary).accessibilityElement(children: .contain)
             RiskDisclosureView(); Spacer().frame(height: 30)
         }.padding(24).background(Color(uiColor: .systemBackground))
     }
 
     private func signInWithApple(_ result: Result<ASAuthorization, Error>) async {
+        error = nil
         do {
             let authorization: ASAuthorization
             switch result {

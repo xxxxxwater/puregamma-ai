@@ -6,7 +6,7 @@ import UserNotifications
 
 @MainActor @Observable
 final class AppState {
-    enum SessionState: Equatable { case restoring, signedOut, authenticated(User) }
+    enum SessionState: Equatable { case restoring, signedOut, authenticated(User), offline }
 
     var session: SessionState = .restoring
     var selectedTab: AppTab = .today
@@ -51,8 +51,27 @@ final class AppState {
 
     func restoreSession() async {
         guard authentication.hasToken else { session = .signedOut; return }
-        do { session = .authenticated(try await authentication.currentUser()); await resumePushRegistration() }
-        catch { authentication.clearLocalSession(); await repositories.clearCaches(); session = .signedOut }
+        do {
+            session = .authenticated(try await authentication.currentUser())
+            await resumePushRegistration()
+        } catch let error as APIError {
+            // Only a rejected token ends the session. Transport/server errors
+            // (cold start without connectivity, transient 5xx) must preserve
+            // the stored session and offer an offline-retry path instead of
+            // silently logging the user out.
+            switch error {
+            case .unauthorized:
+                authentication.clearLocalSession()
+                await repositories.clearCaches()
+                session = .signedOut
+            default:
+                session = .offline
+            }
+        } catch {
+            authentication.clearLocalSession()
+            await repositories.clearCaches()
+            session = .signedOut
+        }
     }
 
     func completeLogin(_ user: User) { session = .authenticated(user); Task { await resumePushRegistration() } }
@@ -60,7 +79,10 @@ final class AppState {
         if let currentPushToken { try? await repositories.account.unregisterPushDevice(token: currentPushToken) }
         await authentication.logout(); await repositories.clearCaches(); currentPushToken = nil; session = .signedOut
     }
-    func completeAccountDeletion() { authentication.clearLocalSession(); selectedTab = .today; session = .signedOut; Task { await repositories.clearCaches() } }
+    func completeAccountDeletion() {
+        if let currentPushToken { Task { try? await repositories.account.unregisterPushDevice(token: currentPushToken) } }
+        authentication.clearLocalSession(); selectedTab = .today; currentPushToken = nil; session = .signedOut; Task { await repositories.clearCaches() }
+    }
 
     func setLanguage(_ value: AppLanguage) {
         language = value; UserDefaults.standard.set(value.rawValue, forKey: "app.language")
