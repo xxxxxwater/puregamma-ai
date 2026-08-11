@@ -148,6 +148,11 @@ Bloomberg import is planned for enterprise/private deployments.
 | `NAUTILUS_DATA_DIR` | No | `./data/nautilus` | `/var/lib/puregamma/nautilus` | Persist and back up research data if used. | Internal |
 | `NAUTILUS_LIVE_TRADING_ENABLED` | Required safety flag | `false` | `false` | Must remain false for MVP. | Internal |
 | `NAUTILUS_ALLOW_LIVE_ORDER` | Required safety flag | `false` | `false` | Must remain false unless an audited future release enables trading. | Internal |
+| `NAUTILUS_TESTNET_SUBMIT_ENABLED` | Safety flag | `false` | `false` | Binance testnet submission (SHADOW only) requires explicit `true`. | Internal |
+| `NAUTILUS_ENGINE_BACKEND` | No | `legacy` | `legacy` | `legacy` = pure-Python runtime; `nautilus` selects the NautilusTrader engine when available. Rollback = `legacy`. | Internal |
+| `OPS_ALERT_WEBHOOK` | Optional | empty | `https://hooks.slack.com/...` | Webhook failures, job timeouts, relay outages are pushed here. | Secret |
+| `OPS_ALERT_CHAT_ID` | Optional | empty | `-1001234567890` | Telegram chat for ops alerts (requires `TELEGRAM_BOT_TOKEN`). | Internal |
+| `REDIS_PASSWORD` | Production required | empty | `<32+ random>` | Compose starts redis with `--requirepass`; `REDIS_URL` must embed it. | Secret |
 ## Security and Observability
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
