@@ -73,7 +73,7 @@ PureGamma 的价值不是"更多数据"，而是**每天早上 3 分钟的 fused
 ### 4.4 Credit-Controlled AI Workflows
 - 每次 LLM 调用消费 credit，用户看到成本
 - 防止滥用，保证 unit economics
-- 高端功能（X KOL 扫描 20 credits、backtest 25 credits）自然引导升级
+- 高端功能（X KOL 扫描 20 credits、backtest 50 credits）自然引导升级
 ### 4.5 NautilusTrader Research Layer
 - 不是 Pine Script 的玩具回测
 - 是专业级 Python 策略框架
@@ -191,12 +191,12 @@ PureGamma 的价值不是"更多数据"，而是**每天早上 3 分钟的 fused
 | `sentiment_scan` | 8 | Pro+ |
 | `x_sentiment_scan` | 20 | Max+ |
 | `onchain_scan` | 12 | Max+ |
-| `backtest` | 25 | Max+ |
+| `backtest` | 50 | Max+ |
 | `playbook_generation` | 30 | Max+ |
 | `telegram_alert` | 1 | Pro+ |
 | `slack_alert` | 1 | Max+ |
 | `email_alert` | 1 | Free+ |
-| `imessage_alert` | 3 | Max+ |
+| `imessage_alert` | 2 | Max+ |
 ---
 ## 8. 关键产品决策
 ### 决策 1: iMessage 是 Max 专属功能
@@ -213,7 +213,7 @@ PureGamma 的价值不是"更多数据"，而是**每天早上 3 分钟的 fused
 ### 决策 3: NautilusTrader 是 Max 功能
 **理由**:
 - Backtest 是 quant 用户的核心需求
-- 每次 backtest 消耗 25 credits，Free/Pro 的 credit 不够
+- 每次 backtest 消耗 50 credits，Free/Pro 的 credit 不够
 - 放在 Max 可以支撑 $199 价格点
 ### 决策 4: X KOL / Bloomberg 是高成本数据，放在 Max/Enterprise
 **理由**:

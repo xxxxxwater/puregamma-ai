@@ -55,6 +55,16 @@ class RuntimeSettings:
     binance_testnet_timeout_seconds: float = float(
         os.getenv("NAUTILUS_BINANCE_TESTNET_TIMEOUT_SECONDS", "10")
     )
+    # Testnet order submission stays OFF unless explicitly enabled. PAPER runs
+    # never submit anywhere; this gate only matters for SHADOW runs whose venue
+    # resolves to the Binance testnet adapter.
+    testnet_submit_enabled: bool = (
+        os.getenv("NAUTILUS_TESTNET_SUBMIT_ENABLED", "false").lower() == "true"
+    )
+    # Execution backend: legacy is the current pure-Python runtime. When the
+    # NautilusTrader engine lands (Phase 1), 'nautilus' selects it and
+    # 'legacy' remains the rollback path.
+    engine_backend: str = os.getenv("NAUTILUS_ENGINE_BACKEND", "legacy").lower()
 
 
 def get_settings() -> RuntimeSettings:

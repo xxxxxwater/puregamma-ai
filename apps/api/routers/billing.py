@@ -195,7 +195,11 @@ def reactivate_subscription(db: Session = Depends(get_db), user: User = Depends(
 
 @router.post("/mock-upgrade")
 def mock_upgrade(payload: PlanRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
-    if get_settings().app_environment.lower() == "production":
+    settings = get_settings()
+    # Mock upgrades are a developer-only convenience: they must never be
+    # reachable in production, and also not when billing is wired to Stripe
+    # (a misconfigured APP_ENV must not silently grant paid entitlements).
+    if settings.app_environment.lower() == "production" or settings.billing_mode != "mock":
         raise HTTPException(status_code=404, detail="Not found")
     try:
         return billing_service.mock_upgrade(db, user.id, payload.plan_name)

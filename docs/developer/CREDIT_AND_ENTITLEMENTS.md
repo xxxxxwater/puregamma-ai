@@ -18,7 +18,7 @@ Defined in `packages/billing/credits.py`.
 | `sentiment_scan` | 8 |
 | `x_sentiment_scan` | 20 |
 | `onchain_scan` | 12 |
-| `backtest` | 25 |
+| `backtest` | 50 |
 | `playbook_generation` | 30 |
 | `telegram_alert` | 1 |
 | `slack_alert` | 1 |

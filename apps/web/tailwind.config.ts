@@ -5,17 +5,17 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── PGResearch black / white institutional tokens ──
-        "pg-black": "#030303",
-        "pg-black-soft": "#080808",
-        "pg-panel": "#0D0D0D",
-        "pg-panel-2": "#111111",
-        "pg-panel-3": "#161616",
+        // ── PGResearch grey tokens (DeepSeek console bluish scale) ──
+        "pg-black": "#101216",
+        "pg-black-soft": "#15181e",
+        "pg-panel": "#191c22",
+        "pg-panel-2": "#212123",
+        "pg-panel-3": "#292929",
         "pg-white": "#FFFFFF",
         "pg-white-soft": "#F4F4F5",
-        "pg-text": "#EDEDED",
-        "pg-muted": "#A3A3A3",
-        "pg-muted-2": "#737373",
+        "pg-text": "#F5F6F8",
+        "pg-muted": "#A2A4A6",
+        "pg-muted-2": "#7F8287",
 
         // ── Semantic tokens required by the UI brief ──
         "bg-app": "var(--background)",
@@ -24,7 +24,7 @@ const config: Config = {
         "bg-app-elevated": "var(--panel-muted)",
         "bg-card": "var(--panel)",
         "bg-card-muted": "var(--panel-muted)",
-        "bg-card-hover": "#161616",
+        "bg-card-hover": "#212123",
 
         // ── Borders ──
         "border-pg": "var(--border)",
@@ -90,7 +90,7 @@ const config: Config = {
       boxShadow: {
         panel: "none",
         card: "none",
-        "card-hover": "0 0 0 1px rgba(255,255,255,0.18)",
+        "card-hover": "0 0 0 1px rgba(255,255,255,0.12)",
         "glow-cyan": "none",
         "glow-emerald": "none",
       },

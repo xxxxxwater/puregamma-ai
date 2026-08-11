@@ -416,10 +416,22 @@ def _orchestrate_due_daily_briefs(db) -> dict:
 
 @celery_app.task(name="puregamma.dispatch_due_daily_briefs")
 def dispatch_due_daily_briefs() -> dict:
+    from packages.workers.redis_lock import acquire_redis_lock, release_redis_lock
+
+    if not acquire_redis_lock("dispatch_due_daily_briefs", ttl_seconds=900):
+        logger.warning("daily_brief_dispatch_skipped_lock_held")
+        return {"status": "skipped_lock_held"}
     db = SessionLocal()
     try:
         return _orchestrate_due_daily_briefs(db)
+    except Exception:
+        logger.exception("daily_brief_dispatch_failed")
+        from apps.api.services.ops_alert import notify_ops
+
+        notify_ops("Daily brief dispatch failed; users may not have received their digest", level="error")
+        return {"error": "dispatch_failed"}
     finally:
+        release_redis_lock("dispatch_due_daily_briefs")
         db.close()
 
 
@@ -653,8 +665,121 @@ def sync_all_portfolio_accounts() -> dict:
         db.close()
 
 
-@celery_app.task(name="puregamma.generate_shared_daily_market_intelligence")
-def generate_shared_daily_market_intelligence() -> str:
+@celery_app.task(name="puregamma.generate_portfolio_nav")
+def generate_portfolio_nav(snapshot_date=None) -> dict:
+    """Write daily per-user portfolio NAV snapshots (estimated, unofficial).
+
+    For every user with an active READ_ONLY portfolio account, NAV = the sum of
+    the latest account equity, with a per-symbol breakdown from the latest
+    position snapshots. Idempotent per ``(user_id, snapshot_date)``.
+
+    Partial-source safety: accounts that cannot produce a snapshot are skipped
+    and marked ``partial``; a user with no usable account data is skipped
+    entirely so the previous valid snapshot is preserved.
+    """
+    from datetime import date as _date
+
+    from packages.database.models import PortfolioNavSnapshot, PositionSnapshot
+
+    db = SessionLocal()
+    snapshot_day = snapshot_date or _date.today()
+    written = 0
+    skipped = 0
+    partial_users = 0
+    errors = 0
+    try:
+        accounts = db.query(TradingAccount).filter_by(account_type="READ_ONLY", status="ACTIVE").all()
+        by_user: dict[str, list[TradingAccount]] = {}
+        for account in accounts:
+            if account.user_id not in by_user:
+                by_user[account.user_id] = []
+            by_user[account.user_id].append(account)
+
+        for user_id, user_accounts in by_user.items():
+            try:
+                equities = []
+                cash = 0.0
+                included_accounts = []
+                failed_account = False
+                positions: dict[str, dict] = {}
+                data_as_of = None
+                for account in user_accounts:
+                    latest = (
+                        db.query(AccountSnapshot)
+                        .filter_by(user_id=user_id, account_id=account.id)
+                        .order_by(AccountSnapshot.captured_at.desc())
+                        .first()
+                    )
+                    if latest is None:
+                        failed_account = True
+                        continue
+                    equities.append(latest.equity if latest.equity is not None else latest.balance)
+                    cash += latest.balance if latest.balance is not None else 0.0
+                    included_accounts.append(account.id)
+                    if data_as_of is None or (latest.captured_at and latest.captured_at > data_as_of):
+                        data_as_of = latest.captured_at
+                    for pos in (
+                        db.query(PositionSnapshot)
+                        .filter_by(user_id=user_id, account_id=account.id)
+                        .order_by(PositionSnapshot.captured_at.desc())
+                        .limit(200)
+                        .all()
+                    ):
+                        symbol = pos.instrument
+                        entry = positions.setdefault(
+                            symbol,
+                            {
+                                "quantity": 0.0,
+                                "mark_price": pos.mark_price,
+                                "value": 0.0,
+                                "unrealized_pnl": 0.0,
+                            },
+                        )
+                        entry["quantity"] += float(pos.quantity)
+                        entry["value"] += float(pos.quantity) * float(pos.mark_price)
+                        entry["unrealized_pnl"] += float(pos.unrealized_pnl or 0.0)
+                        entry["mark_price"] = pos.mark_price
+                if not included_accounts:
+                    # No usable source data: preserve the previous valid snapshot.
+                    skipped += 1
+                    continue
+                total_nav = sum(equities)
+                partial = failed_account
+                if partial:
+                    partial_users += 1
+                row = (
+                    db.query(PortfolioNavSnapshot)
+                    .filter_by(user_id=user_id, snapshot_date=snapshot_day)
+                    .first()
+                )
+                if row is None:
+                    row = PortfolioNavSnapshot(user_id=user_id, snapshot_date=snapshot_day)
+                    db.add(row)
+                row.total_nav = total_nav
+                row.cash_balance = cash
+                row.account_count = len(included_accounts)
+                row.positions_json = positions
+                row.source_accounts_json = included_accounts
+                row.partial = partial
+                row.data_as_of = data_as_of
+                db.commit()
+                written += 1
+            except Exception:
+                db.rollback()
+                logger.exception("generate_portfolio_nav_failed user_id=%s", user_id)
+                errors += 1
+        return {
+            "written": written,
+            "skipped": skipped,
+            "partial_users": partial_users,
+            "errors": errors,
+            "snapshot_date": snapshot_day.isoformat(),
+        }
+    finally:
+        db.close()
+
+
+
     db = SessionLocal()
     try:
         item = generate_shared_market_intelligence(db)

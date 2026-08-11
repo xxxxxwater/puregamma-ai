@@ -59,7 +59,7 @@ fun NavHistoryChart(
     val range = remember(minVal, maxVal) { max(maxVal - minVal, 1.0) }
 
     val primaryColor = Color(0xFFD6B35A)
-    val accentColor = Color(0xFFF4F4F5)
+    val accentColor = Color(0xFFF5F6F8)
     val greenFill = Color(0x22D9F99D)
 
     Column(modifier.fillMaxWidth()) {
@@ -180,7 +180,7 @@ fun NavHistoryChart(
 
                     drawLine(accentColor.copy(alpha = 0.4f), Offset(cx, padding), Offset(cx, topPx), 1f)
                     drawCircle(accentColor, 5f, Offset(cx, cy))
-                    drawCircle(Color(0xFF030303), 3f, Offset(cx, cy))
+                    drawCircle(Color(0xFF101216), 3f, Offset(cx, cy))
 
                     val tooltipText = formatMoney(point.value)
                     val tooltipDate = formatDate(point.date)

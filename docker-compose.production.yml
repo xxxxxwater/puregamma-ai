@@ -1,4 +1,4 @@
-services:
+﻿services:
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -21,7 +21,12 @@ services:
   redis:
     image: redis:7-alpine
     restart: unless-stopped
-    command: redis-server --appendonly yes --maxmemory 384mb --maxmemory-policy allkeys-lru
+    # Authentication is required in production; REDIS_URL in .env must carry the
+    # matching password (redis://:${REDIS_PASSWORD}@redis:6379/0). The env var is
+    # interpolated at container start, not baked into the image.
+    command: ["sh", "-c", "redis-server --appendonly yes --maxmemory 384mb --maxmemory-policy allkeys-lru --requirepass \"$${REDIS_PASSWORD}\""]
+    environment:
+      REDIS_PASSWORD: ${REDIS_PASSWORD:?REDIS_PASSWORD is required}
     volumes:
       - redisdata:/data
     networks: [data]
@@ -29,7 +34,7 @@ services:
     cpus: 0.30
     pids_limit: 128
     healthcheck:
-      test: ["CMD", "redis-cli", "ping"]
+      test: ["CMD-SHELL", "redis-cli -a \"$${REDIS_PASSWORD}\" ping"]
       interval: 10s
       timeout: 5s
       retries: 10
@@ -66,8 +71,8 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
-    restart: unless-stopped
-    env_file: .env
+      args:
+        INSTALL_DOCKER_CLI: 'false'
     environment:
       APP_ENV: production
       SITE_URL: https://${APP_DOMAIN:?APP_DOMAIN is required}
@@ -109,18 +114,15 @@ services:
       INITIAL_LAUNCH_MODE: "true"
       AUTH_ALLOW_DEMO_FALLBACK: "false"
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
       BACKTEST_ARTIFACT_DIR: ${BACKTEST_ARTIFACT_DIR:-/var/lib/puregamma/backtests}
     expose: ["8000"]
     volumes:
       - backtest_artifacts:/var/lib/puregamma/backtests
-      # The API probes docker availability at research-run creation time so an
-      # unavailable runner is reported honestly (and never charged) up front.
-      - /var/run/docker.sock:/var/run/docker.sock
-    # Host docker group (stat -c %g /var/run/docker.sock): lets the non-root
-    # container user reach the socket for the availability probe.
-    group_add: ["${DOCKER_SOCKET_GID:-107}"]
+      # No docker.sock here: the API only probes runner availability and
+      # honestly reports it as unavailable. A compromised web-facing container
+      # must never reach the host docker engine (host root + all secrets).
     networks: [edge, data, runtime]
     mem_limit: 640m
     cpus: 0.65
@@ -163,7 +165,7 @@ services:
       OPENAI_LUNA_ALLOWED_PLANS: ${OPENAI_LUNA_ALLOWED_PLANS:-Max,Enterprise}
       OPENAI_LUNA_TIMEOUT_SECONDS: ${OPENAI_LUNA_TIMEOUT_SECONDS:-90}
       DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
       BACKTEST_ARTIFACT_DIR: ${BACKTEST_ARTIFACT_DIR:-/var/lib/puregamma/backtests}
       RESEARCH_RUNNER_IMAGE: ${RESEARCH_RUNNER_IMAGE:-puregamma-research-runner:1}
@@ -201,7 +203,7 @@ services:
     command: ["python", "-m", "packages.workers.scheduler"]
     environment:
       APP_ENV: production
-      REDIS_URL: redis://redis:6379/0
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
       DATA_SYNC_WORKER_ENABLED: ${DATA_SYNC_WORKER_ENABLED:-true}
       BLOOMBERG_MODE: ${BLOOMBERG_MODE:-disabled}
       RSS_SYNC_INTERVAL: ${RSS_SYNC_INTERVAL:-10}

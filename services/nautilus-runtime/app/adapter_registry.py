@@ -36,6 +36,13 @@ def adapter_for(account: dict | None, config=None, store=None):
             environment=environment,
         )
     if venue == "BINANCE" and environment == "testnet":
+        if not getattr(config, "testnet_submit_enabled", False):
+            # Default is OFF; config=None also fails closed.
+            return UnavailableAdapter(
+                "Binance testnet submission is disabled (NAUTILUS_TESTNET_SUBMIT_ENABLED must be true)",
+                venue=venue,
+                environment=environment,
+            )
         kwargs = {}
         if config is not None:
             kwargs = {

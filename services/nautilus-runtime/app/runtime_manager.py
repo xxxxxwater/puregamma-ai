@@ -42,7 +42,7 @@ class RuntimeManager:
         self.events = RuntimeEventBus(self.nautilus)
         self.exchange = MockExchangeGateway(self.store)
         self.external_adapters = [HyperliquidAdapter(), CoinbaseAdvancedAdapter()]
-        self.risk = RuntimeRiskGateway()
+        self.risk = RuntimeRiskGateway(store=self.store)
         self.execution = RuntimeExecutionGateway(self.store, self.exchange, self.risk)
         self.runner = RuntimeStrategyRunner(self.store, self.events)
         self.reconciler = RuntimeReconciler(self.store, self.exchange, self.risk)
@@ -259,6 +259,13 @@ class RuntimeManager:
             return self.execution
         if str(run.get("mode", "")).upper() == "SHADOW":
             return self.shadow_execution_for_account(account)
+        if str(run.get("mode", "")).upper() == "PAPER":
+            # PAPER is simulated accounting: it may only run against the MOCK
+            # venue. A PAPER run bound to a real (even testnet) venue would
+            # submit signed orders while the user believes it is pure paper.
+            raise ValueError(
+                "PAPER execution requires the MOCK venue; real venues require SHADOW mode"
+            )
         if key not in self._execution_gateways:
             self._execution_gateways[key] = RuntimeExecutionGateway(
                 self.store, self.gateway_for_account(account), self.risk
@@ -272,6 +279,12 @@ class RuntimeManager:
             return self.execution.submit(payload)
         if str(payload.get("mode", "")).upper() == "SHADOW":
             return self.shadow_execution_for_account(account).submit(payload)
+        if str(payload.get("mode", "")).upper() == "PAPER":
+            # Same guarantee as _execution_for_run: PAPER never touches a real
+            # venue, testnet included.
+            raise ValueError(
+                "PAPER execution requires the MOCK venue; real venues require SHADOW mode"
+            )
         if key not in self._execution_gateways:
             self._execution_gateways[key] = RuntimeExecutionGateway(
                 self.store, self.gateway_for_account(account), self.risk
@@ -333,6 +346,7 @@ class RuntimeManager:
                     int(run["performance"].get("orders", 0)) + 1
                 )
                 self.store.upsert_run(run)
+        self._update_runs_pnl()
         return {
             **snapshot,
             "status": "HEALTHY" if snapshot["quotes"] else "DEGRADED",
@@ -348,6 +362,28 @@ class RuntimeManager:
             return False
         venue, _ = adapter_key(run.get("account"))
         return venue != "MOCK"
+
+    def _update_runs_pnl(self) -> None:
+        """Aggregate realized + unrealized PnL per account into run views.
+
+        Fixes the previous behavior where performance.pnl was initialized to
+        0.0 and never updated, even though positions carried real paper PnL.
+        """
+        positions = self.store.list_paper_positions()
+        by_account: dict[str, float] = {}
+        for position in positions:
+            pnl = float(position.get("realized_pnl", 0)) + float(
+                position.get("unrealized_pnl", 0)
+            )
+            account_id = position.get("account_id") or ""
+            by_account[account_id] = by_account.get(account_id, 0.0) + pnl
+        for run in self.store.list_runs():
+            if run.get("status") != "RUNNING":
+                continue
+            pnl = round(by_account.get(run.get("account_id") or "", 0.0), 8)
+            if run["performance"].get("pnl") != pnl:
+                run["performance"]["pnl"] = pnl
+                self.store.upsert_run(run)
 
     def account_state(self, account_id: str) -> dict:
         account = self._account_config(account_id)

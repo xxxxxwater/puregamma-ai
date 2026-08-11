@@ -52,6 +52,19 @@ struct StaleDataBanner: View {
 
 struct MarketRow: View {
     let asset: MarketAsset
-    var body: some View { HStack(spacing: 14) { VStack(alignment: .leading, spacing: 4) { HStack { Text(asset.symbol).font(.headline.monospaced()); Text(asset.isRealtime ? "LIVE" : "DLY").font(.caption2.monospaced()).foregroundStyle(asset.isRealtime ? PGTheme.positive : PGTheme.warning) }; Text(asset.source).font(.caption2).foregroundStyle(.secondary).lineLimit(1) }.frame(maxWidth: .infinity, alignment: .leading); VStack(alignment: .trailing, spacing: 4) { Text(PGFormat.money(asset.price)).font(.headline.monospacedDigit()); Text(PGFormat.percent(asset.change24H)).font(.caption.monospacedDigit()).foregroundStyle(PGTheme.change(asset.change24H)) }; Text(asset.riskScore.map { "R\(NSDecimalNumber(decimal: $0).intValue)" } ?? "R—").font(.caption.monospaced()).frame(width: 34) }.padding(.vertical, 13).accessibilityElement(children: .combine).accessibilityLabel(String(localized: "\(asset.symbol), \(PGFormat.money(asset.price)), change \(PGFormat.percent(asset.change24H)), source \(asset.source)")) }
+    private var coin: String { asset.symbol.uppercased().replacingOccurrences(of: "-USDC", with: "").replacingOccurrences(of: "USDC", with: "").replacingOccurrences(of: "DLY", with: "").trimmingCharacters(in: .whitespaces) }
+    private var iconName: String? {
+        switch coin {
+        case "BTC": "coin_btc"; case "ETH": "coin_eth"; case "HYPE": "coin_hype"; case "ZEC": "coin_zec"; case "SOL": "coin_sol"; case "CASHCAT": "coin_cashcat"; case "ONDO": "coin_ondo"; default: nil
+        }
+    }
+    var body: some View { HStack(spacing: 14) { icon; VStack(alignment: .leading, spacing: 4) { HStack { Text(asset.symbol).font(.headline.monospaced()); Text(asset.isRealtime ? "LIVE" : "DLY").font(.caption2.monospaced()).foregroundStyle(asset.isRealtime ? PGTheme.positive : PGTheme.warning) }; Text(asset.source).font(.caption2).foregroundStyle(.secondary).lineLimit(1) }.frame(maxWidth: .infinity, alignment: .leading); VStack(alignment: .trailing, spacing: 4) { Text(PGFormat.money(asset.price)).font(.headline.monospacedDigit()); Text(PGFormat.percent(asset.change24H)).font(.caption.monospacedDigit()).foregroundStyle(PGTheme.change(asset.change24H)) }; Text(asset.riskScore.map { "R\(NSDecimalNumber(decimal: $0).intValue)" } ?? "R—").font(.caption.monospaced()).frame(width: 34) }.padding(.vertical, 13).accessibilityElement(children: .combine).accessibilityLabel(String(localized: "\(asset.symbol), \(PGFormat.money(asset.price)), change \(PGFormat.percent(asset.change24H)), source \(asset.source)")) }
+    @ViewBuilder private var icon: some View {
+        if let iconName {
+            Image(iconName).resizable().scaledToFill().frame(width: 22, height: 22).clipShape(Circle()).accessibilityHidden(true)
+        } else {
+            ZStack { Circle().fill(Color(.secondarySystemBackground)); Text(String(coin.prefix(1))).font(.caption2.bold()).foregroundStyle(.secondary) }.frame(width: 22, height: 22).accessibilityHidden(true)
+        }
+    }
 }
 struct ReportRow: View { let report: Report; var body: some View { VStack(alignment: .leading, spacing: 7) { HStack { Text(report.type.uppercased()).font(.caption2.monospaced()).foregroundStyle(PGTheme.accent); Spacer(); Text(PGFormat.dateTime(report.createdAt)).font(.caption2).foregroundStyle(.secondary) }; Text(report.title).font(.headline); Text(report.markdown.replacingOccurrences(of: "#", with: "")).font(.subheadline).foregroundStyle(.secondary).lineLimit(3) }.padding(.vertical, 14).accessibilityElement(children: .combine) } }

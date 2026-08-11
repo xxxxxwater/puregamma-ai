@@ -709,6 +709,40 @@ def metrics(db: Session = Depends(get_db), _: User = Depends(_admin)) -> dict[st
     }
 
 
+@admin_router.get("/usage")
+def admin_usage(
+    start: str | None = Query(default=None),
+    end: str | None = Query(default=None),
+    granularity: Literal["hour", "day"] = Query(default="day"),
+    db: Session = Depends(get_db),
+    _: User = Depends(_admin),
+) -> dict[str, Any]:
+    """Aggregate request logs across every Gateway user for the admin console.
+
+    Same zero-filled series, totals and per-model/per-key breakdowns as the
+    self-service endpoint, but without the user scoping. Defaults to the
+    trailing 7 days at day granularity; range rules (<= 90 days) match the
+    self-service endpoint.
+    """
+    now = datetime.now(timezone.utc)
+    try:
+        parsed_start = datetime.fromisoformat(start) if start else now - timedelta(days=7)
+        parsed_end = datetime.fromisoformat(end) if end else now
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail={"code": "GATEWAY_USAGE_INVALID_DATE"}) from exc
+    if parsed_start.tzinfo is None:
+        parsed_start = parsed_start.replace(tzinfo=timezone.utc)
+    if parsed_end.tzinfo is None:
+        parsed_end = parsed_end.replace(tzinfo=timezone.utc)
+    parsed_start = parsed_start.astimezone(timezone.utc)
+    parsed_end = parsed_end.astimezone(timezone.utc)
+    if parsed_start >= parsed_end:
+        raise HTTPException(status_code=422, detail={"code": "GATEWAY_USAGE_EMPTY_RANGE"})
+    if (parsed_end - parsed_start) > timedelta(days=90):
+        raise HTTPException(status_code=422, detail={"code": "GATEWAY_USAGE_RANGE_TOO_LARGE"})
+    return usage_summary(db, None, parsed_start, parsed_end, granularity)
+
+
 @admin_router.get("/accounts")
 def gateway_accounts(
     limit: int = Query(default=100, ge=1, le=300),

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
-import { Badge, PGResearchCard } from "@/components/puregamma";
+import { Badge } from "@/components/puregamma";
 import { LandingFooterRotator } from "@/components/landing-footer-rotator";
+import { TradingArchitecture } from "@/components/trading-architecture";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace } from "@/lib/translations";
 import { isLocale, type Locale, withLocale } from "@/i18n/routing";
@@ -35,32 +36,22 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
               <Link href={withLocale(locale, "/api")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong rounded-lg">
                 {locale === "zh" ? "API 快速接入" : "API Quickstart"} <ArrowRight className="h-4 w-4" />
               </Link>
+              <Link href={withLocale(locale, "/pricing")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong rounded-lg">
+                {locale === "zh" ? "查看定价" : "View pricing"} <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
-          <PGResearchCard>
-            <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">{copy.engine.eyebrow}</div>
-            <div className="mt-6 divide-y divide-border-pg border border-border-pg rounded-xl overflow-hidden">
-              {copy.engine.rows.map((row, index) => (
-                <div key={row.label} className="grid grid-cols-[52px_1fr] gap-4 p-4">
-                  <span className="text-text-pg-dim">{String(index + 1).padStart(2, "0")}</span>
-                  <div><div className="font-semibold">{row.label}</div><div className="mt-1 text-sm text-text-pg-muted">{row.detail}</div></div>
-                </div>
-              ))}
-            </div>
-          </PGResearchCard>
+          <TradingArchitecture locale={locale} />
         </div>
       </section>
 
-      <section className="grid gap-px border border-border-pg bg-border-pg md:grid-cols-4 rounded-xl overflow-hidden">
-        {copy.stats.map((item) => <div key={item} className="bg-bg-panel p-5 text-sm font-semibold">{item}</div>)}
-      </section>
-
-      <section id="research" className="grid gap-3 md:grid-cols-4">
-        <PGResearchCard><div className="text-[0.68rem] uppercase tracking-[0.16em] text-text-pg-muted">{copy.research.eyebrow}</div><h2 className="mt-2 text-lg font-semibold">{copy.research.headline}</h2></PGResearchCard>
-        {copy.research.cards.map((item) => <PGResearchCard key={item.title}><h3 className="text-sm font-semibold">{item.title}</h3><p className="mt-2 text-xs leading-5 text-text-pg-muted">{item.body}</p></PGResearchCard>)}
-      </section>
-
       <LandingFooterRotator slides={copy.footerSlides} />
+
+      <section className="border border-border-pg bg-bg-panel p-6 text-xs leading-5 text-text-pg-muted rounded-xl">
+        {locale === "zh"
+          ? "仅供研究，不构成投资建议。PureGamma AI 的输出仅用于信息与教育目的，可能包含错误、过期数据或不完整信息。回测与模拟结果不代表未来表现。请独立核实信息来源后再做任何决策，用户需自行承担依赖本内容的全部风险。"
+          : "Research only. Not investment advice. PureGamma AI outputs are generated for informational and educational purposes and may contain errors, stale data, or incomplete information. Backtest and paper results do not guarantee future performance. Verify sources independently before acting; users bear all risks of relying on this content."}
+      </section>
     </div>
   );
 }

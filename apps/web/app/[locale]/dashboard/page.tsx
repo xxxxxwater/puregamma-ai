@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import Link from "next/link";
+import { ArrowRight } from "lucide-react";
 import { GlobalMarketTerminal } from "@/components/global-market-terminal";
 import { HyperliquidMarketPanel } from "@/components/hyperliquid-market-panel";
 import { Markdown } from "@/components/markdown";
@@ -15,6 +17,7 @@ export function generateMetadata({ params }: { params: { locale: string } }): Me
 
 export default async function DashboardPage({ params }: { params: { locale: Locale } }) {
   const locale = params.locale;
+  const zh = locale === "zh";
   const copy = getMessageNamespace(locale, "dashboard");
   const { market, subscription, reports } = await getDashboard(locale);
   const latest = reports.reports[0];
@@ -30,6 +33,17 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
       />
 
       {subscription.unavailable ? <ErrorState title={copy.accountBillingUnavailable} description={copy.accountBillingUnavailableDesc} /> : null}
+
+      <Link
+        href={withLocale(locale, "/onboarding/assets")}
+        className="flex items-center justify-between gap-4 border border-border-pg bg-bg-panel px-5 py-4 rounded-xl transition hover:border-border-pg-strong"
+      >
+        <div>
+          <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-muted">{zh ? "首次设置" : "First-time setup"}</div>
+          <div className="mt-1 text-sm font-semibold">{zh ? "连接数据源、配置通知与阅读偏好" : "Connect data sources, notifications, and reading preferences"}</div>
+        </div>
+        <ArrowRight className="h-4 w-4 shrink-0 text-text-pg-muted" />
+      </Link>
 
       <HyperliquidMarketPanel locale={locale} />
 

@@ -18,12 +18,13 @@ from apps.api.services.stripe_payment_link_service import new_public_reference
 from apps.api.services.gateway_wallet_service import (
     GatewayTopupError,
     expire_gateway_topup_from_checkout,
+    gateway_wallet,
     is_gateway_topup_checkout,
     settle_gateway_topup_from_checkout,
 )
 from packages.billing.plans import get_plan
 from packages.billing.stripe import allowed_checkout_plan, plan_for_price_id_or_none, price_id_for_plan
-from packages.database.models import BillingCheckoutIntent, CreditLedger, StripeWebhookEvent, Subscription, SubscriptionPlan, User
+from packages.database.models import BillingCheckoutIntent, CreditLedger, GatewayTopupIntent, GatewayWalletLedger, StripeWebhookEvent, Subscription, SubscriptionPlan, User
 
 
 logger = logging.getLogger(__name__)
@@ -715,8 +716,102 @@ def _handle_payment_intent_failed(db: Session, obj: dict) -> None:
     logger.info("stripe_payment_intent_failed payment_intent_id=%s customer=%s", obj.get("id"), obj.get("customer"))
 
 
-def _handle_charge_refunded(obj: dict) -> None:
-    logger.info("stripe_charge_refunded charge_id=%s payment_intent=%s amount_refunded=%s", obj.get("id"), obj.get("payment_intent"), obj.get("amount_refunded"))
+def _handle_charge_refunded(db: Session, obj: dict) -> None:
+    """Full refunds claw back what was provisioned.
+
+    - A refunded gateway topup reverses the prepaid wallet credit (ledgered,
+      idempotent per topup intent).
+    - A refunded subscription charge revokes the paid entitlements (plan
+      downgrade) so a refunded customer cannot keep Pro/Max access.
+    Partial refunds are logged and left untouched.
+    """
+    charge_id = obj.get("id")
+    amount = obj.get("amount") or 0
+    amount_refunded = obj.get("amount_refunded") or 0
+    logger.info(
+        "stripe_charge_refunded charge_id=%s payment_intent=%s amount_refunded=%s",
+        charge_id, obj.get("payment_intent"), amount_refunded,
+    )
+    if amount_refunded < amount:
+        return
+
+    payment_intent = obj.get("payment_intent")
+    if payment_intent:
+        intent = (
+            db.query(GatewayTopupIntent)
+            .filter_by(stripe_payment_intent_id=payment_intent)
+            .one_or_none()
+        )
+        if intent and intent.status == "completed":
+            amount_usd = Decimal(str(intent.amount_cents or 0)) / 100
+            if amount_usd > 0:
+                wallet = gateway_wallet(db, intent.user_id, lock=True)
+                wallet.available_balance_usd = max(
+                    Decimal("0"),
+                    Decimal(str(wallet.available_balance_usd or 0)) - amount_usd,
+                )
+                wallet.lifetime_credited_usd = max(
+                    Decimal("0"),
+                    Decimal(str(wallet.lifetime_credited_usd or 0)) - amount_usd,
+                )
+                db.add(
+                    GatewayWalletLedger(
+                        wallet_id=wallet.id,
+                        user_id=intent.user_id,
+                        entry_type="topup_refund",
+                        amount_usd=-amount_usd,
+                        balance_after_usd=wallet.available_balance_usd,
+                        idempotency_key=f"topup-refund:{intent.id}",
+                        metadata_json={"charge_id": charge_id, "topup_intent_id": intent.id},
+                    )
+                )
+            intent.status = "refunded"
+            db.commit()
+
+    invoice_id = obj.get("invoice")
+    if invoice_id:
+        settings = get_settings()
+        if settings.billing_mode == "stripe":
+            try:
+                import stripe
+
+                stripe.api_key = settings.stripe_secret_key
+                stripe.api_version = settings.stripe_api_version
+                stripe_invoice = stripe.Invoice.retrieve(invoice_id)
+                subscription_id = stripe_invoice.get("subscription")
+            except Exception as exc:
+                logger.warning(
+                    "stripe_refund_invoice_lookup_failed invoice=%s error=%s",
+                    invoice_id, type(exc).__name__,
+                )
+                subscription_id = None
+        else:
+            subscription_id = None
+        if subscription_id:
+            user = (
+                db.query(User)
+                .filter_by(stripe_subscription_id=subscription_id)
+                .one_or_none()
+            )
+            if user:
+                _revoke_subscription_entitlements(db, user)
+
+
+def _revoke_subscription_entitlements(db: Session, user: User) -> None:
+    """Drop a user to Free after a fully refunded charge."""
+    if user.plan == "Free":
+        return
+    previous_plan = user.plan
+    user.plan = "Free"
+    user.stripe_subscription_id = None
+    user.subscription_status = None
+    if user.preference:
+        user.preference.subscription_cancel_at_period_end = False
+    db.commit()
+    logger.info(
+        "subscription_revoked_after_refund user_id=%s previous_plan=%s",
+        user.id, previous_plan,
+    )
 
 
 def process_stripe_event(db: Session, event: dict, raw_payload: bytes) -> dict:
