@@ -10,7 +10,7 @@ struct AgentConversation: Identifiable, Equatable, Sendable { let id, title, sta
 struct AgentSource: Identifiable, Equatable, Sendable { let id, provider, title: String; let url: URL?; let publishedAt, sourceTimestamp, fetchedAt: Date?; let citationIndex: Int }
 struct AgentMessage: Identifiable, Equatable, Sendable { let id, conversationID, role: String; var content, status: String; let model: String?; var sources: [AgentSource]; let createdAt: Date; var errorMessage: String? }
 struct AgentModel: Identifiable, Equatable, Sendable { let id, name, details, provider: String; let available: Bool; let reason: String? }
-struct AgentCapabilities: Equatable, Sendable { let plan: String; let dataSources: [String]; let dailyRuns, concurrentRuns, credits, remaining: Int; let models: [AgentModel] }
+struct AgentCapabilities: Equatable, Sendable { let plan: String; let dataSources: [String]; let dailyRuns, concurrentRuns, credits, remaining: Int; let models: [AgentModel]; let skills: [String] }
 struct AgentAttachment: Identifiable, Equatable, Sendable { var id: String { name }; let name, content, mime: String }
 struct AgentRequestContext: Equatable, Sendable { var dataSources = ["market", "rss"]; var skills = ["market_research", "news_research"]; var customPrompt = ""; var attachments: [AgentAttachment] = []; var model = "default" }
 struct Portfolio: Equatable, Sendable { let connected, stale: Bool; let asOf: Date?; let nav, availableCash: Decimal?; let history: [NAVPoint]; let connections: [PortfolioConnection]; let providers: PortfolioProviders }
@@ -21,6 +21,28 @@ struct Autopilot: Equatable, Sendable { var enabled: Bool; var cadence: String; 
 struct AutopilotFinding: Equatable, Sendable { let severity, title: String }
 struct OptionCandidate: Identifiable, Equatable, Sendable { var id: String { instrument }; let instrument, underlying, type: String; let strike, markIV, gamma, theta, score: Decimal?; let expiry, timestamp: Date; let rationale: [String] }
 struct DailyPushPreference: Equatable, Sendable { var enabled: Bool; var timezone, localTime, channel, locale: String; var includePortfolio, includeMarket, includeSignals, includeRisk, includeSentiment: Bool; let nextDelivery: Date? }
+
+struct Signal: Identifiable, Equatable, Sendable { let id, asset, signalType, direction: String; let confidence, riskScore: Decimal?; let thesis, catalyst, invalidation, timeframe: String?; let createdAt: Date }
+struct Playbook: Identifiable, Equatable, Sendable {
+    var id: String { strategyName + asset }
+    let strategyName, asset, thesis, trigger, entryCondition, exitCondition, invalidation: String
+    let riskScore: Int; let confidence: Decimal; let timeframe, expectedPayoff: String; let requiredDataSources: [String]
+}
+struct BacktestRun: Identifiable, Equatable, Sendable {
+    let id, status, mode, strategyName, asset: String
+    let spec: [String: String]
+    let windowStart, windowEnd: Date?
+    let metrics: [String: Decimal]
+    let equityCurve, drawdownCurve, benchmarkCurve: [BacktestPoint]
+    let trades: [BacktestTrade]
+    let positions: [String]
+    let error: [String: String]
+    let creditsSpent: Decimal?
+    let createdAt, completedAt: Date?
+    var isCompleted: Bool { status == "completed" }
+}
+struct BacktestPoint: Identifiable, Equatable, Sendable { var id: Int { index }; let index: Int; let value: Decimal }
+struct BacktestTrade: Equatable, Sendable { let asset, side: String; let quantity, price, pnl: Decimal? }
 
 enum PGFormat {
     static func money(_ value: Decimal?, currency: String = "USD") -> String { guard let value else { return "—" }; return value.formatted(.currency(code: currency).precision(.fractionLength(2))) }

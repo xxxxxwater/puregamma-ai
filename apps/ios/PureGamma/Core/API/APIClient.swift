@@ -18,7 +18,7 @@ final class APIClient: @unchecked Sendable {
         self.configuration = configuration; self.tokenStore = tokenStore; self.session = session
     }
 
-    func request<Response: Decodable, Body: Encodable>(_ path: String, method: String = "GET", body: Body? = Optional<EmptyBody>.none, query: [URLQueryItem] = []) async throws -> Response {
+    func request<Response: Decodable, Body: Encodable>(_ path: String, method: String = "GET", body: Body? = Optional<EmptyBody>.none, query: [URLQueryItem] = [], resetsSessionOnUnauthorized: Bool = true) async throws -> Response {
         var components = URLComponents(url: configuration.baseURL.appending(path: path), resolvingAgainstBaseURL: false)
         components?.queryItems = query.isEmpty ? nil : query
         guard let url = components?.url else { throw APIError.invalidRequest }
@@ -32,7 +32,7 @@ final class APIClient: @unchecked Sendable {
         while true {
             do {
                 let (data, response) = try await session.data(for: request)
-                try validate(response, data: data)
+                try validate(response, data: data, resetsSessionOnUnauthorized: resetsSessionOnUnauthorized)
                 do { return try JSONDecoder.pg.decode(Response.self, from: data) }
                 catch { throw APIError.decoding(error.localizedDescription) }
             } catch is CancellationError { throw APIError.canceled }
@@ -77,13 +77,15 @@ final class APIClient: @unchecked Sendable {
         catch { throw APIError.transport(error.localizedDescription) }
     }
 
-    private func validate(_ response: URLResponse, data: Data) throws {
+    private func validate(_ response: URLResponse, data: Data, resetsSessionOnUnauthorized: Bool = true) throws {
         guard let http = response as? HTTPURLResponse else { throw APIError.transport("Non-HTTP response") }
         guard !(200..<300).contains(http.statusCode) else { return }
         let payload = (try? JSONDecoder().decode(ErrorEnvelope.self, from: data))
         let message = payload?.message ?? HTTPURLResponse.localizedString(forStatusCode: http.statusCode)
         switch http.statusCode {
-        case 401: onUnauthorized?(); throw APIError.unauthorized
+        case 401:
+            guard resetsSessionOnUnauthorized else { throw APIError.server(status: 401, message: message) }
+            onUnauthorized?(); throw APIError.unauthorized
         case 402: throw APIError.paymentRequired(message)
         case 403: throw APIError.forbidden(message)
         case 429: throw APIError.rateLimited(retryAfter: Int(http.value(forHTTPHeaderField: "Retry-After") ?? ""))
@@ -150,6 +152,22 @@ private enum LooseValue: Decodable {
 private struct ErrorEnvelope: Decodable {
     let detail: Detail?
     var message: String? { detail?.message }
+    /// FastAPI error bodies may be a string, a dict, or a validation-error
+    /// array. A synthesized memberwise decode only accepts dicts; decode
+    /// the detail value through the tolerant Detail instead so array
+    /// payloads are not lost.
+    enum CodingKeys: String, CodingKey { case detail }
+    init(from decoder: Decoder) throws {
+        // Normal errors carry {"detail": ...}; FastAPI validation errors are a
+        // bare array at the top level, so fall back to the single-value path.
+        if let container = try? decoder.container(keyedBy: CodingKeys.self),
+           let detail = try? container.decodeIfPresent(Detail.self, forKey: .detail) {
+            self.detail = detail
+            return
+        }
+        let container = try decoder.singleValueContainer()
+        detail = try? container.decode(Detail.self)
+    }
     enum Detail: Decodable {
         case string(String), object(String)
         init(from decoder: Decoder) throws {

@@ -33,3 +33,17 @@
 "Version" = "Version";
 "Plaid Link timed out. Please try again." = "Plaid Link timed out. Please try again.";
 "OAuth session timed out. Please try again." = "OAuth session timed out. Please try again.";
+"Email sign in" = "Email sign in";
+"Create account" = "Create account";
+"Email" = "Email";
+"Password" = "Password";
+"Name (optional)" = "Name (optional)";
+"Sign in" = "Sign in";
+"Already have an account? Sign in" = "Already have an account? Sign in";
+"New here? Create an account" = "New here? Create an account";
+"Incorrect email or password." = "Incorrect email or password.";
+"This email is not verified yet. Check your inbox for the verification link." = "This email is not verified yet. Check your inbox for the verification link.";
+"An account with this email already exists. Sign in instead." = "An account with this email already exists. Sign in instead.";
+"Password must be at least 8 characters with a letter, a digit and an uppercase letter." = "Password must be at least 8 characters with a letter, a digit and an uppercase letter.";
+"Enter a valid email address." = "Enter a valid email address.";
+"Too many attempts. Try again in 15 minutes." = "Too many attempts. Try again in 15 minutes.";

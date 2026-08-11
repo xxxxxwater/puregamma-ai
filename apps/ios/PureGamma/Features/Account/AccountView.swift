@@ -38,6 +38,15 @@ struct AccountView: View {
                 LabeledContent("Local time", value: value.localTime)
                 LabeledContent("Time zone", value: value.timezone)
                 if let next = value.nextDelivery { LabeledContent("Next delivery", value: PGFormat.dateTime(next)) }
+                if value.enabled {
+                    Section {
+                        Toggle("Portfolio", isOn: contentBinding(value, \.includePortfolio))
+                        Toggle("Markets", isOn: contentBinding(value, \.includeMarket))
+                        Toggle("Signals", isOn: contentBinding(value, \.includeSignals))
+                        Toggle("Risk", isOn: contentBinding(value, \.includeRisk))
+                        Toggle("Sentiment", isOn: contentBinding(value, \.includeSentiment))
+                    } header: { Text("Include in brief") } footer: { Text("Choose what appears in your daily research brief.") }
+                }
                 if app.pushDeliveryAvailable == false {
                     Label("APNs delivery is not configured on the server.", systemImage: "exclamationmark.triangle")
                         .font(.caption)
@@ -67,6 +76,13 @@ struct AccountView: View {
         }
         copy.enabled = enabled
         await model.save(copy)
+    }
+    private func contentBinding(_ value: DailyPushPreference, _ keyPath: WritableKeyPath<DailyPushPreference, Bool>) -> Binding<Bool> {
+        Binding(get: { value[keyPath: keyPath] }, set: { newValue in
+            var copy = value
+            copy[keyPath: keyPath] = newValue
+            Task { await model.save(copy) }
+        })
     }
     private var preferences: some View {
         Section("Language & appearance") {

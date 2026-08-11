@@ -16,6 +16,13 @@ import SwiftUI
     func sync(_ id: String) async { busy = id; defer { busy = "" }; do { portfolio = .loaded(try await repository.sync(id)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) } }
     func disconnect(_ id: String) async { busy = id; defer { busy = "" }; do { let value = try await repository.disconnect(id); portfolio = value.connected ? .loaded(value) : .empty; await loadAutopilot() } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) } }
     func runReview() async { busy = "review"; defer { busy = "" }; do { autopilot = .loaded(try await repository.runAutopilot()) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) } }
+    func saveAutopilot(_ update: (inout AutopilotConfigDTO) -> Void) async {
+        busy = "autopilot"; defer { busy = "" }
+        guard case .loaded(let current) = autopilot else { return }
+        var config = AutopilotConfigDTO(enabled: current.enabled, cadence: current.cadence, autoSync: current.autoSync, riskAlerts: current.riskAlerts, longGammaWatch: current.longGammaWatch, delivery: current.delivery)
+        update(&config)
+        do { autopilot = .loaded(try await repository.updateAutopilot(config)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+    }
     func filtered(_ points: [NAVPoint]) -> [NAVPoint] { let days: TimeInterval? = switch range { case .day: 1; case .week: 7; case .month: 30; case .all: nil }; guard let days else { return points }; let cutoff = Date().addingTimeInterval(-days * 86_400); return points.filter { $0.date >= cutoff } }
 }
 
@@ -233,6 +240,23 @@ private struct AutopilotReview: View {
                     .buttonStyle(.bordered)
                     .disabled(value.accountCount == 0 || model.busy != "")
             }
+            Toggle("Enabled", isOn: Binding(get: { value.enabled }, set: { enabled in Task { await model.saveAutopilot { $0.enabled = enabled } } }))
+                .font(.subheadline)
+                .disabled(model.busy != "")
+            Picker("Cadence", selection: Binding(get: { value.cadence }, set: { cadence in Task { await model.saveAutopilot { $0.cadence = cadence } } })) {
+                Text("Daily").tag("daily"); Text("Weekly").tag("weekly")
+            }
+            .pickerStyle(.segmented)
+            .disabled(model.busy != "")
+            Toggle("Auto sync", isOn: Binding(get: { value.autoSync }, set: { flag in Task { await model.saveAutopilot { $0.autoSync = flag } } }))
+                .font(.subheadline)
+                .disabled(model.busy != "")
+            Toggle("Risk alerts", isOn: Binding(get: { value.riskAlerts }, set: { flag in Task { await model.saveAutopilot { $0.riskAlerts = flag } } }))
+                .font(.subheadline)
+                .disabled(model.busy != "")
+            Toggle("Long gamma watch", isOn: Binding(get: { value.longGammaWatch }, set: { flag in Task { await model.saveAutopilot { $0.longGammaWatch = flag } } }))
+                .font(.subheadline)
+                .disabled(model.busy != "")
             if value.findings.isEmpty {
                 Text(value.accountCount == 0 ? "Connect a real account to enable reviews." : "No completed review findings.")
                     .font(.caption)

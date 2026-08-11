@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import PureGamma
 
-struct KeychainTokenStoreTests {
+@MainActor struct KeychainTokenStoreTests {
     private func makeStore() -> KeychainTokenStore {
         KeychainTokenStore(service: "test.ai.puregamma.\(UUID().uuidString)", account: "bearer-token")
     }

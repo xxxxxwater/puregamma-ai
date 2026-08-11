@@ -30,7 +30,7 @@ import Testing
         _ = parser.consume("data: {\"index\":1")
         _ = parser.consume("data: ,\"provider\":\"rss\"}")
         let parsed = parser.consume("")
-        guard let event = parsed else { return Issue.record("Expected event") }
+        guard let event = parsed else { Issue.record("Expected event"); return }
         #expect(String(data: event.data, encoding: .utf8) == "{\"index\":1\n,\"provider\":\"rss\"}")
     }
 
@@ -54,7 +54,7 @@ import Testing
         _ = parser.consume("event: message.delta\r")
         _ = parser.consume("data: {\"delta\":\"BTC\"}\r")
         let parsed = parser.consume("\r")
-        guard let event = parsed else { return Issue.record("Expected event") }
+        guard let event = parsed else { Issue.record("Expected event"); return }
         #expect(event.event == "message.delta")
         #expect(String(data: event.data, encoding: .utf8) == "{\"delta\":\"BTC\"}")
     }

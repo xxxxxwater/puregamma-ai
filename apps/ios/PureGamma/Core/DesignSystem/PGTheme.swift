@@ -1,7 +1,8 @@
 import SwiftUI
 
 enum PGTheme {
-    static let accent = Color(red: 0.76, green: 0.93, blue: 0.42)
+    static let accent = Color(uiColor: .label)
+    static let onAccent = Color(uiColor: .systemBackground)
     static let positive = Color(red: 0.35, green: 0.79, blue: 0.58)
     static let negative = Color(red: 0.93, green: 0.38, blue: 0.39)
     static let warning = Color(red: 0.92, green: 0.69, blue: 0.28)

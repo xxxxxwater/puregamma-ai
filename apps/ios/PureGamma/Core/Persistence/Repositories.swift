@@ -1,6 +1,6 @@
 import Foundation
 
-private func parseUTCDate(_ raw: String) -> Date? {
+func parseUTCDate(_ raw: String) -> Date? {
     let fractional = ISO8601DateFormatter()
     fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     let standard = ISO8601DateFormatter()
@@ -37,7 +37,7 @@ struct RepositoryContainer {
     func conversation(_ id: String) async throws -> (AgentConversation, [AgentMessage]) { let dto: ConversationDetailDTO = try await client.request("/api/agent/conversations/\(id)"); return (dto.conversation.domain, dto.messages.map(\.domain)) }
     func update(_ id: String, title: String? = nil, archived: Bool? = nil) async throws -> AgentConversation { let dto: ConversationEnvelopeDTO = try await client.request("/api/agent/conversations/\(id)", method: "PATCH", body: ConversationPatchDTO(title: title, archived: archived)); return dto.conversation.domain }
     func delete(_ id: String) async throws { let _: EmptyResponseDTO = try await client.request("/api/agent/conversations/\(id)", method: "DELETE") }
-    func capabilities() async throws -> AgentCapabilities { let dto: CapabilitiesEnvelopeDTO = try await client.request("/api/agent/capabilities"); return .init(plan: dto.capabilities.plan, dataSources: dto.capabilities.allowedDataSources, dailyRuns: dto.capabilities.agentDailyRuns, concurrentRuns: dto.capabilities.agentConcurrentRuns, credits: dto.quota.creditBalance, remaining: dto.quota.remaining, models: dto.models.map { .init(id: $0.id, name: $0.displayName, details: $0.description, provider: $0.provider, available: $0.available, reason: $0.reason) }) }
+    func capabilities() async throws -> AgentCapabilities { let dto: CapabilitiesEnvelopeDTO = try await client.request("/api/agent/capabilities"); return .init(plan: dto.capabilities.plan, dataSources: dto.capabilities.allowedDataSources, dailyRuns: dto.capabilities.agentDailyRuns, concurrentRuns: dto.capabilities.agentConcurrentRuns, credits: dto.quota.creditBalance, remaining: dto.quota.remaining, models: dto.models.map { .init(id: $0.id, name: $0.displayName, details: $0.description, provider: $0.provider, available: $0.available, reason: $0.reason) }, skills: (dto.skills ?? []).map(\.slug)) }
     func stream(conversationID: String, prompt: String, locale: String, context: AgentRequestContext) async throws -> AsyncThrowingStream<AgentSSEEvent, Error> {
         let payload = AgentMessageRequestDTO(content: prompt, locale: locale, dataSources: context.dataSources, skills: context.skills, customPrompt: context.customPrompt, attachments: context.attachments.map { .init(name: $0.name, content: $0.content, mime: $0.mime) }, model: context.model)
         let (bytes, _) = try await client.stream("/api/agent/conversations/\(conversationID)/messages", body: payload)
@@ -80,7 +80,15 @@ enum AgentSSEEvent: Equatable, Sendable {
     let client: APIClient; let cache: ResponseCache
     func reports() async throws -> [Report] { let dto: ReportsEnvelopeDTO = try await client.request("/reports"); return dto.reports.map(\.domain) }
     func cachedReports() async throws -> CachedRepositoryValue<[Report]> { try await TodayRepository(client: client, cache: cache).cachedReports() }
+    func generateDailyReport() async throws -> Report { let dto: ReportEnvelopeDTO = try await client.request("/reports/daily", method: "POST"); return dto.report.domain }
     func longGamma(currency: String) async throws -> (String, Date?, [OptionCandidate], String?) { let dto: LongGammaEnvelopeDTO = try await client.request("/options/long-gamma", query: [URLQueryItem(name: "currency", value: currency)]); return (dto.status, dto.fetchedAt, dto.candidates.map(\.domain), dto.error) }
+    func signals() async throws -> [Signal] { let dto: SignalsEnvelopeDTO = try await client.request("/signals"); return dto.signals.map(\.domain) }
+    func playbooks() async throws -> (playbooks: [Playbook], reports: [Report]) { let dto: PlaybooksEnvelopeDTO = try await client.request("/playbooks"); return (dto.playbooks.map(\.domain), dto.reports?.map(\.domain) ?? []) }
+    func generatePlaybook() async throws -> [Playbook] { let dto: PlaybooksEnvelopeDTO = try await client.request("/playbooks/generate", method: "POST"); return dto.playbooks.map(\.domain) }
+    func backtestStatus() async throws -> BacktestStatusDTO { try await client.request("/backtest-lab/status") }
+    func runBacktest(spec: BacktestSpecDTO, windowDays: Int) async throws -> BacktestRun { let dto: BacktestRunEnvelopeDTO = try await client.request("/backtest-lab/runs", method: "POST", body: BacktestRunRequestDTO(spec: spec, windowDays: windowDays)); return dto.run.domain }
+    func backtestRuns() async throws -> [BacktestRun] { let dto: BacktestRunsEnvelopeDTO = try await client.request("/backtest-lab/runs"); return dto.runs.map(\.domain) }
+    func backtestRun(_ id: String) async throws -> BacktestRun { let dto: BacktestRunEnvelopeDTO = try await client.request("/backtest-lab/runs/\(id)"); return dto.run.domain }
 }
 
 @MainActor struct PortfolioRepository {

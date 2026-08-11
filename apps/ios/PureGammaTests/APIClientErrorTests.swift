@@ -84,9 +84,9 @@ private final class MemoryTokenStore: TokenStoring, @unchecked Sendable {
             let _: EmptyResponseDTO = try await client.request("/x")
             Issue.record("Expected paymentRequired")
         } catch let error as APIError {
-            guard case .paymentRequired(let message) = error else { return Issue.record("Wrong error: \(error)") }
+            guard case .paymentRequired(let message) = error else { Issue.record("Wrong error: \(error)"); return }
             #expect(message == "INSUFFICIENT_CREDITS")
-        }
+        } catch { Issue.record("Unexpected error: \(error)") }
     }
 
     @Test func forbiddenCarriesObjectMessage() async {
@@ -96,9 +96,9 @@ private final class MemoryTokenStore: TokenStoring, @unchecked Sendable {
             let _: EmptyResponseDTO = try await client.request("/x")
             Issue.record("Expected forbidden")
         } catch let error as APIError {
-            guard case .forbidden(let message) = error else { return Issue.record("Wrong error: \(error)") }
+            guard case .forbidden(let message) = error else { Issue.record("Wrong error: \(error)"); return }
             #expect(message == "Plan does not include push delivery")
-        }
+        } catch { Issue.record("Unexpected error: \(error)") }
     }
 
     @Test func rateLimitedReadsRetryAfter() async {
@@ -108,9 +108,9 @@ private final class MemoryTokenStore: TokenStoring, @unchecked Sendable {
             let _: EmptyResponseDTO = try await client.request("/x")
             Issue.record("Expected rateLimited")
         } catch let error as APIError {
-            guard case .rateLimited(let seconds) = error else { return Issue.record("Wrong error: \(error)") }
+            guard case .rateLimited(let seconds) = error else { Issue.record("Wrong error: \(error)"); return }
             #expect(seconds == 30)
-        }
+        } catch { Issue.record("Unexpected error: \(error)") }
     }
 
     @Test func validationErrorsSurfaceFastAPIMessage() async {
@@ -120,10 +120,10 @@ private final class MemoryTokenStore: TokenStoring, @unchecked Sendable {
             let _: EmptyResponseDTO = try await client.request("/x")
             Issue.record("Expected server error")
         } catch let error as APIError {
-            guard case .server(let status, let message) = error else { return Issue.record("Wrong error: \(error)") }
+            guard case .server(let status, let message) = error else { Issue.record("Wrong error: \(error)"); return }
             #expect(status == 422)
             #expect(message == "field required")
-        }
+        } catch { Issue.record("Unexpected error: \(error)") }
     }
 
     @Test func retriesTransportFailuresForGETThenSucceeds() async throws {
@@ -149,8 +149,8 @@ private final class MemoryTokenStore: TokenStoring, @unchecked Sendable {
             let _: EmptyResponseDTO = try await client.request("/billing/checkout", method: "POST", body: ["plan": "pro"])
             Issue.record("Expected transport failure")
         } catch let error as APIError {
-            guard case .transport = error else { return Issue.record("Wrong error: \(error)") }
+            guard case .transport = error else { Issue.record("Wrong error: \(error)"); return }
             #expect(calls == 1)
-        }
+        } catch { Issue.record("Unexpected error: \(error)") }
     }
 }

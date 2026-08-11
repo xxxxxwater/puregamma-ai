@@ -2,9 +2,9 @@ import Observation
 import SwiftUI
 
 @MainActor @Observable final class ResearchViewModel {
-    enum Section: String, CaseIterable, Identifiable { case reports = "Reports", options = "Long Gamma"; var id: String { rawValue } }
+    enum Section: String, CaseIterable, Identifiable { case reports = "Reports", signals = "Signals", playbooks = "Playbooks", backtest = "Backtest", options = "Long Gamma"; var id: String { rawValue } }
     var section: Section = .reports; var reports: LoadState<[Report]> = .idle; var options: LoadState<[OptionCandidate]> = .idle; var currency = "BTC"; var optionStatus = ""; var fetchedAt: Date?
-    private let repository: ResearchRepository
+    let repository: ResearchRepository
     init(repository: ResearchRepository) { self.repository = repository }
     func loadReports() async { reports = .loading; do { let result = try await repository.cachedReports(); reports = result.value.isEmpty ? .empty : result.cachedAt.map { .stale(result.value, $0) } ?? .loaded(result.value) } catch { reports = .failed(error as? APIError ?? .transport(error.localizedDescription)) } }
     func loadOptions() async { options = .loading; do { let result = try await repository.longGamma(currency: currency); optionStatus = result.0; fetchedAt = result.1; options = result.2.isEmpty ? .empty : .loaded(result.2); if let error = result.3, result.2.isEmpty { options = .failed(.unavailable(error)) } } catch { options = .failed(error as? APIError ?? .transport(error.localizedDescription)) } }
@@ -12,15 +12,36 @@ import SwiftUI
 
 struct ResearchView: View {
     @State private var model: ResearchViewModel
+    @State private var generatingReport = false
+    @State private var reportMessage: String?
     init(repository: ResearchRepository) { _model = State(initialValue: ResearchViewModel(repository: repository)) }
     var body: some View {
         VStack(spacing: 0) {
             Picker("Research section", selection: $model.section) { ForEach(ResearchViewModel.Section.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) } }.pickerStyle(.segmented).padding()
-            if model.section == .reports { reports } else { options }
+            switch model.section {
+            case .reports: reports
+            case .signals: SignalsView(repository: model.repository)
+            case .playbooks: PlaybooksView(repository: model.repository)
+            case .backtest: BacktestView(repository: model.repository)
+            case .options: options
+            }
         }.navigationTitle("Research").navigationBarTitleDisplayMode(.inline).task { await model.loadReports() }.onChange(of: model.section) { _, value in if value == .options, case .idle = model.options { Task { await model.loadOptions() } } }
     }
     @ViewBuilder private var reports: some View { switch model.reports { case .loading, .idle: ProgressView("Loading reports…").frame(maxHeight: .infinity); case .empty: StateView(title: "No reports", detail: "No real research report has been generated yet.", symbol: "doc.text"); case .failed(let e): StateView(title: "Reports unavailable", detail: LocalizedStringKey(e.localizedDescription), symbol: "doc.badge.ellipsis", retry: { Task { await model.loadReports() } }); case .loaded(let rows): reportList(rows); case .stale(let rows, let cachedAt): VStack(spacing: 8) { StaleDataBanner(cachedAt: cachedAt).padding(.horizontal); reportList(rows) } } }
-    private func reportList(_ rows: [Report]) -> some View { List(rows) { row in NavigationLink { ReportDetailView(report: row) } label: { ReportRow(report: row) } }.listStyle(.plain) }
+    private func reportList(_ rows: [Report]) -> some View {
+        VStack(spacing: 0) {
+            Button { Task { await generateReport() } } label: { HStack { Label("Generate daily report", systemImage: "sparkles"); Spacer(); if generatingReport { ProgressView() } else { Image(systemName: "arrow.right") } }.font(.footnote).padding(.horizontal, 12).padding(.vertical, 8) }
+                .buttonStyle(.bordered).tint(PGTheme.accent).disabled(generatingReport).padding(.horizontal).padding(.vertical, 6)
+            List(rows) { row in NavigationLink { ReportDetailView(report: row) } label: { ReportRow(report: row) } }.listStyle(.plain)
+        }
+        .alert("Report", isPresented: Binding(get: { reportMessage != nil }, set: { if !$0 { reportMessage = nil } })) { Button("OK") {} } message: { Text(reportMessage ?? "") }
+    }
+    private func generateReport() async {
+        generatingReport = true; defer { generatingReport = false }
+        do { _ = try await model.repository.generateDailyReport(); await model.loadReports(); reportMessage = String(localized: "Daily report generated. It may take a moment to appear.") }
+        catch APIError.paymentRequired { reportMessage = String(localized: "Not enough credits to generate a report.") }
+        catch { reportMessage = error.localizedDescription }
+    }
     @ViewBuilder private var options: some View { VStack(spacing: 0) { HStack { Picker("Underlying", selection: $model.currency) { Text("BTC").tag("BTC"); Text("ETH").tag("ETH") }.pickerStyle(.segmented).frame(width: 150); Spacer(); Text("\(model.optionStatus) · \(PGFormat.dateTime(model.fetchedAt))").font(.caption2.monospaced()).foregroundStyle(model.optionStatus == "HEALTHY" ? PGTheme.positive : PGTheme.warning) }.padding(.horizontal).onChange(of: model.currency) { _, _ in Task { await model.loadOptions() } }; Group { switch model.options { case .loading, .idle: ProgressView("Loading Deribit public data…").frame(maxWidth: .infinity, maxHeight: .infinity); case .empty: StateView(title: "No candidates", detail: "The connected Deribit public feed returned no qualifying long-gamma candidates.", symbol: "waveform.path.ecg"); case .failed(let e): StateView(title: "Options data unavailable", detail: LocalizedStringKey(e.localizedDescription), symbol: "exclamationmark.arrow.triangle.2.circlepath", retry: { Task { await model.loadOptions() } }); case .loaded(let rows), .stale(let rows, _): List(rows) { OptionRow(candidate: $0) }.listStyle(.plain) } } } }
 }
 struct ReportDetailView: View { let report: Report; var body: some View { ScrollView { VStack(alignment: .leading, spacing: 16) { Text(report.type.uppercased()).font(.caption.monospaced()).foregroundStyle(PGTheme.accent); Text(report.title).font(.largeTitle.bold()); Text(PGFormat.dateTime(report.createdAt)).font(.caption).foregroundStyle(.secondary); TerminalDivider(); Text(report.markdown).textSelection(.enabled); RiskDisclosureView() }.padding() }.navigationBarTitleDisplayMode(.inline) } }

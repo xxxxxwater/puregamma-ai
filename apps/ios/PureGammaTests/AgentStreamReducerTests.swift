@@ -2,7 +2,7 @@ import Foundation
 import Testing
 @testable import PureGamma
 
-struct AgentStreamReducerTests {
+@MainActor struct AgentStreamReducerTests {
     private func message() -> AgentMessage {
         AgentMessage(id: "assistant-1", conversationID: "conversation-1", role: "assistant", content: "", status: "streaming", model: nil, sources: [], createdAt: Date(), errorMessage: nil)
     }
