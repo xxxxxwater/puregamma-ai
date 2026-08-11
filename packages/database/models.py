@@ -1574,6 +1574,35 @@ class PortfolioAutopilotReview(Base, TimestampMixin):
     data_as_of = Column(DateTime(timezone=True), nullable=True)
 
 
+class PortfolioNavSnapshot(Base, TimestampMixin):
+    """Daily per-user portfolio NAV snapshot (estimated, not an official statement).
+
+    ``total_nav`` is the sum of the latest account equity across every connected
+    portfolio account; ``positions_json`` holds the per-symbol detail
+    (quantity, mark price, market value, unrealized PnL). The ``partial`` flag
+    records whether any account source failed during the run so consumers can
+    label the figure as estimated/partial. A ``(user_id, snapshot_date)`` row is
+    idempotent: the daily job upserts it.
+    """
+
+    __tablename__ = "portfolio_nav_snapshots"
+    __table_args__ = (
+        UniqueConstraint("user_id", "snapshot_date", name="uq_portfolio_nav_user_date"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    snapshot_date = Column(Date, nullable=False, index=True)
+    total_nav = Column(Float, nullable=False, default=0)
+    cash_balance = Column(Float, nullable=False, default=0)
+    account_count = Column(Integer, nullable=False, default=0)
+    positions_json = Column(JSON, default=dict, nullable=False)
+    source_accounts_json = Column(JSON, default=list, nullable=False)
+    partial = Column(Boolean, nullable=False, default=False)
+    data_as_of = Column(DateTime(timezone=True), nullable=True)
+    captured_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
 class ReconciliationRecord(Base, TimestampMixin):
     __tablename__ = "reconciliation_records"
 

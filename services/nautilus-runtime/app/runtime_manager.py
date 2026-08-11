@@ -333,6 +333,7 @@ class RuntimeManager:
                     int(run["performance"].get("orders", 0)) + 1
                 )
                 self.store.upsert_run(run)
+        self._update_runs_pnl()
         return {
             **snapshot,
             "status": "HEALTHY" if snapshot["quotes"] else "DEGRADED",
@@ -348,6 +349,28 @@ class RuntimeManager:
             return False
         venue, _ = adapter_key(run.get("account"))
         return venue != "MOCK"
+
+    def _update_runs_pnl(self) -> None:
+        """Aggregate realized + unrealized PnL per account into run views.
+
+        Fixes the previous behavior where performance.pnl was initialized to
+        0.0 and never updated, even though positions carried real paper PnL.
+        """
+        positions = self.store.list_paper_positions()
+        by_account: dict[str, float] = {}
+        for position in positions:
+            pnl = float(position.get("realized_pnl", 0)) + float(
+                position.get("unrealized_pnl", 0)
+            )
+            account_id = position.get("account_id") or ""
+            by_account[account_id] = by_account.get(account_id, 0.0) + pnl
+        for run in self.store.list_runs():
+            if run.get("status") != "RUNNING":
+                continue
+            pnl = round(by_account.get(run.get("account_id") or "", 0.0), 8)
+            if run["performance"].get("pnl") != pnl:
+                run["performance"]["pnl"] = pnl
+                self.store.upsert_run(run)
 
     def account_state(self, account_id: str) -> dict:
         account = self._account_config(account_id)

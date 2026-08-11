@@ -19,7 +19,7 @@ from apps.api.dependencies import (
 )
 from apps.api.i18n import normalize_locale
 from apps.api.config import get_settings
-from packages.database.models import Base, User, UserIdentity, UserPreference
+from packages.database.models import Base, User, UserIdentity, UserPreference, utcnow
 
 
 router = APIRouter(tags=["auth"])
@@ -265,6 +265,66 @@ def delete_account(
     clear_session_cookie(response)
     logger.info("account_deleted", extra={"user_id": user_id})
     return {"ok": True}
+
+
+# Fields that must never leave the server, even in a user's own export.
+_EXPORT_SENSITIVE_COLUMNS = {
+    "password_hash",
+    "email_verification_token",
+    "email_verification_token_expires_at",
+    "key_hash",
+    "api_key",  # gateway api keys are masked below regardless
+}
+
+
+@router.get("/me/export")
+def export_account(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """GDPR/PIPL data-export: every row owned by the user, as JSON.
+
+    Sensitive credential columns are omitted; the export is returned directly
+    so the requester can download it once. A later batch job can email an
+    archive for very large accounts if needed.
+    """
+    from packages.database.models import Base
+
+    user_id = user.id
+    tables: dict[str, list[dict]] = {}
+    for table in Base.metadata.sorted_tables:
+        if table.name == User.__tablename__:
+            continue
+        scope = _user_scope(table, user_id)
+        if scope is None:
+            continue
+        columns = [col.name for col in table.columns if col.name not in _EXPORT_SENSITIVE_COLUMNS]
+        rows = db.execute(table.select().where(scope).limit(1000)).mappings().all()
+        records = []
+        for row in rows:
+            record = {col: _export_value(row[col]) for col in columns}
+            if table.name == "gateway_api_keys" and "key_prefix" in record:
+                record.pop("key_prefix", None)
+            records.append(record)
+        if records:
+            tables[table.name] = records
+
+    user_data = {
+        "email": user.email,
+        "name": user.name,
+        "plan": user.plan,
+        "role": user.role,
+        "locale": getattr(user, "locale", None),
+        "created_at": user.created_at.isoformat() if user.created_at else None,
+        "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
+    }
+    return {"user": user_data, "tables": tables, "exported_at": utcnow().isoformat()}
+
+
+def _export_value(value):
+    if hasattr(value, "isoformat"):
+        return value.isoformat()
+    return value
 
 
 @router.post("/auth/preferences/locale")

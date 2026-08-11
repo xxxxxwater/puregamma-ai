@@ -74,6 +74,12 @@ async def stripe_webhook(
         raise
     except Exception as exc:
         db.rollback()
+        from apps.api.services.ops_alert import notify_ops
+
+        notify_ops(
+            f"Stripe webhook processing failed: {str(exc)[:300]} (event={event_id or 'unknown'})",
+            level="error",
+        )
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)

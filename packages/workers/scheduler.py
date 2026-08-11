@@ -96,6 +96,14 @@ def build_scheduler() -> BlockingScheduler:
     )
     scheduler.add_job(
         enqueue,
+        CronTrigger(hour=0, minute=5),
+        args=["puregamma.generate_portfolio_nav"],
+        id="portfolio_nav_snapshot",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
         IntervalTrigger(seconds=settings.nautilus_runtime_sync_interval_seconds),
         args=["puregamma.sync_nautilus_runtime_runs"],
         id="nautilus_runtime_run_sync",

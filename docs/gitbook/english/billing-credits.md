@@ -3,7 +3,8 @@
 | Plan | For | Highlights |
 | --- | --- | --- |
 | Free | Trial | Core markets & reports, starter credits |
-| Silver | Individuals | More credits, full skill library |
+| Invite Preview | Invited preview | More credits, full skill library |
+| Pro | Individuals | High credit quota, full skill library |
 | Max | Heavy users | High credit quota, iMessage Agent, wider data scopes |
 | Enterprise | Teams | Custom quota and support |
 Exact monthly credits, Agent run limits and data scopes are always shown live on the Billing page (the server is the single source of truth).

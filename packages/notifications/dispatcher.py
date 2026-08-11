@@ -279,7 +279,21 @@ class NotificationDispatcher:
             if reservation:
                 refund_task(db, user_id, reservation, "NOTIFICATION_PROVIDER_EXCEPTION", metadata={"channel": channel})
                 db.commit()
+            if channel == "imessage" and self.settings.imessage_provider == "macos_relay":
+                from apps.api.services.ops_alert import notify_ops
+
+                notify_ops("iMessage relay is failing; check the Mac mini relay host", level="error")
             raise
+        if result.ok and result.response.get("mode") == "mock":
+            # A mock recipient/endpoint delivers nothing: refund the hold and
+            # record a skipped delivery so mock ids can never be billed.
+            if reservation:
+                refund_task(
+                    db, user_id, reservation, "NOTIFICATION_MOCK_RECIPIENT",
+                    metadata={"channel": channel, "idempotency_key": idempotency_key},
+                )
+                db.commit()
+            return _finish("skipped", {"reason": "mock_recipient"})
         permanent = result.response.get("status") in {"unsupported_os", "invalid_recipient", "message_too_long", "missing_applescript"}
         status = "sent" if result.ok else ("failed_permanent" if permanent else "failed_retryable") if channel in {"imessage", "push"} else "failed"
         if not result.ok:

@@ -21,6 +21,20 @@ settings = get_settings()
 validate_production_settings(settings)
 logger = logging.getLogger("puregamma.api")
 
+if settings.sentry_dsn:
+    try:
+        import sentry_sdk  # type: ignore[import-not-found]
+
+        sentry_sdk.init(
+            dsn=settings.sentry_dsn,
+            environment=settings.app_environment,
+            traces_sample_rate=0.1,
+            send_default_pii=False,
+        )
+        logger.info("Sentry error tracking enabled")
+    except Exception as exc:  # pragma: no cover - optional dependency
+        logger.warning("Sentry initialization skipped: %s", exc)
+
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -75,10 +89,14 @@ async def cookie_csrf_guard(request: Request, call_next):
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
-    if settings.app_environment.lower() != "production" or request.url.path in {"/health", "/stripe/webhook"}:
+    if settings.app_environment.lower() != "production" or request.url.path in {"/health", "/ready", "/metrics", "/stripe/webhook"}:
         return await call_next(request)
-    forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for")
-    client = forwarded.split(",", 1)[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    # Only X-Real-IP (set by the edge proxy from the socket peer) is trusted;
+    # X-Forwarded-For is client-controllable and must never feed rate limits.
+    client = (
+        request.headers.get("x-real-ip", "").strip()
+        or (request.client.host if request.client else "unknown")
+    )
     expensive = any(part in request.url.path for part in _expensive_paths)
     limit = settings.expensive_rate_limit_per_minute if expensive else settings.api_rate_limit_per_minute
     minute = int(time.time() // 60)
@@ -157,6 +175,49 @@ def readiness():
         "redis": redis_status,
     }
     return JSONResponse(status_code=200 if ready else 503, content=payload)
+
+
+@app.get("/metrics")
+def metrics() -> str:
+    """Prometheus-text metrics for uptime and error-rate monitoring.
+
+    Counters are process-local plus a few database aggregates; no PII is
+    exposed. Wire this into Prometheus/Grafana or an uptime probe.
+    """
+    from apps.api.services.ops_alert import METRICS_COUNTERS, METRICS_STARTED_AT
+    from packages.database.session import SessionLocal
+    from packages.database.models import GatewayRequestLog, StripeWebhookEvent
+
+    db = SessionLocal()
+    try:
+        failed_webhooks = db.query(StripeWebhookEvent).filter(
+            StripeWebhookEvent.error_message.isnot(None)
+        ).count()
+        gateway_errors = db.query(GatewayRequestLog).filter(
+            GatewayRequestLog.status != "success"
+        ).count()
+    except Exception:
+        failed_webhooks = 0
+        gateway_errors = 0
+    finally:
+        db.close()
+
+    lines = [
+        "# HELP puregamma_uptime_seconds Process uptime.",
+        "# TYPE puregamma_uptime_seconds gauge",
+        f"puregamma_uptime_seconds {int(time.time() - METRICS_STARTED_AT)}",
+        "# HELP puregamma_http_requests_total Process-local HTTP request counter.",
+        "# TYPE puregamma_http_requests_total counter",
+    ]
+    for name, value in sorted(METRICS_COUNTERS.items()):
+        lines.append(f"puregamma_http_requests_total{{scope=\"{name}\"}} {value}")
+    lines.append("# HELP puregamma_stripe_failed_webhooks Stripe events stuck in failed status.")
+    lines.append("# TYPE puregamma_stripe_failed_webhooks gauge")
+    lines.append(f"puregamma_stripe_failed_webhooks {failed_webhooks}")
+    lines.append("# HELP puregamma_gateway_error_requests Gateway requests with non-success status.")
+    lines.append("# TYPE puregamma_gateway_error_requests gauge")
+    lines.append(f"puregamma_gateway_error_requests {gateway_errors}")
+    return "\n".join(lines) + "\n"
 
 
 app.include_router(auth.router)

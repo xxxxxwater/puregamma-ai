@@ -205,6 +205,15 @@ class Settings:
     smtp_user: str = os.getenv("SMTP_USER", "")
     smtp_password: str = os.getenv("SMTP_PASSWORD", "")
 
+    # Operations alerting: a Slack webhook (or Telegram chat via
+    # OPS_ALERT_CHAT_ID) that receives webhook failures, job timeouts and
+    # relay outages. Optional; when unset, alerts are logged only.
+    ops_alert_webhook: str = os.getenv("OPS_ALERT_WEBHOOK", "")
+    ops_alert_chat_id: str = os.getenv("OPS_ALERT_CHAT_ID", "")
+    # Optional error tracking. When SENTRY_DSN is set the API initializes the
+    # Sentry SDK at startup (sentry-sdk must be installed separately).
+    sentry_dsn: str = os.getenv("SENTRY_DSN", "")
+
     massive_api_key: str = os.getenv("MASSIVE_API_KEY", "")
     fmp_api_key: str = os.getenv("FMP_API_KEY", "")
     alpha_vantage_api_key: str = os.getenv("ALPHA_VANTAGE_API_KEY", "")

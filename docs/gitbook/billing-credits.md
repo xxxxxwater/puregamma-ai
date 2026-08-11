@@ -3,7 +3,8 @@
 | 套餐 | 定位 | 关键权益 |
 | --- | --- | --- |
 | Free | 体验 | 基础行情与报告、体验 Credits |
-| Silver | 个人 | 更多 Credits、完整 Agent 技能库 |
+| Invite Preview | 受邀体验 | 更多 Credits、完整 Agent 技能库 |
+| Pro | 个人 | 高额度 Credits、完整 Agent 技能库 |
 | Max | 重度 | 高额度 Credits、iMessage Agent、更多数据范围 |
 | Enterprise | 团队 | 定制额度、专属支持 |
 各套餐的每月 Credits 额度、Agent 每日运行上限与可用数据范围以订阅页实时显示为准(服务端为唯一权威来源)。

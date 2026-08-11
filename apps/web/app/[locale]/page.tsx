@@ -36,6 +36,9 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
               <Link href={withLocale(locale, "/api")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong rounded-lg">
                 {locale === "zh" ? "API 快速接入" : "API Quickstart"} <ArrowRight className="h-4 w-4" />
               </Link>
+              <Link href={withLocale(locale, "/pricing")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong rounded-lg">
+                {locale === "zh" ? "查看定价" : "View pricing"} <ArrowRight className="h-4 w-4" />
+              </Link>
             </div>
           </div>
           <TradingArchitecture locale={locale} />
@@ -43,6 +46,12 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
       </section>
 
       <LandingFooterRotator slides={copy.footerSlides} />
+
+      <section className="border border-border-pg bg-bg-panel p-6 text-xs leading-5 text-text-pg-muted rounded-xl">
+        {locale === "zh"
+          ? "仅供研究，不构成投资建议。PureGamma AI 的输出仅用于信息与教育目的，可能包含错误、过期数据或不完整信息。回测与模拟结果不代表未来表现。请独立核实信息来源后再做任何决策，用户需自行承担依赖本内容的全部风险。"
+          : "Research only. Not investment advice. PureGamma AI outputs are generated for informational and educational purposes and may contain errors, stale data, or incomplete information. Backtest and paper results do not guarantee future performance. Verify sources independently before acting; users bear all risks of relying on this content."}
+      </section>
     </div>
   );
 }

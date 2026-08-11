@@ -20,7 +20,10 @@ function redirectIfInsufficientCredits() {
   if (typeof window === "undefined" || insufficientRedirecting) return;
   if (window.location.pathname.includes("/billing")) return;
   insufficientRedirecting = true;
-  window.location.href = `${window.location.origin}/zh/billing`;
+  // Redirect to billing in the user's own locale, never a hardcoded one.
+  const match = window.location.pathname.match(/^\/(en|zh)\//);
+  const locale = match ? match[1] : defaultLocale;
+  window.location.href = `${window.location.origin}/${locale}/billing`;
 }
 
 async function forwardedSessionHeaders(): Promise<Record<string, string>> {

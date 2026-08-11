@@ -82,7 +82,7 @@ iMessage is exposed through notifications, not a separate API router.
 The real NautilusTrader runtime is not implemented. Current backend uses mock `BacktestEngine`.
 | Method | Path | Auth required | Request body | Response example | Errors | Entitlement | Credit cost |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `POST` | `/backtest` | Yes | `{"strategy_name":"BTC momentum breakout","asset":"BTC","params":{"lookback_days":30}}` | `{"backtest":{"result":{"metrics":{"sharpe":1.23},"disclaimer":""}}}` | `401`, `402` | High-cost task required | 25 |
+| `POST` | `/backtest` | Yes | `{"strategy_name":"BTC momentum breakout","asset":"BTC","params":{"lookback_days":30}}` | `{"backtest":{"result":{"metrics":{"sharpe":1.23},"disclaimer":""}}}` | `401`, `402` | High-cost task required | 50 |
 | `GET` | `/backtest/{run_id}` | Yes | None | `{"backtest":{"id":"...","strategy_name":"..."}}` | `401`, `404` | Own run only | 0 |
 ## Data Sources
 | Method | Path | Auth required | Request body | Response example | Errors | Entitlement | Credit cost |
