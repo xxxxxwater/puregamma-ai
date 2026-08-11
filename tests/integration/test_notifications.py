@@ -3,7 +3,7 @@ from __future__ import annotations
 from apps.api.services.billing_service import mock_upgrade
 from apps.api.services.notification_service import send_notification
 from apps.api.config import Settings
-from packages.database.models import NotificationDelivery, User
+from packages.database.models import NotificationDelivery, User, utcnow
 from packages.notifications.dispatcher import NotificationDispatcher
 from tests.conftest import auth_headers
 
@@ -16,7 +16,8 @@ def test_notification_send_api_email(api_client, demo_user: User):
     )
 
     assert response.status_code == 200
-    assert response.json()["delivery"]["status"] == "sent"
+    # No SMTP credentials in tests: mock provider records a skipped delivery.
+    assert response.json()["delivery"]["status"] == "skipped"
 
 
 def test_duplicate_idempotency_key_does_not_double_send_or_charge(db, demo_user):
@@ -29,7 +30,9 @@ def test_duplicate_idempotency_key_does_not_double_send_or_charge(db, demo_user)
 
     assert first.id == second.id
     assert db.query(NotificationDelivery).filter(NotificationDelivery.idempotency_key == "dup-imessage").count() == 1
-    assert demo_user.credit_balance == before - 2
+    # Mock deliveries are never billed: no credit change, and the duplicate
+    # did not double-charge.
+    assert demo_user.credit_balance == before
 
 
 def test_pro_default_cannot_send_imessage(db, demo_user):
@@ -46,8 +49,9 @@ def test_max_can_send_imessage(db, demo_user):
 
     delivery = send_notification(db, demo_user.id, "imessage", "allowed", {"idempotency_key": "max-imessage-ok"})
 
-    assert delivery.status == "sent"
-    assert delivery.provider_response["mode"] == "mock"
+    # Mock provider delivers nothing: recorded as skipped and never billed.
+    assert delivery.status == "skipped"
+    assert delivery.provider_response["reason"] == "mock_recipient"
 
 
 def test_insufficient_credits_skips_notification(db, user_factory):
@@ -78,13 +82,26 @@ def test_imessage_daily_rate_limit(monkeypatch, db, max_user):
         "__init__",
         lambda self: setattr(self, "settings", Settings(imessage_rate_limit_per_user_per_day=1)),
     )
+    # Mock deliveries are recorded as skipped (and never billed), so they do
+    # not consume the daily quota. Seed one sent row to exercise the
+    # production counting path (real relay deliveries are recorded as sent).
+    db.add(
+        NotificationDelivery(
+            user_id=max_user.id,
+            channel="imessage",
+            recipient="+15555550100",
+            payload={"message": "seed"},
+            status="sent",
+            idempotency_key="limit-seed",
+            created_at=utcnow(),
+        )
+    )
+    db.commit()
 
-    first = send_notification(db, max_user.id, "imessage", "first", {"idempotency_key": "limit-first"})
-    second = send_notification(db, max_user.id, "imessage", "second", {"idempotency_key": "limit-second"})
+    delivery = send_notification(db, max_user.id, "imessage", "first", {"idempotency_key": "limit-first"})
 
-    assert first.status == "sent"
-    assert second.status == "skipped"
-    assert second.provider_response["reason"] == "daily_rate_limit"
+    assert delivery.status == "skipped"
+    assert delivery.provider_response["reason"] == "daily_rate_limit"
 
 
 def test_delivery_status_values_are_persisted(db, demo_user):

@@ -40,9 +40,24 @@ def test_registry_defaults_to_mock_when_account_missing():
 
 
 def test_registry_binance_testnet_selected():
+    # Testnet order submission is fail-closed by default: without an explicit
+    # NAUTILUS_TESTNET_SUBMIT_ENABLED=true (config.testnet_submit_enabled),
+    # even a testnet venue resolves to the unavailable adapter.
     gateway = adapter_for(
         {"venue": "binance", "environment": "TESTNET"},
         config=None,
+    )
+    assert isinstance(gateway, UnavailableAdapter)
+
+    class Config:
+        testnet_submit_enabled = True
+        binance_testnet_base_url = "https://testnet.binance.vision"
+        binance_testnet_recv_window_ms = 5000
+        binance_testnet_timeout_seconds = 10.0
+
+    gateway = adapter_for(
+        {"venue": "binance", "environment": "TESTNET"},
+        config=Config(),
     )
     assert isinstance(gateway, BinanceSpotTestnetAdapter)
     assert gateway.base_url == "https://testnet.binance.vision"

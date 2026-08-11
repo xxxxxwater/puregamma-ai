@@ -275,6 +275,7 @@ _EXPORT_SENSITIVE_COLUMNS = {
     "key_hash",
     "api_key",  # gateway api keys are masked below regardless
 }
+_EXPORT_MAX_ROWS_PER_TABLE = 1000
 
 
 @router.get("/me/export")
@@ -292,6 +293,7 @@ def export_account(
 
     user_id = user.id
     tables: dict[str, list[dict]] = {}
+    truncated_tables: list[str] = []
     for table in Base.metadata.sorted_tables:
         if table.name == User.__tablename__:
             continue
@@ -299,7 +301,12 @@ def export_account(
         if scope is None:
             continue
         columns = [col.name for col in table.columns if col.name not in _EXPORT_SENSITIVE_COLUMNS]
-        rows = db.execute(table.select().where(scope).limit(1000)).mappings().all()
+        # Pull one extra row to detect truncation instead of silently
+        # dropping rows beyond the cap.
+        rows = db.execute(table.select().where(scope).limit(_EXPORT_MAX_ROWS_PER_TABLE + 1)).mappings().all()
+        if len(rows) > _EXPORT_MAX_ROWS_PER_TABLE:
+            truncated_tables.append(table.name)
+            rows = rows[:_EXPORT_MAX_ROWS_PER_TABLE]
         records = []
         for row in rows:
             record = {col: _export_value(row[col]) for col in columns}
@@ -318,7 +325,12 @@ def export_account(
         "created_at": user.created_at.isoformat() if user.created_at else None,
         "last_login_at": user.last_login_at.isoformat() if user.last_login_at else None,
     }
-    return {"user": user_data, "tables": tables, "exported_at": utcnow().isoformat()}
+    return {
+        "user": user_data,
+        "tables": tables,
+        "truncated_tables": truncated_tables,
+        "exported_at": utcnow().isoformat(),
+    }
 
 
 def _export_value(value):

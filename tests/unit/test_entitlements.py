@@ -59,8 +59,10 @@ def test_payment_failed_restricts_high_cost_and_imessage(db, demo_user):
 
 
 def test_free_can_run_backtest_by_credits_only():
-    assert can_run_action("Free", "backtest") is True
-    assert can_run_action("Free", "backtest_export") is True
+    # 8f791e9: backtests are now gated by plan — the Free plan cannot run them.
+    assert can_run_action("Free", "backtest") is False
+    assert can_run_action("Free", "backtest_export") is False
+    assert can_run_action("Pro", "backtest") is True
 
 
 def test_backtest_blocked_when_subscription_restricted():

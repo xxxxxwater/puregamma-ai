@@ -157,10 +157,10 @@ def test_unified_run_lifecycle_with_real_seeded_candles(monkeypatch, db, pro_use
     observed_statuses: list[str] = []
     real_run_vectorbt = ubs.run_vectorbt
 
-    def _wrapped(spec, window):
+    def _wrapped(spec, window, **kwargs):
         row = db.query(BacktestRun).order_by(BacktestRun.created_at.desc()).first()
         observed_statuses.append(row.status)
-        return real_run_vectorbt(spec, window)
+        return real_run_vectorbt(spec, window, **kwargs)
 
     monkeypatch.setattr(ubs, "run_vectorbt", _wrapped)
 
@@ -227,10 +227,10 @@ def test_cancel_running_run_wins_over_worker_completion(monkeypatch, db, pro_use
     monkeypatch.setattr(ubs, "refresh_daily_candles", lambda _db, assets: {})
     real_run_vectorbt = ubs.run_vectorbt
 
-    def _cancel_midflight(spec, window):
+    def _cancel_midflight(spec, window, **kwargs):
         row = db.query(BacktestRun).order_by(BacktestRun.created_at.desc()).first()
         ubs.cancel_unified_run(db, row.user_id, row.id)
-        return real_run_vectorbt(spec, window)
+        return real_run_vectorbt(spec, window, **kwargs)
 
     monkeypatch.setattr(ubs, "run_vectorbt", _cancel_midflight)
     balance_before = db.get(User, pro_user.id).credit_balance

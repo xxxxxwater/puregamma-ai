@@ -1,4 +1,4 @@
-﻿services:
+services:
   postgres:
     image: postgres:16
     restart: unless-stopped
@@ -73,6 +73,7 @@
       dockerfile: Dockerfile.api
       args:
         INSTALL_DOCKER_CLI: 'false'
+    env_file: .env
     environment:
       APP_ENV: production
       SITE_URL: https://${APP_DOMAIN:?APP_DOMAIN is required}

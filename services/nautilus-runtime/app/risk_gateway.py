@@ -80,19 +80,20 @@ class RuntimeRiskGateway:
         position_notional = 0.0
         if self.store is not None:
             for position in self.store.list_paper_positions(order["account_id"]):
-                position_notional += float(position.get("quantity", 0)) * float(
+                position_notional += float(position.get("quantity") or 0) * float(
                     position.get("mark_price", position.get("average_price", 0)) or 0
                 )
-        order_notional = float(order.get("notional", 0))
+        order_notional = float(order.get("notional") or 0)
         aggregate_after = position_notional + order_notional
-        max_aggregate = float(policy.get("max_aggregate_notional", 0))
+        max_aggregate = float(policy.get("max_aggregate_notional") or 0)
         if max_aggregate > 0 and aggregate_after > max_aggregate:
             reasons.append("MAX_AGGREGATE_NOTIONAL")
 
         available_margin = float(account.get("available_margin") or 0)
         equity = float(account.get("equity") or account.get("balance") or 0)
         margin_base = available_margin if available_margin > 0 else equity
-        max_leverage = min(5.0, float(policy.get("max_leverage", 1)))
+        # Hard cap of 5x: a misconfigured policy must never permit more.
+        max_leverage = min(5.0, float(policy.get("max_leverage") or 1))
         if margin_base > 0 and aggregate_after > margin_base * max_leverage:
             reasons.append("EXPOSURE_EXCEEDS_MARGIN")
         elif margin_base <= 0 and aggregate_after > 0:

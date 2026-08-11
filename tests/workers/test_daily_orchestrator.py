@@ -145,7 +145,10 @@ def test_eight_users_same_minute_exactly_once(monkeypatch, db, user_factory):
     assert len({row.idempotency_key for row in deliveries}) == len(deliveries)
     for user_id in user_ids:
         for channel in ("email", "telegram", "web"):
-            assert per_user_channel.get((user_id, channel)) == len(DEFAULT_TYPES)
+            # email is a single consolidated mail; other channels keep one
+            # notification per report type (024b983).
+            expected = 1 if channel == "email" else len(DEFAULT_TYPES)
+            assert per_user_channel.get((user_id, channel)) == expected
 
     reports_after = db.query(Report).filter(Report.user_id.in_(user_ids)).count()
     deliveries_after = db.query(NotificationDelivery).filter(NotificationDelivery.user_id.in_(user_ids)).count()
@@ -193,8 +196,9 @@ def test_missing_channel_recipient_is_skipped_not_failed(monkeypatch, db, user_f
     assert preference.last_error is None
 
     email_rows = db.query(NotificationDelivery).filter_by(user_id=user_id, channel="email").all()
-    assert len(email_rows) == len(DEFAULT_TYPES)
-    assert {row.status for row in email_rows} == {"sent"}
+    assert len(email_rows) == 1  # single consolidated mail (024b983)
+    # No SMTP credentials in tests: mock provider records a skipped delivery.
+    assert {row.status for row in email_rows} == {"skipped"}
 
     slack_rows = db.query(NotificationDelivery).filter_by(user_id=user_id, channel="slack").all()
     assert len(slack_rows) == len(DEFAULT_TYPES)

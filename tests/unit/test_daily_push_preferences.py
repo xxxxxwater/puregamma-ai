@@ -61,7 +61,8 @@ def test_due_daily_push_reuses_report_and_is_idempotent(monkeypatch, db, pro_use
     # audit row per report type.
     email_rows = db.query(NotificationDelivery).filter_by(user_id=user_id, channel="email").all()
     assert len(email_rows) == 1
-    assert email_rows[0].status == "sent"
+    # No SMTP credentials in tests: mock provider records a skipped delivery.
+    assert email_rows[0].status == "skipped"
     combined = email_rows[0].payload.get("message", "")
     assert "US Daily" in combined
     assert "Week Ahead" in combined

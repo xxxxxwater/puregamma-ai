@@ -114,6 +114,15 @@ class Settings:
     deepseek_timeout_seconds: int = int(
         os.getenv("DEEPSEEK_TIMEOUT_SECONDS", "60") or 60
     )
+    # Kimi (Moonshot) is consumed by ModelRouter for long-context synthesis;
+    # absent here it would AttributeError at provider construction time.
+    kimi_api_key: str = os.getenv("KIMI_API_KEY", "")
+    kimi_base_url: str = os.getenv("KIMI_BASE_URL", "https://api.moonshot.ai/v1")
+    kimi_model: str = os.getenv("KIMI_MODEL", "kimi-k3")
+    kimi_timeout_seconds: int = int(
+        os.getenv("KIMI_TIMEOUT_SECONDS", "60") or 60
+    )
+    kimi_enabled: bool = os.getenv("KIMI_ENABLED", "false").lower() == "true"
     # The public AI gateway is opt-in so existing PureGamma deployments do not
     # begin serving third-party API traffic before provider credentials and a
     # dedicated key pepper have been provisioned.
@@ -479,6 +488,11 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("OPENAI_API_KEY and OPENAI_MODEL are required for the production OpenAI provider")
     elif settings.llm_provider.lower() == "deepseek" and not settings.deepseek_api_key:
         errors.append("DEEPSEEK_API_KEY is required for the production DeepSeek provider")
+    if settings.kimi_enabled:
+        if not settings.kimi_api_key:
+            errors.append("KIMI_API_KEY is required when KIMI_ENABLED=true")
+        if not settings.kimi_model:
+            errors.append("KIMI_MODEL is required when KIMI_ENABLED=true")
     if settings.gateway_enabled:
         if len(settings.gateway_api_key_pepper) < 32:
             errors.append("GATEWAY_API_KEY_PEPPER must be at least 32 characters when GATEWAY_ENABLED=true")

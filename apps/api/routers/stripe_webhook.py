@@ -74,12 +74,20 @@ async def stripe_webhook(
         raise
     except Exception as exc:
         db.rollback()
-        from apps.api.services.ops_alert import notify_ops
+        # notify_ops does a blocking HTTP post (up to 10s): never stall the
+        # event loop from an async route.
+        try:
+            import asyncio
 
-        notify_ops(
-            f"Stripe webhook processing failed: {str(exc)[:300]} (event={event_id or 'unknown'})",
-            level="error",
-        )
+            from apps.api.services.ops_alert import notify_ops
+
+            await asyncio.to_thread(
+                notify_ops,
+                f"Stripe webhook processing failed: {str(exc)[:300]} (event={event_id or 'unknown'})",
+                level="error",
+            )
+        except Exception:
+            logger.exception("ops_alert_failed")
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     finally:
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)

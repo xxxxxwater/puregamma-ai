@@ -860,7 +860,7 @@ def process_stripe_event(db: Session, event: dict, raw_payload: bytes) -> dict:
         elif event_type == "payment_intent.payment_failed":
             _handle_payment_intent_failed(db, obj)
         elif event_type == "charge.refunded":
-            _handle_charge_refunded(obj)
+            _handle_charge_refunded(db, obj)
         row.processed = True
         row.processed_at = datetime.now(timezone.utc)
     except ManualReviewRequired as exc:

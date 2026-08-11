@@ -32,5 +32,7 @@ def test_daily_push_job_delegates_to_unified_orchestrator(monkeypatch, db, demo_
     assert result["sent"] >= 1
     assert again["due"] == 0  # advanced to the next local slot, no re-dispatch
     email_rows = db.query(NotificationDelivery).filter_by(user_id=demo_user.id, channel="email").all()
-    assert len(email_rows) == 4  # one per default report type
-    assert {row.status for row in email_rows} == {"sent"}
+    assert len(email_rows) == 1  # single consolidated mail (024b983)
+    # No SMTP credentials in tests: the mock provider records a skipped
+    # delivery instead of a sent one (and never bills the user).
+    assert {row.status for row in email_rows} == {"skipped"}

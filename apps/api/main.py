@@ -187,14 +187,20 @@ def metrics() -> str:
     from apps.api.services.ops_alert import METRICS_COUNTERS, METRICS_STARTED_AT
     from packages.database.session import SessionLocal
     from packages.database.models import GatewayRequestLog, StripeWebhookEvent
+    from datetime import datetime, timedelta, timezone
 
     db = SessionLocal()
+    # Window the aggregates: an unbounded COUNT over gateway_request_logs /
+    # stripe_webhook_events grows unbounded and would slow every scrape.
+    window_start = datetime.now(timezone.utc) - timedelta(days=7)
     try:
         failed_webhooks = db.query(StripeWebhookEvent).filter(
-            StripeWebhookEvent.error_message.isnot(None)
+            StripeWebhookEvent.error_message.isnot(None),
+            StripeWebhookEvent.created_at >= window_start,
         ).count()
         gateway_errors = db.query(GatewayRequestLog).filter(
-            GatewayRequestLog.status != "success"
+            GatewayRequestLog.status != "success",
+            GatewayRequestLog.created_at >= window_start,
         ).count()
     except Exception:
         failed_webhooks = 0

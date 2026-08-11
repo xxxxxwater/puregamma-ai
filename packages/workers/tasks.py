@@ -718,6 +718,10 @@ def generate_portfolio_nav(snapshot_date=None) -> dict:
                     included_accounts.append(account.id)
                     if data_as_of is None or (latest.captured_at and latest.captured_at > data_as_of):
                         data_as_of = latest.captured_at
+                    # PositionSnapshot rows are append-only history: keep only
+                    # the LATEST row per symbol (per account), otherwise the
+                    # same position is counted once per sync.
+                    seen_symbols: set[str] = set()
                     for pos in (
                         db.query(PositionSnapshot)
                         .filter_by(user_id=user_id, account_id=account.id)
@@ -726,19 +730,24 @@ def generate_portfolio_nav(snapshot_date=None) -> dict:
                         .all()
                     ):
                         symbol = pos.instrument
+                        if symbol in seen_symbols:
+                            continue
+                        seen_symbols.add(symbol)
+                        quantity = float(pos.quantity or 0)
+                        mark_price = float(pos.mark_price or 0)
                         entry = positions.setdefault(
                             symbol,
                             {
                                 "quantity": 0.0,
-                                "mark_price": pos.mark_price,
+                                "mark_price": mark_price,
                                 "value": 0.0,
                                 "unrealized_pnl": 0.0,
                             },
                         )
-                        entry["quantity"] += float(pos.quantity)
-                        entry["value"] += float(pos.quantity) * float(pos.mark_price)
+                        entry["quantity"] += quantity
+                        entry["value"] += quantity * mark_price
                         entry["unrealized_pnl"] += float(pos.unrealized_pnl or 0.0)
-                        entry["mark_price"] = pos.mark_price
+                        entry["mark_price"] = mark_price
                 if not included_accounts:
                     # No usable source data: preserve the previous valid snapshot.
                     skipped += 1
@@ -779,7 +788,13 @@ def generate_portfolio_nav(snapshot_date=None) -> dict:
         db.close()
 
 
+@celery_app.task(name="puregamma.generate_shared_daily_market_intelligence")
+def generate_shared_daily_market_intelligence() -> str:
+    """Warm the shared daily market intelligence record.
 
+    Scheduled at 00:00 UTC and every 4h; the every-minute orchestrator relies
+    on the warmed record being present for per-user brief generation.
+    """
     db = SessionLocal()
     try:
         item = generate_shared_market_intelligence(db)

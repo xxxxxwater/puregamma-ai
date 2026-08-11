@@ -3,7 +3,8 @@ from __future__ import annotations
 import logging
 
 from celery import Celery
-from celery.signals import task_failure, task_soft_time_limited
+from celery.exceptions import SoftTimeLimitExceeded
+from celery.signals import task_failure
 
 from apps.api.config import get_settings
 
@@ -57,12 +58,12 @@ def _alert_ops(task_name: str, message: str, *, level: str = "warning") -> None:
         logger.exception("ops_alert_failed task=%s", task_name)
 
 
-@task_soft_time_limited.connect
-def _on_task_soft_timeout(sender, task_id, **kwargs):
-    _alert_ops(sender.name, f"task {task_id} hit soft time limit", level="error")
-
-
 @task_failure.connect
 def _on_task_failure(sender, task_id, exception, traceback, **kwargs):
+    # Celery has no dedicated soft-time-limit signal: a soft timeout surfaces
+    # here as SoftTimeLimitExceeded, so give it its own alert wording.
+    if isinstance(exception, SoftTimeLimitExceeded):
+        _alert_ops(sender.name, f"task {task_id} hit soft time limit", level="error")
+        return
     _alert_ops(sender.name, f"task {task_id} failed: {exception!r}", level="error")
 

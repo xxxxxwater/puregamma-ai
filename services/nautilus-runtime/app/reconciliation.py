@@ -12,6 +12,11 @@ def _fill_notional(fill: dict) -> float:
     return float(fill.get("amount") or fill.get("notional") or 0)
 
 
+def _fill_quantity(fill: dict) -> float:
+    """Filled quantity of one fill row, tolerating quantity variants."""
+    return float(fill.get("quantity") or fill.get("filled_quantity") or 0)
+
+
 class RuntimeReconciler:
     def __init__(self, store, exchange, risk):
         self.store = store
@@ -56,16 +61,23 @@ class RuntimeReconciler:
         ]
         local_fill_count = len(local_fills)
         local_fill_notional = sum(
-            float(order.get("filled_quantity", 0))
+            float(order.get("filled_quantity") or 0)
             * float(order.get("average_price", order.get("mark_price", 0)) or 0)
             for order in local_fills
+        )
+        local_fill_quantity = sum(
+            float(order.get("filled_quantity") or 0) for order in local_fills
         )
         remote_fills = remote.get("fills", [])
         remote_fill_count = len(remote_fills)
         remote_fill_notional = sum(_fill_notional(fill) for fill in remote_fills)
+        remote_fill_quantity = sum(_fill_quantity(fill) for fill in remote_fills)
         fills_diverged = (
             local_fill_count != remote_fill_count
             or abs(local_fill_notional - remote_fill_notional) > 1e-6
+        )
+        quantity_diverged = (
+            abs(local_fill_quantity - remote_fill_quantity) > 1e-6
         )
 
         drift = {
@@ -75,7 +87,11 @@ class RuntimeReconciler:
             "adapter_fills": remote_fill_count,
             "local_fill_notional": round(local_fill_notional, 8),
             "adapter_fill_notional": round(remote_fill_notional, 8),
+            "local_fill_quantity": round(local_fill_quantity, 8),
+            "adapter_fill_quantity": round(remote_fill_quantity, 8),
             "fills_diverged": fills_diverged,
+            "fill_amount_diverged": fills_diverged,
+            "fill_quantity_diverged": quantity_diverged,
         }
 
         needs_pause = bool(unknown or remote_only or fills_diverged)

@@ -45,7 +45,8 @@ def _reconciler(orders, open_orders, fills, risk=None):
     store = FakeStore(orders)
     exchange = FakeExchange(open_orders, fills)
     risk = risk or RuntimeRiskGateway()
-    return RuntimeReconciler(store, exchange, risk), risk
+    reconciler = RuntimeReconciler(store, exchange, risk)
+    return reconciler.reconcile("acct-1"), risk
 
 
 def test_reconciled_when_local_open_matches_remote():

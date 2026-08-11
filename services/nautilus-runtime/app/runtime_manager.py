@@ -372,8 +372,8 @@ class RuntimeManager:
         positions = self.store.list_paper_positions()
         by_account: dict[str, float] = {}
         for position in positions:
-            pnl = float(position.get("realized_pnl", 0)) + float(
-                position.get("unrealized_pnl", 0)
+            pnl = float(position.get("realized_pnl") or 0) + float(
+                position.get("unrealized_pnl") or 0
             )
             account_id = position.get("account_id") or ""
             by_account[account_id] = by_account.get(account_id, 0.0) + pnl

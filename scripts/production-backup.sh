@@ -38,26 +38,39 @@ chmod 0600 "${DATABASE_BACKUP}" "${RUNTIME_BACKUP}" "${BACKUP_DIR}/checksums-${T
 find "${BACKUP_DIR}" -type f -mtime "+${RETENTION_DAYS}" -delete
 
 if [[ -n "${S3_BUCKET}" ]]; then
+  upload_failed() {
+    echo "ERROR: off-site backup upload failed (${1}); backup remains local-only" >&2
+    exit 1
+  }
   for client in aws rclone s3cmd; do
     if command -v "${client}" >/dev/null 2>&1; then
       case "${client}" in
         aws)
           args=(s3 cp --no-progress)
           [[ -n "${S3_ENDPOINT}" ]] && args+=(--endpoint-url "${S3_ENDPOINT}")
-          "${client}" "${args[@]}" "${DATABASE_BACKUP}" "${S3_BUCKET%/}/postgres-${TIMESTAMP}.dump"
-          "${client}" "${args[@]}" "${RUNTIME_BACKUP}" "${S3_BUCKET%/}/nautilus-runtime-${TIMESTAMP}.tar.gz"
-          "${client}" "${args[@]}" "${BACKUP_DIR}/checksums-${TIMESTAMP}.sha256" "${S3_BUCKET%/}/checksums-${TIMESTAMP}.sha256"
+          "${client}" "${args[@]}" "${DATABASE_BACKUP}" "${S3_BUCKET%/}/postgres-${TIMESTAMP}.dump" || upload_failed aws
+          "${client}" "${args[@]}" "${RUNTIME_BACKUP}" "${S3_BUCKET%/}/nautilus-runtime-${TIMESTAMP}.tar.gz" || upload_failed aws
+          "${client}" "${args[@]}" "${BACKUP_DIR}/checksums-${TIMESTAMP}.sha256" "${S3_BUCKET%/}/checksums-${TIMESTAMP}.sha256" || upload_failed aws
           ;;
         rclone)
+          # rclone needs a configured remote name (e.g. "backup-s3:bucket");
+          # the s3:// scheme is only understood by aws/s3cmd, so fail loudly
+          # instead of silently keeping backups local-only.
+          case "${S3_BUCKET}" in
+            s3://*)
+              echo "ERROR: rclone requires a configured remote name (remote:bucket), not S3_BUCKET=${S3_BUCKET}" >&2
+              exit 1
+              ;;
+          esac
           remote="${S3_BUCKET}"
-          "${client}" copy "${DATABASE_BACKUP}" "${remote%/}/"
-          "${client}" copy "${RUNTIME_BACKUP}" "${remote%/}/"
-          "${client}" copy "${BACKUP_DIR}/checksums-${TIMESTAMP}.sha256" "${remote%/}/"
+          "${client}" copy "${DATABASE_BACKUP}" "${remote%/}/" || upload_failed rclone
+          "${client}" copy "${RUNTIME_BACKUP}" "${remote%/}/" || upload_failed rclone
+          "${client}" copy "${BACKUP_DIR}/checksums-${TIMESTAMP}.sha256" "${remote%/}/" || upload_failed rclone
           ;;
         s3cmd)
-          "${client}" put "${DATABASE_BACKUP}" "${S3_BUCKET%/}/"
-          "${client}" put "${RUNTIME_BACKUP}" "${S3_BUCKET%/}/"
-          "${client}" put "${BACKUP_DIR}/checksums-${TIMESTAMP}.sha256" "${S3_BUCKET%/}/"
+          "${client}" put "${DATABASE_BACKUP}" "${S3_BUCKET%/}/" || upload_failed s3cmd
+          "${client}" put "${RUNTIME_BACKUP}" "${S3_BUCKET%/}/" || upload_failed s3cmd
+          "${client}" put "${BACKUP_DIR}/checksums-${TIMESTAMP}.sha256" "${S3_BUCKET%/}/" || upload_failed s3cmd
           ;;
       esac
       echo "offsite_backup_uploaded client=${client} bucket=${S3_BUCKET}"
