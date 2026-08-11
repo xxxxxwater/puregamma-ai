@@ -42,7 +42,7 @@ class RuntimeManager:
         self.events = RuntimeEventBus(self.nautilus)
         self.exchange = MockExchangeGateway(self.store)
         self.external_adapters = [HyperliquidAdapter(), CoinbaseAdvancedAdapter()]
-        self.risk = RuntimeRiskGateway()
+        self.risk = RuntimeRiskGateway(store=self.store)
         self.execution = RuntimeExecutionGateway(self.store, self.exchange, self.risk)
         self.runner = RuntimeStrategyRunner(self.store, self.events)
         self.reconciler = RuntimeReconciler(self.store, self.exchange, self.risk)
@@ -259,6 +259,13 @@ class RuntimeManager:
             return self.execution
         if str(run.get("mode", "")).upper() == "SHADOW":
             return self.shadow_execution_for_account(account)
+        if str(run.get("mode", "")).upper() == "PAPER":
+            # PAPER is simulated accounting: it may only run against the MOCK
+            # venue. A PAPER run bound to a real (even testnet) venue would
+            # submit signed orders while the user believes it is pure paper.
+            raise ValueError(
+                "PAPER execution requires the MOCK venue; real venues require SHADOW mode"
+            )
         if key not in self._execution_gateways:
             self._execution_gateways[key] = RuntimeExecutionGateway(
                 self.store, self.gateway_for_account(account), self.risk
@@ -272,6 +279,12 @@ class RuntimeManager:
             return self.execution.submit(payload)
         if str(payload.get("mode", "")).upper() == "SHADOW":
             return self.shadow_execution_for_account(account).submit(payload)
+        if str(payload.get("mode", "")).upper() == "PAPER":
+            # Same guarantee as _execution_for_run: PAPER never touches a real
+            # venue, testnet included.
+            raise ValueError(
+                "PAPER execution requires the MOCK venue; real venues require SHADOW mode"
+            )
         if key not in self._execution_gateways:
             self._execution_gateways[key] = RuntimeExecutionGateway(
                 self.store, self.gateway_for_account(account), self.risk
