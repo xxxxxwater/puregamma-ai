@@ -38,12 +38,6 @@
       }
     ]
   },
-  "stats": [
-    "Live Market Context",
-    "Sourced Alpha Research",
-    "Long Gamma Screening",
-    "Risk-first Decisions"
-  ],
   "sections": {
     "researchProcess": "Research Process",
     "portfolioAware": "Portfolio-aware Intelligence",
@@ -52,24 +46,6 @@
     "dailyDelivery": "Daily Research Delivery",
     "strategyLab": "Strategy Research Lab",
     "accessDisclosure": "Access & Disclosure"
-  },
-  "research": {
-    "eyebrow": "About",
-    "headline": "Three different return questions require three different decision frameworks.",
-    "cards": [
-      {
-        "title": "Beta Exposure",
-        "body": "Understand the market regime, direction, volatility, and the risk you are taking with the broader market."
-      },
-      {
-        "title": "Alpha Discovery",
-        "body": "Look for differentiated information, catalysts, and relative-value evidence that is not explained by market Beta alone."
-      },
-      {
-        "title": "Long Gamma",
-        "body": "Evaluate convex option exposure using implied volatility, Gamma, Theta cost, liquidity, and event timing."
-      }
-    ]
   },
   "trust": [
     {

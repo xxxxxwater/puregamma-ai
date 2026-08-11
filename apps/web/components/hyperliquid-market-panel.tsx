@@ -68,6 +68,31 @@ function compactUsd(value?: number): string {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
+// Hyperliquid official coin icons (https://app.hyperliquid.xyz/coins/{COIN}.svg).
+// Synthetic XYZ assets (CL, S&P500, ...) have no icon upstream: fall back to a
+// first-letter badge so every row still renders a leading asset mark.
+function assetCoin(instrumentId: string): string {
+  return instrumentId.startsWith("xyz:") ? instrumentId.slice(4) : instrumentId;
+}
+
+function AssetIcon({ coin }: { coin: string }) {
+  const [failed, setFailed] = useState(false);
+  if (failed) {
+    return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-pg bg-bg-panel-muted text-[10px] font-bold text-text-pg-muted">{coin.charAt(0)}</span>;
+  }
+  return (
+    <img
+      src={`https://app.hyperliquid.xyz/coins/${coin}.svg`}
+      alt={coin}
+      width={24}
+      height={24}
+      loading="lazy"
+      onError={() => setFailed(true)}
+      className="h-6 w-6 shrink-0 rounded-full object-cover"
+    />
+  );
+}
+
 function percent(value?: number): string {
   if (value === undefined) return "--";
   return `${value >= 0 ? "+" : ""}${value.toFixed(2)}%`;
@@ -200,7 +225,7 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
           </thead>
           <tbody>
             {rows.map(({ instrument, candle, context, last, change, openInterestUsd }) => <tr key={instrument.id} className="border-t border-border-pg/70 hover:bg-bg-panel-muted">
-              <td className="px-4 py-3"><div className="font-semibold text-text-pg">{instrument.symbol}</div><div className="mt-1 text-[10px] text-text-pg-dim">{instrument.leverage}x · {instrument.venue}</div></td>
+              <td className="px-4 py-3"><div className="flex items-center gap-2.5"><AssetIcon coin={assetCoin(instrument.id)} /><span className="font-semibold text-text-pg">{instrument.symbol}</span></div><div className="mt-1 text-[10px] text-text-pg-dim">{instrument.leverage}x · {instrument.venue}</div></td>
               <td key={`px-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right text-text-pg">{price(last)}</td>
               <td key={`chg-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right">
                 <span className="inline-block border border-border-pg-strong bg-pg-white px-1.5 py-0.5 font-semibold text-pg-black rounded-lg">{percent(change)}</span>

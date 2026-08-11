@@ -48,3 +48,6 @@ build/
 .idea/
 .vscode/
 *.swp
+
+# Playwright MCP artifacts.playwright-mcp/
+

@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import Image from "next/image";
 import { ArrowRight } from "lucide-react";
-import { Badge, PGResearchCard } from "@/components/puregamma";
+import { Badge } from "@/components/puregamma";
 import { LandingFooterRotator } from "@/components/landing-footer-rotator";
+import { TradingArchitecture } from "@/components/trading-architecture";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace } from "@/lib/translations";
 import { isLocale, type Locale, withLocale } from "@/i18n/routing";
@@ -37,27 +38,8 @@ export default function LandingPage({ params }: { params: { locale: Locale } }) 
               </Link>
             </div>
           </div>
-          <PGResearchCard>
-            <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">{copy.engine.eyebrow}</div>
-            <div className="mt-6 divide-y divide-border-pg border border-border-pg rounded-xl overflow-hidden">
-              {copy.engine.rows.map((row, index) => (
-                <div key={row.label} className="grid grid-cols-[52px_1fr] gap-4 p-4">
-                  <span className="text-text-pg-dim">{String(index + 1).padStart(2, "0")}</span>
-                  <div><div className="font-semibold">{row.label}</div><div className="mt-1 text-sm text-text-pg-muted">{row.detail}</div></div>
-                </div>
-              ))}
-            </div>
-          </PGResearchCard>
+          <TradingArchitecture locale={locale} />
         </div>
-      </section>
-
-      <section className="grid gap-px border border-border-pg bg-border-pg md:grid-cols-4 rounded-xl overflow-hidden">
-        {copy.stats.map((item) => <div key={item} className="bg-bg-panel p-5 text-sm font-semibold">{item}</div>)}
-      </section>
-
-      <section id="research" className="grid gap-3 md:grid-cols-4">
-        <PGResearchCard><div className="text-[0.68rem] uppercase tracking-[0.16em] text-text-pg-muted">{copy.research.eyebrow}</div><h2 className="mt-2 text-lg font-semibold">{copy.research.headline}</h2></PGResearchCard>
-        {copy.research.cards.map((item) => <PGResearchCard key={item.title}><h3 className="text-sm font-semibold">{item.title}</h3><p className="mt-2 text-xs leading-5 text-text-pg-muted">{item.body}</p></PGResearchCard>)}
       </section>
 
       <LandingFooterRotator slides={copy.footerSlides} />

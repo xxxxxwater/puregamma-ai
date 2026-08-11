@@ -104,7 +104,7 @@ def _aggregate_rows(rows) -> dict[str, Any]:
 
 def usage_summary(
     db: Session,
-    user_id: str,
+    user_id: str | None,
     start: datetime,
     end: datetime,
     granularity: str,
@@ -112,13 +112,17 @@ def usage_summary(
     api_key_id: str | None = None,
 ) -> dict[str, Any]:
     """Aggregate GatewayRequestLog into a zero-filled time series plus totals
-    and per-model / per-key breakdowns for one user."""
+    and per-model / per-key breakdowns.
+
+    ``user_id`` scopes the aggregation to one user; ``None`` aggregates across
+    every user (used by the administrator console)."""
     start = start.astimezone(timezone.utc)
     end = end.astimezone(timezone.utc)
 
     def _filters(query):
+        if user_id is not None:
+            query = query.filter(GatewayRequestLog.user_id == user_id)
         query = query.filter(
-            GatewayRequestLog.user_id == user_id,
             GatewayRequestLog.created_at >= start,
             GatewayRequestLog.created_at < end,
         )
@@ -206,9 +210,12 @@ def usage_summary(
         .order_by(func.sum(GatewayRequestLog.retail_cost_usd).desc())
         .all()
     )
+    key_query = db.query(GatewayApiKey)
+    if user_id is not None:
+        key_query = key_query.filter(GatewayApiKey.user_id == user_id)
     key_names = {
         row.id: {"name": row.name, "prefix": row.key_hint}
-        for row in db.query(GatewayApiKey).filter(GatewayApiKey.user_id == user_id).all()
+        for row in key_query.all()
     }
 
     def _model_row(row) -> dict[str, Any]:

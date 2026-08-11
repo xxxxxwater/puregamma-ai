@@ -31,19 +31,22 @@
 }
 
 :root {
-  --background: #030303;
-  --foreground: #ededed;
-  --panel: #0d0d0d;
-  --panel-muted: #111111;
-  --panel-strong: #161616;
+  /* DeepSeek console grey scale (--dsw-static-neutral-bluish-*):
+     base #101216 (bluish-950) -> layer-1 #191c22 (875) -> layer-2 #212123 (850)
+     -> layer-3 #292929 (800); text bluish-50; borders border-l1/l2. */
+  --background: #101216;
+  --foreground: #f5f6f8;
+  --panel: #191c22;
+  --panel-muted: #212123;
+  --panel-strong: #292929;
   --secretary-assistant-bg: #3b2a25;
   --secretary-assistant-text: #f1e4dc;
   --secretary-assistant-border: #5f443c;
   --secretary-assistant-muted: #c9aea2;
-  --border: rgba(255, 255, 255, 0.10);
-  --border-strong: rgba(255, 255, 255, 0.18);
-  --muted: #a3a3a3;
-  --muted-2: #737373;
+  --border: rgba(255, 255, 255, 0.06);
+  --border-strong: rgba(255, 255, 255, 0.12);
+  --muted: #a2a4a6;
+  --muted-2: #7f8287;
   --positive: #d9f99d;
   --negative: #fca5a5;
   --warning: #fde68a;
@@ -152,12 +155,12 @@ textarea {
   content: "";
   position: absolute;
   inset: 8px 0 5px 0;
-  background: linear-gradient(135deg, transparent 0 12%, #ededed 13% 15%, transparent 16% 28%, #a3a3a3 29% 31%, transparent 32% 49%, #737373 50% 52%, transparent 53% 68%, #ededed 69% 71%, transparent 72%);
+  background: linear-gradient(135deg, transparent 0 12%, #f5f6f8 13% 15%, transparent 16% 28%, #a2a4a6 29% 31%, transparent 32% 49%, #7f8287 50% 52%, transparent 53% 68%, #f5f6f8 69% 71%, transparent 72%);
 }
 
 ::selection {
-  background: #ededed;
-  color: #030303;
+  background: #f5f6f8;
+  color: #101216;
 }
 
 .secretary-bubble-assistant {
@@ -169,6 +172,28 @@ textarea {
 @keyframes market-cell-flash {
   0% { background-color: var(--flash-bg); }
   100% { background-color: transparent; }
+}
+
+/* Trading architecture diagram: data pulses flowing along the message bus
+   and between layers, mirroring the NautilusTrader component model. */
+@keyframes bus-flow {
+  0% { left: -12%; opacity: 0; }
+  15% { opacity: 1; }
+  85% { opacity: 1; }
+  100% { left: 100%; opacity: 0; }
+}
+
+@keyframes link-pulse {
+  0%, 100% { opacity: 0.25; transform: translate(-50%, -50%) scale(0.8); }
+  50% { opacity: 1; transform: translate(-50%, -50%) scale(1.15); }
+}
+
+.bus-flow {
+  animation: bus-flow 2.6s linear infinite;
+}
+
+.link-pulse {
+  animation: link-pulse 1.8s ease-in-out infinite;
 }
 
 :root {

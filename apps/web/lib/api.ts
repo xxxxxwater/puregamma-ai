@@ -765,6 +765,14 @@ export function getGatewayAdminProviders() { return requestStrict<{ providers: G
 export function getGatewayPendingPrices() { return requestStrict<{ revisions: GatewayPriceRevision[] }>("/admin/gateway/prices/pending"); }
 export function getGatewayMetrics() { return requestStrict<GatewayMetrics>("/admin/gateway/metrics"); }
 export function getGatewayPricingPolicy() { return requestStrict<{ policy: { markup_bps: number } }>("/admin/gateway/pricing/policy"); }
+export function getGatewayAdminUsage(locale: Locale = defaultLocale, params: { start?: string; end?: string; granularity?: "hour" | "day" } = {}) {
+  const query = new URLSearchParams();
+  if (params.start) query.set("start", params.start);
+  if (params.end) query.set("end", params.end);
+  if (params.granularity) query.set("granularity", params.granularity);
+  const suffix = query.toString() ? `?${query.toString()}` : "";
+  return api<GatewayUsage>(`/admin/gateway/usage${suffix}`, { fallback: emptyGatewayUsage, locale });
+}
 export function syncGatewayProviders() { return requestStrict<{ syncs: unknown[] }>("/admin/gateway/sync", { method: "POST" }); }
 export function approveGatewayPrice(revisionId: string) { return requestStrict<{ revision: GatewayPriceRevision }>(`/admin/gateway/prices/${revisionId}/approve`, { method: "POST" }); }
 export function updateGatewayMarkup(markupBps: number) { return requestStrict<{ policy: { markup_bps: number } }>("/admin/gateway/pricing/markup", { method: "PUT", body: JSON.stringify({ markup_bps: markupBps }) }); }

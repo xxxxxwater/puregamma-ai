@@ -38,12 +38,6 @@
       }
     ]
   },
-  "stats": [
-    "实时市场背景",
-    "证据型 Alpha 研究",
-    "Long Gamma 筛选",
-    "风险优先决策"
-  ],
   "sections": {
     "researchProcess": "研究流程",
     "portfolioAware": "组合感知情报",
@@ -52,24 +46,6 @@
     "dailyDelivery": "每日研究推送",
     "strategyLab": "策略研究实验室",
     "accessDisclosure": "访问权限与披露"
-  },
-  "research": {
-    "eyebrow": "关于",
-    "headline": "三类收益问题，需要三套不同的决策框架",
-    "cards": [
-      {
-        "title": "Beta 敞口",
-        "body": "理解市场状态、方向和波动，明确承担的是大盘风险还是个体机会"
-      },
-      {
-        "title": "Alpha 发掘",
-        "body": "寻找无法仅由市场 Beta 解释的差异化信息、催化因素和相对价值证据"
-      },
-      {
-        "title": "Long Gamma",
-        "body": "结合隐含波动率、Gamma、Theta 成本、流动性和事件窗口评估凸性机会"
-      }
-    ]
   },
   "trust": [
     {
