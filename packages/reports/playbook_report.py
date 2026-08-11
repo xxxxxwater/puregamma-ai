@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-from packages.reports.templates import disclaimer_for
-
 
 def render_playbook_report(playbooks: list[dict], language: str = "en") -> str:
     if language == "zh":
@@ -17,7 +15,6 @@ def render_playbook_report(playbooks: list[dict], language: str = "en") -> str:
                     "",
                 ]
             )
-        body.extend(["## 披露", disclaimer_for("zh")])
         return "\n".join(body)
     body = ["# PureGamma Playbooks", ""]
     for item in playbooks:
@@ -31,5 +28,4 @@ def render_playbook_report(playbooks: list[dict], language: str = "en") -> str:
                 "",
             ]
         )
-    body.extend(["## Disclaimer", disclaimer_for(language)])
     return "\n".join(body)

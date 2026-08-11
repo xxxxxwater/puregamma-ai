@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Coins, Flame, Globe, RefreshCw } from "lucide-react";
+import { RefreshCw } from "lucide-react";
 import { ResearchCard } from "@/components/puregamma";
 import { getMessageNamespace } from "@/lib/translations";
 import { getGlobalMarket, type GlobalMarketRow, type GlobalMarketSnapshot } from "@/lib/api";
@@ -9,89 +9,160 @@ import type { Locale } from "@/i18n/routing";
 
 const GROUP_ORDER = ["nasdaq_top", "metals", "forex", "energy"];
 
-// Company domain map for equity tickers (delayed yahoo quotes). Icons load
-// from Google's favicon service; unknown tickers fall back to a letter badge.
-const COMPANY_DOMAINS: Record<string, string> = {
-  NVDA: "nvidia.com",
-  MSFT: "microsoft.com",
-  AAPL: "apple.com",
-  PLTR: "palantir.com",
-  AMZN: "amazon.com",
-  TSLA: "tesla.com",
-  META: "meta.com",
-  GOOGL: "google.com",
-  GOOG: "google.com",
-  NFLX: "netflix.com",
-  AMD: "amd.com",
-  INTC: "intel.com",
-  ORCL: "oracle.com",
-  CRM: "salesforce.com",
-  AVGO: "broadcom.com",
-  MU: "micron.com",
-  SMCI: "supermicro.com",
-  COIN: "coinbase.com",
-  SHOP: "shopify.com",
-  UBER: "uber.com",
-  SNAP: "snap.com",
-  PINS: "pinterest.com",
-  SQ: "block.xyz",
-  PYPL: "paypal.com",
-  DIS: "disney.com",
-  JPM: "jpmorganchase.com",
-  BAC: "bankofamerica.com",
-  XOM: "exxonmobil.com",
-  CVX: "chevron.com",
-  JNJ: "jnj.com",
-  PFE: "pfizer.com",
-  UNH: "unitedhealthgroup.com",
-  WMT: "walmart.com",
-  PG: "pg.com",
-  KO: "coca-colacompany.com",
-  PEP: "pepsi.com",
-  MCD: "mcdonalds.com",
-  NKE: "nike.com",
-  BA: "boeing.com",
-  CAT: "caterpillar.com",
-  GE: "ge.com",
-  F: "ford.com",
-  GM: "gm.com",
+// Brand colors for equity tickers (self-hosted colored marks, TradingView
+// style). Unknown tickers fall back to a neutral gradient badge.
+const BRAND_COLORS: Record<string, string> = {
+  NVDA: "#76B900",
+  MSFT: "#00A4EF",
+  AAPL: "#A2AAAD",
+  PLTR: "#FF6B1A",
+  AMZN: "#FF9900",
+  TSLA: "#E31937",
+  META: "#0866FF",
+  GOOGL: "#4285F4",
+  GOOG: "#4285F4",
+  NFLX: "#E50914",
+  AMD: "#ED1C24",
+  INTC: "#0071C5",
+  ORCL: "#F80000",
+  CRM: "#00A1E0",
+  AVGO: "#CC092F",
+  MU: "#00B5CC",
+  SMCI: "#D65F00",
+  COIN: "#0052FF",
+  SHOP: "#95BF47",
+  UBER: "#111111",
+  SNAP: "#FFC107",
+  PINS: "#E60023",
+  SQ: "#001F5F",
+  PYPL: "#003087",
+  DIS: "#113CCF",
+  JPM: "#003DA5",
+  BAC: "#012169",
+  XOM: "#E21E25",
+  CVX: "#F2A900",
+  JNJ: "#D4145A",
+  PFE: "#008BD0",
+  UNH: "#0057B8",
+  WMT: "#0071DC",
+  PG: "#003DA5",
+  KO: "#F40009",
+  PEP: "#01427B",
+  MCD: "#FFBC0D",
+  NKE: "#111111",
+  BA: "#0033A1",
+  CAT: "#F5A800",
+  GE: "#0057D8",
+  F: "#1E5AA8",
+  GM: "#1E5AA8",
 };
 
 function normalizeTicker(symbol: string): string {
   return symbol.replace(/DLY$/, "").replace(/=X$/, "").replace(/=F$/, "");
 }
 
-function letterBadge(ticker: string, tone: "accent" | "gold" | "sky" | "amber") {
-  const bg = { accent: "bg-status-positive/15 text-status-positive", gold: "bg-[#f59e0b]/15 text-[#f59e0b]", sky: "bg-[#60a5fa]/15 text-[#60a5fa]", amber: "bg-status-warning/20 text-status-warning" }[tone];
-  return <span className={`grid h-6 w-6 shrink-0 place-items-center rounded-full text-[10px] font-bold ${bg}`}>{ticker.charAt(0)}</span>;
+function shade(hex: string, amount: number): string {
+  const n = parseInt(hex.replace("#", ""), 16);
+  const r = Math.min(255, Math.max(0, ((n >> 16) & 255) + amount));
+  const g = Math.min(255, Math.max(0, ((n >> 8) & 255) + amount));
+  const b = Math.min(255, Math.max(0, (n & 255) + amount));
+  return `#${((1 << 24) | (r << 16) | (g << 8) | b).toString(16).slice(1)}`;
 }
 
-function MarketIcon({ row }: { row: GlobalMarketRow }) {
-  const [failed, setFailed] = useState(false);
-  const ticker = normalizeTicker(row.symbol);
-  const domain = COMPANY_DOMAINS[ticker.toUpperCase()];
-  if (domain && !failed) {
-    return <img
-      src={`https://www.google.com/s2/favicons?domain=${domain}&sz=64`}
-      alt={ticker}
-      width={24}
-      height={24}
-      loading="lazy"
-      onError={() => setFailed(true)}
-      className="h-6 w-6 shrink-0 rounded-full object-cover"
-    />;
-  }
+const FX_COLORS: Record<string, string> = {
+  EUR: "#003399",
+  USD: "#0B3D91",
+  JPY: "#BC002D",
+  GBP: "#012169",
+  AUD: "#00843D",
+  CHF: "#D52B1E",
+  CAD: "#D80621",
+  CNY: "#DE2910",
+};
+
+const OIL_PATH = "M12 2.5 C12 2.5 6.5 10.5 6.5 14.5 a5.5 5.5 0 0 0 11 0 C17.5 10.5 12 2.5 12 2.5 Z";
+const FLAME_PATH = "M12 2 C12 5 14.8 7.5 14.8 11 a2.8 2.8 0 0 1 -5.6 0 C9.2 7.5 12 5 12 2 Z M12 10.5 c1.2 1 1.6 1.8 1.6 2.6 a1.6 1.6 0 0 1 -3.2 0 C10.4 12.3 10.8 11.5 12 10.5 Z";
+
+function MarketLogo({ row }: { row: GlobalMarketRow }) {
+  const ticker = normalizeTicker(row.symbol).toUpperCase();
   const lower = ticker.toLowerCase();
-  if (lower.includes("eur") || lower.includes("usd") || lower.includes("jpy") || lower.includes("gbp") || lower.includes("aud") || row.asset_type === "forex") {
-    return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#60a5fa]/15 text-[#60a5fa]"><Globe className="h-3.5 w-3.5" /></span>;
+  const id = `mk-${ticker.toLowerCase()}`;
+
+  // Forex pairs: two-tone gradient with the currency codes.
+  const fxMatch = /^([A-Z]{3})([A-Z]{3})$/.exec(ticker);
+  if (fxMatch || row.asset_type === "forex") {
+    const left = (fxMatch?.[1] ?? (lower.includes("eur") ? "EUR" : lower.includes("jpy") ? "JPY" : lower.includes("gbp") ? "GBP" : lower.includes("aud") ? "AUD" : "USD"));
+    const right = (fxMatch?.[2] ?? "USD");
+    const lc = FX_COLORS[left] ?? "#3B82F6";
+    const rc = FX_COLORS[right] ?? "#64748B";
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full">
+        <defs>
+          <linearGradient id={`${id}-fx`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={lc} />
+            <stop offset="1" stopColor={rc} />
+          </linearGradient>
+        </defs>
+        <rect x="1" y="1" width="22" height="22" rx="11" fill={`url(#${id}-fx)`} />
+        <text x="7.4" y="15.2" textAnchor="middle" fontSize="7" fontWeight="700" fill="#fff">{left}</text>
+        <text x="16.6" y="15.2" textAnchor="middle" fontSize="7" fontWeight="700" fill="#fff" opacity="0.9">{right}</text>
+      </svg>
+    );
   }
-  if (row.asset_type === "commodity" || lower.includes("gold") || lower.includes("silver") || lower === "gc" || lower === "si") {
-    return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-[#f59e0b]/15 text-[#f59e0b]"><Coins className="h-3.5 w-3.5" /></span>;
+
+  // Commodities: gold/silver bars and oil/gas marks.
+  if (lower === "gc" || lower === "si" || row.asset_type === "metals" || lower.includes("gold") || lower.includes("silver")) {
+    const gold = lower === "gc" || lower.includes("gold");
+    const c1 = gold ? "#F6C453" : "#C0C8D2";
+    const c2 = gold ? "#B8860B" : "#8A94A6";
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full">
+        <defs>
+          <linearGradient id={`${id}-bar`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={c1} />
+            <stop offset="1" stopColor={c2} />
+          </linearGradient>
+        </defs>
+        <rect x="1" y="1" width="22" height="22" rx="6" fill={`url(#${id}-bar)`} />
+        <rect x="6" y="7.5" width="12" height="9" rx="1.5" fill="#fff" opacity="0.92" />
+        <rect x="6" y="7.5" width="12" height="2.4" rx="1.2" fill="#000" opacity="0.18" />
+      </svg>
+    );
   }
-  if (lower === "cl" || lower === "bz" || lower === "ng" || lower === "wti" || lower === "brent") {
-    return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full bg-status-warning/20 text-status-warning"><Flame className="h-3.5 w-3.5" /></span>;
+  if (lower === "cl" || lower === "bz" || lower === "ng" || lower === "wti" || lower === "brent" || row.asset_type === "energy") {
+    const isGas = lower === "ng" || lower === "naturalgas";
+    const c1 = isGas ? "#38BDF8" : "#0F766E";
+    const c2 = isGas ? "#1D4ED8" : "#134E4A";
+    return (
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full">
+        <defs>
+          <linearGradient id={`${id}-oil`} x1="0" y1="0" x2="1" y2="1">
+            <stop offset="0" stopColor={c1} />
+            <stop offset="1" stopColor={c2} />
+          </linearGradient>
+        </defs>
+        <rect x="1" y="1" width="22" height="22" rx="6" fill={`url(#${id}-oil)`} />
+        <path d={isGas ? FLAME_PATH : OIL_PATH} fill="#fff" opacity="0.95" transform="scale(0.92) translate(1.1 1.1)" />
+      </svg>
+    );
   }
-  return letterBadge(ticker, "accent");
+
+  // Equities and everything else: brand-color rounded mark with ticker letters.
+  const color = BRAND_COLORS[ticker] ?? "#64748B";
+  return (
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full">
+      <defs>
+        <linearGradient id={`${id}-eq`} x1="0" y1="0" x2="1" y2="1">
+          <stop offset="0" stopColor={color} />
+          <stop offset="1" stopColor={shade(color, -45)} />
+        </linearGradient>
+      </defs>
+      <rect x="1" y="1" width="22" height="22" rx="6" fill={`url(#${id}-eq)`} />
+      <text x="12" y="15.5" textAnchor="middle" fontSize="8.5" fontWeight="700" fill="#fff">
+        {ticker.slice(0, 2)}
+      </text>
+    </svg>
+  );
 }
 
 function groupLabel(copy: Record<string, unknown>, group: string) {
@@ -165,7 +236,7 @@ function GroupSection({ group, rows, copy, locale }: { group: string; rows: Glob
       <tr><td colSpan={5} className="bg-bg-panel-muted px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{groupLabel(copy, group)}</td></tr>
       {rows.map((row) => (
         <tr key={`${group}-${row.symbol}`} className="border-t border-border-pg/70 hover:bg-bg-panel-muted">
-          <td className="px-4 py-3"><div className="flex items-center gap-2.5"><MarketIcon row={row} /><span className="font-semibold text-text-pg">{row.symbol}<span className={`ml-2 text-[9px] ${row.is_realtime ? "text-status-positive" : "text-status-warning"}`}>{row.is_realtime ? "LIVE" : "DLY"}</span></span></div></td>
+          <td className="px-4 py-3"><div className="flex items-center gap-2.5"><MarketLogo row={row} /><span className="font-semibold text-text-pg">{row.symbol}<span className={`ml-2 text-[9px] ${row.is_realtime ? "text-status-positive" : "text-status-warning"}`}>{row.is_realtime ? "LIVE" : "DLY"}</span></span></div></td>
           <td className="px-3 py-3 text-right text-text-pg">{fmtPrice(locale, row)}</td>
           <td className={`px-3 py-3 text-right ${row.change_24h != null && row.change_24h >= 0 ? "text-status-positive" : "text-status-negative"}`}>{row.change_24h != null ? `${row.change_24h >= 0 ? "+" : ""}${row.change_24h.toFixed(2)}` : "-"}</td>
           <td className="max-w-[150px] truncate px-3 py-3 text-text-pg-muted">{row.source || "-"}</td>

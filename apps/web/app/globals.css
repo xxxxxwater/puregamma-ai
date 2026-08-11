@@ -196,6 +196,23 @@ textarea {
   animation: link-pulse 1.8s ease-in-out infinite;
 }
 
+/* System architecture diagram: flowing dashed links carrying moving pulses. */
+.pg-flow-dash {
+  animation: pg-flow-dash 1.2s linear infinite;
+}
+
+@keyframes pg-flow-dash {
+  to {
+    stroke-dashoffset: -3;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pg-flow-dash {
+    animation: none;
+  }
+}
+
 :root {
   --flash-bg: rgba(255, 255, 255, 0.18);
 }

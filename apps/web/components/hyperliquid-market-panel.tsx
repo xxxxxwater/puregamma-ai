@@ -68,21 +68,47 @@ function compactUsd(value?: number): string {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-// Hyperliquid official coin icons (https://app.hyperliquid.xyz/coins/{COIN}.svg).
-// Synthetic XYZ assets (CL, S&P500, ...) have no icon upstream: fall back to a
-// first-letter badge so every row still renders a leading asset mark.
+// Official colored coin icons are self-hosted under /coins (downloaded from
+// Hyperliquid's official icon set). Synthetic XYZ assets (CL, S&P500, ...)
+// have no icon upstream: they render a per-asset colored gradient badge.
 function assetCoin(instrumentId: string): string {
   return instrumentId.startsWith("xyz:") ? instrumentId.slice(4) : instrumentId;
+}
+
+const SYNTH_GRADIENTS: Record<string, string> = {
+  CL: "from-sky-400 to-blue-600",
+  BRENTOIL: "from-indigo-400 to-violet-600",
+  SKHYNIX: "from-amber-400 to-orange-600",
+  "S&P500": "from-emerald-400 to-teal-600",
+  XYZ100: "from-rose-400 to-red-600",
+  MU: "from-fuchsia-400 to-purple-600",
+  SNDK: "from-cyan-400 to-sky-600",
+  DRAM: "from-lime-400 to-green-600",
+  SPCX: "from-orange-400 to-amber-600",
+  SKHY: "from-violet-400 to-indigo-600",
+  EWY: "from-teal-400 to-emerald-600",
+};
+
+function SynthBadge({ coin }: { coin: string }) {
+  const gradient = SYNTH_GRADIENTS[coin] ?? "from-slate-400 to-slate-600";
+  return (
+    <span
+      aria-hidden
+      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br ${gradient} text-[10px] font-bold text-white`}
+    >
+      {coin.charAt(0)}
+    </span>
+  );
 }
 
 function AssetIcon({ coin }: { coin: string }) {
   const [failed, setFailed] = useState(false);
   if (failed) {
-    return <span className="grid h-6 w-6 shrink-0 place-items-center rounded-full border border-border-pg bg-bg-panel-muted text-[10px] font-bold text-text-pg-muted">{coin.charAt(0)}</span>;
+    return <SynthBadge coin={coin} />;
   }
   return (
     <img
-      src={`https://app.hyperliquid.xyz/coins/${coin}.svg`}
+      src={`/coins/${coin}.svg`}
       alt={coin}
       width={24}
       height={24}

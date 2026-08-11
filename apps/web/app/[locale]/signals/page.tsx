@@ -27,7 +27,6 @@ export default async function SignalsPage({ params }: { params: { locale: Locale
         title={copy.title}
         description={copy.subtitle}
         sectionNumber="03"
-        actions={<Badge tone="neutral"><StatusDot tone="amber" /> {t(locale, "common.badges.researchOnly")}</Badge>}
       />
       <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
         <MetricCard label={copy.metrics.longWatch} value={String(bullish)} detail={copy.metrics.directionalResearchOnly} tone="emerald" />

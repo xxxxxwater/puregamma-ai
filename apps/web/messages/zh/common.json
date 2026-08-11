@@ -133,7 +133,6 @@
   "badges": {
     "mockMode": "Mock 模式",
     "liveMode": "实时模式",
-    "researchOnly": "仅供研究",
     "available": "可用",
     "active": "当前",
     "default": "默认",

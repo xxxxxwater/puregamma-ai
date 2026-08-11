@@ -114,24 +114,23 @@ export default function PricingPage({ params }: { params: { locale: Locale } }) 
                 </li>
               ))}
             </ul>
-            <Link
-              href={plan.id === "Enterprise" ? "mailto:hello@puregamma.ai" : withLocale(params.locale, "/billing")}
-              aria-disabled={plan.invited}
-              onClick={(e) => {
-                if (plan.invited) e.preventDefault();
-              }}
-              className={`mt-6 inline-flex items-center justify-center border px-4 py-2.5 text-sm font-semibold rounded-lg ${plan.id === "Pro" || plan.id === "Max" ? "border-border-pg-strong bg-pg-white text-pg-black" : "border-border-pg text-text-pg hover:border-border-pg-strong"}`}
-            >
-              {zh ? plan.ctaZh : plan.ctaEn}
-            </Link>
+            {plan.invited ? (
+              <span
+                aria-disabled
+                className={`mt-6 inline-flex cursor-not-allowed items-center justify-center border px-4 py-2.5 text-sm font-semibold rounded-lg border-border-pg text-text-pg-muted`}
+              >
+                {zh ? plan.ctaZh : plan.ctaEn}
+              </span>
+            ) : (
+              <Link
+                href={plan.id === "Enterprise" ? "mailto:hello@puregamma.ai" : withLocale(params.locale, "/billing")}
+                className={`mt-6 inline-flex items-center justify-center border px-4 py-2.5 text-sm font-semibold rounded-lg ${plan.id === "Pro" || plan.id === "Max" ? "border-border-pg-strong bg-pg-white text-pg-black" : "border-border-pg text-text-pg hover:border-border-pg-strong"}`}
+              >
+                {zh ? plan.ctaZh : plan.ctaEn}
+              </Link>
+            )}
           </PGResearchCard>
         ))}
-      </section>
-
-      <section className="border border-border-pg bg-bg-panel p-6 text-xs leading-5 text-text-pg-muted rounded-xl">
-        {zh
-          ? "仅供研究，不构成投资建议。PureGamma AI 的输出仅用于信息与教育目的，可能包含错误、过期数据或不完整信息。回测与模拟结果不代表未来表现。"
-          : "Research only. Not investment advice. PureGamma AI outputs may contain errors or stale data. Backtest and paper results do not guarantee future performance."}
       </section>
     </div>
   );

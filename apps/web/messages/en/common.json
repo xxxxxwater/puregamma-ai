@@ -133,7 +133,6 @@
   "badges": {
     "mockMode": "Mock Mode",
     "liveMode": "Live Mode",
-    "researchOnly": "Research only",
     "available": "Available",
     "active": "Active",
     "default": "Default",
