@@ -15,6 +15,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
@@ -79,16 +80,19 @@ fun PureGammaApp(model: AppViewModel, openBrowser: (Uri) -> Unit) {
         ThemeMode.DARK -> true
     }
     val base = if (dark) darkColorScheme(
-        primary = Color(0xFFF4F4F5),
-        onPrimary = Color(0xFF030303),
+        // DeepSeek console grey scale (matches web globals.css):
+        // background #101216, surface #191c22, surfaceVariant #212123,
+        // text #F5F6F8 / #A2A4A6, borders at 6% / 12% white.
+        primary = Color(0xFFF5F6F8),
+        onPrimary = Color(0xFF101216),
         secondary = Color(0xFFD4D4D8),
-        background = Color(0xFF030303),
-        surface = Color(0xFF0D0D0D),
-        surfaceVariant = Color(0xFF111111),
-        onSurface = Color(0xFFEDEDED),
-        onSurfaceVariant = Color(0xFFA3A3A3),
-        outline = Color(0x29FFFFFF),
-        outlineVariant = Color(0x1AFFFFFF),
+        background = Color(0xFF101216),
+        surface = Color(0xFF191C22),
+        surfaceVariant = Color(0xFF212123),
+        onSurface = Color(0xFFF5F6F8),
+        onSurfaceVariant = Color(0xFFA2A4A6),
+        outline = Color(0x0FFFFFFF),
+        outlineVariant = Color(0x1FFFFFFF),
     ) else lightColorScheme(
         primary = Color(0xFF171717),
         onPrimary = Color.White,
@@ -243,10 +247,10 @@ private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
                     },
                     enabled = !model.signingIn && email.isNotBlank() && password.isNotBlank(),
                     modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(0.dp),
-                    colors = ButtonDefaults.buttonColors(containerColor = BrandGold, contentColor = Color(0xFF030303)),
+                    shape = RoundedCornerShape(12.dp),
+                    colors = ButtonDefaults.buttonColors(containerColor = BrandGold, contentColor = Color(0xFF101216)),
                 ) {
-                    if (model.signingIn) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFF030303))
+                    if (model.signingIn) CircularProgressIndicator(Modifier.size(18.dp), strokeWidth = 2.dp, color = Color(0xFF101216))
                     else Icon(Icons.AutoMirrored.Filled.Login, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(Modifier.width(10.dp))
                     Text(if (showRegister) stringResource(R.string.sign_up) else stringResource(R.string.sign_in_email), fontWeight = FontWeight.SemiBold)
@@ -258,7 +262,7 @@ private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
                     onClick = { model.beginGoogleSignIn(openBrowser) },
                     enabled = !model.signingIn,
                     modifier = Modifier.fillMaxWidth().height(48.dp),
-                    shape = RoundedCornerShape(0.dp),
+                    shape = RoundedCornerShape(12.dp),
                     colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.surfaceVariant, contentColor = MaterialTheme.colorScheme.onSurface),
                     border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline),
                 ) {
@@ -401,6 +405,8 @@ private fun SectionTitle(index: String, title: String, trailing: String?) {
 @Composable
 private fun MarketRow(asset: MarketAsset) {
     Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 12.dp), verticalAlignment = Alignment.CenterVertically) {
+        AssetIcon(asset)
+        Spacer(Modifier.width(10.dp))
         Column(Modifier.weight(1.25f)) {
             Text(asset.symbol, fontWeight = FontWeight.SemiBold)
             Text(asset.source, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -415,6 +421,41 @@ private fun MarketRow(asset: MarketAsset) {
         Box(Modifier.size(7.dp).clip(RoundedCornerShape(50)).background(if (asset.realtime) Positive else Warning))
     }
     HorizontalDivider(Modifier.padding(horizontal = 16.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = .55f))
+}
+
+/** Hyperliquid asset icon (bundled PNG) with a letter-badge fallback. */
+@Composable
+private fun AssetIcon(asset: MarketAsset) {
+    val coin = asset.symbol.uppercase().replace("-USDC", "").replace("USDC", "").replace("DLY", "").trim()
+    val icon = when (coin) {
+        "BTC" -> R.drawable.ic_coin_btc
+        "ETH" -> R.drawable.ic_coin_eth
+        "HYPE" -> R.drawable.ic_coin_hype
+        "ZEC" -> R.drawable.ic_coin_zec
+        "SOL" -> R.drawable.ic_coin_sol
+        "CASHCAT" -> R.drawable.ic_coin_cashcat
+        "ONDO" -> R.drawable.ic_coin_ondo
+        else -> null
+    }
+    if (icon != null) {
+        Image(
+            painterResource(icon),
+            contentDescription = coin,
+            modifier = Modifier.size(22.dp).clip(CircleShape),
+        )
+    } else {
+        Box(
+            Modifier.size(22.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant),
+            contentAlignment = Alignment.Center,
+        ) {
+            Text(
+                coin.take(1),
+                fontSize = 10.sp,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
 }
 
 @Composable
