@@ -11,6 +11,9 @@ on:
     tags:
       - "v*"
 
+permissions:
+  contents: write
+
 jobs:
   android:
     name: Android release APK
@@ -50,9 +53,12 @@ jobs:
       - name: Build unsigned iOS app (device)
         working-directory: apps/ios
         run: |
+          # The app predates Swift 6 strict concurrency; build in Swift 5
+          # language mode (concurrency checks become warnings) so release
+          # packaging works without a signing identity.
           xcodebuild -project PureGamma.xcodeproj -scheme PureGamma \
             -configuration Release -sdk iphoneos -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO build
+            CODE_SIGNING_ALLOWED=NO SWIFT_VERSION=5.0 build
 
       - name: Package ipa
         run: |
