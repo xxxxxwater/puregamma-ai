@@ -1,13 +1,17 @@
 from __future__ import annotations
 
 import html as html_lib
+import logging
 import os
 import re
 import smtplib
+import time
 from email.message import EmailMessage
 
 from apps.api.config import get_settings
 from packages.notifications.base import NotificationResult
+
+logger = logging.getLogger("puregamma.notifications.email")
 
 _LOGO_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "apps", "web", "public", "logo.png"))
 _LOGO_CID = "puregamma-logo"
@@ -81,13 +85,42 @@ def _build_message(recipient: str, subject: str, body: str, sender: str) -> Emai
     return message
 
 
+_MAX_ATTEMPTS = 3
+_RETRY_DELAY_SECONDS = 1.0
+
+
 def _deliver(message: EmailMessage) -> None:
+    """Deliver via SMTP with bounded retry on transient connection/send failures.
+
+    Transient SMTP errors (connection reset, timeouts, temporary 4xx) can otherwise
+    silently drop verification and password-reset emails, leaving accounts registered
+    but unverifiable. We retry with a short backoff and only surface the error after
+    the final attempt so callers can report delivery failure instead of swallowing it.
+    """
     settings = get_settings()
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=8) as smtp:
-        smtp.starttls()
-        if settings.smtp_user:
-            smtp.login(settings.smtp_user, settings.smtp_password)
-        smtp.send_message(message)
+    if not settings.smtp_host:
+        raise RuntimeError("SMTP not configured")
+    last_error: Exception | None = None
+    for attempt in range(_MAX_ATTEMPTS):
+        try:
+            with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=8) as smtp:
+                smtp.starttls()
+                if settings.smtp_user:
+                    smtp.login(settings.smtp_user, settings.smtp_password)
+                smtp.send_message(message)
+            return
+        except (smtplib.SMTPServerDisconnected, smtplib.SMTPConnectError, smtplib.SMTPDataError, TimeoutError, ConnectionError) as exc:
+            last_error = exc
+            logger.warning(
+                "smtp_deliver_retry",
+                extra={"attempt": attempt + 1, "error": type(exc).__name__},
+            )
+            if attempt < _MAX_ATTEMPTS - 1:
+                time.sleep(_RETRY_DELAY_SECONDS * (2**attempt))
+        except smtplib.SMTPAuthenticationError:
+            raise
+    assert last_error is not None
+    raise last_error
 
 
 class EmailProvider:

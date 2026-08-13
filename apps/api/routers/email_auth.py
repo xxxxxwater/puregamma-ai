@@ -255,11 +255,24 @@ def email_register(
     if not user.preference:
         db.add(UserPreference(user_id=user.id, email_recipient=email, locale=locale))
 
-    email_sent = False
+    email_sent = True
     try:
         _send_verification_email(user)
-        email_sent = True
     except Exception as exc:
+        email_sent = False
+        if get_settings().app_environment.lower() == "production":
+            # Never commit an account that holds a verification token but whose
+            # verification email was not delivered: the user would be left in a
+            # silently unverifiable state (registered but unable to sign in).
+            db.rollback()
+            logger.error(
+                "email_verification_send_failed",
+                extra={"user_id": user.id, "error": type(exc).__name__, "detail": str(exc)[:200]},
+            )
+            raise HTTPException(
+                status_code=503,
+                detail={"code": "VERIFICATION_EMAIL_FAILED", "message": "Account not created. Verification email could not be sent. Please try again."},
+            ) from exc
         logger.warning("email_verification_send_failed", extra={"user_id": user.id, "error": type(exc).__name__})
 
     db.commit()
