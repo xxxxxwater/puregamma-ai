@@ -57,4 +57,6 @@ def _llm_daily_fallback(
     except Exception:
         return baseline
 
-    return generated if generated.lstrip().startswith("#") else baseline
+    # The prompt forbids "#" headings. A compliant, non-empty answer is used;
+    # anything that violates the contract (or is empty) falls back to baseline.
+    return generated if generated.strip() and not generated.lstrip().startswith("#") else baseline

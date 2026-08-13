@@ -504,6 +504,52 @@ def _refund_agent_run(
             raise
 
 
+def _finalize_disconnected_run(run_id: str, user_id: str, *, reason: str) -> None:
+    """Settle an interrupted run from a fresh session.
+
+    GeneratorExit is raised after the request-scoped session has been closed,
+    so the original ORM instances are expired and unusable. This helper opens
+    its own session, re-loads the rows, and finalizes the run so the credit
+    reservation is settled instead of leaking until stale-run recovery.
+    """
+    from packages.database.session import SessionLocal
+
+    finalize_db = SessionLocal()
+    try:
+        run = finalize_db.get(AgentRun, run_id)
+        if not run or run.status not in {"pending", "running"}:
+            return
+        user = finalize_db.get(User, user_id)
+        user_message = finalize_db.get(AgentMessage, run.user_message_id)
+        assistant = finalize_db.get(AgentMessage, run.assistant_message_id)
+        if not user or not user_message or not assistant:
+            return
+        run.status = "interrupted"
+        run.completed_at = utcnow()
+        run.input_tokens = max(run.input_tokens or 0, max(1, len(user_message.content) // 4))
+        run.output_tokens = max(run.output_tokens or 0, len(assistant.content or "") // 4)
+        assistant.status = "interrupted"
+        if assistant.latency_ms is None and run.started_at:
+            assistant.latency_ms = max(0, int((utcnow() - run.started_at).total_seconds() * 1000))
+        _settle_agent_run(
+            finalize_db,
+            user,
+            run,
+            user_message,
+            response_model=run.model,
+            prompt_tokens=run.input_tokens,
+            completion_tokens=run.output_tokens,
+            reason=reason,
+        )
+        update_skill_runs(finalize_db, run.id, status="interrupted", credits_used=run.credit_cost, output_summary=assistant.content or "", error_code="CLIENT_DISCONNECTED")
+        finalize_db.commit()
+    except Exception:
+        finalize_db.rollback()
+        raise
+    finally:
+        finalize_db.close()
+
+
 def _context_messages(db: Session, conversation: AgentConversation, current_user_message_id: str) -> list[ChatMessage]:
     settings = get_settings()
     rows = db.query(AgentMessage).filter(AgentMessage.conversation_id == conversation.id, AgentMessage.status == "completed").order_by(AgentMessage.created_at.desc()).limit(settings.agent_recent_messages).all()
@@ -719,6 +765,10 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         settings = get_settings()
         if time.perf_counter() > skill_deadline:
             raise TimeoutError("SKILL_RUNTIME_TIMEOUT")
+        # Model generation gets its own, longer deadline: the skill runtime
+        # timeout governs tool/data collection only. Killing a long answer at
+        # the 90s tool budget refunds credits for runs that were succeeding.
+        model_deadline = max(skill_deadline, started + 300.0)
         provider = get_agent_llm_provider(run_context.get("model"))
         if provider.provider_name == "mock" and not settings.enable_mock_agent:
             raise RuntimeError("MODEL_NOT_CONFIGURED: configure AGENT_PROVIDER and its server-side API key")
@@ -748,8 +798,8 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         completion_tokens = 0
         response_model = provider.model
         for chunk in provider.stream_chat(messages, task_type="agent_chat", locale=locale, user_id=user.id, db=db):
-            if time.perf_counter() > skill_deadline:
-                raise TimeoutError("SKILL_RUNTIME_TIMEOUT")
+            if time.perf_counter() > model_deadline:
+                raise TimeoutError("AGENT_MODEL_TIMEOUT")
             if chunk.done:
                 prompt_tokens = chunk.prompt_tokens
                 completion_tokens = chunk.completion_tokens
@@ -831,30 +881,20 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             },
         )
     except GeneratorExit:
-        run.status = "interrupted"
-        assistant.status = "interrupted"
-        run.completed_at = utcnow()
-        run.input_tokens = max(run.input_tokens or 0, max(1, len(user_message.content) // 4))
-        run.output_tokens = max(run.output_tokens or 0, len(assistant.content or "") // 4)
-        _settle_agent_run(
-            db,
-            user,
-            run,
-            user_message,
-            response_model=run.model,
-            prompt_tokens=run.input_tokens,
-            completion_tokens=run.output_tokens,
-            reason="client_disconnected",
-        )
-        update_skill_runs(db, run.id, status="interrupted", credits_used=run.credit_cost, output_summary=assistant.content or "", error_code="CLIENT_DISCONNECTED")
-        db.commit()
+        # The client disconnected and the request-scoped session has already
+        # been closed (attributes are expired). Finalize in a fresh session so
+        # the run never stays stuck in "running" with a held reservation.
+        try:
+            _finalize_disconnected_run(run.id, user.id, reason="client_disconnected")
+        except Exception:
+            logger.exception("finalize_disconnected_run_failed", extra={"run_id": run.id, "user_id": user.id})
         raise
     except Exception as exc:
         logger.exception("Agent run failed", extra={"run_id": run.id, "user_id": user.id})
         raw_message = str(exc)
         selected_luna = (user_message.context_json or {}).get("model", "default") != "default"
-        code = "MODEL_NOT_CONFIGURED" if raw_message.startswith("MODEL_NOT_CONFIGURED") else "SKILL_RUNTIME_TIMEOUT" if raw_message.startswith("SKILL_RUNTIME_TIMEOUT") else "AGENT_MODEL_UNAVAILABLE" if selected_luna else "AGENT_RUN_FAILED"
-        message = "The Skill exceeded its runtime timeout. Credits were refunded." if code == "SKILL_RUNTIME_TIMEOUT" else "The selected Agent model is currently unavailable. Credits were refunded." if selected_luna else "The Agent could not complete this run. Credits were refunded."
+        code = "MODEL_NOT_CONFIGURED" if raw_message.startswith("MODEL_NOT_CONFIGURED") else "SKILL_RUNTIME_TIMEOUT" if raw_message.startswith("SKILL_RUNTIME_TIMEOUT") else "AGENT_MODEL_TIMEOUT" if raw_message.startswith("AGENT_MODEL_TIMEOUT") else "AGENT_MODEL_UNAVAILABLE" if selected_luna else "AGENT_RUN_FAILED"
+        message = "The Skill exceeded its runtime timeout. Credits were refunded." if code == "SKILL_RUNTIME_TIMEOUT" else "The answer took too long to generate. Credits were refunded." if code == "AGENT_MODEL_TIMEOUT" else "The selected Agent model is currently unavailable. Credits were refunded." if selected_luna else "The Agent could not complete this run. Credits were refunded."
         run.status = "failed"
         run.error_message = message
         run.completed_at = utcnow()

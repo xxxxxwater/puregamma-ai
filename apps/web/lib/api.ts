@@ -937,7 +937,7 @@ export type SkillSummary = {
   installed: boolean;
   enabled: boolean;
 };
-export type AgentContext = { data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
+export type AgentContext = { research_mode?: boolean; data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type SecretaryMessage = { id: string; role: "user" | "assistant"; content: string; created_at: string };
@@ -1168,6 +1168,7 @@ export async function streamAgentMessage(
     body: JSON.stringify({
       content,
       locale,
+      research_mode: context?.research_mode !== false,
       data_sources: context?.data_sources || [],
       skills: (context?.skills || []).filter((item): item is string => typeof item === "string"),
       skill_refs: context?.skill_refs || (context?.skills || []).filter((item): item is SkillContextRef => typeof item !== "string"),
@@ -1198,8 +1199,15 @@ export async function streamAgentMessage(
       const block = buffer.slice(0, boundary);
       buffer = buffer.slice(boundary + 2);
       const event = block.split("\n").find((line) => line.startsWith("event:"))?.slice(6).trim();
-      const data = block.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim();
-      if (event && data) onEvent({ event, data: JSON.parse(data) as Record<string, unknown> });
+      const dataLine = block.split("\n").find((line) => line.startsWith("data:"))?.slice(5).trim();
+      if (event && dataLine) {
+        try {
+          onEvent({ event, data: JSON.parse(dataLine) as Record<string, unknown> });
+        } catch {
+          // A malformed frame (e.g. a proxy injecting HTML) must not kill the
+          // stream: skip it and keep consuming subsequent events.
+        }
+      }
       boundary = buffer.indexOf("\n\n");
     }
     if (done) break;

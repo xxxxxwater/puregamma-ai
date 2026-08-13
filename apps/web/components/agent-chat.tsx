@@ -22,7 +22,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
-  const [toolStatus, setToolStatus] = useState<string[]>([]);
+  const [toolStatus, setToolStatus] = useState<Array<{ id: string; tool: string; status: string }>>([]);
   const [toolResults, setToolResults] = useState<Array<{ tool: string; data: Record<string, unknown> }>>([]);
   const [quota, setQuota] = useState<{ remaining: number | null; limit: number | null; credit_balance: number } | null>(null);
   const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
@@ -169,9 +169,10 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         } else if (eventName === "message.delta") {
           setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, content: `${message.content}${String(data.delta || "")}` } : message));
         } else if (eventName === "tool.started") {
-          setToolStatus((current) => [...current, `${String(data.tool)} · ${zh ? "检索中" : "retrieving"}`]);
+          setToolStatus((current) => [...current, { id: String(data.toolCallId || `${data.tool}-${Date.now()}`), tool: String(data.tool), status: zh ? "检索中" : "retrieving" }]);
         } else if (eventName === "tool.completed") {
-          setToolStatus((current) => current.map((item) => item.startsWith(String(data.tool)) ? `${String(data.tool)} · ${data.error ? (zh ? "失败" : "failed") : (zh ? "完成" : "complete")}` : item));
+          const callId = String(data.toolCallId || "");
+          setToolStatus((current) => current.map((item) => (item.id === callId || (!callId && item.tool === String(data.tool)) ? { ...item, status: data.error ? (zh ? "失败" : "failed") : (zh ? "完成" : "complete") } : item)));
           if (data.data && typeof data.data === "object") setToolResults((current) => [...current, { tool: String(data.tool), data: data.data as Record<string, unknown> }]);
         } else if (eventName === "citation") {
           const source: AgentSource = { provider: String(data.provider), title: String(data.title), url: data.url ? String(data.url) : null, published_at: data.publishedAt ? String(data.publishedAt) : null, source_timestamp: data.sourceTimestamp ? String(data.sourceTimestamp) : null, fetched_at: String(data.fetchedAt), citation_index: Number(data.index) };
@@ -210,6 +211,13 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     if (activeRunRef.current) await cancelAgentRun(activeRunRef.current).catch(() => undefined);
     controllerRef.current?.abort();
     setBusy(false);
+    if (conversationId) {
+      try {
+        const refreshed = await getAgentConversation(conversationId);
+        setMessages(refreshed.messages);
+        setQuota(await getAgentQuota().catch(() => quota));
+      } catch { /* keep current view when refresh fails */ }
+    }
   };
 
   const addFiles = async (files: FileList | null) => {
@@ -306,7 +314,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[85%] border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "max-w-full border-l border-border-pg pl-4"}>
               {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{message.model === "gpt-5.6-luna" ? "GPT-5.6 Luna · OpenAI" : (message.model || (zh ? "默认模型" : "Default model"))}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{file.name}</span>)}</div> : null}</>}
-              {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput(messages.find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
+              {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
               {message.role === "assistant" && message.credits_refunded ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "Credits 已退款" : "Credits refunded"}</div> : null}
               {message.role === "assistant" && message.context?.evidence ? <div className={`mt-3 flex flex-wrap items-center gap-2 border px-2.5 py-2 text-[11px]  rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3.5 w-3.5" /><span>{message.context.evidence.sufficient ? (zh ? "证据检查通过" : "Evidence requirements met") : (zh ? `证据不完整：${message.context.evidence.missing.join(", ")}` : `Evidence incomplete: ${message.context.evidence.missing.join(", ")}`)}</span><span className="ml-auto text-text-pg-dim">{message.context.evidence.source_count} {zh ? "条来源" : "sources"}</span></div> : null}
@@ -314,7 +322,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
               {message.id === latestAssistantId && message.context?.runtime?.next_actions?.length ? <div className="mt-4 flex flex-wrap gap-2">{message.context.runtime.next_actions.slice(0, 3).map((action) => <button key={action} type="button" onClick={() => choosePrompt(nextActionPrompt(action, zh))} className="inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><CheckCircle2 className="h-3 w-3" />{nextActionLabel(action, zh)}</button>)}</div> : null}
             </div>)}
             {busy && runtimePlan ? <div className="flex flex-wrap items-center gap-2 border border-border-pg bg-bg-app px-3 py-2 text-xs text-text-pg-muted rounded-lg"><Target className="h-3.5 w-3.5" /><span>{zh ? "已理解" : "Understood"}: {runtimePlan.intent.replaceAll("_", " ")}</span>{runtimePlan.assets.length ? <span className="text-text-pg-dim">· {runtimePlan.assets.join(", ")}</span> : null}{evidenceStatus ? <span className={evidenceStatus.sufficient ? "ml-auto text-text-pg-muted" : "ml-auto text-status-warning"}>{evidenceStatus.sufficient ? (zh ? "证据已就绪" : "Evidence ready") : (zh ? "证据存在缺口" : "Evidence gaps found")}</span> : <span className="ml-auto text-text-pg-dim">{zh ? "正在构建证据包" : "Building evidence pack"}</span>}</div> : null}
-            {toolStatus.length ? <div className="flex flex-wrap gap-2">{toolStatus.map((item) => <span key={item} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-xs text-text-pg-muted rounded-lg"><Wrench className="h-3 w-3" />{item}</span>)}</div> : null}
+            {toolStatus.length ? <div className="flex flex-wrap gap-2">{toolStatus.map((item) => <span key={item.id} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-xs text-text-pg-muted rounded-lg"><Wrench className="h-3 w-3" />{item.tool} · {item.status}</span>)}</div> : null}
             {toolResults.map((result, index) => <StrategyToolResult key={`${result.tool}-${index}`} result={result} locale={locale} />)}
           </div>
         </div>

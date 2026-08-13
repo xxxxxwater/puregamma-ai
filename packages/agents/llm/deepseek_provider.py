@@ -64,24 +64,34 @@ class DeepSeekProvider(LLMProvider):
         prompt = "\n".join(message.content for message in messages)
         prompt_tokens = max(1, len(prompt.split()))
         completion_tokens = 0
-        try:
-            from openai import OpenAI
-            client = OpenAI(api_key=self.settings.deepseek_api_key, base_url=self.base_url, timeout=self.settings.agent_request_timeout_ms / 1000)
-            system = "使用简体中文，保持专业、克制、机构投研风格。" if locale == "zh" else "Use institutional English. Keep the tone concise, disciplined, and research-oriented."
-            stream = client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": system}, *[{"role": message.role, "content": message.content} for message in messages]], temperature=self.settings.agent_temperature, max_tokens=self.settings.agent_max_output_tokens, stream=True)
-            for chunk in stream:
-                usage = getattr(chunk, "usage", None)
-                if usage:
-                    prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or prompt_tokens)
-                    completion_tokens = int(getattr(usage, "completion_tokens", 0) or completion_tokens)
-                choices = getattr(chunk, "choices", []) or []
-                delta = getattr(choices[0].delta, "content", None) if choices else None
-                if delta:
-                    completion_tokens += max(1, len(delta.split()))
-                    yield LLMStreamChunk(delta=delta, provider=self.provider_name, model=self.model)
-            log_llm_call(db, user_id=user_id, provider=self.provider_name, model=self.model, task_type=task_type, locale=locale, prompt=prompt, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, status="success")
-            yield LLMStreamChunk(done=True, provider=self.provider_name, model=self.model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
-        except Exception as exc:
-            self.last_error = redact_text(str(exc))
-            log_llm_call(db, user_id=user_id, provider=self.provider_name, model=self.model, task_type=task_type, locale=locale, prompt=prompt, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, status="failed", error_message=self.last_error)
-            raise
+        last_error: Exception | None = None
+        yielded = False
+        for attempt in range(3):
+            if yielded:
+                break
+            try:
+                from openai import OpenAI
+                client = OpenAI(api_key=self.settings.deepseek_api_key, base_url=self.base_url, timeout=self.settings.agent_request_timeout_ms / 1000)
+                system = "使用简体中文，保持专业、克制、机构投研风格。" if locale == "zh" else "Use institutional English. Keep the tone concise, disciplined, and research-oriented."
+                stream = client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": system}, *[{"role": message.role, "content": message.content} for message in messages]], temperature=self.settings.agent_temperature, max_tokens=self.settings.agent_max_output_tokens, stream=True)
+                for chunk in stream:
+                    usage = getattr(chunk, "usage", None)
+                    if usage:
+                        prompt_tokens = int(getattr(usage, "prompt_tokens", 0) or prompt_tokens)
+                        completion_tokens = int(getattr(usage, "completion_tokens", 0) or completion_tokens)
+                    choices = getattr(chunk, "choices", []) or []
+                    delta = getattr(choices[0].delta, "content", None) if choices else None
+                    if delta:
+                        yielded = True
+                        completion_tokens += max(1, len(delta.split()))
+                        yield LLMStreamChunk(delta=delta, provider=self.provider_name, model=self.model)
+                log_llm_call(db, user_id=user_id, provider=self.provider_name, model=self.model, task_type=task_type, locale=locale, prompt=prompt, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, status="success")
+                yield LLMStreamChunk(done=True, provider=self.provider_name, model=self.model, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens)
+                return
+            except Exception as exc:
+                last_error = exc
+                self.last_error = redact_text(str(exc))
+                if attempt < 2:
+                    time.sleep(0.2 * (2 ** attempt))
+        log_llm_call(db, user_id=user_id, provider=self.provider_name, model=self.model, task_type=task_type, locale=locale, prompt=prompt, prompt_tokens=prompt_tokens, completion_tokens=completion_tokens, status="failed", error_message=self.last_error)
+        raise RuntimeError(self.last_error or str(last_error))
