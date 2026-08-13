@@ -19,6 +19,20 @@ const skillLabels: Record<string, string> = {
 
 const waveformBars = [10, 18, 13, 24, 16, 28, 20, 12, 26, 18, 30, 15, 23, 11, 27, 17, 22, 13, 25, 16];
 
+function BubblePlayer({ dark, playing, loading, ratio, currentTime, remaining, knownDuration, stopLabel, playLabel, speakingLabel, onToggle, title }: { dark: boolean; playing: boolean; loading: boolean; ratio: number; currentTime: number; remaining: number; knownDuration: number; stopLabel: string; playLabel: string; speakingLabel: string; onToggle: () => void; title: string }) {
+  return (
+    <div className={`flex min-h-14 w-[min(320px,72vw)] items-center gap-3 rounded-lg px-3 py-2 text-white shadow-sm ${dark ? "bg-pg-black" : "bg-[#229ed9]"}`}>
+      <button type="button" title={title || (playing ? stopLabel : playLabel)} disabled={loading} onClick={onToggle} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-60">
+        {loading ? <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-white" /> : playing ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
+      </button>
+      <div className="min-w-0 flex-1">
+        <div className="flex h-8 items-center gap-[3px] overflow-hidden" aria-hidden>{waveformBars.map((height, index) => <span key={index} className={`w-[3px] shrink-0 rounded-full ${index / waveformBars.length <= ratio ? "bg-white" : "bg-white/45"}`} style={{ height }} />)}</div>
+        <div className="mt-0.5 flex justify-between text-[0.68rem] leading-none text-white/85"><span>{loading ? speakingLabel : formatTime(currentTime)}</span><span>{knownDuration > 0 ? `-${formatTime(remaining)}` : "0:00"}</span></div>
+      </div>
+    </div>
+  );
+}
+
 function formatTime(value: number) {
   const seconds = Number.isFinite(value) ? Math.max(0, Math.floor(value)) : 0;
   return `${Math.floor(seconds / 60)}:${String(seconds % 60).padStart(2, "0")}`;
@@ -65,6 +79,9 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
   const [audioDurations, setAudioDurations] = useState<Record<string, number>>({});
   const [error, setError] = useState("");
   const [creditError, setCreditError] = useState(false);
+  const [userVoiceBubbles, setUserVoiceBubbles] = useState<Record<string, string>>({});
+  const userVoiceBubblesRef = useRef<Record<string, string>>({});
+  const voiceUrlRegistryRef = useRef(new Set<string>());
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const activeAudioIdRef = useRef<string | null>(null);
   const loadingAudioIdRef = useRef<string | null>(null);
@@ -88,11 +105,14 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       setSkills(Array.isArray(state?.skills) ? state.skills.filter((item) => item && typeof item.id === "string") : []);
       if (Number.isFinite(state?.billing?.credits_per_reply)) setCreditsPerReply(state.billing.credits_per_reply);
     }).catch((reason) => { setError(isUnauthorized(reason) ? copy.loginRequired : copy.loadError); setCreditError(false); });
+    const voiceUrls = voiceUrlRegistryRef.current;
     return () => {
       stopHoldRecording(true);
       synthesisAbortRef.current?.abort();
       for (const url of audioCache.values()) URL.revokeObjectURL(url);
       audioCache.clear();
+      for (const url of voiceUrls) URL.revokeObjectURL(url);
+      voiceUrls.clear();
     };
     // The locale route remounts this component when language changes.
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -141,20 +161,25 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     try {
       let url = audioCacheRef.current.get(message.id);
       if (!url) {
-        const controller = new AbortController();
-        synthesisAbortRef.current = controller;
-        // The backend allows up to 120s for synthesis; give up earlier so the UI
-        // recovers instead of spinning for two minutes.
-        const timeout = window.setTimeout(() => controller.abort(new DOMException("Voice synthesis timed out", "TimeoutError")), 60_000);
-        let blob: Blob;
-        try {
-          blob = await synthesizeSecretaryVoice(truncateForVoice(message.content), locale, controller.signal);
-        } finally {
-          window.clearTimeout(timeout);
+        const ownRecording = message.role === "user" ? userVoiceBubblesRef.current[message.id] : undefined;
+        if (ownRecording) {
+          url = ownRecording;
+        } else {
+          const controller = new AbortController();
+          synthesisAbortRef.current = controller;
+          // The backend allows up to 120s for synthesis; give up earlier so the UI
+          // recovers instead of spinning for two minutes.
+          const timeout = window.setTimeout(() => controller.abort(new DOMException("Voice synthesis timed out", "TimeoutError")), 60_000);
+          let blob: Blob;
+          try {
+            blob = await synthesizeSecretaryVoice(truncateForVoice(message.content), locale, controller.signal);
+          } finally {
+            window.clearTimeout(timeout);
+          }
+          if (requestId !== playRequestRef.current || controller.signal.aborted) return;
+          url = URL.createObjectURL(blob);
+          audioCacheRef.current.set(message.id, url);
         }
-        if (requestId !== playRequestRef.current || controller.signal.aborted) return;
-        url = URL.createObjectURL(blob);
-        audioCacheRef.current.set(message.id, url);
       }
       if (requestId !== playRequestRef.current) return;
       const audio = new Audio(url);
@@ -211,7 +236,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     }
   }
 
-  async function sendContent(content: string) {
+  async function sendContent(content: string, voiceUrl?: string) {
     const clean = content.trim();
     if (!clean || processingRef.current) return;
     processingRef.current = true;
@@ -220,15 +245,34 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     setError("");
     setCreditError(false);
     const optimistic: SecretaryMessage = { id: `local-${Date.now()}`, role: "user", content: clean, created_at: new Date().toISOString() };
+    if (voiceUrl) {
+      userVoiceBubblesRef.current[optimistic.id] = voiceUrl;
+      setUserVoiceBubbles({ ...userVoiceBubblesRef.current });
+    }
     setMessages((current) => [...current, optimistic]);
     try {
       const requestId = typeof window.crypto.randomUUID === "function" ? window.crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).slice(2)}`;
       const result = await sendSecretaryMessage(clean, locale, requestId);
+      if (voiceUrl) {
+        const next = { ...userVoiceBubblesRef.current };
+        delete next[optimistic.id];
+        next[result.user_message.id] = voiceUrl;
+        userVoiceBubblesRef.current = next;
+        setUserVoiceBubbles(next);
+      }
       setMessages((current) => [...current.filter((item) => item.id !== optimistic.id), result.user_message, result.assistant_message]);
       // Fire-and-forget: autoplay must not hold the composer hostage. If the
       // browser blocks autoplay or the user pauses, the input must still unlock.
       void playMessage(result.assistant_message);
     } catch (reason) {
+      if (voiceUrl) {
+        const next = { ...userVoiceBubblesRef.current };
+        delete next[optimistic.id];
+        userVoiceBubblesRef.current = next;
+        setUserVoiceBubbles(next);
+        URL.revokeObjectURL(voiceUrl);
+        voiceUrlRegistryRef.current.delete(voiceUrl);
+      }
       setMessages((current) => current.filter((item) => item.id !== optimistic.id));
       setInput(clean);
       setError(isUnauthorized(reason) ? copy.loginRequired : hasStatus(reason, 402) ? copy.insufficientCredits : copy.messageError);
@@ -243,12 +287,19 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
     setRecording(false);
     setTranscribing(true);
     processingRef.current = true;
+    let voiceUrl: string | null = null;
     try {
       const transcript = await transcribeSecretaryAudio(blob, locale);
+      voiceUrl = URL.createObjectURL(blob);
+      voiceUrlRegistryRef.current.add(voiceUrl);
       processingRef.current = false;
       setTranscribing(false);
-      await sendContent(transcript.text);
+      await sendContent(transcript.text, voiceUrl);
     } catch (reason) {
+      if (voiceUrl) {
+        URL.revokeObjectURL(voiceUrl);
+        voiceUrlRegistryRef.current.delete(voiceUrl);
+      }
       processingRef.current = false;
       setTranscribing(false);
       setError(isUnauthorized(reason) ? copy.loginRequired : copy.transcriptionError);
@@ -360,22 +411,18 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
             const ratio = active && audioDuration > 0 ? Math.min(1, audioProgress / audioDuration) : 0;
             const knownDuration = active ? audioDuration : (audioDurations[message.id] || 0);
             const remaining = active ? Math.max(0, knownDuration - audioProgress) : knownDuration;
+            const ownRecording = !assistant ? userVoiceBubbles[message.id] : undefined;
             return (
               <div key={message.id} className={`flex ${assistant ? "justify-start" : "justify-end"}`}>
-                <div className={`max-w-[86%] border px-4 py-3 text-sm leading-6  rounded-lg ${assistant ? "secretary-bubble-assistant" : "border-border-pg-strong bg-pg-white text-pg-black"}`}>
-                  <div className="whitespace-pre-wrap">{String(message.content || "")}</div>
-                  {assistant ? (
-                    <div className="mt-3 flex min-h-14 w-[min(320px,72vw)] items-center gap-3 rounded-lg bg-[#229ed9] px-3 py-2 text-white shadow-sm">
-                      <button type="button" title={playing ? copy.stop : copy.play} disabled={loading} onClick={() => void playMessage(message)} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-60">
-                        {loading ? <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-white" /> : playing ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
-                      </button>
-                      <div className="min-w-0 flex-1">
-                        <div className="flex h-8 items-center gap-[3px] overflow-hidden" aria-hidden>{waveformBars.map((height, index) => <span key={index} className={`w-[3px] shrink-0 rounded-full ${index / waveformBars.length <= ratio ? "bg-white" : "bg-white/45"}`} style={{ height }} />)}</div>
-                        <div className="mt-0.5 flex justify-between text-[0.68rem] leading-none text-white/85"><span>{loading ? copy.speaking : formatTime(active ? audioProgress : 0)}</span><span>{knownDuration > 0 ? `-${formatTime(remaining)}` : "0:00"}</span></div>
-                      </div>
-                    </div>
-                  ) : null}
-                </div>
+                {assistant ? (
+                  <BubblePlayer dark={false} playing={playing} loading={loading} ratio={ratio} currentTime={active ? audioProgress : 0} remaining={remaining} knownDuration={knownDuration} stopLabel={copy.stop} playLabel={copy.play} speakingLabel={copy.speaking} onToggle={() => void playMessage(message)} title={copy.play} />
+                ) : ownRecording ? (
+                  <BubblePlayer dark playing={playing} loading={loading} ratio={ratio} currentTime={active ? audioProgress : 0} remaining={remaining} knownDuration={knownDuration} stopLabel={copy.stop} playLabel={copy.play} speakingLabel={copy.speaking} onToggle={() => void playMessage(message)} title={copy.play} />
+                ) : (
+                  <div className="max-w-[86%] border border-border-pg-strong bg-pg-white px-4 py-3 text-sm leading-6 text-pg-black rounded-lg">
+                    <div className="whitespace-pre-wrap">{String(message.content || "")}</div>
+                  </div>
+                )}
               </div>
             );
           })}

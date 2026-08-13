@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Bot, CheckCircle2, ChevronDown, CircleStop, Compass, Database, FilePlus2, Loader2, MessageSquarePlus, Paperclip, RefreshCw, SearchCheck, Send, Settings2, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
+import { Bot, CheckCircle2, ChevronDown, CircleStop, Compass, Database, FilePlus2, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip, RefreshCw, SearchCheck, Send, Settings2, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
 import { ReportMarkdown } from "@/components/puregamma";
 import { ResearchModeSwitch } from "@/components/research-mode-switch";
 import { ContextControls, nextActionLabel, nextActionPrompt, StrategyToolResult } from "@/components/chat-panels";
@@ -37,6 +37,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [runtimePlan, setRuntimePlan] = useState<AgentRuntimePlan | null>(null);
   const [evidenceStatus, setEvidenceStatus] = useState<AgentEvidenceSummary | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const controllerRef = useRef<AbortController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -276,11 +277,19 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   };
 
   return (
-    <div className="grid h-[calc(100dvh-7rem)] min-h-[620px] overflow-hidden border border-border-pg bg-bg-panel lg:grid-cols-[244px_minmax(0,1fr)] rounded-2xl">
+    <div className={`grid h-[calc(100dvh-7rem)] min-h-[620px] overflow-hidden border border-border-pg bg-bg-panel rounded-2xl ${historyCollapsed ? "lg:grid-cols-[44px_minmax(0,1fr)]" : "lg:grid-cols-[244px_minmax(0,1fr)]"}`}>
+      {historyCollapsed ? (
+        <aside className="hidden border-r border-border-pg bg-bg-app lg:flex lg:flex-col lg:items-center lg:py-3">
+          <button type="button" onClick={() => setHistoryCollapsed(false)} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "展开历史对话" : "Expand conversation history"}><PanelLeftOpen className="h-4 w-4" /></button>
+        </aside>
+      ) : (
       <aside className="hidden border-b border-border-pg bg-bg-app lg:flex lg:flex-col lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between border-b border-border-pg p-3">
           <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"} · ${quota.credit_balance} Credits` : "-"}</div></div>
-          <button type="button" onClick={createNew} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setHistoryCollapsed(true)} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "收起历史对话" : "Collapse conversation history"}><PanelLeftClose className="h-4 w-4" /></button>
+            <button type="button" onClick={createNew} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
+          </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2 lg:space-y-1">
           {conversations.map((conversation) => (
@@ -303,6 +312,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div>
         ) : null}
       </aside>
+      )}
 
       <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
         <div ref={scrollRef} onScroll={(event) => { const target = event.currentTarget; followRef.current = target.scrollHeight - target.scrollTop - target.clientHeight < 120; }} className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
