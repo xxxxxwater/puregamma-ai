@@ -10,8 +10,20 @@ func parseUTCDate(_ raw: String) -> Date? {
 
 struct RepositoryContainer {
     let today: TodayRepository; let agent: AgentRepository; let research: ResearchRepository; let portfolio: PortfolioRepository; let account: AccountRepository
+    let mobileCapabilities: MobileCapabilitiesRepository; let researchRuns: ResearchRunsRepository; let memory: MemoryRepository; let tradingMandates: TradingMandatesRepository
     private let responseCache: ResponseCache
-    @MainActor init(client: APIClient) { let cache = ResponseCache(); responseCache = cache; today = TodayRepository(client: client, cache: cache); agent = AgentRepository(client: client); research = ResearchRepository(client: client, cache: cache); portfolio = PortfolioRepository(client: client, cache: cache); account = AccountRepository(client: client) }
+    @MainActor init(client: APIClient) {
+        let cache = ResponseCache(); responseCache = cache
+        today = TodayRepository(client: client, cache: cache)
+        agent = AgentRepository(client: client)
+        research = ResearchRepository(client: client, cache: cache)
+        portfolio = PortfolioRepository(client: client, cache: cache)
+        account = AccountRepository(client: client)
+        mobileCapabilities = MobileCapabilitiesRepository(client: client)
+        researchRuns = ResearchRunsRepository(client: client, cache: cache)
+        memory = MemoryRepository(client: client)
+        tradingMandates = TradingMandatesRepository(client: client)
+    }
     func clearCaches() async { try? await responseCache.clear() }
 }
 
@@ -110,7 +122,7 @@ enum AgentSSEEvent: Equatable, Sendable {
     func runAutopilot() async throws -> Autopilot { let dto: AutopilotDTO = try await client.request("/portfolio/autopilot/run", method: "POST"); return dto.domain }
 }
 
-private func canUseCache(_ error: Error) -> Bool {
+func canUseCache(_ error: Error) -> Bool {
     guard let apiError = error as? APIError else { return false }
     switch apiError {
     case .transport, .unavailable: return true

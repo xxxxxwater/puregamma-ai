@@ -59,4 +59,17 @@
     <string name="delete_account_confirm_message">This permanently deletes your account and all associated data. This action cannot be undone.</string>
     <string name="delete_account_confirm">Permanently delete</string>
     <string name="cancel">Cancel</string>
+
+    <!-- Mobile capabilities / harness research / memory / trading safety -->
+    <string name="harness_research">Harness research</string>
+    <string name="harness_research_subtitle">Deep research runs managed by the server</string>
+    <string name="feature_not_available_yet">Feature not available yet</string>
+    <string name="feature_disabled_for_account">Disabled for your account by the server</string>
+    <string name="open_in_web">Open in web product</string>
+    <string name="web_overlay_close">Close web product</string>
+    <string name="research_safety_section">Research &amp; safety</string>
+    <string name="memory_controls">Memory controls</string>
+    <string name="trading_safety">Trading safety</string>
+    <string name="live_trading_row">LIVE trading</string>
+    <string name="live_trading_disabled_caption">Permanently disabled in this app — no order entry</string>
 </resources>

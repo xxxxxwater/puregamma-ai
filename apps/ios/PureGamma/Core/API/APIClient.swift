@@ -62,12 +62,25 @@ final class APIClient: @unchecked Sendable {
     }
 
     func stream<Body: Encodable>(_ path: String, body: Body) async throws -> (URLSession.AsyncBytes, URLResponse) {
+        try await openStream(path: path, method: "POST", body: JSONEncoder.pg.encode(body))
+    }
+
+    /// GET-based SSE streams (e.g. research run events). Used by contract v1:
+    /// `GET /api/research/runs/{run_id}/events`.
+    func streamGet(_ path: String) async throws -> (URLSession.AsyncBytes, URLResponse) {
+        try await openStream(path: path, method: "GET", body: nil)
+    }
+
+    private func openStream(path: String, method: String, body: Data?) async throws -> (URLSession.AsyncBytes, URLResponse) {
         let url = configuration.baseURL.appending(path: path)
-        var request = URLRequest(url: url); request.httpMethod = "POST"; request.timeoutInterval = 120
-        request.setValue("text/event-stream", forHTTPHeaderField: "Accept"); request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        var request = URLRequest(url: url); request.httpMethod = method; request.timeoutInterval = 120
+        request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.setValue(Self.localeHeader, forHTTPHeaderField: "X-PG-Locale")
         if let token = tokenStore.read() { request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization") }
-        request.httpBody = try JSONEncoder.pg.encode(body)
+        if let body {
+            request.httpBody = body
+            request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        }
         do {
             let result = try await session.bytes(for: request)
             try validate(result.1, data: Data())

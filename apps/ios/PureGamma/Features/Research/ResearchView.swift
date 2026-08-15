@@ -2,7 +2,7 @@ import Observation
 import SwiftUI
 
 @MainActor @Observable final class ResearchViewModel {
-    enum Section: String, CaseIterable, Identifiable { case reports = "Reports", signals = "Signals", playbooks = "Playbooks", backtest = "Backtest", options = "Long Gamma"; var id: String { rawValue } }
+    enum Section: String, CaseIterable, Identifiable { case reports = "Reports", runs = "Research runs", signals = "Signals", playbooks = "Playbooks", backtest = "Backtest", options = "Long Gamma"; var id: String { rawValue } }
     var section: Section = .reports; var reports: LoadState<[Report]> = .idle; var options: LoadState<[OptionCandidate]> = .idle; var currency = "BTC"; var optionStatus = ""; var fetchedAt: Date?
     let repository: ResearchRepository
     init(repository: ResearchRepository) { self.repository = repository }
@@ -10,22 +10,39 @@ import SwiftUI
     func loadOptions() async { options = .loading; do { let result = try await repository.longGamma(currency: currency); optionStatus = result.0; fetchedAt = result.1; options = result.2.isEmpty ? .empty : .loaded(result.2); if let error = result.3, result.2.isEmpty { options = .failed(.unavailable(error)) } } catch { options = .failed(error as? APIError ?? .transport(error.localizedDescription)) } }
 }
 
+private struct ResearchRunTarget: Identifiable, Hashable { let id: String }
+
 struct ResearchView: View {
+    @Environment(AppState.self) private var app
     @State private var model: ResearchViewModel
     @State private var generatingReport = false
     @State private var reportMessage: String?
+    @State private var runTarget: ResearchRunTarget?
     init(repository: ResearchRepository) { _model = State(initialValue: ResearchViewModel(repository: repository)) }
     var body: some View {
         VStack(spacing: 0) {
             Picker("Research section", selection: $model.section) { ForEach(ResearchViewModel.Section.allCases) { Text(LocalizedStringKey($0.rawValue)).tag($0) } }.pickerStyle(.segmented).padding()
             switch model.section {
             case .reports: reports
+            case .runs: ResearchRunsView(repository: app.repositories.researchRuns, capabilities: app.mobileCapabilities)
             case .signals: SignalsView(repository: model.repository)
             case .playbooks: PlaybooksView(repository: model.repository)
             case .backtest: BacktestView(repository: model.repository)
             case .options: options
             }
-        }.navigationTitle("Research").navigationBarTitleDisplayMode(.inline).task { await model.loadReports() }.onChange(of: model.section) { _, value in if value == .options, case .idle = model.options { Task { await model.loadOptions() } } }
+        }
+        .navigationTitle("Research").navigationBarTitleDisplayMode(.inline)
+        .navigationDestination(item: $runTarget) { target in
+            ResearchRunDetailView(repository: app.repositories.researchRuns, runID: target.id, capabilities: app.mobileCapabilities)
+        }
+        .task { await model.loadReports() }
+        .onChange(of: model.section) { _, value in if value == .options, case .idle = model.options { Task { await model.loadOptions() } } }
+        .onChange(of: app.pendingResearchRunID) { _, runID in
+            guard let runID else { return }
+            model.section = .runs
+            runTarget = ResearchRunTarget(id: runID)
+            app.pendingResearchRunID = nil
+        }
     }
     @ViewBuilder private var reports: some View { switch model.reports { case .loading, .idle: ProgressView("Loading reports…").frame(maxHeight: .infinity); case .empty: StateView(title: "No reports", detail: "No real research report has been generated yet.", symbol: "doc.text"); case .failed(let e): StateView(title: "Reports unavailable", detail: LocalizedStringKey(e.localizedDescription), symbol: "doc.badge.ellipsis", retry: { Task { await model.loadReports() } }); case .loaded(let rows): reportList(rows); case .stale(let rows, let cachedAt): VStack(spacing: 8) { StaleDataBanner(cachedAt: cachedAt).padding(.horizontal); reportList(rows) } } }
     private func reportList(_ rows: [Report]) -> some View {

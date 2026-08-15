@@ -28,13 +28,13 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
-        intent?.data?.let(model::handleOAuth)
+        intent?.data?.let(model::handleDeepLink)
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
         setIntent(intent)
-        intent.data?.let(model::handleOAuth)
+        intent.data?.let(model::handleDeepLink)
     }
 
     private fun openBrowser(uri: Uri) {

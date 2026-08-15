@@ -24,6 +24,15 @@ READ_ONLY_SKILL_TOOLS = {
     "get_strategy_status",
     "get_options_context",
     "get_earnings_gamma",
+    # DeepSeek Harness Research Gateway tools (additive). These are research
+    # tools only; the gateway enforces the run-scoped capability token and
+    # never exposes order/account/risk mutation.
+    "get_evidence_snapshot",
+    "get_market_series",
+    "run_backtest",
+    "run_research_code",
+    "get_portfolio_snapshot",
+    "save_research_artifact",
 }
 
 REVIEWED_OFFICIAL_TOOLS = READ_ONLY_SKILL_TOOLS | {
@@ -68,6 +77,7 @@ ALLOWED_DATA_SOURCES = {
     "options",
     "onchain",
     "defillama",
+    "evidence_snapshot",
 }
 
 TOOL_DATA_SOURCE_REQUIREMENTS = {

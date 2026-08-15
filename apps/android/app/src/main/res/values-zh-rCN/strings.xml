@@ -59,4 +59,17 @@
     <string name="delete_account_confirm_message">这将永久删除你的账户及所有相关数据。此操作不可撤销。</string>
     <string name="delete_account_confirm">永久删除</string>
     <string name="cancel">取消</string>
+
+    <!-- 移动端能力 / Harness 研究 / 记忆 / 交易安全 -->
+    <string name="harness_research">Harness 研究</string>
+    <string name="harness_research_subtitle">由服务端运行的深度研究任务</string>
+    <string name="feature_not_available_yet">功能暂不可用</string>
+    <string name="feature_disabled_for_account">服务端已为你的账户禁用此功能</string>
+    <string name="open_in_web">在 Web 产品中打开</string>
+    <string name="web_overlay_close">关闭 Web 产品</string>
+    <string name="research_safety_section">研究与安全</string>
+    <string name="memory_controls">记忆设置</string>
+    <string name="trading_safety">交易安全</string>
+    <string name="live_trading_row">LIVE 交易</string>
+    <string name="live_trading_disabled_caption">本应用永久禁用 — 无下单能力</string>
 </resources>

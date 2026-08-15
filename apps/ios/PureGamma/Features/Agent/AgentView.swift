@@ -94,15 +94,17 @@ import UniformTypeIdentifiers
 private func agentResult<T>(_ operation: () async throws -> T) async -> Result<T, Error> { do { return .success(try await operation()) } catch { return .failure(error) } }
 
 struct AgentView: View {
+    @Environment(AppState.self) private var app
     @Environment(\.scenePhase) private var scenePhase
     @Environment(\.locale) private var locale
-    @State private var model: AgentViewModel; @State private var showConversations = false; @State private var showContext = false; @State private var importer = false; @State private var rename = false; @State private var newTitle = ""
+    @State private var model: AgentViewModel; @State private var showConversations = false; @State private var showContext = false; @State private var importer = false; @State private var rename = false; @State private var newTitle = ""; @State private var showResearchStart = false
     init(repository: AgentRepository) { _model = State(initialValue: AgentViewModel(repository: repository)) }
     var body: some View {
         VStack(spacing: 0) { statusStrip; messageList; if let error = model.composerError { errorStrip(error) }; composer }
             .navigationTitle(model.selectedConversation?.title ?? String(localized: "Agent")).navigationBarTitleDisplayMode(.inline)
-            .toolbar { ToolbarItem(placement: .topBarLeading) { Button { showConversations = true } label: { Image(systemName: "sidebar.left") }.accessibilityLabel("Conversations") }; ToolbarItemGroup(placement: .topBarTrailing) { Button { showContext = true } label: { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Agent context") ; Menu { Button("Rename") { newTitle = model.selectedConversation?.title ?? ""; rename = true }; Button("Archive", systemImage: "archivebox") { Task { await model.archive() } }; Button("Delete", systemImage: "trash", role: .destructive) { Task { await model.delete() } } } label: { Image(systemName: "ellipsis") } } }
+            .toolbar { ToolbarItem(placement: .topBarLeading) { Button { showConversations = true } label: { Image(systemName: "sidebar.left") }.accessibilityLabel("Conversations") }; ToolbarItemGroup(placement: .topBarTrailing) { Button { showResearchStart = true } label: { Image(systemName: "flask") }.accessibilityLabel("Start research"); Button { showContext = true } label: { Image(systemName: "slider.horizontal.3") }.accessibilityLabel("Agent context") ; Menu { Button("Rename") { newTitle = model.selectedConversation?.title ?? ""; rename = true }; Button("Archive", systemImage: "archivebox") { Task { await model.archive() } }; Button("Delete", systemImage: "trash", role: .destructive) { Task { await model.delete() } } } label: { Image(systemName: "ellipsis") } } }
             .task { await model.load() }.sheet(isPresented: $showConversations) { conversationsSheet }.sheet(isPresented: $showContext) { AgentContextView(model: model, importer: $importer) }
+            .sheet(isPresented: $showResearchStart) { ResearchStartView(repository: app.repositories.researchRuns, capabilities: app.mobileCapabilities) { runID in app.selectedTab = .research; app.pendingResearchRunID = runID } }
             .fileImporter(isPresented: $importer, allowedContentTypes: [.plainText, .commaSeparatedText, .json]) { result in if case .success(let url) = result { let access = url.startAccessingSecurityScopedResource(); model.addAttachment(url); if access { url.stopAccessingSecurityScopedResource() } } }
             .alert("Rename conversation", isPresented: $rename) { TextField("Title", text: $newTitle); Button("Save") { Task { await model.rename(newTitle) } }; Button("Cancel", role: .cancel) {} }
             .onChange(of: scenePhase) { _, phase in

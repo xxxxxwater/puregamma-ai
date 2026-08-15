@@ -297,12 +297,19 @@ private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
 @Composable
 private fun SignedInApp(model: AppViewModel) {
     var selected by rememberSaveable { mutableStateOf(AppTab.TODAY) }
+    var webOverlayUrl by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
     val error = model.globalError
     LaunchedEffect(error) {
         error?.let {
             snackbar.showSnackbar(it)
             model.clearError()
+        }
+    }
+    // 深链/推送写入的受信 Web 产品路由：消费后打开 WebView 覆盖层。
+    LaunchedEffect(model.pendingWebRoute) {
+        model.pendingWebRoute?.let { route ->
+            webOverlayUrl = model.consumePendingWebRoute()
         }
     }
     Scaffold(
@@ -328,7 +335,37 @@ private fun SignedInApp(model: AppViewModel) {
                 AppTab.PORTFOLIO -> PortfolioScreen(model)
                 AppTab.ACCOUNT -> AccountScreen(model)
             }
+            webOverlayUrl?.let { url ->
+                ProductWebOverlay(
+                    entryUrl = url,
+                    onClose = { webOverlayUrl = null },
+                    onSignOut = {
+                        webOverlayUrl = null
+                        model.signOut()
+                    },
+                )
+            }
         }
+    }
+}
+
+/**
+ * 受信 Web 产品覆盖层：只加载 PRODUCT_WEB_BASE_URL 下的白名单路由，
+ * WebView 内部再按域名白名单二次校验（WebProductScreen）。
+ */
+@Composable
+private fun ProductWebOverlay(entryUrl: String, onClose: () -> Unit, onSignOut: () -> Unit) {
+    Column(Modifier.fillMaxSize().background(Color(0xFF101216))) {
+        Row(
+            Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            IconButton(onClick = onClose) {
+                Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.web_overlay_close))
+            }
+            Text("PureGamma", style = MaterialTheme.typography.titleSmall)
+        }
+        WebProductScreen(entryUrl = entryUrl, onSignOut = onSignOut)
     }
 }
 
@@ -628,7 +665,8 @@ private fun AgentMessageRow(message: AgentMessage) {
 private fun ResearchScreen(model: AppViewModel) {
     var typeFilter by remember { mutableStateOf<String?>(null) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
-        item { ScreenHeader(stringResource(R.string.research), "REPORTS / OPTIONS / SOURCES", model::loadToday) }
+        item { ScreenHeader(stringResource(R.string.research), "REPORTS / HARNESS / SOURCES", model::loadToday) }
+        item { HarnessResearchBlock(model) }
         when (val state = model.reports) {
             LoadState.Idle, LoadState.Loading -> item { LoadingBlock() }
             is LoadState.Failed -> item { ErrorBlock(state.message, model::loadToday) }
@@ -660,6 +698,43 @@ private fun ResearchScreen(model: AppViewModel) {
             }
         }
         item { Disclosure() }
+    }
+}
+
+/**
+ * Harness 研究入口：能力完全由服务端决定。
+ * 可用 → 打开受信 Web 产品路由；不可用 → 灰色不可操作状态，绝不展示假数据。
+ */
+@Composable
+private fun HarnessResearchBlock(model: AppViewModel) {
+    val capabilities = (model.mobileCapabilities as? LoadState.Ready)?.value
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 10.dp)) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Icon(Icons.Default.Science, contentDescription = null, tint = if (capabilities?.harnessResearchEnabled == true) Positive else MaterialTheme.colorScheme.onSurfaceVariant)
+            Spacer(Modifier.width(10.dp))
+            Column(Modifier.weight(1f)) {
+                Text(stringResource(R.string.harness_research), fontWeight = FontWeight.SemiBold)
+                Text(
+                    when {
+                        capabilities == null || !capabilities.serverContractAvailable -> stringResource(R.string.feature_not_available_yet)
+                        !capabilities.harnessResearchEnabled -> stringResource(R.string.feature_disabled_for_account)
+                        else -> capabilities.maintenanceMessage ?: stringResource(R.string.harness_research_subtitle)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+            if (capabilities?.serverContractAvailable == true && capabilities.harnessResearchEnabled && capabilities.userCanStartResearch) {
+                OutlinedButton(
+                    onClick = { model.openProductRoute(if (model.language == "zh") "zh/research/runs" else "en/research/runs") },
+                    shape = RoundedCornerShape(6.dp),
+                ) {
+                    Icon(Icons.Default.OpenInNew, contentDescription = null, modifier = Modifier.size(16.dp))
+                    Spacer(Modifier.width(6.dp))
+                    Text(stringResource(R.string.open_in_web))
+                }
+            }
+        }
     }
 }
 
@@ -789,6 +864,8 @@ private fun AccountScreen(model: AppViewModel) {
                 }
             }
         }
+        item { SectionTitle("03", stringResource(R.string.research_safety_section), "SERVER GATED") }
+        item { ServiceCapabilityRows(model) }
         item {
             TextButton(onClick = model::signOut, modifier = Modifier.fillMaxWidth().padding(16.dp)) {
                 Icon(Icons.AutoMirrored.Filled.ExitToApp, contentDescription = null)
@@ -830,6 +907,74 @@ private fun AccountScreen(model: AppViewModel) {
                 }
             },
         )
+    }
+}
+
+/**
+ * 服务能力状态行（服务端为准）：可用 → 打开受信 Web 产品路由；不可用 → 灰色不可操作。
+ * LIVE 恒为 Disabled，永不渲染任何启动/操作按钮。
+ */
+@Composable
+private fun ServiceCapabilityRows(model: AppViewModel) {
+    val capabilities = (model.mobileCapabilities as? LoadState.Ready)?.value
+    val contractAvailable = capabilities?.serverContractAvailable == true
+
+    fun route(relative: String) {
+        model.openProductRoute(if (model.language == "zh") "zh/$relative" else "en/$relative")
+    }
+
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp)) {
+        ServiceCapabilityRow(
+            icon = Icons.Default.Psychology,
+            title = stringResource(R.string.memory_controls),
+            subtitle = when {
+                !contractAvailable -> stringResource(R.string.feature_not_available_yet)
+                capabilities?.memoryServiceEnabled != true -> stringResource(R.string.feature_disabled_for_account)
+                else -> stringResource(R.string.open_in_web)
+            },
+            enabled = contractAvailable && capabilities.memoryServiceEnabled == true && capabilities.userCanManageMemory == true,
+            onClick = { route("account/memory") },
+        )
+        ServiceCapabilityRow(
+            icon = Icons.Default.Shield,
+            title = stringResource(R.string.trading_safety),
+            subtitle = when {
+                !contractAvailable -> stringResource(R.string.feature_not_available_yet)
+                capabilities?.autoTradingEnabled != true -> stringResource(R.string.feature_disabled_for_account)
+                else -> stringResource(R.string.open_in_web)
+            },
+            enabled = contractAvailable && capabilities.autoTradingEnabled == true && capabilities.userCanViewTradingMandates == true,
+            onClick = { route("account/trading") },
+        )
+        ServiceCapabilityRow(
+            icon = Icons.Default.Lock,
+            title = stringResource(R.string.live_trading_row),
+            subtitle = stringResource(R.string.live_trading_disabled_caption),
+            enabled = false,
+            onClick = {},
+        )
+    }
+}
+
+@Composable
+private fun ServiceCapabilityRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    enabled: Boolean,
+    onClick: () -> Unit,
+) {
+    Row(
+        Modifier.fillMaxWidth().clickable(enabled = enabled, onClick = onClick).padding(vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
+        Icon(icon, contentDescription = null, tint = if (enabled) Positive else MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(12.dp))
+        Column(Modifier.weight(1f)) {
+            Text(title, fontWeight = FontWeight.SemiBold, color = if (enabled) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant)
+            Text(subtitle, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        if (enabled) Icon(Icons.Default.ChevronRight, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
     }
 }
 

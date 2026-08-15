@@ -27,6 +27,10 @@ def _manifest(
     max_credits: int = 30,
     version: str = "1.0.0",
     changelog: str = "Migrated from the original Agent Chat capability selector.",
+    billing_type: str = "included",
+    timeout_seconds: int = 90,
+    calls_per_hour: int = 120,
+    release_status: str = "published",
 ) -> tuple[SkillManifest, dict[str, str]]:
     files = {
         ".puregamma-skill.yaml": "generated from the signed PureGamma built-in catalog",
@@ -48,11 +52,11 @@ def _manifest(
             risk_level=risk,
             allow_autopilot=slug in {"market_research", "news_research", "portfolio_review", "source_check"},
             allow_order_intent=False,
-            billing_type="included",
+            billing_type=billing_type,
             version=version,
-            release_status="published",
+            release_status=release_status,
             scope="official",
-            runtime={"max_calls_per_hour": 120, "max_credits_per_run": max_credits, "timeout_seconds": 90, "human_confirmation_required": False},
+            runtime={"max_calls_per_hour": calls_per_hour, "max_credits_per_run": max_credits, "timeout_seconds": timeout_seconds, "human_confirmation_required": False},
             tags=[slug, "official", "evidence-first"],
             changelog=changelog,
         ),
@@ -110,6 +114,30 @@ BUILTIN_SKILLS = [
         prompt="Build an evidence pack before synthesis. Present competing hypotheses, missing evidence, timestamps, and citations. When the user asks about strategy quality or a trading idea, prefer validating it with run_nautilus_backtest and get_strategy_performance over narrative-only reasoning, and report the backtest window, assumptions, and key performance metrics alongside the thesis. Skip unavailable providers with a one-line disclosure instead of aborting the research.",
         risk="medium", max_credits=150, version="1.2.0",
         changelog="Route strategy-quality questions through backtest validation and add graceful provider degradation.",
+    ),
+    _manifest(
+        "harness_deep_research", "DeepSeek Harness Deep Research",
+        "Long-running, multi-step, multi-agent deep research executed by the isolated DeepSeek Harness runner. The result is a server-validated ResearchArtifact; nothing executes as a trade.",
+        assets=["crypto", "options", "equities", "portfolio", "defi", "macro", "multi_asset"],
+        sources=["evidence_snapshot", "market", "options", "portfolio"],
+        tools=["get_evidence_snapshot", "get_market_series", "get_options_context", "run_backtest", "run_research_code", "get_portfolio_snapshot", "save_research_artifact"],
+        prompt=(
+            "You are a research orchestrator, never an executor. Plan the task as "
+            "sub-steps, consume ONLY the frozen Evidence Snapshot and gateway "
+            "tools granted to this run, and record every tool call. Backtests may "
+            "only use approved strategy specs and return artifact references, "
+            "never file paths. All conclusions must cite verifiable evidence; "
+            "anything unverifiable goes to limitations, never to findings. "
+            "Produce memory proposals only through save_research_artifact; you "
+            "cannot write memory, place orders, or touch accounts."
+        ),
+        risk="medium", max_credits=150, version="1.0.0",
+        billing_type="paid", timeout_seconds=720, calls_per_hour=12,
+        release_status="review",
+        changelog=(
+            "Phase 1 harness_deep_research official Skill. Gated by "
+            "HARNESS_RESEARCH_ENABLED; selectable only while the flag is on."
+        ),
     ),
 ]
 

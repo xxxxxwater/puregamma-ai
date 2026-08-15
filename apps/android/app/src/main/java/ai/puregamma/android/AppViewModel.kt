@@ -60,6 +60,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val researchRepo = ResearchRepository(api)
     val portfolioRepo = PortfolioRepository(api)
     val accountRepo = AccountRepository(api)
+    val mobileRepo = MobileRepository(api)
 
     private var streamJob: Job? = null
 
@@ -77,6 +78,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         runCatching { ThemeMode.valueOf(preferences.getString("theme", ThemeMode.DARK.name)!!) }
             .getOrDefault(ThemeMode.DARK),
     )
+        private set
+
+    /** 服务端能力发现结果。所有新功能入口以此为准；失败视为全部不可用。 */
+    var mobileCapabilities: LoadState<MobileCapabilities> by mutableStateOf(LoadState.Idle)
+        private set
+    /** 待打开的受信 Web 产品路由（FCM 深链/原生入口写入，UI 消费后清空）。 */
+    var pendingWebRoute: String? by mutableStateOf(null)
         private set
 
     var markets: LoadState<List<MarketAsset>> by mutableStateOf(LoadState.Idle)
@@ -106,6 +114,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     private var activeRunId: String? by mutableStateOf(null)
 
     init {
+        PureGammaPushBridge.addMessageListener(::onPushMessage)
         bootstrap()
     }
 
@@ -236,6 +245,13 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         loadToday()
         loadPortfolio()
         loadAgent()
+        loadMobileCapabilities()
+    }
+
+    /** 能力发现：服务端为准。404/501（契约缺失）与网络失败一律视为全部不可用。 */
+    fun loadMobileCapabilities() = viewModelScope.launch {
+        mobileCapabilities = LoadState.Loading
+        mobileCapabilities = load { mobileRepo.getCapabilities() }
     }
 
     fun loadToday() = viewModelScope.launch {
@@ -447,6 +463,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         reports = LoadState.Idle
         portfolio = LoadState.Idle
         messages = LoadState.Idle
+        mobileCapabilities = LoadState.Idle
+        pendingWebRoute = null
     }
 
     private suspend fun <T> load(block: suspend () -> T): LoadState<T> =
@@ -454,6 +472,57 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             onSuccess = { LoadState.Ready(it) },
             onFailure = { LoadState.Failed(resolveError(it, "Request failed")) },
         )
+
+    // ---- 深链与 Web 产品路由（最小化、白名单化的受信通道） ----
+
+    /** App Link / intent 深链入口。仅处理 OAuth 回调与受信的研究路由。 */
+    fun handleDeepLink(uri: Uri?) {
+        if (uri == null || uri.scheme != "puregamma") return
+        when {
+            uri.host == "oauth" -> handleOAuth(uri)
+            uri.host == "research" -> {
+                // puregamma://research/runs/{run_id}
+                val segments = uri.pathSegments
+                val runId = segments.getOrNull(1) ?: return
+                if (RUN_ID_PATTERN.matches(runId)) {
+                    openProductRoute("${languagePrefix()}/research/runs/$runId")
+                }
+            }
+        }
+    }
+
+    /** FCM 消息路由：研究完成通知 → 打开 Web 产品研究详情。 */
+    private fun onPushMessage(data: Map<String, String>) {
+        val route = data["route"] ?: return
+        val runId = data["run_id"] ?: data["runId"]
+        if (route == "research_run" && runId != null && RUN_ID_PATTERN.matches(runId)) {
+            openProductRoute("${languagePrefix()}/research/runs/$runId")
+        }
+    }
+
+    /**
+     * 打开 Web 产品路由。仅允许白名单前缀，杜绝任意 URL 注入；
+     * WebView 层另有域名白名单（app.puregamma.ai）双重约束。
+     */
+    fun openProductRoute(relativePath: String): Boolean {
+        val path = relativePath.trim().trimStart('/')
+        if (!PRODUCT_ROUTE_ALLOWLIST.matches(path)) return false
+        pendingWebRoute = BuildConfig.PRODUCT_WEB_BASE_URL.trimEnd('/') + "/" + path
+        return true
+    }
+
+    fun consumePendingWebRoute(): String? {
+        val route = pendingWebRoute
+        pendingWebRoute = null
+        return route
+    }
+
+    private fun languagePrefix(): String = if (language == "zh") "zh" else "en"
+
+    private companion object {
+        val RUN_ID_PATTERN = Regex("^[A-Za-z0-9_-]{1,64}$")
+        val PRODUCT_ROUTE_ALLOWLIST = Regex("""^(en|zh)/(research/runs|account/memory|account/trading|trading)(/.*)?$""")
+    }
 
     private fun defaultModel(): String = (capabilities as? LoadState.Ready)
         ?.value?.models?.firstOrNull { it.available }?.id ?: "default"

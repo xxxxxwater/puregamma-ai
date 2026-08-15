@@ -3,7 +3,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Integer, Numeric, String, Text, UniqueConstraint, event
+from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, event, text
 from sqlalchemy import JSON
 from sqlalchemy.orm import declarative_base, relationship
 
@@ -1894,3 +1894,413 @@ class GatewayWalletLedger(Base):
     gateway_request_log_id = Column(String, ForeignKey("gateway_request_logs.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
     metadata_json = Column("metadata", JSON, default=dict, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+# =============================================================================
+# DeepSeek Harness Integration (additive layer; see
+# docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md). The Harness runner is a
+# research orchestrator only: it can never create orders, touch accounts, or
+# read production secrets. Trading remains exclusively on the
+# Trading Control Plane -> Nautilus Runtime path.
+# =============================================================================
+
+
+class EvidenceSnapshot(Base, TimestampMixin):
+    """Immutable, hashable facts frozen at the start of one research run.
+
+    Rows are INSERT-only: SQLAlchemy events reject update/delete. Shared
+    market evidence may have ``user_id`` NULL; user-scoped evidence always
+    carries the owning user. Uniqueness is enforced with two PARTIAL unique
+    indexes so NULL-owner shared snapshots are still deduplicated:
+    (content_hash, source_scope) WHERE user_id IS NULL, and
+    (content_hash, source_scope, user_id) WHERE user_id IS NOT NULL.
+    """
+
+    __tablename__ = "evidence_snapshots"
+    __table_args__ = (
+        Index(
+            "uq_evidence_snapshot_shared_scope",
+            "content_hash",
+            "source_scope",
+            unique=True,
+            sqlite_where=text("user_id IS NULL"),
+            postgresql_where=text("user_id IS NULL"),
+        ),
+        Index(
+            "uq_evidence_snapshot_user_scope",
+            "content_hash",
+            "source_scope",
+            "user_id",
+            unique=True,
+            sqlite_where=text("user_id IS NOT NULL"),
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    schema_version = Column(String, nullable=False, default="1.0")
+    source_scope = Column(String, nullable=False, default="run", index=True)  # run | shared_market | portfolio
+    freshness_window_seconds = Column(Integer, nullable=False, default=900)
+    content_hash = Column(String, nullable=False, index=True)
+    normalized_evidence_json = Column(JSON, default=dict, nullable=False)
+    source_ids_json = Column(JSON, default=list, nullable=False)
+    provider_list_json = Column(JSON, default=list, nullable=False)
+    source_timestamps_json = Column(JSON, default=list, nullable=False)
+    fetched_timestamps_json = Column(JSON, default=list, nullable=False)
+    mock_fallback_flags_json = Column(JSON, default=list, nullable=False)
+    authorization_context_json = Column(JSON, default=dict, nullable=False)
+
+
+class HarnessResearchRun(Base, TimestampMixin):
+    """One deep-research execution delegated to the isolated Harness runner.
+
+    State machine: queued -> preparing -> running -> validating ->
+    completed | degraded | failed | canceled | timed_out. Every transition is
+    recorded in ``harness_run_state_transitions`` and is idempotent.
+    """
+
+    __tablename__ = "harness_research_runs"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_harness_run_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    parent_agent_run_id = Column(String, ForeignKey("agent_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    skill_run_id = Column(String, ForeignKey("skill_runs.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String, nullable=False, default="queued", index=True)
+    requested_goal_summary = Column(Text, nullable=False, default="")
+    input_hash = Column(String, nullable=False, index=True)
+    evidence_snapshot_id = Column(String, ForeignKey("evidence_snapshots.id", ondelete="SET NULL"), nullable=True, index=True)
+    evidence_snapshot_hash = Column(String, nullable=True)
+    harness_version = Column(String, nullable=False)
+    runtime_version = Column(String, nullable=False)
+    cordis_config_hash = Column(String, nullable=False)
+    plugin_lock_hash = Column(String, nullable=False)
+    provider = Column(String, nullable=False, default="deepseek")
+    model = Column(String, nullable=False, default="deepseek-v4-flash")
+    session_id = Column(String, nullable=True, index=True)
+    queue_task_id = Column(String, nullable=True, index=True)
+    queue_priority = Column(Integer, nullable=False, default=0)
+    max_budget_credits = Column(Integer, nullable=False, default=0)
+    credits_reserved = Column(Integer, nullable=False, default=0)
+    started_at = Column(DateTime(timezone=True), nullable=True)
+    completed_at = Column(DateTime(timezone=True), nullable=True)
+    canceled_at = Column(DateTime(timezone=True), nullable=True)
+    timeout_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    error_code = Column(String, nullable=True)
+    error_summary = Column(Text, nullable=True)
+    usage_json = Column(JSON, default=dict, nullable=False)
+    artifact_id = Column(String, nullable=True, index=True)  # research_artifacts.id (plain ref: avoids a circular FK)
+    idempotency_key = Column(String, nullable=False)
+    trace_id = Column(String, nullable=False, index=True)
+    settlement_status = Column(String, nullable=True, default="none", index=True)  # none | settled | refunded
+
+
+class HarnessRunStateTransition(Base):
+    """Append-only audit of every HarnessResearchRun status change."""
+
+    __tablename__ = "harness_run_state_transitions"
+
+    id = Column(String, primary_key=True, default=new_id)
+    research_run_id = Column(String, ForeignKey("harness_research_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    from_status = Column(String, nullable=False)
+    to_status = Column(String, nullable=False, index=True)
+    reason = Column(String, nullable=True)
+    actor = Column(String, nullable=False, default="system")  # system | user | orchestrator | gateway
+    trace_id = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class ResearchArtifact(Base):
+    """Server-validated structured output of a Harness research run.
+
+    Harness can only *propose* an artifact through the Research Gateway;
+    the control plane validates citations/evidence before persisting.
+    """
+
+    __tablename__ = "research_artifacts"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    research_run_id = Column(String, ForeignKey("harness_research_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    status = Column(String, nullable=False, default="draft", index=True)  # draft | validated | degraded | rejected
+    schema_version = Column(String, nullable=False, default="1.0")
+    structured_json = Column(JSON, default=dict, nullable=False)
+    markdown_rendering = Column(Text, nullable=False, default="")
+    citations_json = Column(JSON, default=list, nullable=False)
+    methodology = Column(Text, nullable=False, default="")
+    assumptions_json = Column(JSON, default=list, nullable=False)
+    limitations_json = Column(JSON, default=list, nullable=False)
+    tool_run_summaries_json = Column(JSON, default=list, nullable=False)
+    artifact_file_refs_json = Column(JSON, default=list, nullable=False)
+    content_hash = Column(String, nullable=False, index=True)
+    validation_result_json = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class StrategyRelease(Base):
+    """Immutable, human-reviewed strategy release.
+
+    TradingMandate can only reference an approved StrategyRelease; it must
+    never reference Harness-generated natural language or drafts.
+    """
+
+    __tablename__ = "strategy_releases"
+    __table_args__ = (
+        UniqueConstraint("strategy_id", "strategy_version", "release_number", name="uq_strategy_release_version"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_id = Column(String, ForeignKey("strategies.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_version = Column(Integer, nullable=False)
+    release_number = Column(Integer, nullable=False, default=1)
+    spec_json = Column(JSON, default=dict, nullable=False)
+    spec_hash = Column(String, nullable=False, index=True)
+    review_status = Column(String, nullable=False, default="pending", index=True)  # pending | approved | rejected
+    reviewed_by_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    review_notes = Column(Text, nullable=True)
+    created_by = Column(String, nullable=False, default="user")  # user | harness_proposal | admin
+    source_artifact_id = Column(String, ForeignKey("research_artifacts.id", ondelete="SET NULL"), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class TradingMandate(Base, TimestampMixin):
+    """User-authorized, immutable trading authorization envelope.
+
+    Phase 1 supports SHADOW and PAPER only; ``future_live`` is a reserved
+    label and can never execute. Auto-pause is automatic; resume always
+    requires explicit human confirmation.
+    """
+
+    __tablename__ = "trading_mandates"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_trading_mandate_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_release_id = Column(String, ForeignKey("strategy_releases.id", ondelete="RESTRICT"), nullable=False, index=True)
+    execution_mode = Column(String, nullable=False, default="shadow", index=True)  # shadow | paper | future_live
+    asset_allowlist_json = Column(JSON, default=list, nullable=False)
+    allowed_side = Column(String, nullable=False, default="both")  # long | short | both
+    # Financial risk thresholds must never use binary floating point.
+    max_total_notional = Column(Numeric(20, 8), nullable=False, default=0)
+    max_per_order_notional = Column(Numeric(20, 8), nullable=False, default=0)
+    max_position_notional = Column(Numeric(20, 8), nullable=False, default=0)
+    max_leverage = Column(Numeric(20, 8), nullable=False, default=1)
+    max_daily_loss = Column(Numeric(20, 8), nullable=False, default=0)
+    max_trades_per_day = Column(Integer, nullable=False, default=0)
+    max_order_frequency_seconds = Column(Integer, nullable=False, default=60)
+    allowed_time_windows_json = Column(JSON, default=list, nullable=False)
+    data_freshness_seconds = Column(Integer, nullable=False, default=300)
+    source_policy_json = Column(JSON, default=dict, nullable=False)
+    stop_conditions_json = Column(JSON, default=list, nullable=False)
+    kill_switch_state = Column(String, nullable=False, default="inactive", index=True)  # inactive | active
+    paused = Column(Boolean, nullable=False, default=False)
+    pause_reason = Column(Text, nullable=True)
+    approval_state = Column(String, nullable=False, default="pending", index=True)  # pending | approved | rejected | revoked | expired
+    confirmation_phrase_hash = Column(String, nullable=True)
+    approved_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revision = Column(Integer, nullable=False, default=1)
+    audit_metadata_json = Column(JSON, default=dict, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+
+
+class TradingMandateAudit(Base):
+    """Append-only audit for every mandate lifecycle and execution event."""
+
+    __tablename__ = "trading_mandate_audits"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_mandate_audit_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="CASCADE"), nullable=False, index=True)
+    action = Column(String, nullable=False, index=True)  # created | approved | rejected | revoked | paused | resumed | killed | execution | rejection
+    status = Column(String, nullable=False, index=True)
+    actor_type = Column(String, nullable=False, default="user")  # user | system | harness_suggestion | scheduler
+    strategy_version = Column(Integer, nullable=True)
+    signal_id = Column(String, nullable=True, index=True)
+    runtime_command_id = Column(String, nullable=True)
+    detail_json = Column(JSON, default=dict, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+    trace_id = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class HarnessEventOutbox(Base):
+    """DB outbox for harness/mandate domain events (future Redis Streams).
+
+    Consumers use the idempotency key; retries must never duplicate
+    notifications. Existing daily-report/email automation is untouched.
+    """
+
+    __tablename__ = "harness_event_outbox"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_harness_outbox_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=True, index=True)
+    event_type = Column(String, nullable=False, index=True)
+    payload_json = Column(JSON, default=dict, nullable=False)
+    idempotency_key = Column(String, nullable=False)
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | dispatched | failed
+    trace_id = Column(String, nullable=False, index=True)
+    dispatched_at = Column(DateTime(timezone=True), nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+# =============================================================================
+# Memory Service (PureGamma-owned). Models and Harness NEVER write user memory
+# directly: everything flows through MemoryProposal -> Memory Policy -> user
+# confirmation or low-risk auto-accept -> immutable audit -> structured write.
+# Memory can never authorize, alter, or influence trading decisions, risk
+# limits, or order permissions.
+# =============================================================================
+
+
+class ConversationMemorySummary(Base, TimestampMixin):
+    """Short-term per-conversation memory: bounded window + compacted summary.
+
+    Scoped to one conversation_id. Deleted with the conversation
+    (ondelete=CASCADE). Never stores secrets, payment data, private keys, or
+    unverified market conclusions.
+    """
+
+    __tablename__ = "conversation_memory_summaries"
+    __table_args__ = (UniqueConstraint("conversation_id", "version", name="uq_conversation_memory_version"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    conversation_id = Column(String, ForeignKey("agent_conversations.id", ondelete="CASCADE"), nullable=False, index=True)
+    version = Column(Integer, nullable=False, default=1)
+    summary_text = Column(Text, nullable=False, default="")
+    summary_token_estimate = Column(Integer, nullable=False, default=0)
+    recent_message_ids_json = Column(JSON, default=list, nullable=False)
+    source_message_ids_json = Column(JSON, default=list, nullable=False)
+    goals_json = Column(JSON, default=list, nullable=False)
+    known_facts_json = Column(JSON, default=list, nullable=False)
+    used_evidence_json = Column(JSON, default=list, nullable=False)
+    open_questions_json = Column(JSON, default=list, nullable=False)
+    user_preferences_json = Column(JSON, default=list, nullable=False)
+    superseded_by = Column(String, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+class UserMemory(Base):
+    """Medium-term structured user memory, owned by PureGamma.
+
+    Namespaces are strongly isolated (chat/secretary/research/portfolio/
+    trading). The trading namespace rejects writes by policy.
+    """
+
+    __tablename__ = "user_memories"
+    __table_args__ = (UniqueConstraint("user_id", "namespace", "source_hash", name="uq_user_memory_source"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    namespace = Column(String, nullable=False, index=True)  # chat | secretary | research | portfolio | trading
+    kind = Column(String, nullable=False, index=True)
+    content_json = Column(JSON, default=dict, nullable=False)
+    source_type = Column(String, nullable=False)  # model_proposal | deterministic | user_confirmed
+    source_id = Column(String, nullable=True, index=True)
+    source_hash = Column(String, nullable=False)
+    confidence = Column(Float, nullable=False, default=0.5)
+    salience = Column(Float, nullable=False, default=0.0)
+    status = Column(String, nullable=False, default="active", index=True)  # active | archived | expired | superseded
+    created_by = Column(String, nullable=False, default="model_proposed")  # user_confirmed | deterministic | model_proposed
+    consent_scope = Column(String, nullable=False, default="none")  # chat | secretary | research | none
+    tags_json = Column(JSON, default=list, nullable=False)
+    superseded_by = Column(String, nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    updated_at = Column(DateTime(timezone=True), default=utcnow, onupdate=utcnow, nullable=False)
+    last_used_at = Column(DateTime(timezone=True), nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+class MemoryScopeSetting(Base, TimestampMixin):
+    """Per-user opt-out/opt-in switches for each memory scope."""
+
+    __tablename__ = "memory_scope_settings"
+    __table_args__ = (UniqueConstraint("user_id", "scope", name="uq_memory_scope_user_scope"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    scope = Column(String, nullable=False, index=True)  # chat | secretary | research | portfolio | trading
+    enabled = Column(Boolean, nullable=False, default=True)
+    changed_by = Column(String, nullable=False, default="user")
+
+
+class MemoryProposal(Base, TimestampMixin):
+    """A proposed memory entry awaiting policy decision and consent."""
+
+    __tablename__ = "memory_proposals"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_memory_proposal_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    proposed_by = Column(String, nullable=False, default="model")  # model | harness | deterministic | user
+    source_run_id = Column(String, nullable=True, index=True)
+    namespace = Column(String, nullable=False, index=True)
+    kind = Column(String, nullable=False)
+    content_json = Column(JSON, default=dict, nullable=False)
+    source_type = Column(String, nullable=False, default="model_proposal")
+    source_id = Column(String, nullable=True)
+    source_hash = Column(String, nullable=False)
+    proposed_ttl_seconds = Column(Integer, nullable=True)
+    sensitivity = Column(String, nullable=False, default="low")  # low | high
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | auto_accepted | user_approved | rejected | expired
+    decision_reason = Column(Text, nullable=True)
+    decided_by_user_id = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+    memory_id = Column(String, ForeignKey("user_memories.id", ondelete="SET NULL"), nullable=True)
+    idempotency_key = Column(String, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
+
+
+class MemoryAuditRecord(Base):
+    """Immutable audit trail for every memory operation."""
+
+    __tablename__ = "memory_audit_records"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    action = Column(String, nullable=False, index=True)  # propose | auto_accept | approve | reject | write | read | update | delete | export | clear_namespace | disable_scope
+    target_type = Column(String, nullable=False, default="memory")
+    target_id = Column(String, nullable=True, index=True)
+    namespace = Column(String, nullable=True, index=True)
+    detail_json = Column(JSON, default=dict, nullable=False)
+    actor = Column(String, nullable=False, default="system")
+    trace_id = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+# -----------------------------------------------------------------------------
+# Immutability enforcement (defense in depth, complements service-level rules)
+# -----------------------------------------------------------------------------
+
+
+def _prevent_evidence_snapshot_mutation(*_args, **_kwargs) -> None:
+    raise RuntimeError("EvidenceSnapshot is immutable (INSERT-only)")
+
+
+# The only columns a StrategyRelease may ever change are the review fields;
+# the immutable strategy spec/hash/reference can never be mutated in place.
+_STRATEGY_RELEASE_REVIEW_FIELDS = {"review_status", "reviewed_by_user_id", "reviewed_at", "review_notes"}
+
+
+def _prevent_strategy_release_spec_mutation(mapper, _connection, target) -> None:
+    from sqlalchemy.orm.attributes import get_history
+
+    for attr in mapper.column_attrs:
+        key = attr.key
+        if key in _STRATEGY_RELEASE_REVIEW_FIELDS:
+            continue
+        if get_history(target, key).has_changes():
+            raise RuntimeError(f"StrategyRelease.{key} is immutable")
+
+
+event.listen(EvidenceSnapshot, "before_update", _prevent_evidence_snapshot_mutation)
+event.listen(EvidenceSnapshot, "before_delete", _prevent_evidence_snapshot_mutation)
+event.listen(StrategyRelease, "before_update", _prevent_strategy_release_spec_mutation)

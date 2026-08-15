@@ -415,9 +415,79 @@ class Settings:
         os.getenv("NAUTILUS_ALLOW_TRANSFER", "false").lower() == "true"
     )
 
+    # ---- DeepSeek Harness research (additive, default OFF) ----
+    harness_research_enabled: bool = (
+        os.getenv("HARNESS_RESEARCH_ENABLED", "false").lower() == "true"
+    )
+    harness_research_admin_only: bool = (
+        os.getenv("HARNESS_RESEARCH_ADMIN_ONLY", "true").lower() == "true"
+    )
+    harness_research_network_enabled: bool = (
+        os.getenv("HARNESS_RESEARCH_NETWORK_ENABLED", "false").lower() == "true"
+    )
+    harness_research_allow_code: bool = (
+        os.getenv("HARNESS_RESEARCH_ALLOW_CODE", "false").lower() == "true"
+    )
+    harness_global_concurrency: int = int(
+        os.getenv("HARNESS_GLOBAL_CONCURRENCY", "2") or 2
+    )
+    harness_max_runs_per_user_per_day: int = int(
+        os.getenv("HARNESS_MAX_RUNS_PER_USER_PER_DAY", "3") or 3
+    )
+    harness_run_timeout_seconds: int = int(
+        os.getenv("HARNESS_RUN_TIMEOUT_SECONDS", "720") or 720
+    )
+    harness_run_max_budget_credits: int = int(
+        os.getenv("HARNESS_RUN_MAX_BUDGET_CREDITS", "150") or 150
+    )
+
+    # ---- Automated trading foundation (additive, default OFF) ----
+    auto_trading_mandates_enabled: bool = (
+        os.getenv("AUTO_TRADING_MANDATES_ENABLED", "false").lower() == "true"
+    )
+    auto_trading_paper_enabled: bool = (
+        os.getenv("AUTO_TRADING_PAPER_ENABLED", "false").lower() == "true"
+    )
+    auto_trading_shadow_enabled: bool = (
+        os.getenv("AUTO_TRADING_SHADOW_ENABLED", "false").lower() == "true"
+    )
+    auto_trading_live_enabled: bool = (
+        os.getenv("AUTO_TRADING_LIVE_ENABLED", "false").lower() == "true"
+    )
+
+    # ---- Memory service (additive, default OFF until rolled out) ----
+    memory_service_enabled: bool = (
+        os.getenv("MEMORY_SERVICE_ENABLED", "false").lower() == "true"
+    )
+    memory_auto_accept_low_risk: bool = (
+        os.getenv("MEMORY_AUTO_ACCEPT_LOW_RISK", "true").lower() == "true"
+    )
+    memory_summary_ttl_days: int = int(os.getenv("MEMORY_SUMMARY_TTL_DAYS", "30") or 30)
+    memory_recent_message_window: int = int(
+        os.getenv("MEMORY_RECENT_MESSAGE_WINDOW", "12") or 12
+    )
+
     cors_origins: tuple[str, ...] = tuple(
         _csv(os.getenv("CORS_ORIGINS", "http://localhost:3000,http://127.0.0.1:3000"))
     )
+
+    @property
+    def auto_trading_live_effective(self) -> bool:
+        """Phase 1: ALWAYS False.
+
+        LIVE auto trading is not implemented and has no code path. Even if
+        ``AUTO_TRADING_LIVE_ENABLED`` and a deployment marker were set, the
+        user/account/strategy-level gates do not exist yet, so this property
+        must not become true. Phase 4 reopens this ONLY after the deployment,
+        admin, user, account and strategy level gates are all implemented
+        (and policy code keeps refusing live execution regardless).
+        """
+        return False
+
+    @property
+    def harness_research_available(self) -> bool:
+        """True only when the feature flag is enabled at all."""
+        return self.harness_research_enabled
 
     @property
     def rpc_urls(self) -> dict[str, str]:

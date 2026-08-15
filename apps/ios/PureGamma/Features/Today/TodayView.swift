@@ -7,11 +7,8 @@ import SwiftUI
     init(repository: TodayRepository) { self.repository = repository }
     func load() async {
         market = .loading; reports = .loading; billing = .loading
-        // Sequential awaits: Swift 6 strict concurrency rejects async let with
-        // non-Sendable Result payloads, and these three calls are independent.
-        let assets = await asyncResult { try await repository.cachedMarket() }
-        let reportRows = await asyncResult { try await repository.cachedReports() }
-        let summary = await asyncResult { try await repository.subscription() }
+        async let a: Result<CachedRepositoryValue<[MarketAsset]>, Error> = asyncResult { try await repository.cachedMarket() }; async let b: Result<CachedRepositoryValue<[Report]>, Error> = asyncResult { try await repository.cachedReports() }; async let c: Result<BillingSummary, Error> = asyncResult { try await repository.subscription() }
+        let (assets, reportRows, summary) = await (a, b, c)
         market = Self.cachedState(assets, isEmpty: { $0.isEmpty }); reports = Self.cachedState(reportRows, isEmpty: { $0.isEmpty }); billing = Self.state(summary, isEmpty: { _ in false })
     }
     private static func cachedState<T>(_ result: Result<CachedRepositoryValue<T>, Error>, isEmpty: (T) -> Bool) -> LoadState<T> { switch result { case .success(let result): if isEmpty(result.value) { return .empty }; return result.cachedAt.map { .stale(result.value, $0) } ?? .loaded(result.value); case .failure(let error): return .failed(error as? APIError ?? .transport(error.localizedDescription)) } }

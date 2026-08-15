@@ -15,6 +15,10 @@ final class AppState {
     var pushAuthorization: UNAuthorizationStatus = .notDetermined
     var pushDeliveryAvailable: Bool?
     var pushRegistrationError: String?
+    /// 服务端能力发现结果。所有新功能入口以此为准；拉取失败时视为全部不可用。
+    var mobileCapabilities: MobileCapabilities = .unavailable
+    /// 待打开的研究任务 ID（Agent"启动研究"或推送深链写入，Research Tab 消费）。
+    var pendingResearchRunID: String?
     private var currentPushToken: String?
     let authentication: AuthenticationService
     let repositories: RepositoryContainer
@@ -53,6 +57,7 @@ final class AppState {
         guard authentication.hasToken else { session = .signedOut; return }
         do {
             session = .authenticated(try await authentication.currentUser())
+            await loadMobileCapabilities()
             await resumePushRegistration()
         } catch let error as APIError {
             // Only a rejected token ends the session. Transport/server errors
@@ -74,14 +79,24 @@ final class AppState {
         }
     }
 
-    func completeLogin(_ user: User) { session = .authenticated(user); Task { await resumePushRegistration() } }
+    func completeLogin(_ user: User) {
+        session = .authenticated(user)
+        Task {
+            await loadMobileCapabilities()
+            await resumePushRegistration()
+        }
+    }
     func logout() async {
         if let currentPushToken { try? await repositories.account.unregisterPushDevice(token: currentPushToken) }
-        await authentication.logout(); await repositories.clearCaches(); currentPushToken = nil; session = .signedOut
+        await authentication.logout(); await repositories.clearCaches(); currentPushToken = nil
+        mobileCapabilities = .unavailable; pendingResearchRunID = nil
+        session = .signedOut
     }
     func completeAccountDeletion() {
         if let currentPushToken { Task { try? await repositories.account.unregisterPushDevice(token: currentPushToken) } }
-        authentication.clearLocalSession(); selectedTab = .today; currentPushToken = nil; session = .signedOut; Task { await repositories.clearCaches() }
+        authentication.clearLocalSession(); selectedTab = .today; currentPushToken = nil
+        mobileCapabilities = .unavailable; pendingResearchRunID = nil
+        session = .signedOut; Task { await repositories.clearCaches() }
     }
 
     func setLanguage(_ value: AppLanguage) {
@@ -131,7 +146,20 @@ final class AppState {
         case "portfolio": selectedTab = .portfolio
         case "account": selectedTab = .account
         case "research", "report": selectedTab = .research
+        case "research_run":
+            // 点击通知后先按 run_id 查服务端最终状态，再打开详情（详情页会再次查询）。
+            selectedTab = .research
+            pendingResearchRunID = payload["run_id"] as? String ?? payload["runId"] as? String
         default: selectedTab = .today
+        }
+    }
+
+    /// 拉取服务端能力。失败/未实现时全部按不可用处理；不做本地"可用"缓存。
+    func loadMobileCapabilities() async {
+        do {
+            mobileCapabilities = try await repositories.mobileCapabilities.capabilities()
+        } catch {
+            mobileCapabilities = .unavailable
         }
     }
 }

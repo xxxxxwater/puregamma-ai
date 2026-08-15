@@ -15,7 +15,7 @@ import SwiftUI
 struct AccountView: View {
     @Environment(AppState.self) private var app; @State private var model: AccountViewModel; @State private var showDeleteAccount = false; @State private var deleteConfirmation = ""
     init(repository: AccountRepository) { _model = State(initialValue: AccountViewModel(repository: repository)) }
-    var body: some View { Form { identity; billing; push; preferences; about; privacy; security; Section { Button("Sign out", role: .destructive) { Task { await app.logout() } }; Button("Delete account", role: .destructive) { deleteConfirmation = ""; showDeleteAccount = true }.disabled(model.deleting) } }.navigationTitle("Account").navigationBarTitleDisplayMode(.inline).task { await model.load() }.refreshable { await model.load() }.alert("Account", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") {} } message: { Text(model.error?.localizedDescription ?? "") } .alert("Permanently delete account?", isPresented: $showDeleteAccount) { TextField("Confirm your email", text: $deleteConfirmation).textInputAutocapitalization(.never).keyboardType(.emailAddress); Button("Delete account", role: .destructive) { Task { if await model.deleteAccount(confirmation: deleteConfirmation) { app.completeAccountDeletion() } } }; Button("Cancel", role: .cancel) {} } message: { Text("This removes your PureGamma account and associated data. Enter the account email to confirm. Billing or records that must be retained by law may be handled separately.") } }
+    var body: some View { Form { identity; billing; push; preferences; about; privacy; advancedFeatures; security; Section { Button("Sign out", role: .destructive) { Task { await app.logout() } }; Button("Delete account", role: .destructive) { deleteConfirmation = ""; showDeleteAccount = true }.disabled(model.deleting) } }.navigationTitle("Account").navigationBarTitleDisplayMode(.inline).task { await model.load() }.refreshable { await model.load() }.alert("Account", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") {} } message: { Text(model.error?.localizedDescription ?? "") } .alert("Permanently delete account?", isPresented: $showDeleteAccount) { TextField("Confirm your email", text: $deleteConfirmation).textInputAutocapitalization(.never).keyboardType(.emailAddress); Button("Delete account", role: .destructive) { Task { if await model.deleteAccount(confirmation: deleteConfirmation) { app.completeAccountDeletion() } } }; Button("Cancel", role: .cancel) {} } message: { Text("This removes your PureGamma account and associated data. Enter the account email to confirm. Billing or records that must be retained by law may be handled separately.") } }
     private var about: some View { Section("About") { LabeledContent("Version", value: appVersion) } }
     private var appVersion: String {
         let info = Bundle.main.infoDictionary ?? [:]
@@ -105,5 +105,16 @@ struct AccountView: View {
         }
     }
     private var privacy: some View { Section("Privacy & legal") { if let url = AppLinks.privacyPolicy { Link("Privacy policy", destination: url) }; if let url = AppLinks.terms { Link("Terms of service", destination: url) }; if let url = AppLinks.support { Link("Contact support", destination: url) } } }
+    private var advancedFeatures: some View {
+        Section("Research & safety") {
+            NavigationLink { MemoryControlsView(repository: app.repositories.memory, capabilities: app.mobileCapabilities) } label: { Label("Memory controls", systemImage: "brain.head.profile") }
+            NavigationLink { TradingSafetyView(repository: app.repositories.tradingMandates, capabilities: app.mobileCapabilities) } label: { Label("Trading safety", systemImage: "lock.shield") }
+            if !app.mobileCapabilities.serverContractAvailable {
+                Text("Harness research, memory and trading mandates appear here once the server exposes them.").font(.caption).foregroundStyle(.secondary)
+            } else if let message = app.mobileCapabilities.maintenanceMessage {
+                Text(message).font(.caption).foregroundStyle(PGTheme.warning)
+            }
+        }
+    }
     private var security: some View { Section("Security boundary") { Label("Read-only research client", systemImage: "lock.shield").foregroundStyle(PGTheme.positive); Text("No LIVE orders, transfers, withdrawals, private keys, seed phrases or wallet signing. Stripe, LLM, Plaid, IBKR and exchange secrets remain server-side.").font(.caption).foregroundStyle(.secondary) } }
 }

@@ -107,4 +107,67 @@ interface PureGammaApi {
 
     @POST("/notifications/devices/unregister")
     suspend fun unregisterPushDevice(@Body body: Map<String, String>): Response<Void>
+
+    // ---- Mobile contract v1（docs/mobile/MOBILE_API_CONTRACT.md）。
+    // 后端未实现时返回 404/501：上层一律按"功能暂不可用"处理，不得使用假数据。
+
+    @GET("/api/mobile/capabilities")
+    suspend fun getMobileCapabilities(): MobileCapabilitiesDto
+
+    @GET("/api/research/runs")
+    suspend fun getResearchRuns(
+        @Query("limit") limit: Int = 20,
+        @Query("offset") offset: Int = 0,
+    ): ResearchRunsEnvelopeDto
+
+    @POST("/api/research/runs")
+    suspend fun createResearchRun(@Body body: ResearchRunCreateRequest): ResearchRunEnvelopeDto
+
+    @GET("/api/research/runs/{id}")
+    suspend fun getResearchRun(@Path("id") id: String): ResearchRunEnvelopeDto
+
+    @POST("/api/research/runs/{id}/cancel")
+    suspend fun cancelResearchRun(@Path("id") id: String): ResearchRunEnvelopeDto
+
+    @POST("/api/research/runs/{id}/retry")
+    suspend fun retryResearchRun(@Path("id") id: String): ResearchRunEnvelopeDto
+
+    @GET("/api/research/runs/{id}/evidence")
+    suspend fun getResearchRunEvidence(@Path("id") id: String): ResearchEvidenceEnvelopeDto
+
+    @GET("/api/memory/settings")
+    suspend fun getMemorySettings(): MemorySettingsEnvelopeDto
+
+    @PATCH("/api/memory/settings")
+    suspend fun updateMemorySettings(@Body body: MemorySettingsPatchRequest): MemorySettingsEnvelopeDto
+
+    @GET("/api/memory/items")
+    suspend fun getMemoryItems(@Query("scope") scope: String): MemoryItemsEnvelopeDto
+
+    @GET("/api/memory/proposals")
+    suspend fun getMemoryProposals(): MemoryProposalsEnvelopeDto
+
+    @POST("/api/memory/proposals/{id}/approve")
+    suspend fun approveMemoryProposal(@Path("id") id: String): Response<Void>
+
+    @POST("/api/memory/proposals/{id}/reject")
+    suspend fun rejectMemoryProposal(@Path("id") id: String): Response<Void>
+
+    @DELETE("/api/memory/items/{id}")
+    suspend fun deleteMemoryItem(@Path("id") id: String): Response<Void>
+
+    @POST("/api/memory/clear")
+    suspend fun clearMemory(@Body body: Map<String, String>): Response<Void>
+
+    @GET("/api/trading/mandates")
+    suspend fun getTradingMandates(): TradingMandatesEnvelopeDto
+
+    @GET("/api/trading/mandates/{id}")
+    suspend fun getTradingMandate(@Path("id") id: String): TradingMandateEnvelopeDto
+
+    @POST("/api/trading/mandates/{id}/pause")
+    suspend fun pauseTradingMandate(@Path("id") id: String): TradingMandateEnvelopeDto
+
+    @POST("/api/trading/mandates/{id}/resume")
+    suspend fun resumeTradingMandate(@Path("id") id: String): TradingMandateEnvelopeDto
 }

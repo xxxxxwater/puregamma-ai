@@ -20,6 +20,7 @@ data class ServerEvent(val name: String, val data: JsonObject)
 class SseClient(
     private val client: OkHttpClient,
     private val gson: Gson = Gson(),
+    private val baseUrl: String = BuildConfig.API_BASE_URL,
 ) {
 
     suspend fun stream(
@@ -27,12 +28,11 @@ class SseClient(
         body: Any,
         onEvent: suspend (ServerEvent) -> Unit,
     ) = withContext(Dispatchers.IO) {
-        val baseUrl = BuildConfig.API_BASE_URL.trimEnd('/')
         val json = gson.toJson(body)
         val requestBody = json.toRequestBody("application/json".toMediaType())
 
         val request = Request.Builder()
-            .url(baseUrl + path)
+            .url(baseUrl.trimEnd('/') + path)
             .post(requestBody)
             .header("Accept", "text/event-stream")
             .header("Content-Type", "application/json")

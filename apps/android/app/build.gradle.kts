@@ -8,6 +8,9 @@ plugins {
 val apiBaseUrl = providers.gradleProperty("PG_API_BASE_URL")
     .orElse("https://api.puregamma.ai")
     .get()
+val productWebBaseUrl = providers.gradleProperty("PG_PRODUCT_WEB_BASE_URL")
+    .orElse("https://app.puregamma.ai")
+    .get()
 val releaseKeystorePath = providers.environmentVariable("PG_KEYSTORE_FILE").orNull
 val releaseKeystorePassword = providers.environmentVariable("PG_KEYSTORE_PASSWORD").orNull
 val releaseKeyAlias = providers.environmentVariable("PG_KEY_ALIAS").orNull
@@ -35,6 +38,7 @@ android {
         versionCode = 8
         versionName = "1.4.0"
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
+        buildConfigField("String", "PRODUCT_WEB_BASE_URL", "\"$productWebBaseUrl\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
 
