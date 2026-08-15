@@ -12,6 +12,9 @@ This documentation turns PureGamma AI from a code project into an operating manu
 | Notifications: email, Telegram, Slack, iMessage mock/relay | Implemented |
 | iMessage macOS relay | Implemented |
 | Workers and scheduler | Implemented |
+| DeepSeek Harness deep research | Phase 1 foundation; flags default OFF |
+| Memory service | Phase 1 foundation; flag default OFF |
+| Trading mandate foundation (PAPER/SHADOW audits) | Phase 1 foundation; flags default OFF |
 | Portfolio NAV backend | Planned; frontend mock/fallback exists |
 | Plaid, exchange, on-chain wallet sync | Planned; documented contract |
 | NautilusTrader runtime | Planned; mock backtest engine exists |
@@ -61,6 +64,10 @@ This documentation turns PureGamma AI from a code project into an operating manu
 - [Adding a Notification Provider](./developer/ADDING_NOTIFICATION_PROVIDER.md)
 - [Agent Architecture](./developer/AGENT_ARCHITECTURE.md)
 - [Credit and Entitlements](./developer/CREDIT_AND_ENTITLEMENTS.md)
+- [Harness Research Architecture](./developer/HARNESS_RESEARCH_ARCHITECTURE.md)
+- [Memory Architecture](./developer/MEMORY_ARCHITECTURE.md)
+- [Automated Trading Foundation](./developer/AUTOMATED_TRADING_FOUNDATION.md)
+- [Mobile API Contract](./mobile/MOBILE_API_CONTRACT.md)
 ## Admin
 - [Admin Guide](./admin/ADMIN_GUIDE.md)
 - [User Management](./admin/USER_MANAGEMENT.md)
@@ -68,12 +75,17 @@ This documentation turns PureGamma AI from a code project into an operating manu
 - [Data Source Monitoring](./admin/DATA_SOURCE_MONITORING.md)
 - [Notification Deliveries](./admin/NOTIFICATION_DELIVERIES.md)
 - [Incident Runbook](./admin/INCIDENT_RUNBOOK.md)
+## Operations
+- [Harness Research Runbook](./operations/HARNESS_RUNBOOK.md)
+- [Trading Mandate Runbook](./operations/TRADING_MANDATE_RUNBOOK.md)
 ## Security
 - [Security Overview](./security/SECURITY_OVERVIEW.md)
 - [Data Privacy](./security/DATA_PRIVACY.md)
 - [Secret Handling](./security/SECRET_HANDLING.md)
 - [Tenant Isolation](./security/TENANT_ISOLATION.md)
 - [iMessage Security](./security/IMESSAGE_SECURITY.md)
+- [Harness Threat Model](./security/HARNESS_THREAT_MODEL.md)
+- [Memory Privacy and Retention](./security/MEMORY_PRIVACY_AND_RETENTION.md)
 ## Compliance
 - [Disclaimer Guide](./compliance/DISCLAIMER_GUIDE.md)
 - [Investment Research Limits](./compliance/INVESTMENT_RESEARCH_LIMITS.md)

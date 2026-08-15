@@ -1,8 +1,8 @@
 # PureGamma AI
-PureGamma AI is an AI-native investment research and decision-support platform for crypto and equity-aware portfolios. It combines market intelligence, portfolio NAV context, agent-based research, options surface analysis, strategy playbooks, simulated backtests, billing entitlements, an OpenAI-compatible API gateway, and notification delivery into one research console.
+PureGamma AI is an AI-native investment research and decision-support platform for crypto and equity-aware portfolios. It combines market intelligence, portfolio NAV context, agent-based research, DeepSeek Harness deep research, a user-owned memory service, options surface analysis, strategy playbooks, simulated backtests, a trading-mandate foundation (PAPER/SHADOW only), billing entitlements, an OpenAI-compatible API gateway, and notification delivery into one research console.
 The versioned declarative Skills Library is documented in
 [`docs/SKILLS_LIBRARY.md`](docs/SKILLS_LIBRARY.md).
-Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), [implementation report](docs/IMPLEMENTATION_REPORT.md), and [AI API gateway](docs/AI_API_GATEWAY.md).
+Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [Harness research](docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md), [Memory service](docs/developer/MEMORY_ARCHITECTURE.md), [Automated trading foundation](docs/developer/AUTOMATED_TRADING_FOUNDATION.md), [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), [implementation report](docs/IMPLEMENTATION_REPORT.md), and [AI API gateway](docs/AI_API_GATEWAY.md).
 Start with the full documentation index: [docs/README.md](./docs/README.md).
 ## What is PureGamma AI?
 PureGamma AI is an AI decision-support system for individual secondary-market investors. It helps users answer three daily questions:
@@ -19,6 +19,8 @@ Research and decision support:
 - **Options research**: read-only Deribit BTC/ETH chains, Polygon.io equity chains, moneyness×DTE surfaces, and Long Gamma candidate scoring.
 - **Backtest Lab**: unified backtest engine with quant metrics, artifacts, and candle data.
 - **Research Runner**: user code executed in a no-network, read-only, resource-limited Docker sandbox with static AST validation.
+- **DeepSeek Harness deep research** (Phase 1, `HARNESS_RESEARCH_ENABLED=false` by default): a research orchestration engine that plans multi-step investigations, coordinates macro / on-chain / options / risk sub-agents, snapshots cited evidence (`EvidenceSnapshot`), and returns server-validated `ResearchArtifact` results. Code executes only in a short-lived low-trust `harness-runner` container whose sole I/O is a capability-token-gated Research Gateway (no DB, Redis, Docker socket, or network by default); per-run credit budgets, daily caps, and global concurrency are enforced. Research only — it never creates orders.
+- **Memory service** (Phase 1, `MEMORY_SERVICE_ENABLED=false` by default): PureGamma-owned user memory with explicit scope settings, consent-gated `MemoryProposal`s, append-only audit records, TTL'd conversation summaries, and ownership checks on every read/write. Memory is personalization context only — never trading authorization or risk input.
 - **Skills library**: versioned declarative skills (schema 1.0) with layered tool whitelists and deterministic YAML DAG workflows.
 Portfolio and trading:
 - **Portfolio NAV**: consolidated NAV and history across Plaid Investments, Interactive Brokers (OAuth), and Hyperliquid (public), with encrypted token storage and freshness windows.
@@ -26,6 +28,7 @@ Portfolio and trading:
 - **Strategy library**: six built-in strategies (BTC momentum, ETH/BTC rotation, SOL high-beta, HYPE trend, MSTR BTC proxy, STRC event-driven credit).
 - **Trading control plane**: accounts, positions, order preview/confirm/cancel, reconciliation, and kill-switch against an isolated Nautilus runtime (BACKTEST / PAPER / SHADOW only).
 - **Nautilus runtime**: isolated execution data plane with risk gateways (kill switch, nominal/leverage/daily-loss/frequency limits), execution journaling, restart recovery, and public market data adapters (Binance testnet, Hyperliquid, Coinbase Advanced). Live trading, withdrawals, and transfers remain disabled.
+- **Trading mandate foundation** (Phase 1): declarative `TradingMandate` records with dual confirmation, cooldown, and expiry; an immutable strategy-release reference; a four-layer gate (deterministic policy → PureGamma pre-trade risk → Nautilus independent risk) that permits PAPER/SHADOW actions only; auto-pause on stale data, risk breaches, or reconciliation needs; and append-only audits. LIVE auto-trading has no code path.
 AI gateway and billing:
 - **First-party OpenAI-compatible API Gateway** (`/v1/chat/completions`) with HMAC-hashed `sk-pg-…` keys, model catalog (Kimi K3, DeepSeek V4, GLM 5.2), admin-approved price revisions, per-key RPM limits, and fail-closed Redis.
 - **Gateway prepaid wallet**: USD wallet independent of subscriptions/credits with Stripe Checkout top-ups, line-item ledger, idempotent crediting, and per-request locking (402 on insufficient balance).
@@ -35,7 +38,7 @@ Authentication and delivery:
 - Notifications: email, Telegram, Slack, APNs push, and a self-hosted iMessage relay (outbound and inbound).
 - Daily brief with five delivery controls (market, portfolio, signals, risk, source sentiment).
 Apps and admin:
-- Next.js web app (en/zh), SwiftUI iOS app (Today, Agent, Research, Portfolio, Account), and Android app (Compose shell with WebView).
+- Next.js web app (en/zh), SwiftUI iOS app (Today, Agent, Research, Portfolio, Account with Memory Controls and Trading Safety), and Android app (Compose + WebView), with mobile Research Runs surfaces backed by the frozen [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md).
 - Admin dashboard for users, reports, data sources, Stripe events, gateway pricing approvals, billing intents, and notifications.
 ## Architecture Overview
 ```mermaid
@@ -54,6 +57,10 @@ flowchart TD
   API --> Options["Options research (Deribit / Polygon)"]
   API --> Backtest["Backtest Lab + unified engine"]
   API --> ResearchRunner["Research sandbox (Docker)"]
+  API --> Harness["DeepSeek Harness: orchestrator + low-trust runner"]
+  Harness --> DB
+  API --> Memory["Memory service (scoped, audited)"]
+  Memory --> DB
   API --> Skills["Skills library + workflows"]
   API --> Portfolio["Plaid / IBKR / Hyperliquid NAV"]
   API --> Trading["Trading control plane"]
@@ -82,6 +89,8 @@ Backend layers:
 | Nautilus | `packages/nautilus`, `services/nautilus-runtime` | Data adapter, guardrails, isolated runtime |
 | Options | `packages/options` | Chain, surface, Long Gamma scoring |
 | Research Runner | `packages/research_runner` | Sandboxed user-code execution |
+| Harness | `packages/harness` | Deep-research orchestration, security gates, state machine, mock adapter |
+| Memory | `packages/memory` | User memory policy, scope settings, proposals, audits |
 | Data | `packages/data` | Market, on-chain, RSS, FinTwit, macro providers |
 | Notifications | `packages/notifications` | Channel providers and dispatcher |
 | Workers | `packages/workers` | Celery tasks and schedules |
@@ -89,9 +98,10 @@ Key design principles:
 - **Control plane / data plane separation**: the FastAPI control plane never connects to exchanges directly; it talks to the isolated Nautilus runtime over HMAC-signed internal commands.
 - **Deterministic core, LLM explanation**: `API -> policy/entitlement -> metering quote/reservation -> deterministic service -> evidence/artifact -> LLM explanation`; no model bypasses policy or billing.
 - **Sandboxed user code**: user research scripts run only inside the no-network Docker sandbox; the API process never executes user code.
+- **Two-layer research trust split**: the trusted `harness-orchestrator` plans, budgets, and validates research; the untrusted `harness-runner` executes in a short-lived container whose only I/O is the capability-token-gated Research Gateway.
 - **Fail-closed defaults**: mock providers are development-only; missing credentials report `NOT_CONFIGURED`; live trading, withdrawal, and transfer are disabled by policy.
 Current implementation status:
-- Implemented: FastAPI + Next.js, Agent chat + Secretary, options research, Backtest Lab, Skills, gateway (phase 1) + prepaid wallet, Stripe billing with credit state machine, NAV connectors (Plaid/IBKR/Hyperliquid) + Autopilot, trading control plane with PAPER/SHADOW runtime, notifications, iMessage relay + verification, Google/Apple/Email auth, admin consoles, iOS/Android apps (code complete, not published).
+- Implemented: FastAPI + Next.js, Agent chat + Secretary, options research, Backtest Lab, Skills, gateway (phase 1) + prepaid wallet, Stripe billing with credit state machine, NAV connectors (Plaid/IBKR/Hyperliquid) + Autopilot, trading control plane with PAPER/SHADOW runtime, notifications, iMessage relay + verification, Google/Apple/Email auth, admin consoles, iOS/Android apps (code complete, not published), DeepSeek Harness foundation + Memory service + trading mandate foundation (Phase 1, all flags OFF), mobile Memory Controls / Trading Safety / Research Runs surfaces (frozen v1 API contract).
 - Partially implemented or placeholder: real-time market stream parity, some P2+ internal surfaces (Risk/Realtime/MCP contracts return `NOT_IMPLEMENTED`), Redis Streams event pipeline, Bloomberg enterprise import.
 - Planned or documented contract: production launch gating, App Store/Play release, full deterministic pre-trade risk gate.
 More detail: [Architecture](./docs/developer/ARCHITECTURE.md), [Target Architecture](./docs/review/TARGET_ARCHITECTURE.md), [V5 Initial Launch Review](./docs/V5_INITIAL_LAUNCH_REVIEW.md).
@@ -111,8 +121,10 @@ packages/
   capabilities/        Capability status registry
   config/              SecretStore, settings
   data/                Market/data provider adapters
-  database/            Models + Alembic migrations (0001–0023)
+  database/            Models + Alembic migrations (0001–0025)
   gateway/             AI gateway catalog, pricing, security, usage
+  harness/             Deep-research orchestration + security gates
+  memory/              User memory policy + service
   nautilus/            Nautilus data adapter + guardrails
   notifications/       Dispatcher and channel providers
   options/             Options research domain
@@ -163,6 +175,7 @@ Important groups:
 - Notifications: `TELEGRAM_BOT_TOKEN`, `SLACK_WEBHOOK_URL`, SMTP settings, iMessage relay settings and verification limits
 - Data providers: CoinDesk RSS, FinTwit, X, CoinGecko, CryptoPanic, Glassnode, Coinglass, DefiLlama, FRED, EVM RPC endpoints, Bloomberg import
 - Safety: `NAUTILUS_LIVE_TRADING_ENABLED=false`, `NAUTILUS_ALLOW_LIVE_ORDER=false`, `NAUTILUS_ALLOW_WITHDRAWAL=false`, `NAUTILUS_ALLOW_TRANSFER=false`
+- Harness / Memory / Auto-trading (Phase 1, additive, all default OFF): `HARNESS_RESEARCH_*`, `MEMORY_*`, `AUTO_TRADING_*` — see [Harness architecture](./docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md) and [Harness runbook](./docs/operations/HARNESS_RUNBOOK.md)
 Reference: [Environment Variables](./docs/getting-started/ENVIRONMENT_VARIABLES.md).
 ## Mock Mode
 Mock mode is the default local development path:
