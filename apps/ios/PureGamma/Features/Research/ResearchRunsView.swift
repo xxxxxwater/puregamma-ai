@@ -21,17 +21,16 @@ import SwiftUI
         do {
             let result = try await repository.runs()
             runs = result.value.isEmpty ? .empty : result.cachedAt.map { .stale(result.value, $0) } ?? .loaded(result.value)
-        } catch let error as APIError {
-            if error.isEndpointMissing { runs = .failed(.unavailable(String(localized: "Feature not available yet"))) }
-            else { runs = .failed(error) }
-        } catch { runs = .failed(.transport(error.localizedDescription)) }
+        } catch {
+            runs = .failed(error.mobileAPIError)
+        }
     }
 
     func cancel(_ id: String) async {
-        do { try await replaceRun(id, with: repository.cancel(id)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        do { try await replaceRun(id, with: repository.cancel(id)) } catch { self.error = error.mobileAPIError }
     }
     func retry(_ id: String) async {
-        do { try await replaceRun(id, with: repository.retry(id)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        do { try await replaceRun(id, with: repository.retry(id)) } catch { self.error = error.mobileAPIError }
     }
     private func replaceRun(_ id: String, with request: ResearchRun) async throws {
         if case .loaded(var rows) = runs, let index = rows.firstIndex(where: { $0.id == id }) {
@@ -183,31 +182,48 @@ struct ResearchStateBadge: View {
 
     func load(_ id: String) async {
         if case .idle = run { run = .loading }
-        do { run = .loaded(try await repository.run(id)) } catch let error as APIError { run = .failed(error) } catch { run = .failed(.transport(error.localizedDescription)) }
+        do { run = .loaded(try await repository.run(id)) } catch { run = .failed(error.mobileAPIError) }
         if case .idle = evidence { await loadEvidence(id) }
+        watch(id: id)
+    }
+
+    /// 视图离开/后台时必须停止事件流；SSE 只负责进度，最终一致性永远以 GET 为准。
+    func stop() {
+        watchTask?.cancel()
+        watchTask = nil
+    }
+
+    /// 回到前台：重新查服务端最终状态后再订阅。
+    func resume(_ id: String) async {
+        do { run = .loaded(try await repository.run(id)) } catch { /* 保留现有展示，不做覆盖 */ }
         watch(id: id)
     }
 
     private func loadEvidence(_ id: String) async {
         evidence = .loading
-        do { let rows = try await repository.evidence(id); evidence = rows.isEmpty ? .empty : .loaded(rows) } catch { evidence = .failed(error as? APIError ?? .transport(error.localizedDescription)) }
+        do { let rows = try await repository.evidence(id); evidence = rows.isEmpty ? .empty : .loaded(rows) } catch { evidence = .failed(error.mobileAPIError) }
     }
 
-    /// 订阅事件流：断线重连；重连失败轮询；SSE 异常绝不影响任务状态判定。
+    /// 订阅事件流：断线重连（有限次数+退避）；重连失败转轮询；
+    /// SSE 异常绝不影响任务状态判定，任务失败只能来自服务端查询。
     private func watch(id: String) {
         watchTask?.cancel()
         watchTask = Task {
             var streamAttempts = 0
+            var pollCount = 0
             while !Task.isCancelled {
                 if streamAttempts < 3 {
                     streamAttempts += 1
                     let sawTerminal = await consumeStream(id: id)
                     if sawTerminal { break }
+                    try? await Task.sleep(for: .seconds(2))
+                    continue
                 }
-                // 断线/重连失败：以服务端最终状态为准
+                // 断线/重连失败：以服务端最终状态为准；活跃则继续低频轮询（受视图生命周期控制）。
                 if let updated = try? await repository.run(id) { run = .loaded(updated) }
                 if case .loaded(let value) = run, value.state.isTerminal { break }
-                try? await Task.sleep(for: .seconds(streamAttempts < 3 ? 2 : 10))
+                pollCount += 1
+                try? await Task.sleep(for: .seconds(pollCount < 6 ? 10 : 30))
             }
         }
     }
@@ -253,16 +269,17 @@ struct ResearchStateBadge: View {
     }
 
     func cancel(_ id: String) async {
-        do { run = .loaded(try await repository.cancel(id)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        do { run = .loaded(try await repository.cancel(id)) } catch { self.error = error.mobileAPIError }
     }
     func retry(_ id: String) async {
-        do { run = .loaded(try await repository.retry(id)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        do { run = .loaded(try await repository.retry(id)) } catch { self.error = error.mobileAPIError }
     }
 }
 
 // MARK: - 详情
 
 struct ResearchRunDetailView: View {
+    @Environment(\.scenePhase) private var scenePhase
     @State private var model: ResearchRunDetailViewModel
     let runID: String
     let capabilities: MobileCapabilities
@@ -297,6 +314,11 @@ struct ResearchRunDetailView: View {
         }
         .navigationTitle("Research run").navigationBarTitleDisplayMode(.inline)
         .task { await model.load(runID) }
+        .onDisappear { model.stop() }
+        .onChange(of: scenePhase) { _, phase in
+            if phase == .background { model.stop() }
+            if phase == .active { Task { await model.resume(runID) } }
+        }
         .alert("Research run", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") {} } message: { Text(model.error?.localizedDescription ?? "") }
     }
 
@@ -496,6 +518,6 @@ struct ResearchStartView: View {
         do {
             let run = try await repository.create(name: name, prompt: prompt, dataSources: Array(dataSources).sorted())
             createdRunID = run.id
-        } catch let error as APIError { self.error = error } catch { self.error = .transport(error.localizedDescription) }
+        } catch { self.error = error.mobileAPIError }
     }
 }

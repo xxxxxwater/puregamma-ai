@@ -8,6 +8,7 @@ import SwiftUI
     var scope: MemoryScope = .shortTerm
     var saving = false
     var error: APIError?
+    var infoMessage: String?
     var lastExportURL: URL?
     let repository: MemoryRepository
     let capabilities: MobileCapabilities
@@ -27,18 +28,18 @@ import SwiftUI
         _ = await (a, b, c)
     }
     private func loadSettings() async {
-        do { settings = .loaded(try await repository.settings()) } catch let error as APIError { settings = .failed(error) } catch { settings = .failed(.transport(error.localizedDescription)) }
+        do { settings = .loaded(try await repository.settings()) } catch { settings = .failed(error.mobileAPIError) }
     }
     private func loadItems() async {
-        do { let rows = try await repository.items(scope: scope); items = rows.isEmpty ? .empty : .loaded(rows) } catch let error as APIError { items = .failed(error) } catch { items = .failed(.transport(error.localizedDescription)) }
+        do { let rows = try await repository.items(scope: scope); items = rows.isEmpty ? .empty : .loaded(rows) } catch { items = .failed(error.mobileAPIError) }
     }
     private func loadProposals() async {
-        do { let rows = try await repository.proposals(); proposals = rows.isEmpty ? .empty : .loaded(rows) } catch let error as APIError { proposals = .failed(error) } catch { proposals = .failed(.transport(error.localizedDescription)) }
+        do { let rows = try await repository.proposals(); proposals = rows.isEmpty ? .empty : .loaded(rows) } catch { proposals = .failed(error.mobileAPIError) }
     }
 
     func save(_ patch: MemorySettingsPatchDTO) async {
         saving = true; defer { saving = false }
-        do { settings = .loaded(try await repository.updateSettings(patch)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        do { settings = .loaded(try await repository.updateSettings(patch)) } catch { self.error = error.mobileAPIError }
     }
     func toggle(_ keyPath: WritableKeyPath<MemorySettings, Bool>, to value: Bool, consentGranted: Bool) async {
         guard case .loaded(let current) = settings else { return }
@@ -62,7 +63,7 @@ import SwiftUI
                 proposals = rows.isEmpty ? .empty : .loaded(rows)
             }
             await reloadItems()
-        } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        } catch { self.error = error.mobileAPIError }
     }
     func reject(_ proposal: MemoryProposal) async {
         do {
@@ -71,25 +72,31 @@ import SwiftUI
                 rows.remove(at: index)
                 proposals = rows.isEmpty ? .empty : .loaded(rows)
             }
-        } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        } catch { self.error = error.mobileAPIError }
     }
 
-    /// 乐观删除：UI 立即更新，服务器确认失败则回滚并提示。
+    /// 乐观删除：先保留原列表快照；服务端确认失败时回滚 UI 并明确提示。
     func delete(_ item: MemoryItem) async {
-        guard case .loaded(var rows) = items else { return }
+        guard case .loaded(let snapshot) = items else { return }
+        var rows = snapshot
         rows.removeAll { $0.id == item.id }
         items = rows.isEmpty ? .empty : .loaded(rows)
-        do { try await repository.deleteItem(item.id) } catch {
-            await loadItems()
-            self.error = error as? APIError ?? .transport(error.localizedDescription)
+        do {
+            try await repository.deleteItem(item.id)
+            await loadItems() // 服务端确认为准，重新拉取
+        } catch {
+            items = snapshot.isEmpty ? .empty : .loaded(snapshot) // 失败回滚
+            self.error = error.mobileAPIError
         }
     }
 
+    /// 清空：不做乐观清空，必须等服务端确认成功后再刷新并提示完成。
     func clearAll() async {
         do {
-            _ = try await repository.clear(scope: "all")
+            let removed = try await repository.clear(scope: "all")
             await loadItems()
-        } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+            infoMessage = String(localized: "Memory cleared (\(removed) item(s)).")
+        } catch { self.error = error.mobileAPIError }
     }
 
     func reloadScope() async {
@@ -98,7 +105,7 @@ import SwiftUI
     }
 
     func export() async {
-        do { lastExportURL = try await repository.export().url } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        do { lastExportURL = try await repository.export().url } catch { self.error = error.mobileAPIError }
     }
 
     private func reloadItems() async {
@@ -127,6 +134,7 @@ struct MemoryControlsView: View {
         .task { await model.load() }
         .refreshable { await model.load() }
         .alert("Memory", isPresented: Binding(get: { model.error != nil }, set: { if !$0 { model.error = nil } })) { Button("OK") {} } message: { Text(model.error?.localizedDescription ?? "") }
+        .alert("Memory", isPresented: Binding(get: { model.infoMessage != nil }, set: { if !$0 { model.infoMessage = nil } })) { Button("OK") {} } message: { Text(model.infoMessage ?? "") }
         .confirmationDialog("Memory consent", isPresented: $showConsent, titleVisibility: .visible) {
             Button("Allow and save") {
                 consentGranted = true

@@ -232,3 +232,80 @@ enum MandateActionPolicy: Sendable {
     /// LIVE 永远不可操作：即使 capability、部署标记或本地配置全部开启。
     static func liveActionAllowed(environment: TradingEnvironment) -> Bool { false }
 }
+
+// MARK: - Repository 层统一门控（UI 门控之外的硬边界）
+
+/// capabilities 缺失/加载失败/字段为 false 时，Repository 层直接抛出的错误。
+/// 服务端仍做最终权限校验；这里的门控只防止客户端发出无权请求。
+enum MobileGateError: LocalizedError, Equatable {
+    case contractMissing
+    case featureDisabled(String)
+    case invalidInput(String)
+    case liveDisabled
+    case stateConflict(String)
+
+    var errorDescription: String? {
+        switch self {
+        case .contractMissing: String(localized: "Feature not available yet")
+        case .featureDisabled(let message): message
+        case .invalidInput(let message): message
+        case .liveDisabled: String(localized: "LIVE is disabled and cannot be started from this app.")
+        case .stateConflict(let message): message
+        }
+    }
+
+    /// 统一转为 APIError，供 LoadState 与既有错误展示路径使用。
+    var asAPIError: APIError {
+        switch self {
+        case .contractMissing: .unavailable(errorDescription ?? "Feature not available yet")
+        case .featureDisabled: .forbidden(errorDescription ?? "Disabled")
+        case .invalidInput: .server(status: 400, message: errorDescription ?? "Invalid input")
+        case .liveDisabled: .forbidden(errorDescription ?? "LIVE disabled")
+        case .stateConflict: .server(status: 409, message: errorDescription ?? "State conflict")
+        }
+    }
+}
+
+/// 路径参数与输入校验：禁止把用户输入的任意字符串直接拼进 URL。
+/// `scope`、`dataSources`、`run_id`、`mandate_id` 全部走白名单与长度限制。
+enum MobileInput {
+    private static let idRegex = /^[A-Za-z0-9_-]{1,64}$/
+    static let allowedDataSources: Set<String> = ["market", "news", "research"]
+    static let memoryClearScopes: Set<String> = ["all", "short_term", "mid_term"]
+    static let nameMaxLength = 100
+    static let promptMaxLength = 4000
+    static let dataSourceMaxCount = 8
+    static let dataSourceMaxLength = 32
+
+    static func id(_ raw: String, label: String = "identifier") throws -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= 64, trimmed.wholeMatch(of: idRegex) != nil else {
+            throw MobileGateError.invalidInput(String(localized: "Invalid \(label)"))
+        }
+        return trimmed
+    }
+
+    static func text(_ raw: String, label: String, maxLength: Int) throws -> String {
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !trimmed.isEmpty, trimmed.count <= maxLength else {
+            throw MobileGateError.invalidInput(String(localized: "Invalid \(label)"))
+        }
+        return trimmed
+    }
+
+    static func dataSources(_ raw: [String]) -> [String] {
+        Array(Set(raw)).prefix(dataSourceMaxCount)
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines).lowercased() }
+            .filter { !$0.isEmpty && $0.count <= dataSourceMaxLength && allowedDataSources.contains($0) }
+            .sorted()
+    }
+}
+
+extension Error {
+    /// 统一错误映射：MobileGateError 与 APIError 都进入既有 LoadState 展示路径。
+    var mobileAPIError: APIError {
+        if let gate = self as? MobileGateError { return gate.asAPIError }
+        if let api = self as? APIError { return api }
+        return .unavailable(localizedDescription)
+    }
+}

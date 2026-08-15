@@ -150,17 +150,24 @@ struct TradingEnvironmentBadge: View {
         _ = await (s, r)
     }
     private func loadStatus(_ id: String) async {
-        do { status = .loaded(try await repository.status(id)) } catch { status = .failed(error as? APIError ?? .transport(error.localizedDescription)) }
+        do { status = .loaded(try await repository.status(id)) } catch { status = .failed(error.mobileAPIError) }
     }
     private func loadRisk(_ id: String) async {
-        do { risk = .loaded(try await repository.risk(id)) } catch { risk = .failed(error as? APIError ?? .transport(error.localizedDescription)) }
+        do { risk = .loaded(try await repository.risk(id)) } catch { risk = .failed(error.mobileAPIError) }
     }
 
+    /// 操作后必须以服务端状态为准：重新 GET status，不依据本地 paused 认定成功。
     func pause(_ id: String) async {
-        do { status = .loaded(MandateStatus(environment: (try await repository.pause(id)).environment, running: false, paused: true, blockedByRisk: false, blockReason: nil, lastTransitionAt: nil, lastRunAt: nil)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        do {
+            _ = try await repository.pause(id)
+            await loadStatus(id)
+        } catch { self.error = error.mobileAPIError }
     }
     func resume(_ id: String) async {
-        do { status = .loaded(MandateStatus(environment: (try await repository.resume(id)).environment, running: false, paused: false, blockedByRisk: false, blockReason: nil, lastTransitionAt: nil, lastRunAt: nil)) } catch { self.error = error as? APIError ?? .transport(error.localizedDescription) }
+        do {
+            _ = try await repository.resume(id)
+            await loadStatus(id)
+        } catch { self.error = error.mobileAPIError }
     }
 }
 

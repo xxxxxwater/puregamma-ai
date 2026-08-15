@@ -11,20 +11,39 @@ func parseUTCDate(_ raw: String) -> Date? {
 struct RepositoryContainer {
     let today: TodayRepository; let agent: AgentRepository; let research: ResearchRepository; let portfolio: PortfolioRepository; let account: AccountRepository
     let mobileCapabilities: MobileCapabilitiesRepository; let researchRuns: ResearchRunsRepository; let memory: MemoryRepository; let tradingMandates: TradingMandatesRepository
+    /// Repository 层能力门控的唯一事实来源（AppState 在登录/注销时更新）。
+    let capabilitiesStore: MobileCapabilitiesStore
     private let responseCache: ResponseCache
+    private let environment: String
+
     @MainActor init(client: APIClient) {
-        let cache = ResponseCache(); responseCache = cache
+        let cache = ResponseCache()
+        responseCache = cache
+        let store = MobileCapabilitiesStore()
+        capabilitiesStore = store
+        environment = client.configuration.environment
         today = TodayRepository(client: client, cache: cache)
         agent = AgentRepository(client: client)
         research = ResearchRepository(client: client, cache: cache)
         portfolio = PortfolioRepository(client: client, cache: cache)
         account = AccountRepository(client: client)
         mobileCapabilities = MobileCapabilitiesRepository(client: client)
-        researchRuns = ResearchRunsRepository(client: client, cache: cache)
-        memory = MemoryRepository(client: client)
-        tradingMandates = TradingMandatesRepository(client: client)
+        researchRuns = ResearchRunsRepository(client: client, cache: cache, gate: store)
+        memory = MemoryRepository(client: client, gate: store)
+        tradingMandates = TradingMandatesRepository(client: client, gate: store)
     }
-    func clearCaches() async { try? await responseCache.clear() }
+
+    /// 登录成功后按用户命名缓存，避免同设备多账号读到彼此的 stale 数据。
+    /// 格式：`{environment}:{user_id}:{key}`。
+    func setCacheNamespace(userID: String) async {
+        await responseCache.setNamespace("\(environment):\(userID)")
+    }
+
+    /// 注销/401/删除账户：重置命名空间并清空全部缓存（当前用户所有移动端缓存）。
+    func clearCaches() async {
+        await responseCache.setNamespace(nil)
+        try? await responseCache.clear()
+    }
 }
 
 @MainActor struct TodayRepository {

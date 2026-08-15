@@ -2,6 +2,7 @@ package ai.puregamma.android
 
 import android.app.Application
 import android.net.Uri
+import android.webkit.CookieManager
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
@@ -60,7 +61,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val researchRepo = ResearchRepository(api)
     val portfolioRepo = PortfolioRepository(api)
     val accountRepo = AccountRepository(api)
-    val mobileRepo = MobileRepository(api)
+    val mobileRepo = MobileRepository(api) {
+        (mobileCapabilities as? LoadState.Ready)?.value ?: MobileCapabilities.UNAVAILABLE
+    }
 
     private var streamJob: Job? = null
 
@@ -465,6 +468,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         messages = LoadState.Idle
         mobileCapabilities = LoadState.Idle
         pendingWebRoute = null
+        // 注销时清理 WebView Cookie（含 HttpOnly 会话 Cookie），防止跨账号残留。
+        runCatching { CookieManager.getInstance().removeAllCookies(null) }
     }
 
     private suspend fun <T> load(block: suspend () -> T): LoadState<T> =
@@ -501,12 +506,23 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     /**
-     * 打开 Web 产品路由。仅允许白名单前缀，杜绝任意 URL 注入；
-     * WebView 层另有域名白名单（app.puregamma.ai）双重约束。
+     * 打开 Web 产品路由。双层门控：
+     *  1) 路径白名单（杜绝任意 URL 注入）；
+     *  2) 服务端 capabilities（能力未开启时拒绝，防止 WebView 覆盖层绕过 Native 门控）。
+     * WebView 层另有域名白名单（PRODUCT_WEB_BASE_URL 派生）第三重约束。
      */
     fun openProductRoute(relativePath: String): Boolean {
         val path = relativePath.trim().trimStart('/')
         if (!PRODUCT_ROUTE_ALLOWLIST.matches(path)) return false
+        val caps = (mobileCapabilities as? LoadState.Ready)?.value
+        val sub = path.substringAfter('/')
+        val gateOk = when {
+            sub.startsWith("research/runs") -> caps?.serverContractAvailable == true && caps.harnessResearchEnabled
+            sub.startsWith("account/memory") -> caps?.serverContractAvailable == true && caps.memoryServiceEnabled && caps.userCanManageMemory
+            sub.startsWith("account/trading") || sub.startsWith("trading") -> caps?.serverContractAvailable == true && caps.autoTradingEnabled && caps.userCanViewTradingMandates
+            else -> false
+        }
+        if (!gateOk) return false
         pendingWebRoute = BuildConfig.PRODUCT_WEB_BASE_URL.trimEnd('/') + "/" + path
         return true
     }

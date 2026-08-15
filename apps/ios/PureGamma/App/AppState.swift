@@ -48,7 +48,12 @@ final class AppState {
             auth?.clearLocalSession()
             state?.session = .signedOut
             state?.selectedTab = .today
-            if let repositories = state?.repositories { Task { await repositories.clearCaches() } }
+            state?.mobileCapabilities = .unavailable
+            state?.pendingResearchRunID = nil
+            if let repositories = state?.repositories {
+                repositories.capabilitiesStore.capabilities = .unavailable
+                Task { await repositories.clearCaches() }
+            }
         }
         return state
     }
@@ -56,8 +61,9 @@ final class AppState {
     func restoreSession() async {
         guard authentication.hasToken else { session = .signedOut; return }
         do {
-            session = .authenticated(try await authentication.currentUser())
-            await loadMobileCapabilities()
+            let user = try await authentication.currentUser()
+            session = .authenticated(user)
+            await activateUserScope(userID: user.id)
             await resumePushRegistration()
         } catch let error as APIError {
             // Only a rejected token ends the session. Transport/server errors
@@ -82,21 +88,37 @@ final class AppState {
     func completeLogin(_ user: User) {
         session = .authenticated(user)
         Task {
-            await loadMobileCapabilities()
+            await activateUserScope(userID: user.id)
             await resumePushRegistration()
         }
     }
     func logout() async {
         if let currentPushToken { try? await repositories.account.unregisterPushDevice(token: currentPushToken) }
-        await authentication.logout(); await repositories.clearCaches(); currentPushToken = nil
-        mobileCapabilities = .unavailable; pendingResearchRunID = nil
+        await authentication.logout()
+        resetUserScope()
+        await repositories.clearCaches()
+        currentPushToken = nil
         session = .signedOut
     }
     func completeAccountDeletion() {
         if let currentPushToken { Task { try? await repositories.account.unregisterPushDevice(token: currentPushToken) } }
         authentication.clearLocalSession(); selectedTab = .today; currentPushToken = nil
-        mobileCapabilities = .unavailable; pendingResearchRunID = nil
+        resetUserScope()
         session = .signedOut; Task { await repositories.clearCaches() }
+    }
+
+    /// 登录成功后：写入能力门控 store（Repository 层硬边界）并按用户隔离缓存命名空间。
+    private func activateUserScope(userID: String) async {
+        await loadMobileCapabilities()
+        repositories.capabilitiesStore.capabilities = mobileCapabilities
+        await repositories.setCacheNamespace(userID: userID)
+    }
+
+    /// 注销/删除账户/401：重置门控与命名空间（clearCaches 会清空全部缓存）。
+    private func resetUserScope() {
+        repositories.capabilitiesStore.capabilities = .unavailable
+        mobileCapabilities = .unavailable
+        pendingResearchRunID = nil
     }
 
     func setLanguage(_ value: AppLanguage) {

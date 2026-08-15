@@ -47,6 +47,13 @@
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="puregamma" android:host="oauth" android:path="/ibkr" />
             </intent-filter>
+            <!-- 研究任务深链：puregamma://research/runs/{run_id}（只进入受信 Web 产品路由） -->
+            <intent-filter android:autoVerify="false">
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="puregamma" android:host="research" android:pathPrefix="/runs" />
+            </intent-filter>
         </activity>
 
         <service
