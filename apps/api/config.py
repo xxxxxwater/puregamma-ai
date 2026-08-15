@@ -455,6 +455,50 @@ class Settings:
         os.getenv("AUTO_TRADING_LIVE_ENABLED", "false").lower() == "true"
     )
 
+    # ---- LIVE Trading Control Plane (additive; EVERY gate defaults OFF) ----
+    # See docs/live-trading/FEATURE_FLAGS.md for the full gate matrix.
+    live_trading_enabled: bool = (
+        os.getenv("LIVE_TRADING_ENABLED", "false").lower() == "true"
+    )
+    live_trading_deployment_approved: bool = (
+        os.getenv("LIVE_TRADING_DEPLOYMENT_APPROVED", "false").lower() == "true"
+    )
+    live_trading_provider: str = os.getenv("LIVE_TRADING_PROVIDER", "")
+    live_trading_venue: str = os.getenv("LIVE_TRADING_VENUE", "MOCK")
+    live_trading_allowed_symbols: tuple[str, ...] = tuple(
+        _csv(os.getenv("LIVE_TRADING_ALLOWED_SYMBOLS", ""))
+    )
+    live_trading_gateway: str = os.getenv("LIVE_TRADING_GATEWAY", "mock")  # mock | nautilus
+    live_trading_order_timeout_seconds: float = float(
+        os.getenv("LIVE_TRADING_ORDER_TIMEOUT_SECONDS", "8") or 8
+    )
+    live_trading_default_max_notional: str = os.getenv(
+        "LIVE_TRADING_DEFAULT_MAX_NOTIONAL", "1000"
+    )
+    # Intervals must stay inside the single-server budget documented in
+    # docs/live-trading/PRODUCTION_DEPLOYMENT.md.
+    live_price_refresh_interval_seconds: int = int(
+        os.getenv("LIVE_PRICE_REFRESH_INTERVAL_SECONDS", "10") or 10
+    )
+    live_balance_sync_interval_seconds: int = int(
+        os.getenv("LIVE_BALANCE_SYNC_INTERVAL_SECONDS", "45") or 45
+    )
+    live_order_sync_interval_seconds: int = int(
+        os.getenv("LIVE_ORDER_SYNC_INTERVAL_SECONDS", "8") or 8
+    )
+    live_nav_calc_interval_seconds: int = int(
+        os.getenv("LIVE_NAV_CALC_INTERVAL_SECONDS", "45") or 45
+    )
+    live_nav_price_stale_seconds: int = int(
+        os.getenv("LIVE_NAV_PRICE_STALE_SECONDS", "60") or 60
+    )
+    live_reconciliation_hour_utc: int = int(
+        os.getenv("LIVE_RECONCILIATION_HOUR_UTC", "0") or 0
+    )
+    live_credential_encryption_key: str = os.getenv(
+        "LIVE_CREDENTIAL_ENCRYPTION_KEY", ""
+    )
+
     # ---- Memory service (additive, default OFF until rolled out) ----
     memory_service_enabled: bool = (
         os.getenv("MEMORY_SERVICE_ENABLED", "false").lower() == "true"

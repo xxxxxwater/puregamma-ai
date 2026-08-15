@@ -118,6 +118,48 @@ def build_scheduler() -> BlockingScheduler:
         max_instances=1,
         coalesce=True,
     )
+    # --- LIVE Trading Control Plane (each job is a cheap no-op when no LIVE
+    #     mandate exists; intervals respect the single-server budget) --------
+    scheduler.add_job(
+        enqueue,
+        IntervalTrigger(seconds=max(5, settings.live_price_refresh_interval_seconds)),
+        args=["puregamma.refresh_live_market_prices"],
+        id="live_market_price_refresh",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        IntervalTrigger(seconds=max(5, settings.live_order_sync_interval_seconds)),
+        args=["puregamma.sync_live_order_statuses"],
+        id="live_order_status_sync",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        IntervalTrigger(seconds=max(30, settings.live_balance_sync_interval_seconds)),
+        args=["puregamma.sync_live_balances_and_positions"],
+        id="live_balance_position_sync",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        IntervalTrigger(seconds=max(30, settings.live_nav_calc_interval_seconds)),
+        args=["puregamma.calc_nav_for_active_accounts"],
+        id="live_nav_calculation",
+        max_instances=1,
+        coalesce=True,
+    )
+    scheduler.add_job(
+        enqueue,
+        CronTrigger(hour=max(0, min(23, settings.live_reconciliation_hour_utc)), minute=30),
+        args=["puregamma.daily_live_reconciliation"],
+        id="live_daily_reconciliation",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.add_job(
         enqueue,
         IntervalTrigger(minutes=settings.nautilus_reconcile_interval_minutes),

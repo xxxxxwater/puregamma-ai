@@ -1967,3 +1967,245 @@ def admin_workers(db: Session = Depends(get_db), user: User = Depends(admin_user
         "queues": _celery_queue_lengths(),
         "recent_sync_failures": [serialize_run(row) for row in recent_failures],
     }
+
+
+# =============================================================================
+# LIVE Trading Control Plane admin surface.
+# Only admins can approve users, create broker connections or move kill
+# switches. Ordinary admin web pages do NOT reach these endpoints directly:
+# every LIVE order still flows through the Trading Control Plane.
+# =============================================================================
+
+
+class LiveApprovalRequest(BaseModel):
+    user_id: str
+    approve: bool = True
+    max_total_notional: str = Field(default="0", pattern=r"^\d+(\.\d+)?$")
+    notes: str = Field(default="", max_length=2000)
+
+
+class AdminKillSwitchRequest(BaseModel):
+    scope: str = Field(pattern="^(global|user|mandate|connection)$")
+    scope_id: str | None = None
+    active: bool = True
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class AdminBrokerConnectionRequest(BaseModel):
+    user_id: str
+    provider: str = Field(min_length=1, max_length=64)
+    account_label: str = Field(min_length=1, max_length=128)
+    environment: str = Field(default="paper", pattern="^(paper|testnet|production)$")
+    credentials: dict = Field(default_factory=dict)
+
+
+@router.post("/trading/live-approvals")
+def admin_live_approval(
+    payload: LiveApprovalRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.database.models import LiveUserApproval, utcnow as model_utcnow
+
+    target = db.query(User).filter_by(id=payload.user_id).one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    row = db.query(LiveUserApproval).filter_by(user_id=payload.user_id).one_or_none()
+    if not row:
+        row = LiveUserApproval(user_id=payload.user_id)
+        db.add(row)
+    row.status = "approved" if payload.approve else "rejected"
+    row.max_total_notional = payload.max_total_notional
+    row.reviewed_by = user.id
+    row.reviewed_at = model_utcnow()
+    row.notes = payload.notes or None
+    if not payload.approve:
+        row.revoked_at = model_utcnow()
+    db.commit()
+    db.refresh(row)
+    return {
+        "approval": {
+            "id": row.id,
+            "user_id": row.user_id,
+            "status": row.status,
+            "max_total_notional": str(row.max_total_notional),
+            "reviewed_by": row.reviewed_by,
+            "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else None,
+        }
+    }
+
+
+@router.post("/trading/kill-switch")
+def admin_kill_switch(
+    payload: AdminKillSwitchRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.live_trading import kill_switch as kill_switch_service
+    from packages.live_trading.audit import new_trace_id
+    from packages.database.models import TradingMandate
+
+    trace_id = new_trace_id()
+    if payload.active:
+        row = kill_switch_service.engage(
+            db,
+            scope=payload.scope,
+            scope_id=payload.scope_id,
+            reason=payload.reason,
+            triggered_by="admin",
+            trace_id=trace_id,
+        )
+        if payload.scope == "mandate" and payload.scope_id:
+            mandate = db.query(TradingMandate).filter_by(id=payload.scope_id).one_or_none()
+            if mandate:
+                mandate.kill_switch_state = "active"
+                mandate.paused = True
+                mandate.pause_reason = f"admin kill switch: {payload.reason[:500]}"
+    else:
+        released = kill_switch_service.release(
+            db,
+            scope=payload.scope,
+            scope_id=payload.scope_id,
+            resolved_by=user.id,
+            trace_id=trace_id,
+        )
+        if not released:
+            raise HTTPException(status_code=404, detail="No active kill switch in scope")
+        if payload.scope == "mandate" and payload.scope_id:
+            mandate = db.query(TradingMandate).filter_by(id=payload.scope_id).one_or_none()
+            if mandate and mandate.kill_switch_state == "active":
+                mandate.kill_switch_state = "inactive"
+    db.commit()
+    return {"trace_id": trace_id, "active": payload.active, "scope": payload.scope}
+
+
+@router.post("/trading/connections")
+def admin_create_broker_connection(
+    payload: AdminBrokerConnectionRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.database.models import BrokerConnection
+    from packages.live_trading.secret_store import encrypt_secrets
+
+    target = db.query(User).filter_by(id=payload.user_id).one_or_none()
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    existing = (
+        db.query(BrokerConnection)
+        .filter_by(
+            user_id=payload.user_id,
+            provider=payload.provider,
+            account_label=payload.account_label,
+        )
+        .one_or_none()
+    )
+    if existing:
+        raise HTTPException(status_code=400, detail="Connection label already exists")
+    row = BrokerConnection(
+        user_id=payload.user_id,
+        provider=payload.provider,
+        account_label=payload.account_label,
+        encrypted_credentials_ref=encrypt_secrets(payload.credentials)
+        if payload.credentials
+        else None,
+        permissions_json={
+            "spot": True,
+            "margin": False,
+            "futures": False,
+            "options": False,
+            "shorting": False,
+            "withdraw": False,
+            "transfer": False,
+        },
+        environment=payload.environment,
+        status="DISCONNECTED",
+    )
+    db.add(row)
+    db.commit()
+    db.refresh(row)
+    return {
+        "connection": {
+            "id": row.id,
+            "user_id": row.user_id,
+            "provider": row.provider,
+            "account_label": row.account_label,
+            "environment": row.environment,
+            "status": row.status,
+            "has_credentials": bool(row.encrypted_credentials_ref),
+        }
+    }
+
+
+@router.get("/trading/ledger")
+def admin_ledger_entries(
+    user_id: str | None = None,
+    account_id: str | None = None,
+    limit: int = Query(default=100, ge=1, le=1000),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.database.models import LedgerEntry
+
+    query = db.query(LedgerEntry)
+    if user_id:
+        query = query.filter_by(user_id=user_id)
+    if account_id:
+        query = query.filter_by(account_id=account_id)
+    rows = query.order_by(LedgerEntry.created_at.desc()).limit(limit).all()
+    return {
+        "entries": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "account_id": row.account_id,
+                "mandate_id": row.mandate_id,
+                "entry_type": row.entry_type,
+                "ref_type": row.ref_type,
+                "ref_id": row.ref_id,
+                "symbol": row.symbol,
+                "quantity": str(row.quantity) if row.quantity is not None else None,
+                "price": str(row.price) if row.price is not None else None,
+                "amount": str(row.amount),
+                "currency": row.currency,
+                "balance_after": str(row.balance_after) if row.balance_after is not None else None,
+                "trace_id": row.trace_id,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in rows
+        ]
+    }
+
+
+@router.get("/trading/reconciliations")
+def admin_reconciliations(
+    limit: int = Query(default=50, ge=1, le=500),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.database.models import TradingReconciliation
+
+    rows = (
+        db.query(TradingReconciliation)
+        .order_by(TradingReconciliation.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return {
+        "reconciliations": [
+            {
+                "id": row.id,
+                "user_id": row.user_id,
+                "account_id": row.account_id,
+                "mandate_id": row.mandate_id,
+                "status": row.status,
+                "exchange_balance": row.exchange_balance_json,
+                "ledger_balance": row.ledger_balance_json,
+                "nav": row.nav_json,
+                "differences": row.differences_json,
+                "actions": row.actions_json,
+                "created_at": row.created_at.isoformat(),
+            }
+            for row in rows
+        ]
+    }

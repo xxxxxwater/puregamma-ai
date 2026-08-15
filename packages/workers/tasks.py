@@ -1121,3 +1121,200 @@ def sync_earnings_calendar() -> dict:
         }
     finally:
         db.close()
+
+
+# =============================================================================
+# LIVE Trading Control Plane background tasks (single-server budget).
+# Every task is a cheap no-op when no LIVE mandate exists.
+# =============================================================================
+
+
+def _live_mandate_accounts(db) -> list:
+    """(mandate, connection) pairs that are LIVE candidates."""
+    from packages.database.models import BrokerConnection, TradingMandate
+
+    mandates = (
+        db.query(TradingMandate)
+        .filter_by(execution_mode="live")
+        .all()
+    )
+    pairs = []
+    for mandate in mandates:
+        connection = None
+        if mandate.broker_connection_id:
+            connection = (
+                db.query(BrokerConnection)
+                .filter_by(id=mandate.broker_connection_id)
+                .one_or_none()
+            )
+        pairs.append((mandate, connection))
+    return pairs
+
+
+@celery_app.task(name="puregamma.refresh_live_market_prices")
+def refresh_live_market_prices() -> dict:
+    """Record server-side market prices for LIVE positions/whitelist (5-15s)."""
+    db = SessionLocal()
+    recorded = 0
+    try:
+        from apps.api.config import get_settings
+        from packages.live_trading import ledger as ledger_service
+        from packages.live_trading import price_feed as price_feed_service
+
+        settings = get_settings()
+        symbols: set[str] = set(settings.live_trading_allowed_symbols or ())
+        client = NautilusRuntimeClient()
+        for mandate, _connection in _live_mandate_accounts(db):
+            quantities = ledger_service.position_quantities(db, mandate.account_id)
+            symbols.update(q for q, v in quantities.items() if v != 0)
+        if not symbols:
+            return {"recorded": 0, "reason": "no symbols"}
+        try:
+            quotes = client.market_quotes(sorted(symbols), refresh=True).get("quotes", {})
+        except Exception:
+            logger.exception("live_market_price_refresh_failed")
+            return {"recorded": 0, "reason": "runtime_unavailable"}
+        for raw_symbol, quote in quotes.items():
+            if isinstance(quote, dict):
+                price = quote.get("price") or quote.get("last")
+                if price is None:
+                    continue
+                price_feed_service.record_price(
+                    db,
+                    symbol=str(raw_symbol).upper(),
+                    price=str(price),
+                    venue=(quote.get("venue") or settings.live_trading_venue),
+                    source="runtime",
+                )
+                recorded += 1
+        db.commit()
+        return {"recorded": recorded}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.sync_live_order_statuses")
+def sync_live_order_statuses() -> dict:
+    """Order status refresh (5-10s). UNKNOWN orders are QUERIED, never resubmitted."""
+    db = SessionLocal()
+    synced = 0
+    try:
+        from packages.database.models import LiveOrder
+        from packages.live_trading.control_plane import sync_order_status
+
+        orders = (
+            db.query(LiveOrder)
+            .filter(
+                LiveOrder.status.in_(
+                    ["pending", "submitted", "accepted", "partially_filled", "unknown"]
+                )
+            )
+            .all()
+        )
+        for order in orders:
+            try:
+                sync_order_status(db, order)
+                synced += 1
+            except Exception:
+                db.rollback()
+                logger.exception("live_order_status_sync_failed order=%s", order.id)
+        return {"synced": synced}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.sync_live_balances_and_positions")
+def sync_live_balances_and_positions() -> dict:
+    """Balance/position refresh (30-60s): connection health + NAV trigger."""
+    db = SessionLocal()
+    checked = 0
+    try:
+        from packages.live_trading.control_plane import test_connection
+
+        for mandate, connection in _live_mandate_accounts(db):
+            if not connection:
+                continue
+            try:
+                test_connection(db, connection.user_id, connection.id)
+                checked += 1
+            except Exception:
+                db.rollback()
+                continue
+        return {"checked": checked}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.calc_nav_for_account")
+def calc_nav_for_account(user_id: str, account_id: str, mandate_id: str | None = None) -> dict:
+    """NAV recalc for one account (triggered by fills and the periodic task)."""
+    db = SessionLocal()
+    try:
+        from packages.live_trading.nav import calculate_nav
+
+        snapshot = calculate_nav(db, user_id=user_id, account_id=account_id, mandate_id=mandate_id)
+        db.commit()
+        return {
+            "snapshot_id": snapshot.id,
+            "nav": str(snapshot.nav) if snapshot.nav is not None else None,
+            "is_stale": snapshot.is_stale,
+        }
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.calc_nav_for_active_accounts")
+def calc_nav_for_active_accounts() -> dict:
+    """Periodic NAV calculation for every LIVE account (30-60s)."""
+    db = SessionLocal()
+    computed = 0
+    try:
+        from packages.live_trading.nav import calculate_nav
+
+        for mandate, _connection in _live_mandate_accounts(db):
+            calculate_nav(
+                db,
+                user_id=mandate.user_id,
+                account_id=mandate.account_id,
+                mandate_id=mandate.id,
+            )
+            computed += 1
+        db.commit()
+        return {"computed": computed}
+    finally:
+        db.close()
+
+
+@celery_app.task(name="puregamma.daily_live_reconciliation")
+def daily_live_reconciliation() -> dict:
+    """Daily exchange vs ledger vs NAV reconciliation.
+
+    On difference: pause the mandate, forbid new orders, keep sync running,
+    alert ops, and record the difference — never modify historical ledger."""
+    db = SessionLocal()
+    reconciled = 0
+    try:
+        from packages.live_trading.gateway_adapter import get_execution_gateway
+        from packages.live_trading.reconciliation import reconcile_account
+        from packages.live_trading.audit import new_trace_id
+
+        gateway = get_execution_gateway()
+        for mandate, connection in _live_mandate_accounts(db):
+            try:
+                reconcile_account(
+                    db,
+                    user_id=mandate.user_id,
+                    account_id=mandate.account_id,
+                    mandate=mandate,
+                    connection=connection,
+                    gateway=gateway,
+                    trace_id=new_trace_id(),
+                )
+                reconciled += 1
+            except Exception:
+                db.rollback()
+                logger.exception("live_reconciliation_failed mandate=%s", mandate.id)
+        db.commit()
+        return {"reconciled": reconciled}
+    finally:
+        db.close()

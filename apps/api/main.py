@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from apps.api.config import get_settings, validate_production_settings
 from apps.api.dependencies import ensure_bootstrap
-from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, custody, email_auth, gateway, google_auth, hyperliquid_stream, imessage_agent, mobile_auth, internal, market, notifications, opportunities, options, playbooks, portfolio, reports, research, research_runner, secretary, signals, skills, strategies, stripe_webhook, trading
+from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, custody, email_auth, gateway, google_auth, hyperliquid_stream, imessage_agent, internal, live_trading, market, mobile_auth, notifications, opportunities, options, playbooks, portfolio, reports, research, research_runner, secretary, signals, skills, strategies, stripe_webhook, trading
 
 
 settings = get_settings()
@@ -258,6 +258,10 @@ app.include_router(gateway.admin_router)
 # Custody is always registered: the API honestly reports UNCONFIGURED when no
 # provider credentials exist rather than hiding the domain.
 app.include_router(custody.router)
+# LIVE trading control plane + server-side NAV are always registered and always
+# honest: when any gate fails they report LIVE_DISABLED instead of faking data.
+app.include_router(live_trading.trading_router)
+app.include_router(live_trading.portfolio_router)
 if not settings.initial_launch_mode:
     app.include_router(signals.router)
     app.include_router(playbooks.router)

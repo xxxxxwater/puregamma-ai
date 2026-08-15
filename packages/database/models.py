@@ -1637,6 +1637,7 @@ class TradingAuditLog(Base):
     request_json = Column(JSON, default=dict, nullable=False)
     result_json = Column(JSON, default=dict, nullable=False)
     idempotency_key = Column(String, nullable=False)
+    trace_id = Column(String, nullable=True, index=True)
     error_code = Column(String, nullable=True)
     error_message = Column(Text, nullable=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
@@ -2067,11 +2068,13 @@ class StrategyRelease(Base):
 
 
 class TradingMandate(Base, TimestampMixin):
-    """User-authorized, immutable trading authorization envelope.
+    """User-authorized trading authorization envelope.
 
-    Phase 1 supports SHADOW and PAPER only; ``future_live`` is a reserved
-    label and can never execute. Auto-pause is automatic; resume always
-    requires explicit human confirmation.
+    PAPER and SHADOW mandates use the existing strategy control path.
+    LIVE mandates are read-only for everyone except the Trading Control
+    Plane: orders can only flow through RiskCheck -> OrderIntent ->
+    Execution Gateway -> Ledger -> NAV Snapshot. Auto-pause is automatic;
+    resume always requires explicit human confirmation.
     """
 
     __tablename__ = "trading_mandates"
@@ -2081,8 +2084,13 @@ class TradingMandate(Base, TimestampMixin):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
     account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
     strategy_release_id = Column(String, ForeignKey("strategy_releases.id", ondelete="RESTRICT"), nullable=False, index=True)
-    execution_mode = Column(String, nullable=False, default="shadow", index=True)  # shadow | paper | future_live
-    asset_allowlist_json = Column(JSON, default=list, nullable=False)
+    broker_connection_id = Column(String, ForeignKey("broker_connections.id", ondelete="SET NULL"), nullable=True, index=True)
+    execution_mode = Column(String, nullable=False, default="shadow", index=True)  # shadow | paper | live
+    environment = Column(String, nullable=False, default="paper", index=True)  # paper | testnet | production
+    # Lifecycle status of the mandate itself (independent from approval and pause):
+    # draft | active | paused | suspended | revoked | expired
+    status = Column(String, nullable=False, default="draft", index=True)
+    allowed_symbols_json = Column(JSON, default=list, nullable=False)
     allowed_side = Column(String, nullable=False, default="both")  # long | short | both
     # Financial risk thresholds must never use binary floating point.
     max_total_notional = Column(Numeric(20, 8), nullable=False, default=0)
@@ -2099,7 +2107,8 @@ class TradingMandate(Base, TimestampMixin):
     kill_switch_state = Column(String, nullable=False, default="inactive", index=True)  # inactive | active
     paused = Column(Boolean, nullable=False, default=False)
     pause_reason = Column(Text, nullable=True)
-    approval_state = Column(String, nullable=False, default="pending", index=True)  # pending | approved | rejected | revoked | expired
+    approval_status = Column(String, nullable=False, default="pending", index=True)  # pending | approved | rejected | revoked | expired
+    approved_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
     confirmation_phrase_hash = Column(String, nullable=True)
     approved_at = Column(DateTime(timezone=True), nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True, index=True)
@@ -2126,6 +2135,315 @@ class TradingMandateAudit(Base):
     runtime_command_id = Column(String, nullable=True)
     detail_json = Column(JSON, default=dict, nullable=False)
     idempotency_key = Column(String, nullable=False)
+    trace_id = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+# =============================================================================
+# LIVE Trading Control Plane (additive layer). Everything below is gated by the
+# LIVE feature flag AND user approval AND mandate approval AND kill switches.
+# Real secrets never reach these tables in plaintext: BrokerConnection stores
+# only a KMS reference or Fernet ciphertext (see packages/live_trading).
+# =============================================================================
+
+
+class BrokerConnection(Base, TimestampMixin):
+    """One broker/exchange connection owned by a user.
+
+    ``encrypted_credentials_ref`` holds either a Secret-Manager/KMS reference
+    (``kms://...``) or Fernet ciphertext produced by
+    ``packages.live_trading.secret_store``. Plaintext credentials must never be
+    persisted here or anywhere else in the database.
+    """
+
+    __tablename__ = "broker_connections"
+    __table_args__ = (
+        UniqueConstraint(
+            "user_id", "provider", "account_label", name="uq_broker_connection_label"
+        ),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    provider = Column(String, nullable=False, index=True)  # e.g. binance_spot | coinbase_advanced
+    account_label = Column(String, nullable=False)
+    encrypted_credentials_ref = Column(Text, nullable=True)
+    permissions_json = Column(
+        JSON,
+        default=lambda: {
+            "spot": True,
+            "margin": False,
+            "futures": False,
+            "options": False,
+            "shorting": False,
+            "withdraw": False,
+            "transfer": False,
+        },
+        nullable=False,
+    )
+    environment = Column(String, nullable=False, default="paper", index=True)  # paper | testnet | production
+    status = Column(String, nullable=False, default="DISCONNECTED", index=True)  # DISCONNECTED | CONNECTED | HEALTHY | ERROR | REVOKED
+    last_health_check_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class LiveUserApproval(Base, TimestampMixin):
+    """Server-side LIVE eligibility approval for a user.
+
+    No user, admin web UI, or mobile client can self-approve: this row can
+    only be created/updated by the admin kill-switch/approval endpoints.
+    """
+
+    __tablename__ = "live_user_approvals"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | approved | rejected | revoked
+    max_total_notional = Column(Numeric(20, 8), nullable=False, default=0)
+    reviewed_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    reviewed_at = Column(DateTime(timezone=True), nullable=True)
+    revoked_at = Column(DateTime(timezone=True), nullable=True)
+    notes = Column(Text, nullable=True)
+
+
+class TradingKillSwitch(Base, TimestampMixin):
+    """Append-only kill switch states (global | user | mandate | connection).
+
+    Engaging a switch is immediate and irreversible except through an explicit
+    admin release (``resolved_by`` is required). The trading control plane
+    checks every scope before allowing any new order.
+    """
+
+    __tablename__ = "trading_kill_switches"
+
+    id = Column(String, primary_key=True, default=new_id)
+    scope = Column(String, nullable=False, index=True)  # global | user | mandate | connection
+    scope_id = Column(String, nullable=True, index=True)
+    state = Column(String, nullable=False, default="active", index=True)  # active | inactive
+    reason = Column(Text, nullable=False, default="")
+    triggered_by = Column(String, nullable=False, default="admin", index=True)  # admin | risk_engine | reconciliation | system
+    triggered_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    resolved_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
+    trace_id = Column(String, nullable=True, index=True)
+
+
+class MarketPriceSnapshot(Base):
+    """Latest valid market price per symbol/venue for NAV marking.
+
+    Prices are recorded by the server price feed only; client timestamps are
+    never trusted. Staleness is evaluated at read time against
+    ``LIVE_NAV_PRICE_STALE_SECONDS``.
+    """
+
+    __tablename__ = "market_price_snapshots"
+    __table_args__ = (
+        Index("ix_market_price_lookup", "symbol", "venue", "captured_at"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    symbol = Column(String, nullable=False, index=True)
+    venue = Column(String, nullable=False, default="MOCK")
+    price = Column(Numeric(20, 8), nullable=False)
+    captured_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    source = Column(String, nullable=False, default="runtime")  # runtime | gateway | manual
+    trace_id = Column(String, nullable=True)
+
+
+class LiveOrderIntent(Base, TimestampMixin):
+    """A validated, risk-checked intent for a LIVE order.
+
+    ``source`` is strictly controlled: the Harness can only produce
+    ``strategy`` suggestions; a real LIVE submission always flows through user
+    confirmation (``user_confirmed``), an admin (``admin``) or the system
+    (``system``). ``live_order`` is reserved and never accepted.
+    """
+
+    __tablename__ = "live_order_intents"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_live_order_intent_idempotency"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="CASCADE"), nullable=False, index=True)
+    strategy_release_id = Column(String, ForeignKey("strategy_releases.id", ondelete="SET NULL"), nullable=True, index=True)
+    broker_connection_id = Column(String, ForeignKey("broker_connections.id", ondelete="SET NULL"), nullable=True)
+    symbol = Column(String, nullable=False, index=True)
+    side = Column(String, nullable=False, index=True)  # buy | sell
+    quantity = Column(Numeric(20, 8), nullable=False)
+    order_type = Column(String, nullable=False, default="market")  # market | limit
+    limit_price = Column(Numeric(20, 8), nullable=True)
+    client_order_id = Column(String, nullable=False, index=True)
+    idempotency_key = Column(String, nullable=False)
+    source = Column(String, nullable=False, default="user_confirmed", index=True)  # user_confirmed | strategy | admin | system
+    requested_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    status = Column(String, nullable=False, default="PENDING", index=True)  # PENDING | APPROVED | REJECTED | EXPIRED | CANCELED
+    confirmation_token_hash = Column(String, nullable=True)
+    trace_id = Column(String, nullable=False, index=True)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+
+
+class RiskCheck(Base):
+    """Immutable risk engine verdict for one order intent.
+
+    INSERT-only: SQLAlchemy events reject update/delete, so a check can never
+    be rewritten after the fact.
+    """
+
+    __tablename__ = "risk_checks"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_intent_id = Column(String, ForeignKey("live_order_intents.id", ondelete="CASCADE"), nullable=False, index=True)
+    mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="CASCADE"), nullable=False, index=True)
+    result = Column(String, nullable=False, index=True)  # PASS | REJECT
+    rejection_reason = Column(Text, nullable=True)
+    checks_json = Column(JSON, default=list, nullable=False)
+    checked_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+    risk_engine_version = Column(String, nullable=False, index=True)
+    trace_id = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class LiveOrder(Base, TimestampMixin):
+    """Server-submitted LIVE order state (submitted to the broker via the
+    Execution Gateway). Never client-submitted directly."""
+
+    __tablename__ = "live_orders"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_live_order_idempotency"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_intent_id = Column(String, ForeignKey("live_order_intents.id", ondelete="CASCADE"), nullable=False, index=True)
+    broker_connection_id = Column(String, ForeignKey("broker_connections.id", ondelete="SET NULL"), nullable=True)
+    symbol = Column(String, nullable=False, index=True)
+    side = Column(String, nullable=False, index=True)  # buy | sell
+    quantity = Column(Numeric(20, 8), nullable=False)
+    order_type = Column(String, nullable=False, default="market")
+    limit_price = Column(Numeric(20, 8), nullable=True)
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | submitted | accepted | partially_filled | filled | canceled | rejected | expired | unknown
+    client_order_id = Column(String, nullable=False, index=True)
+    broker_order_id = Column(String, nullable=True, index=True)
+    filled_quantity = Column(Numeric(20, 8), nullable=False, default=0)
+    average_price = Column(Numeric(20, 8), nullable=True)
+    idempotency_key = Column(String, nullable=False)
+    submitted_at = Column(DateTime(timezone=True), nullable=True)
+    last_sync_at = Column(DateTime(timezone=True), nullable=True)
+    trace_id = Column(String, nullable=False, index=True)
+    error_code = Column(String, nullable=True)
+    error_message = Column(Text, nullable=True)
+    raw_ack_json = Column(JSON, default=dict, nullable=False)
+
+
+class Fill(Base):
+    """An actual broker fill. INSERT-only (immutable)."""
+
+    __tablename__ = "fills"
+    __table_args__ = (UniqueConstraint("broker_fill_id", name="uq_fill_broker_fill_id"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    order_id = Column(String, ForeignKey("live_orders.id", ondelete="CASCADE"), nullable=False, index=True)
+    mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="SET NULL"), nullable=True, index=True)
+    symbol = Column(String, nullable=False, index=True)
+    side = Column(String, nullable=False, index=True)  # buy | sell
+    quantity = Column(Numeric(20, 8), nullable=False)
+    price = Column(Numeric(20, 8), nullable=False)
+    fee = Column(Numeric(20, 8), nullable=False, default=0)
+    fee_currency = Column(String, nullable=False, default="USD")
+    executed_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    broker_fill_id = Column(String, nullable=False)
+    raw_reference_json = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False)
+
+
+class LedgerEntry(Base):
+    """Immutable append-only ledger. UPDATE/DELETE are rejected by SQLAlchemy
+    events; reconciliation differences are recorded as new
+    ``reconciliation_adjustment`` entries and NEVER rewrite history."""
+
+    __tablename__ = "ledger_entries"
+    __table_args__ = (
+        UniqueConstraint("idempotency_key", name="uq_ledger_entry_idempotency"),
+        Index("ix_ledger_entries_account_created", "account_id", "created_at"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="SET NULL"), nullable=True, index=True)
+    entry_type = Column(String, nullable=False, index=True)  # cash_deposit | cash_withdrawal | trade_buy | trade_sell | fee | funding | dividend | adjustment | reconciliation_adjustment
+    ref_type = Column(String, nullable=True)  # fill | order | deposit | withdrawal | manual | reconciliation
+    ref_id = Column(String, nullable=True, index=True)
+    symbol = Column(String, nullable=True)
+    quantity = Column(Numeric(20, 8), nullable=True)
+    price = Column(Numeric(20, 8), nullable=True)
+    amount = Column(Numeric(20, 8), nullable=False)  # signed cash effect in account currency
+    currency = Column(String, nullable=False, default="USD")
+    balance_after = Column(Numeric(20, 8), nullable=True)
+    idempotency_key = Column(String, nullable=False)
+    trace_id = Column(String, nullable=False, index=True)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class NavSnapshot(Base):
+    """Server-computed NAV snapshot per account.
+
+    ``nav`` is NULL when no valid price exists for a non-zero position — the
+    server never fabricates valuations. Consumers must surface the snapshot as
+    stale/unknown in that case.
+    """
+
+    __tablename__ = "nav_snapshots"
+    __table_args__ = (
+        Index("ix_nav_snapshots_account_calculated", "account_id", "calculated_at"),
+    )
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="SET NULL"), nullable=True, index=True)
+    nav = Column(Numeric(20, 8), nullable=True)  # NULL = stale/unpriced, never fabricated
+    cash = Column(Numeric(20, 8), nullable=False, default=0)
+    gross_exposure = Column(Numeric(20, 8), nullable=False, default=0)
+    net_exposure = Column(Numeric(20, 8), nullable=False, default=0)
+    realized_pnl = Column(Numeric(20, 8), nullable=False, default=0)
+    unrealized_pnl = Column(Numeric(20, 8), nullable=False, default=0)
+    currency = Column(String, nullable=False, default="USD")
+    price_timestamp = Column(DateTime(timezone=True), nullable=True)
+    calculated_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    is_stale = Column(Boolean, nullable=False, default=False, index=True)
+    calculation_version = Column(String, nullable=False, default="1.0.0")
+    reconciliation_status = Column(String, nullable=False, default="pending", index=True)  # pending | ok | discrepancy
+
+
+class TradingReconciliation(Base):
+    """Daily exchange vs ledger vs NAV comparison. Append-only record of
+    differences and the actions taken (mandate pause etc.)."""
+
+    __tablename__ = "trading_reconciliations"
+
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    account_id = Column(String, ForeignKey("trading_accounts.id", ondelete="CASCADE"), nullable=False, index=True)
+    mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="SET NULL"), nullable=True, index=True)
+    status = Column(String, nullable=False, default="ok", index=True)  # ok | discrepancy | error
+    exchange_balance_json = Column(JSON, default=dict, nullable=False)
+    ledger_balance_json = Column(JSON, default=dict, nullable=False)
+    nav_json = Column(JSON, default=dict, nullable=False)
+    differences_json = Column(JSON, default=list, nullable=False)
+    actions_json = Column(JSON, default=list, nullable=False)
+    resolved_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
     trace_id = Column(String, nullable=False, index=True)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
 
@@ -2303,4 +2621,18 @@ def _prevent_strategy_release_spec_mutation(mapper, _connection, target) -> None
 
 event.listen(EvidenceSnapshot, "before_update", _prevent_evidence_snapshot_mutation)
 event.listen(EvidenceSnapshot, "before_delete", _prevent_evidence_snapshot_mutation)
+
+
+def _prevent_live_record_mutation(*_args, **_kwargs) -> None:
+    raise RuntimeError("LIVE trading records are immutable (INSERT-only)")
+
+
+event.listen(LedgerEntry, "before_update", _prevent_live_record_mutation)
+event.listen(LedgerEntry, "before_delete", _prevent_live_record_mutation)
+event.listen(RiskCheck, "before_update", _prevent_live_record_mutation)
+event.listen(RiskCheck, "before_delete", _prevent_live_record_mutation)
+event.listen(Fill, "before_update", _prevent_live_record_mutation)
+event.listen(Fill, "before_delete", _prevent_live_record_mutation)
+event.listen(TradingReconciliation, "before_update", _prevent_live_record_mutation)
+event.listen(TradingReconciliation, "before_delete", _prevent_live_record_mutation)
 event.listen(StrategyRelease, "before_update", _prevent_strategy_release_spec_mutation)
