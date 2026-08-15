@@ -1217,6 +1217,154 @@ export function cancelResearchRun(runId: string) {
   return requestStrict<{ run: HarnessResearchRun }>(`/api/research/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
 }
 
+// ── Trading safety + NAV (control plane; real backend) ────────────────────
+
+export type TradingStaticGate = {
+  enabled: boolean;
+  state: "LIVE_ENABLED" | "LIVE_DISABLED" | string;
+  checks: Record<string, { ok: boolean; detail?: unknown }>;
+};
+
+export type TradingSafetyStatus = {
+  static_gate: TradingStaticGate;
+  user_live_approval: { status: string; max_total_notional: string; reviewed_at: string | null };
+  mandates: Record<string, { enabled: boolean; state: string; checks: Record<string, { ok: boolean; detail?: unknown }> }>;
+  kill_switches: Array<Record<string, unknown>>;
+};
+
+export type TradingMandate = {
+  id: string;
+  account_id: string | null;
+  execution_mode: string;
+  environment: string;
+  status: string;
+  allowed_symbols: string[];
+  allowed_side: string;
+  max_total_notional: string;
+  max_per_order_notional: string;
+  max_position_notional: string;
+  max_leverage: string;
+  max_daily_loss: string;
+  max_trades_per_day: number | null;
+  max_order_frequency_seconds: number | null;
+  kill_switch_state: string;
+  paused: boolean;
+  pause_reason: string | null;
+  approval_status: string;
+  approved_by: string | null;
+  approved_at: string | null;
+  expires_at: string | null;
+  created_at: string;
+};
+
+export type NavSnapshot = {
+  id: string;
+  account_id: string;
+  nav: string | null;
+  cash: string;
+  gross_exposure: string;
+  net_exposure: string;
+  realized_pnl: string;
+  unrealized_pnl: string;
+  currency: string;
+  price_timestamp: string | null;
+  calculated_at: string;
+  is_stale: boolean;
+  calculation_version: number;
+  reconciliation_status: string;
+};
+
+export function getTradingSafetyStatus() {
+  return requestStrict<{ safety: TradingSafetyStatus }>("/api/trading/safety-status");
+}
+
+export function getTradingMandates() {
+  return requestStrict<{ mandates: TradingMandate[] }>("/api/trading/mandates");
+}
+
+export function pauseTradingMandate(mandateId: string, reason: string) {
+  return requestStrict<{ mandate: TradingMandate }>(`/api/trading/mandates/${encodeURIComponent(mandateId)}/pause`, { method: "POST", body: JSON.stringify({ reason }) });
+}
+
+export function resumeTradingMandate(mandateId: string, confirmation: string) {
+  return requestStrict<{ mandate: TradingMandate }>(`/api/trading/mandates/${encodeURIComponent(mandateId)}/resume`, { method: "POST", body: JSON.stringify({ confirmation }) });
+}
+
+export function getTradingNav(accountId?: string) {
+  const query = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
+  return requestStrict<{ nav: NavSnapshot; daily_pnl: string | null; daily_return: string | null }>(`/api/portfolio/nav${query}`);
+}
+
+export function getTradingNavHistory(limit = 100) {
+  return requestStrict<{ history: NavSnapshot[] }>(`/api/portfolio/nav/history?limit=${limit}`);
+}
+
+// ── Memory service (contract: docs/mobile/MOBILE_API_CONTRACT.md) ──────────
+// HTTP layer not open yet; strict calls so 404/501 surface as gated UI.
+
+export type MemorySettings = {
+  short_term_enabled: boolean;
+  mid_term_enabled: boolean;
+  conversation_summary_enabled: boolean;
+  research_memory_enabled: boolean;
+  portfolio_memory_enabled: boolean;
+  consent_required: boolean;
+  retention_days: number;
+};
+
+export type MemoryItem = {
+  id: string;
+  scope: string;
+  kind: string;
+  content_preview: string;
+  status: string;
+  created_at: string;
+  expires_at: string | null;
+};
+
+export type MemoryProposal = {
+  id: string;
+  scope: string;
+  kind: string;
+  content_preview: string;
+  source: string;
+  status: string;
+  created_at: string;
+  expires_at: string | null;
+};
+
+export function getMemorySettings() {
+  return requestStrict<{ settings: MemorySettings }>("/api/memory/settings");
+}
+
+export function updateMemorySettings(patch: Partial<MemorySettings>, consentGranted = false) {
+  return requestStrict<{ settings: MemorySettings }>("/api/memory/settings", { method: "PATCH", body: JSON.stringify({ ...patch, consent_granted: consentGranted }) });
+}
+
+export function getMemoryItems(scope: string) {
+  return requestStrict<{ items: MemoryItem[]; total: number }>(`/api/memory/items?scope=${encodeURIComponent(scope)}`);
+}
+
+export function getMemoryProposals() {
+  return requestStrict<{ proposals: MemoryProposal[] }>("/api/memory/proposals");
+}
+
+export function decideMemoryProposal(proposalId: string, decision: "approve" | "reject") {
+  return requestStrict<{ proposal: MemoryProposal }>(`/api/memory/proposals/${encodeURIComponent(proposalId)}/${decision}`, { method: "POST" });
+}
+
+export function deleteMemoryItem(itemId: string) {
+  return requestStrict<{ deleted: boolean }>(`/api/memory/items/${encodeURIComponent(itemId)}`, { method: "DELETE" });
+}
+
+export function clearMemory(scope: "all" | "short_term" | "mid_term") {
+  return requestStrict<{ cleared: number }>("/api/memory/clear", { method: "POST", body: JSON.stringify({ scope }) });
+}
+
+export function exportMemory() {
+  return requestStrict<{ url: string; expires_at: string }>("/api/memory/export");
+}
+
 export async function streamAgentMessage(
   conversationId: string,
   content: string,
