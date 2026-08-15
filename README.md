@@ -1,8 +1,8 @@
 # PureGamma AI
-PureGamma AI is an AI-native investment research and decision-support platform for crypto and equity-aware portfolios. It combines market intelligence, portfolio NAV context, agent-based research, DeepSeek Harness deep research, a user-owned memory service, options surface analysis, strategy playbooks, simulated backtests, a trading-mandate foundation (PAPER/SHADOW only), billing entitlements, an OpenAI-compatible API gateway, and notification delivery into one research console.
+PureGamma AI is an AI-native investment research and decision-support platform for crypto and equity-aware portfolios. It combines market intelligence, portfolio NAV context, agent-based research, DeepSeek Harness deep research, a user-owned memory service, options surface analysis, strategy playbooks, simulated backtests, a trading-mandate foundation (PAPER/SHADOW live today), a gated **LIVE trading control plane** (spot-only, feature-flagged, default disabled), server-computed NAV, billing entitlements, an OpenAI-compatible API gateway, iOS/Android apps, and notification delivery into one research console.
 The versioned declarative Skills Library is documented in
 [`docs/SKILLS_LIBRARY.md`](docs/SKILLS_LIBRARY.md).
-Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [Harness research](docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md), [Memory service](docs/developer/MEMORY_ARCHITECTURE.md), [Automated trading foundation](docs/developer/AUTOMATED_TRADING_FOUNDATION.md), [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), [implementation report](docs/IMPLEMENTATION_REPORT.md), and [AI API gateway](docs/AI_API_GATEWAY.md).
+Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [Harness research](docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md), [Memory service](docs/developer/MEMORY_ARCHITECTURE.md), [Automated trading foundation](docs/developer/AUTOMATED_TRADING_FOUNDATION.md), [LIVE trading + NAV](docs/live-trading/ARCHITECTURE.md), [LIVE feature flags](docs/live-trading/FEATURE_FLAGS.md), [LIVE rollout status](docs/live-trading/STATUS.md), [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), [implementation report](docs/IMPLEMENTATION_REPORT.md), and [AI API gateway](docs/AI_API_GATEWAY.md).
 Start with the full documentation index: [docs/README.md](./docs/README.md).
 ## What is PureGamma AI?
 PureGamma AI is an AI decision-support system for individual secondary-market investors. It helps users answer three daily questions:
@@ -24,11 +24,17 @@ Research and decision support:
 - **Skills library**: versioned declarative skills (schema 1.0) with layered tool whitelists and deterministic YAML DAG workflows.
 Portfolio and trading:
 - **Portfolio NAV**: consolidated NAV and history across Plaid Investments, Interactive Brokers (OAuth), and Hyperliquid (public), with encrypted token storage and freshness windows.
+- **Server-side LIVE NAV** (`/api/portfolio/nav`): `NAV = cash + Σ(quantity × latest valid price)`, computed only on the server; snapshots older than 60s are marked `stale` and never fabricate a valuation (`nav=null`). Every snapshot records the price timestamp and calculation version; fills trigger a recalc and Celery recalculates every 30–60s.
 - **Portfolio Autopilot**: scheduled review records with NAV, concentration, and freshness findings; Telegram/iMessage delivery.
 - **Strategy library**: six built-in strategies (BTC momentum, ETH/BTC rotation, SOL high-beta, HYPE trend, MSTR BTC proxy, STRC event-driven credit).
 - **Trading control plane**: accounts, positions, order preview/confirm/cancel, reconciliation, and kill-switch against an isolated Nautilus runtime (BACKTEST / PAPER / SHADOW only).
-- **Nautilus runtime**: isolated execution data plane with risk gateways (kill switch, nominal/leverage/daily-loss/frequency limits), execution journaling, restart recovery, and public market data adapters (Binance testnet, Hyperliquid, Coinbase Advanced). Live trading, withdrawals, and transfers remain disabled.
-- **Trading mandate foundation** (Phase 1): declarative `TradingMandate` records with dual confirmation, cooldown, and expiry; an immutable strategy-release reference; a four-layer gate (deterministic policy → PureGamma pre-trade risk → Nautilus independent risk) that permits PAPER/SHADOW actions only; auto-pause on stale data, risk breaches, or reconciliation needs; and append-only audits. LIVE auto-trading has no code path.
+- **LIVE Trading Control Plane** (additive, every gate defaults OFF — see [STATUS](docs/live-trading/STATUS.md)): the only component that may submit LIVE spot orders. 23-step pipeline (ownership → mandate state → feature gate → user approval → broker health → whitelist → notional/balance/position/daily-loss/leverage/frequency → kill switch → idempotency → immutable `RiskCheck` → `OrderIntent` → mandate row lock → Execution Gateway → `broker_order_id` → fill sync → immutable `LedgerEntry` → NAV). Submit timeouts become `UNKNOWN` (queried, never blindly retried); every request carries a `trace_id`. All monetary math uses `Numeric(20,8)` (no floats).
+- **Immutable ledger**: append-only (`INSERT` only; UPDATE/DELETE rejected by ORM events) supporting `cash_deposit/cash_withdrawal/trade_buy/trade_sell/fee/funding/dividend/adjustment/reconciliation_adjustment`. Reconciliation differences are posted as new `reconciliation_adjustment` entries — history is never rewritten.
+- **Daily reconciliation**: exchange balance vs ledger vs NAV; on difference the user's mandate is paused, new orders are forbidden, data sync continues, ops are alerted, and manual review is required.
+- **Kill switches** (4 scopes): global / user / mandate / broker-connection, plus auto-engagement from risk/reconciliation. When engaged: new orders refused; queries, cancels, fill recording, and reconciliation keep working; recovery always requires a human admin action.
+- **Broker credentials**: stored only as Fernet ciphertext or a KMS reference on `broker_connections` — plaintext never touches the database; withdrawal/transfer/leverage/futures/options/shorting permissions are hard-denied.
+- **Nautilus runtime**: isolated execution data plane with risk gateways (kill switch, nominal/leverage/daily-loss/frequency limits), execution journaling, restart recovery, and public market data adapters (Binance testnet, Hyperliquid, Coinbase Advanced). Live trading, withdrawals, and transfers remain disabled by policy.
+- **Trading mandate foundation** (Phase 1): declarative `TradingMandate` records with dual confirmation, cooldown, and expiry; an immutable strategy-release reference; a four-layer gate (deterministic policy → PureGamma pre-trade risk → Nautilus independent risk) that permits PAPER/SHADOW actions today; auto-pause on stale data, risk breaches, or reconciliation needs; and append-only audits. LIVE execution has a code path only through the gated control plane above and stays disabled until every flag, approval, and health condition passes.
 AI gateway and billing:
 - **First-party OpenAI-compatible API Gateway** (`/v1/chat/completions`) with HMAC-hashed `sk-pg-…` keys, model catalog (Kimi K3, DeepSeek V4, GLM 5.2), admin-approved price revisions, per-key RPM limits, and fail-closed Redis.
 - **Gateway prepaid wallet**: USD wallet independent of subscriptions/credits with Stripe Checkout top-ups, line-item ledger, idempotent crediting, and per-request locking (402 on insufficient balance).
@@ -38,8 +44,11 @@ Authentication and delivery:
 - Notifications: email, Telegram, Slack, APNs push, and a self-hosted iMessage relay (outbound and inbound).
 - Daily brief with five delivery controls (market, portfolio, signals, risk, source sentiment).
 Apps and admin:
-- Next.js web app (en/zh), SwiftUI iOS app (Today, Agent, Research, Portfolio, Account with Memory Controls and Trading Safety), and Android app (Compose + WebView), with mobile Research Runs surfaces backed by the frozen [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md).
-- Admin dashboard for users, reports, data sources, Stripe events, gateway pricing approvals, billing intents, and notifications.
+- Next.js web app (en/zh), SwiftUI iOS app, and Android app (Compose + WebView) — mobile surfaces below — backed by the frozen [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md).
+- **iOS app (SwiftUI, `apps/ios/PureGamma`)**: Today, Agent, Research, Portfolio, and Account tabs. Account gains **Memory Controls** (scope toggles, consent, proposal approval/rejection, delete with double confirmation, export) and **Trading Safety** (mandate list/detail, risk limits, PAPER/SHADOW display, `LIVE_DISABLED` status, pause/resume gating). Research gains **Research Runs** (list/detail/evidence/timeline/launch form with unavailable + stale states). All new surfaces are gated by server `capabilities`; the client hard-forbids LIVE actions (`MandateActionPolicy.liveActionAllowed` is always false) and shows “feature unavailable” honestly when endpoints are missing (no fake data). `APIClient.streamGet` adds GET-SSE streaming; deep links route to research runs and push routes to `research_run`. Models use `LenientDecimal` and optional-field decoding so a missing capability can never crash the app.
+- **Android app (Compose, `apps/android`)**: product content rendered in `ProductWebOverlay` with a `BuildConfig`-derived domain allowlist (`PG_PRODUCT_WEB_BASE_URL`); deep links `puregamma://research/runs/*` and FCM `research_run` routing via `AppViewModel`; `MobileRepository` treats 404/501 capabilities as fully unavailable (5xx surfaced, never faked); Account tab shows Memory/Trading/LIVE_DISABLED capability rows. Unit tests cover capability gating, LIVE interception, ID validation, and SSE compatibility (`SseClientCompatTest`, `MobileRepositoryTest`) — Gradle execution requires JDK 17 (not run on the authoring machine; verified by IDE static diagnostics, 0 errors).
+- Mobile backend status: `/api/mobile/capabilities`, `/api/research/runs*`, and `/api/memory/*` are **not yet implemented** (mobile shows unavailable); `/api/trading/mandates*` plus `/api/trading/connections`, `/api/trading/orders/*`, and `/api/trading/safety-status` **are implemented** by the LIVE trading control plane push.
+- Admin dashboard for users, reports, data sources, Stripe events, gateway pricing approvals, billing intents, and notifications; LIVE admin surfaces (user approvals, kill switches, broker connections, ledger, reconciliations) under `/admin/trading/*`.
 ## Architecture Overview
 ```mermaid
 flowchart TD
@@ -65,6 +74,13 @@ flowchart TD
   API --> Portfolio["Plaid / IBKR / Hyperliquid NAV"]
   API --> Trading["Trading control plane"]
   Trading -->|HMAC-signed| Runtime["Nautilus runtime: PAPER / SHADOW / BACKTEST"]
+  API --> LiveCP["LIVE Trading Control Plane (gated)"]
+  LiveCP --> RiskEngine["Risk engine (Decimal, versioned)"]
+  LiveCP --> ExecGW["Execution Gateway adapter (nautilus / mock)"]
+  ExecGW --> Runtime
+  LiveCP --> Ledger["Immutable ledger"]
+  LiveCP --> NAV["Server-side NAV calculator"]
+  LiveCP --> Recon["Daily reconciliation + kill switches"]
   API --> Notify["Notification dispatcher"]
   Notify --> Email["Email"]
   Notify --> Telegram["Telegram"]
@@ -86,6 +102,7 @@ Backend layers:
 | Skills | `packages/skills` | Skill registry, permissions, deterministic workflows |
 | Billing | `packages/billing` | Plans, credit costs, entitlements, metering |
 | Trading | `packages/trading` | Order intents, state machines, safety policies, runtime client |
+| Live trading | `packages/live_trading` | Feature gates, secret store, risk engine, control plane, immutable ledger, NAV, kill switches, reconciliation, gateway adapter |
 | Nautilus | `packages/nautilus`, `services/nautilus-runtime` | Data adapter, guardrails, isolated runtime |
 | Options | `packages/options` | Chain, surface, Long Gamma scoring |
 | Research Runner | `packages/research_runner` | Sandboxed user-code execution |
@@ -101,9 +118,9 @@ Key design principles:
 - **Two-layer research trust split**: the trusted `harness-orchestrator` plans, budgets, and validates research; the untrusted `harness-runner` executes in a short-lived container whose only I/O is the capability-token-gated Research Gateway.
 - **Fail-closed defaults**: mock providers are development-only; missing credentials report `NOT_CONFIGURED`; live trading, withdrawal, and transfer are disabled by policy.
 Current implementation status:
-- Implemented: FastAPI + Next.js, Agent chat + Secretary, options research, Backtest Lab, Skills, gateway (phase 1) + prepaid wallet, Stripe billing with credit state machine, NAV connectors (Plaid/IBKR/Hyperliquid) + Autopilot, trading control plane with PAPER/SHADOW runtime, notifications, iMessage relay + verification, Google/Apple/Email auth, admin consoles, iOS/Android apps (code complete, not published), DeepSeek Harness foundation + Memory service + trading mandate foundation (Phase 1, all flags OFF), mobile Memory Controls / Trading Safety / Research Runs surfaces (frozen v1 API contract).
-- Partially implemented or placeholder: real-time market stream parity, some P2+ internal surfaces (Risk/Realtime/MCP contracts return `NOT_IMPLEMENTED`), Redis Streams event pipeline, Bloomberg enterprise import.
-- Planned or documented contract: production launch gating, App Store/Play release, full deterministic pre-trade risk gate.
+- Implemented: FastAPI + Next.js, Agent chat + Secretary, options research, Backtest Lab, Skills, gateway (phase 1) + prepaid wallet, Stripe billing with credit state machine, NAV connectors (Plaid/IBKR/Hyperliquid) + Autopilot, trading control plane with PAPER/SHADOW runtime, notifications, iMessage relay + verification, Google/Apple/Email auth, admin consoles, iOS/Android apps (code complete, not yet in App Store/Play), DeepSeek Harness foundation + Memory service + trading mandate foundation (Phase 1, all flags OFF), mobile Memory Controls / Trading Safety / Research Runs surfaces (frozen v1 API contract), and the **LIVE Trading Control Plane + NAV** (migration 0026, every gate default OFF — see [STATUS](docs/live-trading/STATUS.md)).
+- Partially implemented or placeholder: real-time market stream parity, some P2+ internal surfaces (Risk/Realtime/MCP contracts return `NOT_IMPLEMENTED`), Redis Streams event pipeline, Bloomberg enterprise import, mobile backend endpoints `/api/mobile/capabilities`, `/api/research/runs*`, `/api/memory/*` (mobile renders honest “unavailable” states).
+- Planned or documented contract: production launch gating, App Store/Play release, real broker adapter provisioning for LIVE (currently `LIVE_TRADING_GATEWAY=mock`), first-user LIVE approvals.
 More detail: [Architecture](./docs/developer/ARCHITECTURE.md), [Target Architecture](./docs/review/TARGET_ARCHITECTURE.md), [V5 Initial Launch Review](./docs/V5_INITIAL_LAUNCH_REVIEW.md).
 ## Repository Layout
 ```
@@ -121,9 +138,10 @@ packages/
   capabilities/        Capability status registry
   config/              SecretStore, settings
   data/                Market/data provider adapters
-  database/            Models + Alembic migrations (0001–0025)
+  database/            Models + Alembic migrations (0001–0026)
   gateway/             AI gateway catalog, pricing, security, usage
   harness/             Deep-research orchestration + security gates
+  live_trading/        LIVE control plane: gates, risk, ledger, NAV, kill switches, reconciliation
   memory/              User memory policy + service
   nautilus/            Nautilus data adapter + guardrails
   notifications/       Dispatcher and channel providers
@@ -141,7 +159,7 @@ services/
 config/                gateway catalog, LLM costs, strategy specs, sources
 deploy/                Production compose, systemd units, scripts
 scripts/               Ops, migration, and verification scripts
-docs/                  Documentation (product, developer, ops, security)
+docs/                  Documentation (product, developer, ops, security, live-trading, mobile)
 tests/                 pytest unit/integration + Playwright e2e
 ```
 ## Quickstart
@@ -176,6 +194,7 @@ Important groups:
 - Data providers: CoinDesk RSS, FinTwit, X, CoinGecko, CryptoPanic, Glassnode, Coinglass, DefiLlama, FRED, EVM RPC endpoints, Bloomberg import
 - Safety: `NAUTILUS_LIVE_TRADING_ENABLED=false`, `NAUTILUS_ALLOW_LIVE_ORDER=false`, `NAUTILUS_ALLOW_WITHDRAWAL=false`, `NAUTILUS_ALLOW_TRANSFER=false`
 - Harness / Memory / Auto-trading (Phase 1, additive, all default OFF): `HARNESS_RESEARCH_*`, `MEMORY_*`, `AUTO_TRADING_*` — see [Harness architecture](./docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md) and [Harness runbook](./docs/operations/HARNESS_RUNBOOK.md)
+- LIVE Trading Control Plane (additive, every gate default OFF): `LIVE_TRADING_ENABLED`, `LIVE_TRADING_DEPLOYMENT_APPROVED`, `LIVE_TRADING_PROVIDER`, `LIVE_TRADING_GATEWAY`, `LIVE_TRADING_ALLOWED_SYMBOLS`, `LIVE_CREDENTIAL_ENCRYPTION_KEY`, `LIVE_NAV_PRICE_STALE_SECONDS`, sync-interval budget vars — see [LIVE feature flags](./docs/live-trading/FEATURE_FLAGS.md)
 Reference: [Environment Variables](./docs/getting-started/ENVIRONMENT_VARIABLES.md).
 ## Mock Mode
 Mock mode is the default local development path:
@@ -275,7 +294,8 @@ PureGamma uses an isolated Nautilus-compatible runtime for research, backtesting
 - Persistent paper positions, restart recovery of uncertain orders, and idempotent main-database projection.
 - Public market data adapters: Binance spot testnet, Hyperliquid, Coinbase Advanced (read-only).
 - The control plane reaches the runtime only through HMAC-signed internal commands.
-Details: [NautilusTrader](./docs/integrations/NAUTILUS_TRADER.md), [Phase 2 public market runtime](./docs/trading/PHASE_2_PUBLIC_MARKET_RUNTIME.md), [Phase 3 persistent paper portfolio sync](./docs/trading/PHASE_3_PAPER_PORTFOLIO_SYNC.md), [Trading Safety](./docs/trading/TRADING_SAFETY.md).
+- The LIVE control plane talks to the runtime through an **Execution Gateway adapter layer** (`packages/live_trading/gateway_adapter.py`): a Nautilus adapter (submit/query/cancel/balances/positions with UNKNOWN-on-timeout semantics) and an honest mock that never fakes fills while `LIVE_TRADING_GATEWAY=mock`.
+Details: [NautilusTrader](./docs/integrations/NAUTILUS_TRADER.md), [Phase 2 public market runtime](./docs/trading/PHASE_2_PUBLIC_MARKET_RUNTIME.md), [Phase 3 persistent paper portfolio sync](./docs/trading/PHASE_3_PAPER_PORTFOLIO_SYNC.md), [Trading Safety](./docs/trading/TRADING_SAFETY.md), [LIVE architecture](./docs/live-trading/ARCHITECTURE.md).
 ## Data Pipeline
 Data adapters live in `packages/data`. Mock data is active by default in development. The primary document pipeline is RSS, curated FinTwit, the official X API, and authorized Bloomberg data; normalized records carry provenance, license status, retention policy, entity mentions, sentiment components, event fingerprints, and provider sync logs. Optional extension providers: Binance, DefiLlama, EVM RPC, and an allow-listed Subgraph registry (disabled by default).
 Pipeline docs:
@@ -337,7 +357,9 @@ curl -X POST http://localhost:8000/auth/mock-login \
 ## Roadmap
 - Launch gating: hide internal research, mock, admin, and runtime surfaces from customer routes; finish `unavailable/stale/partial` visual states.
 - Production launch configuration: real credentials, DNS/TLS, backups, target-host smoke, App Store/Play release for iOS and Android.
-- Complete the deterministic pre-trade risk gate and Redis Streams event pipeline with DLQ.
+- LIVE rollout (only after every gate passes — see `docs/live-trading/`): provision a real broker adapter (`LIVE_TRADING_GATEWAY=nautilus`), approve a small pilot cohort (`/admin/trading/live-approvals`), approve production-environment mandates, then flip the deployment marker and `LIVE_TRADING_ENABLED` last.
+- Implement remaining mobile backend endpoints (`/api/mobile/capabilities`, `/api/research/runs*`, `/api/memory/*`) to activate the prepared mobile surfaces.
+- Complete the Redis Streams event pipeline with DLQ.
 - Extend gateway catalog (CNY→USD pricing policy for GLM) and wallet settlement reconciliation in staging.
 - Replace mock market providers with production data routers and source health SLAs where real licenses allow.
 - Add enterprise tenant isolation, audit export, data deletion workflow, and private deployment controls.
