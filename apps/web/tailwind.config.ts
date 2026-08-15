@@ -70,6 +70,17 @@ const config: Config = {
         positive: "#10805f",
         warning: "#b45309",
         danger: "#b91c1c",
+
+        // ── Ocean visual system (Agent / Research / Today only) ──
+        "ocean-blue": "#2E7DFF",
+        "ocean-cyan": "#42D9FF",
+        "ocean-violet": "#8B7CFF",
+        "ocean-deep": "#070B12",
+        "ocean-deep-panel": "#0D1420",
+        "ocean-line": "rgba(66, 217, 255, 0.14)",
+        "ocean-blue-muted": "rgba(46, 125, 255, 0.10)",
+        "ocean-cyan-muted": "rgba(66, 217, 255, 0.08)",
+        "ocean-violet-muted": "rgba(139, 124, 255, 0.08)",
       },
       fontFamily: {
         sans: [

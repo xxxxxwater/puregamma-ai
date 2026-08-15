@@ -4,6 +4,7 @@ import { ArrowRight } from "lucide-react";
 import { GlobalMarketTerminal } from "@/components/global-market-terminal";
 import { HyperliquidMarketPanel } from "@/components/hyperliquid-market-panel";
 import { Markdown } from "@/components/markdown";
+import { TodayActivity } from "@/components/today-activity";
 import { ActionLink, EmptyState, ErrorState, PageHeader, ResearchCard } from "@/components/puregamma";
 import { getDashboard } from "@/lib/api";
 import { localizedMetadata } from "@/lib/metadata";
@@ -33,6 +34,8 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
       />
 
       {subscription.unavailable ? <ErrorState title={copy.accountBillingUnavailable} description={copy.accountBillingUnavailableDesc} /> : null}
+
+      <TodayActivity locale={locale} />
 
       <Link
         href={withLocale(locale, "/onboarding/assets")}

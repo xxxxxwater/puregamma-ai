@@ -1153,6 +1153,70 @@ export function cancelAgentRun(runId: string) {
   return requestStrict<{ id: string; status: string }>(`/api/agent/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
 }
 
+// ── Harness Research (contract: docs/mobile/MOBILE_API_CONTRACT.md) ─────
+// Backend HTTP layer is not open yet; these are strict so 404/501 surface as
+// CapabilityGate "功能暂不可用" instead of fabricated data.
+
+export type HarnessResearchRun = {
+  id: string;
+  name: string;
+  status: string;
+  verification?: string | null;
+  created_at: string;
+  updated_at: string;
+  credits_used?: number | null;
+  credits_estimate?: number | null;
+  data_sources?: string[];
+  evidence_count?: number;
+  citation_count?: number;
+  is_degraded?: boolean;
+  error_message?: string | null;
+  summary?: string | null;
+  disclaimer?: string | null;
+};
+
+export type HarnessResearchEvidence = {
+  id: string;
+  run_id: string;
+  citation_index?: number | null;
+  provider?: string | null;
+  title?: string | null;
+  url?: string | null;
+  source_scope?: string | null;
+  excerpt?: string | null;
+  is_verified?: boolean;
+  verification_note?: string | null;
+  fetched_at?: string | null;
+};
+
+export type HarnessResearchArtifact = {
+  id: string;
+  type: string;
+  title: string;
+  url?: string | null;
+  created_at?: string | null;
+};
+
+export function getResearchRuns(limit = 20, offset = 0) {
+  return requestStrict<{ runs: HarnessResearchRun[]; total?: number; limit?: number; offset?: number }>(`/api/research/runs?limit=${limit}&offset=${offset}`);
+}
+
+export function getResearchRun(runId: string) {
+  return requestStrict<{ run: HarnessResearchRun }>(`/api/research/runs/${encodeURIComponent(runId)}`);
+}
+
+export function getResearchRunEvidence(runId: string) {
+  return requestStrict<{ evidence: HarnessResearchEvidence[]; total?: number }>(`/api/research/runs/${encodeURIComponent(runId)}/evidence`);
+}
+
+export function getResearchRunArtifacts(runId: string) {
+  return requestStrict<{ artifacts: HarnessResearchArtifact[] }>(`/api/research/runs/${encodeURIComponent(runId)}/artifacts`);
+}
+
+export function cancelResearchRun(runId: string) {
+  return requestStrict<{ run: HarnessResearchRun }>(`/api/research/runs/${encodeURIComponent(runId)}/cancel`, { method: "POST" });
+}
+
 export async function streamAgentMessage(
   conversationId: string,
   content: string,
