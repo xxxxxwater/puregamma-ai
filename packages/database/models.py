@@ -32,6 +32,7 @@ class User(Base, TimestampMixin):
     name = Column(String, nullable=False, default="PureGamma User")
     role = Column(String, nullable=False, default="user")
     plan = Column(String, nullable=False, default="Free")
+    membership_tier = Column(String, nullable=False, default="silver", index=True)
     credit_balance = Column(Integer, nullable=False, default=150)
     stripe_customer_id = Column(String, nullable=True, index=True)
     google_user_id = Column(String, nullable=True, unique=True, index=True)

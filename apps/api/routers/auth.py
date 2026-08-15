@@ -61,6 +61,7 @@ def serialize_user(user: User) -> dict:
         "name": user.name,
         "role": user.role,
         "plan": user.plan,
+        "membership_tier": user.membership_tier,
         "credit_balance": user.credit_balance,
         "stripe_customer_id": user.stripe_customer_id,
         "google_user_id": user.google_user_id,

@@ -12,6 +12,7 @@ import {
   grantAdminCredits,
   refundAdminCreditLedgerEntry,
   refundAdminCreditReservation,
+  setAdminUserTier,
 } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
 
@@ -44,6 +45,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
   const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tierBusy, setTierBusy] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
   const [credits, setCredits] = useState("100");
@@ -137,6 +139,22 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
     }
   }
 
+  async function changeTier(tier: "bronze" | "silver" | "gold") {
+    if (!selectedId || tier === detail?.account.membership_tier) return;
+    setTierBusy(true);
+    setError("");
+    setSuccess("");
+    try {
+      const result = await setAdminUserTier(selectedId, tier);
+      setSuccess(zh ? `会员等级已更新为 ${result.tier}。` : `Membership tier updated to ${result.tier}.`);
+      await Promise.all([loadDetail(selectedId), loadAccounts(query)]);
+    } catch (requestError) {
+      setError(messageFromError(requestError, zh ? "更新会员等级失败。" : "Tier update failed."));
+    } finally {
+      setTierBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div className="grid gap-4 xl:grid-cols-[360px_minmax(0,1fr)]">
@@ -164,7 +182,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
               >
                 <div className="truncate text-sm font-medium">{account.email}</div>
                 <div className="mt-2 flex items-center justify-between gap-2 text-xs text-text-pg-muted">
-                  <span>{account.plan}</span>
+                  <span>{account.plan} · {account.membership_tier}</span>
                   <span className="font-mono text-text-pg">{account.credit_balance} Credits</span>
                 </div>
               </button>
@@ -182,7 +200,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
               <ResearchCard>
                 <div className="flex flex-wrap items-start justify-between gap-4">
                   <div>
-                    <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">{detail.account.email}</h2><Badge>{detail.account.role}</Badge><Badge tone="neutral">{detail.account.plan}</Badge></div>
+                    <div className="flex flex-wrap items-center gap-2"><h2 className="text-lg font-semibold">{detail.account.email}</h2><Badge>{detail.account.role}</Badge><Badge tone="neutral">{detail.account.plan}</Badge><Badge tone={detail.account.membership_tier === "gold" ? "amber" : "neutral"}>{detail.account.membership_tier}</Badge></div>
                     <p className="mt-1 font-mono text-xs text-text-pg-muted">{detail.account.id}</p>
                   </div>
                   <div className="text-right"><div className="text-3xl font-semibold">{detail.account.credit_balance}</div><div className="text-xs text-text-pg-muted">Credits</div></div>
@@ -191,6 +209,24 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
                   <Badge tone={detail.reconciliation.matches ? "emerald" : "red"}><StatusDot tone={detail.reconciliation.matches ? "emerald" : "red"} /> {detail.reconciliation.matches ? (zh ? "账本已对平" : "Ledger reconciled") : (zh ? "账本不一致" : "Ledger mismatch")}</Badge>
                   <Badge tone="neutral">{detail.reconciliation.ledger_entries} {zh ? "条账本记录" : "ledger entries"}</Badge>
                   <Badge tone="neutral">{detail.account.auth_provider}</Badge>
+                </div>
+                <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
+                  <span className="text-text-pg-muted">{zh ? "会员等级" : "Membership tier"}</span>
+                  {(["bronze", "silver", "gold"] as const).map((tier) => (
+                    <button
+                      key={tier}
+                      type="button"
+                      disabled={tierBusy || detail.account.membership_tier === tier}
+                      onClick={() => void changeTier(tier)}
+                      className={`border px-3 py-1.5 font-semibold rounded-lg capitalize transition ${
+                        detail.account.membership_tier === tier
+                          ? "border-border-pg-strong bg-bg-panel-muted text-text-pg"
+                          : "border-border-pg bg-pg-white text-pg-black hover:border-border-pg-strong"
+                      } disabled:cursor-not-allowed disabled:opacity-60`}
+                    >
+                      {tier}
+                    </button>
+                  ))}
                 </div>
               </ResearchCard>
 

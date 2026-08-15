@@ -96,6 +96,10 @@ class AdminPlanUpdateRequest(BaseModel):
     plan: str = Field(min_length=2, max_length=20)
 
 
+class AdminTierUpdateRequest(BaseModel):
+    tier: str = Field(min_length=3, max_length=10)
+
+
 class AdminCreditAdjustRequest(BaseModel):
     credits: int = Field(ge=-5000, le=5000)
     reason: str = Field(min_length=3, max_length=300)
@@ -192,6 +196,7 @@ def billing_accounts(
                 "name": row.name,
                 "role": row.role,
                 "plan": row.plan,
+                "membership_tier": row.membership_tier,
                 "credit_balance": row.credit_balance,
                 "stripe_customer_id": row.stripe_customer_id,
                 "auth_provider": row.auth_provider,
@@ -263,6 +268,7 @@ def billing_account(user_id: str, db: Session = Depends(get_db), user: User = De
             "name": account.name,
             "role": account.role,
             "plan": account.plan,
+            "membership_tier": account.membership_tier,
             "credit_balance": account.credit_balance,
             "stripe_customer_id": account.stripe_customer_id,
             "auth_provider": account.auth_provider,
@@ -373,6 +379,32 @@ def update_user_plan(
         "email": target.email,
         "plan": target.plan,
         "previous_plan": old_plan,
+    }
+
+
+@router.patch("/users/{user_id}/tier")
+def update_user_tier(
+    user_id: str,
+    payload: AdminTierUpdateRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    allowed_tiers = {"bronze", "silver", "gold"}
+    if payload.tier not in allowed_tiers:
+        raise HTTPException(status_code=400, detail=f"Tier must be one of: {', '.join(sorted(allowed_tiers))}")
+    target = db.get(User, user_id)
+    if not target:
+        raise HTTPException(status_code=404, detail="User not found")
+    if target.id == user.id:
+        raise HTTPException(status_code=400, detail="Cannot change your own tier")
+    old_tier = target.membership_tier
+    target.membership_tier = payload.tier
+    db.commit()
+    return {
+        "user_id": target.id,
+        "email": target.email,
+        "tier": target.membership_tier,
+        "previous_tier": old_tier,
     }
 
 
@@ -1149,6 +1181,7 @@ def admin_user_detail(user_id: str, db: Session = Depends(get_db), user: User = 
     return {
         "user": serialize_user(account),
         "plan": account.plan,
+        "membership_tier": account.membership_tier,
         "credits": {
             "balance": account.credit_balance,
             "recent_ledger": [_serialize_admin_ledger(row) for row in ledger],

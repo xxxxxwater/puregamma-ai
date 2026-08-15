@@ -56,14 +56,14 @@ def test_single_alembic_head():
     heads = revisions - parents
     assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
     head = next(iter(heads))
-    assert head == "0026_live_trading_control_plane"
+    assert head == "0027_user_membership_tier"
 
 
 def test_chain_is_connected_and_acyclic():
     graph = _load_graph()
     # Walk the chain from the head back to the root; detect missing parents
     # and cycles by visited-count (a cycle would require re-visiting a node).
-    stack = ["0026_live_trading_control_plane"]
+    stack = ["0027_user_membership_tier"]
     visited: set[str] = set()
     while stack:
         revision = stack.pop()
@@ -86,6 +86,11 @@ def test_harness_migration_revises_portfolio_nav_snapshots():
 def test_live_trading_migration_revises_harness_research():
     graph = _load_graph()
     assert graph["0026_live_trading_control_plane"] == "0025_harness_research"
+
+
+def test_membership_tier_migration_revises_live_trading():
+    graph = _load_graph()
+    assert graph["0027_user_membership_tier"] == "0026_live_trading_control_plane"
 
 
 def test_migration_files_have_matching_revision_headers():

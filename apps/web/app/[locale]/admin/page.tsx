@@ -24,7 +24,7 @@ export default async function AdminPage({ params }: { params: { locale: Locale }
   const locale = params.locale;
   const copy = getMessageNamespace(locale, "admin");
   const [users, reports, stripeEvents, notifications, billingIntents, llmStatus] = await Promise.all([
-    api<{ users: { id: string; email: string; plan: string; role: string }[]; unauthorized?: boolean }>("/admin/users", { fallback: { users: [{ id: "mock-admin", email: "demo@puregamma.ai", plan: "Free", role: "admin" }], unauthorized: true }, locale }),
+    api<{ users: { id: string; email: string; plan: string; role: string; membership_tier: string }[]; unauthorized?: boolean }>("/admin/users", { fallback: { users: [{ id: "mock-admin", email: "demo@puregamma.ai", plan: "Free", role: "admin", membership_tier: "gold" }], unauthorized: true }, locale }),
     api<{ reports: { id: string; title: string; report_type: string }[] }>("/admin/reports", { fallback: { reports: [] }, locale }),
     api<{ stripe_events: { id: string; event_type: string; processed: boolean; requires_manual_review?: boolean; error_message?: string | null }[] }>("/admin/stripe-events", { fallback: { stripe_events: [] }, locale }),
     api<{ notifications: { id: string; channel: string; status: string }[] }>("/admin/notifications", { fallback: { notifications: [] }, locale }),
@@ -57,7 +57,7 @@ export default async function AdminPage({ params }: { params: { locale: Locale }
         <MetricCard label={copy.modules.workerQueue} value="idle" detail="APScheduler/Celery" tone="neutral" />
       </div>
       <div className="grid gap-4 xl:grid-cols-2">
-        <ResearchCard><h2 className="mb-3 font-semibold">{copy.modules.users}</h2><div className="space-y-2">{users.users.map((user, index) => <div key={user.id} className="grid gap-3 border border-border-pg bg-bg-panel-muted p-3 text-sm md:grid-cols-[42px_1fr_auto] rounded-lg"><span className="text-text-pg-dim">{String(index + 1).padStart(2, "0")}</span><span>{maskEmail(user.email)}</span><div className="flex gap-2"><Badge>{user.role}</Badge><Badge tone="neutral">{user.plan}</Badge></div></div>)}</div></ResearchCard>
+        <ResearchCard><h2 className="mb-3 font-semibold">{copy.modules.users}</h2><div className="space-y-2">{users.users.map((user, index) => <div key={user.id} className="grid gap-3 border border-border-pg bg-bg-panel-muted p-3 text-sm md:grid-cols-[42px_1fr_auto] rounded-lg"><span className="text-text-pg-dim">{String(index + 1).padStart(2, "0")}</span><span>{maskEmail(user.email)}</span><div className="flex gap-2"><Badge>{user.role}</Badge><Badge tone="neutral">{user.plan}</Badge><Badge tone={user.membership_tier === "gold" ? "amber" : "neutral"}>{user.membership_tier}</Badge></div></div>)}</div></ResearchCard>
         <ResearchCard><h2 className="mb-3 font-semibold">{copy.modules.subscriptions}</h2><div className="grid gap-2 text-sm"><div className="border border-border-pg bg-bg-panel-muted p-3 rounded-lg"><Badge tone="neutral"><StatusDot tone="amber" /> {copy.details.mockSubscriptionMirror}</Badge><p className="mt-2 text-text-pg-muted">{copy.details.subscriptionRecords}</p></div><div className="border border-border-pg bg-bg-panel-muted p-3 text-text-pg-muted rounded-lg">{copy.details.sensitiveMasked}</div></div></ResearchCard>
       </div>
       <div className="grid gap-4 xl:grid-cols-3">

@@ -5,6 +5,7 @@ export type SessionUserState = {
   avatar_url?: string | null;
   auth_provider?: string;
   plan?: string;
+  membership_tier?: string;
   credit_balance?: number;
 };
 

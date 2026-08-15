@@ -204,6 +204,13 @@ function planIdentity(plan: string): PlanIdentity {
   return "silver";
 }
 
+function tierIdentity(tier: string): PlanIdentity {
+  if (tier === "prestige") return "prestige";
+  if (tier === "black-gold" || tier === "black_gold") return "black-gold";
+  if (tier === "gold") return "gold";
+  return "silver";
+}
+
 function PlanIdentityIcon({ identity }: { identity: PlanIdentity }) {
   if (identity === "prestige") {
     return <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="m4 17 2-9 6 5 6-5 2 9H4Z" /><path d="M7 20h10M9 6l3-3 3 3-3 3-3-3Z" /></svg>;
@@ -217,8 +224,8 @@ function PlanIdentityIcon({ identity }: { identity: PlanIdentity }) {
   return <svg aria-hidden viewBox="0 0 24 24" className="h-4 w-4 shrink-0" fill="none" stroke="currentColor" strokeWidth="1.6"><path d="M12 2 20 6v6c0 5-3.4 8.2-8 10-4.6-1.8-8-5-8-10V6l8-4Z" /><path d="M8 9h8M8 12h8M10 15h4" /></svg>;
 }
 
-export function PlanBadge({ plan, locale = defaultLocale }: { plan: string; locale?: Locale }) {
-  const identity = planIdentity(plan);
+export function PlanBadge({ plan, tier, locale = defaultLocale }: { plan: string; tier?: string | null; locale?: Locale }) {
+  const identity = tier ? tierIdentity(tier) : planIdentity(plan);
   const labels: Record<PlanIdentity, string> = locale === "zh"
     ? { silver: "白银", gold: "黄金", "black-gold": "黑金", prestige: "尊贵" }
     : { silver: "Silver", gold: "Gold", "black-gold": "Black Gold", prestige: "Prestige" };

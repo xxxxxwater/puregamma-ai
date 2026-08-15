@@ -236,7 +236,7 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
           PureGamma AI
         </Link>
         <div className="hidden items-center gap-2 text-xs md:flex">
-          <PlanBadge plan={storedUser?.plan || "Free"} locale={locale} />
+          <PlanBadge plan={storedUser?.plan || "Free"} tier={storedUser?.membership_tier} locale={locale} />
           <Badge tone="neutral">{storedUser ? `${storedUser.credit_balance ?? 0} credits` : t(locale, "common.topbar.credits")}</Badge>
           <LanguageSwitcher compact />
           <AppearanceControls locale={locale} />

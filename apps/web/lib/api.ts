@@ -980,6 +980,7 @@ export type AdminCreditAccount = {
   name: string;
   role: string;
   plan: string;
+  membership_tier: string;
   credit_balance: number;
   stripe_customer_id?: string | null;
   auth_provider: string;
@@ -1055,6 +1056,13 @@ export function refundAdminCreditLedgerEntry(entryId: string, payload: { reason:
   return requestStrict<{ refund: { ledger_entry_id: string; refund_ledger_entry_id: string; credits: number; reason: string; reference: string }; credit_balance: number }>(`/admin/billing/ledger/${encodeURIComponent(entryId)}/refund`, {
     method: "POST",
     body: JSON.stringify(payload),
+  });
+}
+
+export function setAdminUserTier(userId: string, tier: "bronze" | "silver" | "gold") {
+  return requestStrict<{ user_id: string; email: string; tier: string; previous_tier: string }>(`/admin/users/${encodeURIComponent(userId)}/tier`, {
+    method: "PATCH",
+    body: JSON.stringify({ tier }),
   });
 }
 
