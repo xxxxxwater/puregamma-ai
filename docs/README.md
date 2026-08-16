@@ -12,6 +12,7 @@ This documentation turns PureGamma AI from a code project into an operating manu
 | Notifications: email, Telegram, Slack, iMessage mock/relay | Implemented |
 | iMessage macOS relay | Implemented |
 | Workers and scheduler | Implemented |
+| Executable strategy specs + compiler + agent backtest tools | Implemented |
 | DeepSeek Harness deep research | Phase 1 foundation; flags default OFF |
 | Memory service | Phase 1 foundation; flag default OFF |
 | Trading mandate foundation (PAPER/SHADOW audits) | Phase 1 foundation; flags default OFF |

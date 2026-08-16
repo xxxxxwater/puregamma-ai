@@ -17,7 +17,7 @@ Research and decision support:
 - **Agent chat**: persistent conversations with SSE streaming, citations, tool calls, cancellation, plan quotas, and optional GPT-5.6 Luna model.
 - **Private Secretary**: voice-based secretary interaction with iMessage verification (Max/Enterprise) and user-scoped memory policy.
 - **Options research**: read-only Deribit BTC/ETH chains, Polygon.io equity chains, moneyness×DTE surfaces, and Long Gamma candidate scoring.
-- **Backtest Lab**: unified backtest engine with quant metrics, artifacts, and candle data.
+- **Backtest Lab**: unified backtest engine with quant metrics, artifacts, and candle data. `ExecutableStrategySpec` (Pydantic) plus `compile_backtest_spec` turn declared strategies into backtest entry/exit rules, and `AgentToolRegistry` (`packages/backtest/tools.py`, 34 tools) gives the Agent a provenance-carrying view of market, journal, and backtest data.
 - **Research Runner**: user code executed in a no-network, read-only, resource-limited Docker sandbox with static AST validation.
 - **DeepSeek Harness deep research** (Phase 1, `HARNESS_RESEARCH_ENABLED=false` by default): a research orchestration engine that plans multi-step investigations, coordinates macro / on-chain / options / risk sub-agents, snapshots cited evidence (`EvidenceSnapshot`), and returns server-validated `ResearchArtifact` results. Code executes only in a short-lived low-trust `harness-runner` container whose sole I/O is a capability-token-gated Research Gateway (no DB, Redis, Docker socket, or network by default); per-run credit budgets, daily caps, and global concurrency are enforced. Research only — it never creates orders.
 - **Memory service** (Phase 1, `MEMORY_SERVICE_ENABLED=false` by default): PureGamma-owned user memory with explicit scope settings, consent-gated `MemoryProposal`s, append-only audit records, TTL'd conversation summaries, and ownership checks on every read/write. Memory is personalization context only — never trading authorization or risk input.
@@ -26,7 +26,7 @@ Portfolio and trading:
 - **Portfolio NAV**: consolidated NAV and history across Plaid Investments, Interactive Brokers (OAuth), and Hyperliquid (public), with encrypted token storage and freshness windows.
 - **Server-side LIVE NAV** (`/api/portfolio/nav`): `NAV = cash + Σ(quantity × latest valid price)`, computed only on the server; snapshots older than 60s are marked `stale` and never fabricate a valuation (`nav=null`). Every snapshot records the price timestamp and calculation version; fills trigger a recalc and Celery recalculates every 30–60s.
 - **Portfolio Autopilot**: scheduled review records with NAV, concentration, and freshness findings; Telegram/iMessage delivery.
-- **Strategy library**: six built-in strategies (BTC momentum, ETH/BTC rotation, SOL high-beta, HYPE trend, MSTR BTC proxy, STRC event-driven credit).
+- **Strategy library**: six built-in strategies (BTC momentum, ETH/BTC rotation, SOL high-beta, HYPE trend, MSTR BTC proxy, STRC event-driven credit), declared as typed `ExecutableStrategySpec`s (Directional / Spread / OptionCombo / Hedging) with machine-readable output contracts — `TargetPortfolio` rebalance plan or `OrderIntent` — and a token brand icon set (BTC/ETH/SOL/HYPE/ONDO/ZEC/CashCat).
 - **Trading control plane**: accounts, positions, order preview/confirm/cancel, reconciliation, and kill-switch against an isolated Nautilus runtime (BACKTEST / PAPER / SHADOW only).
 - **LIVE Trading Control Plane** (additive, every gate defaults OFF — see [STATUS](docs/live-trading/STATUS.md)): the only component that may submit LIVE spot orders. 23-step pipeline (ownership → mandate state → feature gate → user approval → broker health → whitelist → notional/balance/position/daily-loss/leverage/frequency → kill switch → idempotency → immutable `RiskCheck` → `OrderIntent` → mandate row lock → Execution Gateway → `broker_order_id` → fill sync → immutable `LedgerEntry` → NAV). Submit timeouts become `UNKNOWN` (queried, never blindly retried); every request carries a `trace_id`. All monetary math uses `Numeric(20,8)` (no floats).
 - **Immutable ledger**: append-only (`INSERT` only; UPDATE/DELETE rejected by ORM events) supporting `cash_deposit/cash_withdrawal/trade_buy/trade_sell/fee/funding/dividend/adjustment/reconciliation_adjustment`. Reconciliation differences are posted as new `reconciliation_adjustment` entries — history is never rewritten.
@@ -45,6 +45,7 @@ Authentication and delivery:
 - Daily brief with five delivery controls (market, portfolio, signals, risk, source sentiment).
 Apps and admin:
 - Next.js web app (en/zh), SwiftUI iOS app, and Android app (Compose + WebView) — mobile surfaces below — backed by the frozen [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md).
+- Web components: client-side `AdminGate` enforces admin role on admin routes (non-admins are redirected, no privileged UI renders), and `HowItConnects` renders the animated system-flow diagram (users → execution → event bus → outputs).
 - **iOS app (SwiftUI, `apps/ios/PureGamma`)**: Today, Agent, Research, Portfolio, and Account tabs. Account gains **Memory Controls** (scope toggles, consent, proposal approval/rejection, delete with double confirmation, export) and **Trading Safety** (mandate list/detail, risk limits, PAPER/SHADOW display, `LIVE_DISABLED` status, pause/resume gating). Research gains **Research Runs** (list/detail/evidence/timeline/launch form with unavailable + stale states). All new surfaces are gated by server `capabilities`; the client hard-forbids LIVE actions (`MandateActionPolicy.liveActionAllowed` is always false) and shows “feature unavailable” honestly when endpoints are missing (no fake data). `APIClient.streamGet` adds GET-SSE streaming; deep links route to research runs and push routes to `research_run`. Models use `LenientDecimal` and optional-field decoding so a missing capability can never crash the app.
 - **Android app (Compose, `apps/android`)**: product content rendered in `ProductWebOverlay` with a `BuildConfig`-derived domain allowlist (`PG_PRODUCT_WEB_BASE_URL`); deep links `puregamma://research/runs/*` and FCM `research_run` routing via `AppViewModel`; `MobileRepository` treats 404/501 capabilities as fully unavailable (5xx surfaced, never faked); Account tab shows Memory/Trading/LIVE_DISABLED capability rows. Unit tests cover capability gating, LIVE interception, ID validation, and SSE compatibility (`SseClientCompatTest`, `MobileRepositoryTest`) — Gradle execution requires JDK 17 (not run on the authoring machine; verified by IDE static diagnostics, 0 errors).
 - Mobile backend status: `/api/mobile/capabilities`, `/api/research/runs*`, and `/api/memory/*` are **not yet implemented** (mobile shows unavailable); `/api/trading/mandates*` plus `/api/trading/connections`, `/api/trading/orders/*`, and `/api/trading/safety-status` **are implemented** by the LIVE trading control plane push.
@@ -133,7 +134,7 @@ apps/
   site/                Vinext/Cloudflare Sites experiment
 packages/
   agents/              LLM agents, prompts, routing
-  backtest/            Backtest engines and metrics
+  backtest/            Backtest engines, metrics, strategy compiler, agent tools
   billing/             Plans, credits, metering, entitlements
   capabilities/        Capability status registry
   config/              SecretStore, settings
@@ -158,7 +159,7 @@ services/
   nautilus-runtime/    Isolated execution data plane
 config/                gateway catalog, LLM costs, strategy specs, sources
 deploy/                Production compose, systemd units, scripts
-scripts/               Ops, migration, and verification scripts
+scripts/               Ops, migration, verification, and iOS release packaging (ios-build-release.sh)
 docs/                  Documentation (product, developer, ops, security, live-trading, mobile)
 tests/                 pytest unit/integration + Playwright e2e
 ```
