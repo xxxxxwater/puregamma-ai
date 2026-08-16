@@ -365,7 +365,7 @@ def upgrade() -> None:
         sa.Column("currency", sa.String(), nullable=False, server_default="USD"),
         sa.Column("price_timestamp", sa.DateTime(timezone=True), nullable=True),
         sa.Column("calculated_at", sa.DateTime(timezone=True), nullable=False),
-        sa.Column("is_stale", sa.Boolean(), nullable=False, server_default=sa.text("0")),
+        sa.Column("is_stale", sa.Boolean(), nullable=False, server_default=sa.text("false")),
         sa.Column("calculation_version", sa.String(), nullable=False, server_default="1.0.0"),
         sa.Column("reconciliation_status", sa.String(), nullable=False, server_default="pending"),
         sa.ForeignKeyConstraint(["account_id"], ["trading_accounts.id"], ondelete="CASCADE"),
