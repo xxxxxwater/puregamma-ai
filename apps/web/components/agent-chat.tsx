@@ -1,11 +1,15 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Bot, CheckCircle2, ChevronDown, CircleStop, Compass, Database, FilePlus2, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip, RefreshCw, SearchCheck, Send, Settings2, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
+import { Bot, CheckCircle2, ChevronDown, CircleStop, Compass, Database, FilePlus2, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip, RefreshCw, SearchCheck, Send, Settings2, ShieldCheck, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
 import { ReportMarkdown } from "@/components/puregamma";
 import { ResearchModeSwitch } from "@/components/research-mode-switch";
 import { ContextControls, nextActionLabel, nextActionPrompt, StrategyToolResult } from "@/components/chat-panels";
+import { AgentStageIndicator, nextAgentStage, type AgentStage } from "@/components/ocean/agent-stage-indicator";
+import { OceanShell } from "@/components/ocean/ocean-shell";
+import { RippleEffect } from "@/components/ocean/ripple-effect";
 import { type Locale, withLocale } from "@/i18n/routing";
 import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentSource, SkillContextRef, SkillSummary, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getMe, streamAgentMessage } from "@/lib/api";
 import { publishCreditBalance } from "@/lib/user-state";
@@ -24,6 +28,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [error, setError] = useState("");
   const [toolStatus, setToolStatus] = useState<Array<{ id: string; tool: string; status: string }>>([]);
   const [toolResults, setToolResults] = useState<Array<{ tool: string; data: Record<string, unknown> }>>([]);
+  const [stage, setStage] = useState<AgentStage | null>(null);
   const [quota, setQuota] = useState<{ remaining: number | null; limit: number | null; credit_balance: number } | null>(null);
   const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
   const [models, setModels] = useState<AgentModelOption[]>([]);
@@ -142,6 +147,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     setToolResults([]);
     setRuntimePlan(null);
     setEvidenceStatus(null);
+    setStage(null);
     followRef.current = true;
     try {
       const id = await ensureConversation();
@@ -157,9 +163,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         if (eventName === "run.started") {
           activeRunRef.current = String(data.runId || "");
           assistantId = String(data.messageId || `assistant-${Date.now()}`);
+          setStage("understanding");
           setMessages((current) => [...current, { id: assistantId, conversation_id: id, role: "assistant", content: "", status: "streaming", model: String(data.model || selectedModel), input_tokens: 0, output_tokens: 0, created_at: new Date().toISOString(), sources: [] }]);
           if (typeof data.creditBalance === "number") publishCreditBalance(data.creditBalance);
         } else if (eventName === "plan.ready") {
+          setStage((current) => nextAgentStage(current, "selecting"));
           setRuntimePlan({
             intent: String(data.intent || "general_research"),
             assets: Array.isArray(data.assets) ? data.assets.map(String) : [],
@@ -168,8 +176,10 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             clarification_recommended: Boolean(data.clarificationRecommended),
           });
         } else if (eventName === "message.delta") {
+          setStage((current) => nextAgentStage(current, "preparing"));
           setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, content: `${message.content}${String(data.delta || "")}` } : message));
         } else if (eventName === "tool.started") {
+          setStage((current) => nextAgentStage(current, "collecting"));
           setToolStatus((current) => [...current, { id: String(data.toolCallId || `${data.tool}-${Date.now()}`), tool: String(data.tool), status: zh ? "检索中" : "retrieving" }]);
         } else if (eventName === "tool.completed") {
           const callId = String(data.toolCallId || "");
@@ -179,12 +189,15 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           const source: AgentSource = { provider: String(data.provider), title: String(data.title), url: data.url ? String(data.url) : null, published_at: data.publishedAt ? String(data.publishedAt) : null, source_timestamp: data.sourceTimestamp ? String(data.sourceTimestamp) : null, fetched_at: String(data.fetchedAt), citation_index: Number(data.index) };
           setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, sources: [...message.sources, source] } : message));
         } else if (eventName === "evidence.ready") {
+          setStage((current) => nextAgentStage(current, "validating"));
           setEvidenceStatus(data as unknown as AgentEvidenceSummary);
         } else if (eventName === "message.completed") {
+          setStage(null);
           setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, status: "completed", model: String(data.model || message.model || ""), input_tokens: Number(data.inputTokens || 0), output_tokens: Number(data.outputTokens || 0), credits_used: Number(data.creditsUsed || 0), context: { data_sources: [], skills: [], custom_prompt: "", attachments: [], model: String(data.model || message.model || ""), runtime: runtimePlan ? { ...runtimePlan, next_actions: Array.isArray(data.nextActions) ? data.nextActions.map(String) : [] } : undefined, evidence: data.evidence as AgentEvidenceSummary | undefined } } : message));
           setQuota((current) => current ? { ...current, credit_balance: Number(data.creditBalance ?? current.credit_balance) } : current);
           if (typeof data.creditBalance === "number") publishCreditBalance(data.creditBalance);
         } else if (eventName === "run.failed") {
+          setStage(null);
           setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, status: "failed", error_code: String(data.code), error_message: String(data.message) } : message));
           setError(String(data.message || (zh ? "Agent 运行失败" : "Agent run failed")));
           if (typeof data.creditBalance === "number") publishCreditBalance(data.creditBalance);
@@ -203,6 +216,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       if ((reason as Error).name !== "AbortError") setError((reason as Error).message);
     } finally {
       setBusy(false);
+      setStage(null);
       activeRunRef.current = "";
       controllerRef.current = null;
     }
@@ -277,7 +291,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   };
 
   return (
-    <div className={`grid h-[calc(100dvh-7rem)] min-h-[620px] overflow-hidden border border-border-pg bg-bg-panel rounded-2xl ${historyCollapsed ? "lg:grid-cols-[44px_minmax(0,1fr)]" : "lg:grid-cols-[244px_minmax(0,1fr)]"}`}>
+    <OceanShell locale={locale} variant="agent" className="h-[calc(100dvh-7rem)] min-h-[620px] rounded-2xl">
+      <div className={`grid h-full min-h-[620px] overflow-hidden border border-border-pg bg-bg-panel ${historyCollapsed ? "lg:grid-cols-[44px_minmax(0,1fr)]" : "lg:grid-cols-[244px_minmax(0,1fr)]"}`}>
       {historyCollapsed ? (
         <aside className="hidden border-r border-border-pg bg-bg-app lg:flex lg:flex-col lg:items-center lg:py-3">
           <button type="button" onClick={() => setHistoryCollapsed(false)} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "展开历史对话" : "Expand conversation history"}><PanelLeftOpen className="h-4 w-4" /></button>
@@ -323,15 +338,23 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div> : null}
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[85%] border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "max-w-full border-l border-border-pg pl-4"}>
-              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{message.model === "gpt-5.6-luna" ? "GPT-5.6 Luna · OpenAI" : (message.model || (zh ? "默认模型" : "Default model"))}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{file.name}</span>)}</div> : null}</>}
+              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{message.model === "gpt-5.6-luna" ? "GPT-5.6 Luna · OpenAI" : (message.model || (zh ? "默认模型" : "Default model"))}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{file.name}</span>)}</div> : null}</>}
               {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
               {message.role === "assistant" && message.credits_refunded ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "Credits 已退款" : "Credits refunded"}</div> : null}
               {message.role === "assistant" && message.context?.evidence ? <div className={`mt-3 flex flex-wrap items-center gap-2 border px-2.5 py-2 text-[11px]  rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3.5 w-3.5" /><span>{message.context.evidence.sufficient ? (zh ? "证据检查通过" : "Evidence requirements met") : (zh ? `证据不完整：${message.context.evidence.missing.join(", ")}` : `Evidence incomplete: ${message.context.evidence.missing.join(", ")}`)}</span><span className="ml-auto text-text-pg-dim">{message.context.evidence.source_count} {zh ? "条来源" : "sources"}</span></div> : null}
               {message.role === "assistant" && message.sources.length ? <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[10px] text-text-pg-dim"><span className="font-semibold">{zh ? "来源" : "Sources"}:</span>{message.sources.map((source) => source.url ? <a href={source.url} target="_blank" rel="noreferrer" key={`${message.id}-${source.citation_index}`} className="max-w-[190px] truncate border border-border-pg px-1.5 py-0.5 hover:border-border-pg-strong rounded-lg">[{source.citation_index}] {source.title}</a> : <span key={`${message.id}-${source.citation_index}`} className="max-w-[190px] truncate border border-border-pg px-1.5 py-0.5 rounded-lg">[{source.citation_index}] {source.title}</span>)}</div> : null}
               {message.id === latestAssistantId && message.context?.runtime?.next_actions?.length ? <div className="mt-4 flex flex-wrap gap-2">{message.context.runtime.next_actions.slice(0, 3).map((action) => <button key={action} type="button" onClick={() => choosePrompt(nextActionPrompt(action, zh))} className="inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><CheckCircle2 className="h-3 w-3" />{nextActionLabel(action, zh)}</button>)}</div> : null}
+              {message.id === latestAssistantId && message.status === "completed" ? (
+                <div className="mt-4 flex flex-wrap gap-2 border-t border-border-pg pt-3">
+                  <Link href={withLocale(locale, "/research")} className="inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><FlaskConical className="h-3 w-3" />{zh ? "生成交易研究" : "Generate trading research"}</Link>
+                  <Link href={withLocale(locale, "/strategies")} className="inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><Target className="h-3 w-3" />{zh ? "生成策略草案" : "Draft a strategy"}</Link>
+                  <Link href={withLocale(locale, "/trading/risk")} className="inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ShieldCheck className="h-3 w-3" />{zh ? "进入交易安全页" : "Trading safety"}</Link>
+                </div>
+              ) : null}
             </div>)}
             {busy && runtimePlan ? <div className="flex flex-wrap items-center gap-2 border border-border-pg bg-bg-app px-3 py-2 text-xs text-text-pg-muted rounded-lg"><Target className="h-3.5 w-3.5" /><span>{zh ? "已理解" : "Understood"}: {runtimePlan.intent.replaceAll("_", " ")}</span>{runtimePlan.assets.length ? <span className="text-text-pg-dim">· {runtimePlan.assets.join(", ")}</span> : null}{evidenceStatus ? <span className={evidenceStatus.sufficient ? "ml-auto text-text-pg-muted" : "ml-auto text-status-warning"}>{evidenceStatus.sufficient ? (zh ? "证据已就绪" : "Evidence ready") : (zh ? "证据存在缺口" : "Evidence gaps found")}</span> : <span className="ml-auto text-text-pg-dim">{zh ? "正在构建证据包" : "Building evidence pack"}</span>}</div> : null}
+            <AgentStageIndicator stage={stage} locale={locale} />
             {toolStatus.length ? <div className="flex flex-wrap gap-2">{toolStatus.map((item) => <span key={item.id} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-xs text-text-pg-muted rounded-lg"><Wrench className="h-3 w-3" />{item.tool} · {item.status}</span>)}</div> : null}
             {toolResults.map((result, index) => <StrategyToolResult key={`${result.tool}-${index}`} result={result} locale={locale} />)}
           </div>
@@ -384,13 +407,14 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             <input ref={fileRef} type="file" multiple accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json" className="hidden" onChange={(event) => void addFiles(event.target.files)} />
             <button type="button" onClick={() => fileRef.current?.click()} className="grid h-14 w-11 shrink-0 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "添加文件" : "Add files"}><Paperclip className="h-4 w-4" /></button>
             <textarea ref={composerRef} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={2} placeholder={zh ? "说出目标或正在判断的问题，Shift + Enter 换行" : "State your goal or decision, Shift + Enter for a new line"} className="min-h-14 flex-1 resize-none border border-border-pg bg-bg-panel px-3 py-2 text-sm outline-none focus:border-border-pg-strong rounded-lg" />
-            {busy ? <button type="button" onClick={stop} className="grid h-14 w-12 place-items-center border border-border-pg text-status-negative rounded-lg" title={zh ? "停止生成" : "Stop generation"}><CircleStop className="h-5 w-5" /></button> : <button type="submit" disabled={!input.trim()} className="grid h-14 w-12 place-items-center border border-border-pg-strong bg-pg-white text-pg-black disabled:opacity-40 rounded-lg" title={zh ? "发送" : "Send"}><Send className="h-5 w-5" /></button>}
+            {busy ? <button type="button" onClick={stop} className="grid h-14 w-12 place-items-center border border-border-pg text-status-negative rounded-lg" title={zh ? "停止生成" : "Stop generation"}><CircleStop className="h-5 w-5" /></button> : <RippleEffect as="button" type="submit" disabled={!input.trim()} className="grid h-14 w-12 place-items-center border border-border-pg-strong bg-pg-white text-pg-black disabled:opacity-40 rounded-lg" ariaLabel={zh ? "发送" : "Send"}><Send className="h-5 w-5" /></RippleEffect>}
           </form>
           <div className="mx-auto mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 text-[11px] text-text-pg-dim"><span>{!researchMode ? (zh ? "联网模式：直接联网检索" : "Online mode: direct web search") : (creditQuote?.plan?.intent ? `${zh ? "自动识别" : "Detected"}: ${creditQuote.plan.intent.replaceAll("_", " ")}` : (zh ? "留空高级设置时，Agent 会自动选择 Skills 与证据。" : "Leave advanced settings blank for automatic Skills and evidence selection."))}</span><span>{creditQuote?.unavailable ? (zh ? "计费报价暂不可用" : "Credit quote unavailable") : `${zh ? "预计消耗" : "Estimated cost"}: ${estimatedCredits} Credits`}</span></div>
           {error ? <p className="mx-auto mt-2 max-w-3xl text-xs text-status-negative">{error}</p> : null}
         </div>
       </section>
-    </div>
+      </div>
+    </OceanShell>
   );
 }
 
