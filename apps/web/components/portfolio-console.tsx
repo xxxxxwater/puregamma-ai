@@ -6,7 +6,9 @@ import { Building2, Link2, Loader2, Play, RefreshCw, Trash2, Wallet } from "luci
 import { AllocationChart, NavHistoryChart } from "@/components/charts";
 import { AutopilotToggle, HoldingRow, ProviderCard } from "@/components/portfolio-panels";
 import { ResearchCard } from "@/components/puregamma";
-import { connectEvmWallet, connectHyperliquid, createEvmWalletChallenge, createPlaidLinkToken, disconnectPortfolioAccount, exchangePlaidToken, getMe, getPlaidInvestmentTransactions, getPortfolioAutopilot, getPortfolioSnapshot, getSkillCatalog, requestPlaidInvestmentRefresh, runPortfolioAutopilot, syncPortfolioAccount, updatePortfolioAutopilot, type PortfolioAutopilot, type PortfolioHolding, type PortfolioInvestmentTransaction, type PortfolioSnapshot, type SkillSummary } from "@/lib/api";
+import { StaleDataBanner } from "@/components/financial/stale-data-banner";
+import { StatusBadge } from "@/components/ocean/status-badge";
+import { connectEvmWallet, connectHyperliquid, createEvmWalletChallenge, createPlaidLinkToken, disconnectPortfolioAccount, exchangePlaidToken, getMe, getPlaidInvestmentTransactions, getPortfolioAutopilot, getPortfolioSnapshot, getSkillCatalog, getTradingNav, getTradingSafetyStatus, requestPlaidInvestmentRefresh, runPortfolioAutopilot, syncPortfolioAccount, updatePortfolioAutopilot, type NavSnapshot, type PortfolioAutopilot, type PortfolioHolding, type PortfolioInvestmentTransaction, type PortfolioSnapshot, type SkillSummary } from "@/lib/api";
 import { type Locale, withLocale } from "@/i18n/routing";
 
 declare global { interface Window { Plaid?: { create: (config: Record<string, unknown>) => { open: () => void } }; ethereum?: { request: (payload: { method: string; params?: unknown[] }) => Promise<unknown> } } }
@@ -56,6 +58,11 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
   const [autopilot, setAutopilot] = useState<PortfolioAutopilot>(emptyAutopilot);
   const [autopilotSkills, setAutopilotSkills] = useState<SkillSummary[]>([]);
   const [range, setRange] = useState<"1D" | "1W" | "1M" | "ALL">("1M");
+  // Control-plane trading NAV (server-computed; separate from aggregated portfolio NAV).
+  const [tradingNav, setTradingNav] = useState<NavSnapshot | null>(null);
+  const [tradingNavDaily, setTradingNavDaily] = useState<{ pnl: string | null; ret: string | null }>({ pnl: null, ret: null });
+  const [tradingNavUnavailable, setTradingNavUnavailable] = useState(false);
+  const [tradingEnv, setTradingEnv] = useState<string | null>(null);
   const formatError = (reason: unknown): string => {
     const raw = (reason as Error)?.message || String(reason);
     try {
@@ -87,6 +94,8 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
     void getPlaidInvestmentTransactions().then(({ transactions }) => setPlaidTransactions(transactions)).catch(() => undefined);
     void getPortfolioAutopilot().then(setAutopilot);
     void getSkillCatalog().then(({ skills }) => setAutopilotSkills(skills.filter((skill) => skill.allow_autopilot && skill.tool_allowlist.includes("get_account_snapshot"))));
+    void getTradingSafetyStatus().then(({ safety }) => setTradingEnv(safety.static_gate.enabled ? "LIVE" : "LIVE_DISABLED")).catch(() => setTradingEnv(null));
+    void getTradingNav().then(({ nav, daily_pnl, daily_return }) => { setTradingNav(nav); setTradingNavDaily({ pnl: daily_pnl, ret: daily_return }); }).catch(() => setTradingNavUnavailable(true));
 
     const params = new URLSearchParams(window.location.search);
     const oauthState = params.get("oauth_state_id");
@@ -217,9 +226,10 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
   return <div className="space-y-5">
     <ResearchCard className="overflow-hidden p-0">
       <div className="p-5">
-        <div className="flex items-center gap-3">
+        <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs font-semibold uppercase text-text-pg-muted">{zh ? "组合净值 NAV" : "Portfolio NAV"}</p>
-          {portfolio.connected ? <span className={`text-[10px] ${portfolio.stale ? "text-status-warning" : "text-status-positive"}`}>{portfolio.stale ? "STALE" : "CURRENT"}</span> : null}
+          {portfolio.connected ? <StatusBadge domain="data" value={portfolio.stale ? "stale" : "fresh"} locale={locale} /> : null}
+          {tradingEnv ? <StatusBadge domain="trading" value={tradingEnv} locale={locale} /> : null}
           {portfolio.connected ? <button type="button" onClick={() => void syncAll()} disabled={busy === "all"} className="ml-auto inline-flex h-7 items-center gap-1.5 border border-border-pg px-2 text-[10px] text-text-pg-muted hover:text-text-pg disabled:opacity-40 rounded-lg">{busy === "all" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}{zh ? "同步全部" : "Sync all"}</button> : null}
         </div>
         <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
@@ -230,6 +240,41 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
         <div className="mt-5 flex gap-1">{(["1D", "1W", "1M", "ALL"] as const).map((item) => <button key={item} type="button" onClick={() => setRange(item)} className={`h-7 min-w-11 px-2 font-mono text-[10px] ${range === item ? "bg-text-pg text-bg-app" : "text-text-pg-dim hover:bg-bg-panel-muted"}`}>{item}</button>)}</div>
       </div>
       {chartData.length > 1 ? <NavHistoryChart data={chartData} /> : <div className="grid h-56 place-items-center border-t border-border-pg text-sm text-text-pg-muted">{portfolio.nav_history.length > 1 ? (zh ? "该时间范围内暂无足够快照" : "Not enough snapshots in this range") : (zh ? "至少同步两次后显示真实净值曲线" : "The real NAV curve appears after at least two syncs")}</div>}
+    </ResearchCard>
+
+    {portfolio.connected && portfolio.stale ? <StaleDataBanner stale updatedAt={portfolio.data_as_of} locale={locale} onRefresh={() => void syncAll()} /> : null}
+
+    <ResearchCard className="overflow-hidden p-0">
+      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border-pg p-5">
+        <div className="min-w-0">
+          <div className="text-xs font-semibold uppercase text-text-pg-muted">{zh ? "交易账户 NAV（控制面）" : "Trading account NAV (control plane)"}</div>
+          <p className="mt-2 max-w-xl text-xs leading-5 text-text-pg-muted">{zh ? "服务端逐日计算的交易账户净值，与上方组合净值分开显示、不混合。所有金额均来自后端对账账本。" : "Server-side daily NAV of the trading account, shown separately from the portfolio NAV above. All figures come from the backend reconciliation ledger."}</p>
+        </div>
+        {tradingEnv ? <StatusBadge domain="trading" value={tradingEnv} locale={locale} /> : null}
+      </div>
+      {tradingNavUnavailable ? (
+        <div className="p-5 text-sm text-text-pg-muted">{zh ? "功能暂不可用：控制面 NAV 接口尚未开放，这里不会显示任何估算或占位数据。" : "Not available yet: the control-plane NAV endpoint has not been opened, so no estimates or placeholder figures are shown here."}</div>
+      ) : tradingNav ? (
+        <div className="p-5">
+          <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
+            <p className="text-3xl font-semibold tabular-nums tracking-normal">{tradingNav.nav ? money(Number(tradingNav.nav)) : "--"}</p>
+            {tradingNavDaily.pnl ? <p className={`pb-1 text-sm font-medium ${Number(tradingNavDaily.pnl) >= 0 ? "text-status-positive" : "text-status-negative"}`}>{Number(tradingNavDaily.pnl) >= 0 ? "+" : ""}{money(Number(tradingNavDaily.pnl))}{tradingNavDaily.ret ? ` (${Number(tradingNavDaily.ret) >= 0 ? "+" : ""}${(Number(tradingNavDaily.ret) * 100).toFixed(2)}%)` : ""} · {zh ? "今日" : "today"}</p> : null}
+            {tradingNav.reconciliation_status ? <StatusBadge domain="data" value={tradingNav.reconciliation_status === "ok" ? "reconciled" : "needs_review"} locale={locale} /> : null}
+          </div>
+          <div className="mt-3 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-2 lg:grid-cols-4">
+            <NavField label={zh ? "现金" : "Cash"} value={money(Number(tradingNav.cash))} />
+            <NavField label={zh ? "总敞口" : "Gross exposure"} value={money(Number(tradingNav.gross_exposure))} />
+            <NavField label={zh ? "净敞口" : "Net exposure"} value={money(Number(tradingNav.net_exposure))} />
+            <NavField label={zh ? "未实现盈亏" : "Unrealized PnL"} value={money(Number(tradingNav.unrealized_pnl))} />
+          </div>
+          <p className="mt-3 text-xs text-text-pg-dim">
+            {zh ? "计算于" : "Calculated"} {new Date(tradingNav.calculated_at).toLocaleString(locale)}
+            {tradingNav.price_timestamp ? <> · {zh ? "价格时间" : "price timestamp"} {new Date(tradingNav.price_timestamp).toLocaleString(locale)}</> : null}
+            {tradingNav.nav === null ? <> · {zh ? "价格缺失，NAV 未计算（不伪造）" : "prices missing, NAV not computed (not fabricated)"}</> : null}
+          </p>
+          {tradingNav.is_stale ? <div className="mt-3"><StaleDataBanner stale updatedAt={tradingNav.price_timestamp || tradingNav.calculated_at} locale={locale} reconciliation={tradingNav.reconciliation_status} /></div> : null}
+        </div>
+      ) : null}
     </ResearchCard>
 
     {holdings.length ? <ResearchCard className="overflow-hidden p-0">
@@ -273,6 +318,15 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
     {portfolio.connections.length ? <ResearchCard><h2 className="font-semibold">{zh ? "同步状态" : "Sync status"}</h2><div className="mt-4 divide-y divide-border-pg">{portfolio.connections.map((connection) => { const summary = accountNav.get(connection.id); return <div key={connection.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium">{connection.name}</div><div className="mt-1 text-xs text-text-pg-dim">{connection.provider.toUpperCase()} · {connection.last_sync ? new Date(connection.last_sync).toLocaleString(locale) : (zh ? "未同步" : "Not synced")}{connection.error ? ` · ${connection.error}` : ""}</div></div>{summary ? <div className="hidden text-right sm:block"><div className="text-sm font-medium">{money(summary.nav)}</div><div className={`text-[10px] ${summary.daily_change >= 0 ? "text-status-positive" : "text-status-negative"}`}>{signedMoney(summary.daily_change)} · 24h</div></div> : null}<span className={connection.status === "CONNECTED" ? "text-xs text-status-positive" : "text-xs text-status-negative"}>{connection.status}</span>{connection.provider === "plaid" && connection.can_refresh ? <button type="button" onClick={() => void refreshPlaid(connection.id)} disabled={busy === `refresh:${connection.id}`} className="h-9 border border-border-pg px-2 text-[10px] text-text-pg-muted hover:text-text-pg disabled:opacity-40 rounded-lg" title={zh ? "请求 Plaid 投资更新" : "Request Plaid Investments Refresh"}>{busy === `refresh:${connection.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : (zh ? "更新" : "Refresh")}</button> : null}<button type="button" onClick={() => void sync(connection.id)} className="grid h-9 w-9 place-items-center border border-border-pg rounded-lg" title={zh ? "同步" : "Sync"}>{busy === connection.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</button><button type="button" onClick={() => void disconnect(connection.id)} className="grid h-9 w-9 place-items-center border border-border-pg text-status-negative rounded-lg" title={zh ? "断开账户" : "Disconnect account"}><Trash2 className="h-4 w-4" /></button></div>; })}</div></ResearchCard> : null}
     <ResearchCard className="overflow-hidden p-0"><div className="flex items-start justify-between border-b border-border-pg p-5"><div><div className="text-xs font-semibold uppercase text-text-pg-muted">Portfolio Autopilot</div><h2 className="mt-2 text-lg font-semibold">{zh ? "自动组合复盘" : "Automated portfolio review"}</h2><p className="mt-2 max-w-2xl text-xs leading-5 text-text-pg-muted">{zh ? "自动同步账户、检查集中度和数据新鲜度，并发现 Long Gamma 研究机会。不会下单或调仓。" : "Synchronizes accounts, checks concentration and freshness, and watches for Long Gamma research opportunities. It never places orders or rebalances."}</p></div><div className="text-right"><span className="border border-border-pg px-2 py-1 text-[10px] text-status-warning rounded-lg">RESEARCH ONLY</span><button type="button" disabled={busy === "autopilot" || !autopilot.account_count} onClick={() => void saveAutopilot({ enabled: !autopilot.config.enabled })} className={`mt-3 block h-8 w-14 border p-1  rounded-lg ${autopilot.config.enabled ? "border-status-positive" : "border-border-pg"}`} aria-label="Autopilot"><span className={`block h-5 w-5 bg-text-pg transition-transform ${autopilot.config.enabled ? "translate-x-6" : "translate-x-0"}`} /></button></div></div><div className="grid gap-px bg-border-pg md:grid-cols-2 xl:grid-cols-4"><AutopilotToggle label={zh ? "自动同步" : "Auto sync"} detail={zh ? "每 15 分钟" : "Every 15 minutes"} value={autopilot.config.auto_sync} onChange={(value) => void saveAutopilot({ auto_sync: value })} /><AutopilotToggle label={zh ? "风险提醒" : "Risk alerts"} detail={zh ? "集中度与过期数据" : "Concentration and stale data"} value={autopilot.config.risk_alerts} onChange={(value) => void saveAutopilot({ risk_alerts: value })} /><AutopilotToggle label="Long Gamma Watch" detail={zh ? "期权研究机会" : "Options research opportunities"} value={autopilot.config.long_gamma_watch} onChange={(value) => void saveAutopilot({ long_gamma_watch: value })} /><div className="bg-bg-panel p-4"><label className="text-xs font-medium">{zh ? "复盘频率" : "Review cadence"}</label><select value={autopilot.config.cadence} onChange={(event) => void saveAutopilot({ cadence: event.target.value as "daily" | "weekly" })} className="mt-3 h-9 w-full border border-border-pg bg-bg-app px-2 text-xs rounded-lg"><option value="daily">{zh ? "每日" : "Daily"}</option><option value="weekly">{zh ? "每周" : "Weekly"}</option></select></div></div>{autopilotSkills.length ? <div className="border-t border-border-pg p-4"><div className="text-xs font-medium">{zh ? "Autopilot Skills" : "Autopilot Skills"}</div><div className="mt-2 flex flex-wrap gap-2">{autopilotSkills.map((skill) => { const selected = autopilot.config.skill_refs.some((item) => item.skill_id === skill.skill_id); return <label key={skill.skill_id} className="flex cursor-pointer items-center gap-2 border border-border-pg px-2.5 py-2 text-xs rounded-lg"><input type="checkbox" checked={selected} onChange={() => { const next = selected ? autopilot.config.skill_refs.filter((item) => item.skill_id !== skill.skill_id) : [...autopilot.config.skill_refs, { skill_id: skill.skill_id, slug: skill.slug, version: skill.current_version, installation_id: skill.installation_id }]; void saveAutopilot({ skill_refs: next }); }} className="accent-[var(--foreground)]" /><span>{skill.name} · v{skill.current_version}</span></label>; })}</div></div> : null}<div className="flex flex-wrap items-center gap-3 border-t border-border-pg p-4"><button type="button" disabled={!autopilot.account_count || busy === "review"} onClick={() => void runReview()} className="inline-flex h-9 items-center gap-2 border border-border-pg-strong px-3 text-xs disabled:opacity-40 rounded-lg">{busy === "review" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}{zh ? "立即复盘" : "Run review"}</button><select value={autopilot.config.delivery} onChange={(event) => void saveAutopilot({ delivery: event.target.value as "in_app" | "telegram" | "imessage" })} className="h-9 border border-border-pg bg-bg-app px-2 text-xs rounded-lg"><option value="in_app">In-app</option><option value="telegram">Telegram</option><option value="imessage">iMessage</option></select><span className="text-xs text-text-pg-dim">{autopilot.last_review ? `${zh ? "上次复盘" : "Last review"}: ${new Date(autopilot.last_review).toLocaleString(locale)}` : (zh ? "尚未复盘" : "No review yet")}</span></div>{autopilot.findings.length ? <div className="border-t border-border-pg p-4"><div className="text-xs font-semibold">{zh ? "最新发现" : "Latest findings"}</div><div className="mt-3 space-y-2">{autopilot.findings.map((finding, index) => <div key={`${finding.title}-${index}`} className="flex gap-3 border border-border-pg p-3 text-xs rounded-lg"><span className={finding.severity === "high" ? "text-status-negative" : finding.severity === "warning" ? "text-status-warning" : "text-status-positive"}>{finding.severity.toUpperCase()}</span><span>{finding.title}</span></div>)}</div></div> : null}{!autopilot.account_count ? <p className="border-t border-border-pg p-4 text-xs text-text-pg-muted">{zh ? "请先连接一个真实账户即可开启 Autopilot。" : "Connect at least one real account to enable Autopilot."}</p> : null}</ResearchCard>
   </div>;
+}
+
+function NavField({ label, value }: { label: string; value: string }) {
+  return (
+    <div className="bg-bg-panel p-3">
+      <dt className="text-[10px] uppercase tracking-wide text-text-pg-dim">{label}</dt>
+      <dd className="mt-1 text-sm font-medium tabular-nums text-text-pg">{value}</dd>
+    </div>
+  );
 }
 
 

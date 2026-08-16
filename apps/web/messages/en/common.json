@@ -17,6 +17,7 @@
       "company": "Company"
     },
     "dashboard": "Dashboard",
+    "research": "Research",
     "reports": "Reports",
     "options": "Options",
     "backtest": "Backtest",
@@ -34,6 +35,7 @@
     "apiDocs": "API",
     "admin": "Admin",
     "account": "Account",
+    "memory": "Memory",
     "docs": "Docs",
     "access": "Access",
     "signup": "Sign Up",

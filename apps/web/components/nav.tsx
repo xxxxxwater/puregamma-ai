@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, BookOpen, Bot, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, UserRound, X, type LucideIcon } from "lucide-react";
+import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, UserRound, X, type LucideIcon } from "lucide-react";
 import { AppearanceControls } from "@/components/appearance-controls";
 import { PlanBadge, Badge } from "@/components/puregamma";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
@@ -35,6 +35,7 @@ const groups: NavGroup[] = [
     items: [
       { href: "/dashboard", labelKey: "common.nav.dashboard", icon: LayoutDashboard },
       { href: "/chat", labelKey: "common.nav.chat", icon: Bot },
+      { href: "/research", labelKey: "common.nav.research", icon: FlaskConical },
       { href: "/reports", labelKey: "common.nav.reports", icon: BookOpen },
       { href: "/options", labelKey: "common.nav.options", icon: Gauge },
       { href: "/backtest", labelKey: "common.nav.backtest", icon: FlaskConical }
@@ -54,6 +55,7 @@ const groups: NavGroup[] = [
     items: [
       { href: "/billing", labelKey: "common.nav.billing", icon: CreditCard },
       { href: "/gateway", labelKey: "common.nav.gateway", icon: Network },
+      { href: "/memory", labelKey: "common.nav.memory", icon: BrainCircuit },
       { href: "/account", labelKey: "common.nav.account", icon: UserRound }
     ]
   }

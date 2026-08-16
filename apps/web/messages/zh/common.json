@@ -17,6 +17,7 @@
       "company": "公司"
     },
     "dashboard": "控制台",
+    "research": "研究",
     "reports": "报告",
     "options": "期权",
     "backtest": "回测",
@@ -34,6 +35,7 @@
     "apiDocs": "API",
     "admin": "管理",
     "account": "账户",
+    "memory": "记忆",
     "docs": "帮助文档",
     "access": "访问权限",
     "signup": "注册",
