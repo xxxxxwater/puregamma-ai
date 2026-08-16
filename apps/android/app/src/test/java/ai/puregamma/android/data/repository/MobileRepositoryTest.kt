@@ -2,6 +2,7 @@ package ai.puregamma.android.data.repository
 
 import ai.puregamma.android.data.remote.PureGammaApi
 import ai.puregamma.android.data.remote.RetrofitApiException
+import ai.puregamma.android.model.MobileCapabilities
 import ai.puregamma.android.model.TradingEnvironment
 import com.google.gson.GsonBuilder
 import kotlinx.coroutines.test.runTest
