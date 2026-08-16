@@ -320,14 +320,14 @@
 1. 登录态有效 → 进入 Research → 打开对应 run 详情（先 `GET /runs/{id}` 查服务端最终状态）。
 2. 登录态失效 → 登录后按 `run_id` 查询并展示。
 
-## 6. 后端实现状态（截至 2026-08-15）
+## 6. 后端实现状态（截至 2026-08-16）
 
 | 接口 | 状态 |
 |---|---|
-| `GET /api/mobile/capabilities` | ❌ 未实现 |
+| `GET /api/mobile/capabilities` | ✅ 已实现（`apps/api/routers/mobile.py`，按真实可用性返回；research/memory 契约端点未落地前 `user_can_start_research` / `user_can_manage_memory` 恒 false） |
 | `POST/GET /api/research/runs*`（含 cancel/retry/artifacts/evidence/events） | ❌ 未实现（DB 表与 harness 包已就绪，缺 HTTP 层） |
 | `GET/PATCH /api/memory/*` | ❌ 未实现（memory 包与表已就绪，缺 HTTP 层） |
-| `GET /api/trading/mandates*` | ❌ 未实现（trading_mandates 表已就绪，缺 HTTP 层） |
+| `GET /api/trading/mandates*` | ✅ 已实现（LIVE Trading Control Plane：`/api/trading/mandates`、`/api/trading/mandates/{id}`、`pause`、`resume`、`/api/trading/safety-status`） |
 
 移动端行为：上述接口 404/501 时，对应入口显示"功能暂不可用"，不渲染可操作按钮，不使用假数据。
 
