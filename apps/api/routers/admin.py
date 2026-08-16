@@ -389,22 +389,51 @@ def update_user_tier(
     db: Session = Depends(get_db),
     user: User = Depends(admin_user),
 ) -> dict:
-    allowed_tiers = {"bronze", "silver", "gold"}
+    from packages.billing.plans import plan_for_tier
+
+    allowed_tiers = {"silver", "gold"}
     if payload.tier not in allowed_tiers:
-        raise HTTPException(status_code=400, detail=f"Tier must be one of: {', '.join(sorted(allowed_tiers))}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Tier must be one of: {', '.join(sorted(allowed_tiers))}",
+        )
     target = db.get(User, user_id)
     if not target:
         raise HTTPException(status_code=404, detail="User not found")
     if target.id == user.id:
         raise HTTPException(status_code=400, detail="Cannot change your own tier")
+    # Subscription priority: an active/trialing Stripe subscription is
+    # authoritative. Admin must change or cancel the subscription in Stripe
+    # rather than override the tier here (no silent double bookkeeping).
+    sub = (
+        db.query(Subscription)
+        .filter(Subscription.user_id == target.id)
+        .order_by(Subscription.created_at.desc())
+        .first()
+    )
+    if sub and sub.status in {"active", "trialing"} and sub.plan_name not in {
+        "Free",
+        "Invite Preview",
+    }:
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"User has an active Stripe subscription ({sub.plan_name}); "
+                "change or cancel the subscription in Stripe first"
+            ),
+        )
     old_tier = target.membership_tier
     target.membership_tier = payload.tier
+    # For users without a Stripe subscription, the tier defines the membership:
+    # keep user.plan in sync so entitlements and every surface stay consistent.
+    target.plan = plan_for_tier(payload.tier)
     db.commit()
     return {
         "user_id": target.id,
         "email": target.email,
         "tier": target.membership_tier,
         "previous_tier": old_tier,
+        "plan": target.plan,
     }
 
 

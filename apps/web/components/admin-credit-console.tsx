@@ -139,7 +139,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
     }
   }
 
-  async function changeTier(tier: "bronze" | "silver" | "gold") {
+  async function changeTier(tier: "silver" | "gold") {
     if (!selectedId || tier === detail?.account.membership_tier) return;
     setTierBusy(true);
     setError("");
@@ -212,7 +212,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
                 </div>
                 <div className="mt-4 flex flex-wrap items-center gap-2 text-xs">
                   <span className="text-text-pg-muted">{zh ? "会员等级" : "Membership tier"}</span>
-                  {(["bronze", "silver", "gold"] as const).map((tier) => (
+                  {(["silver", "gold"] as const).map((tier) => (
                     <button
                       key={tier}
                       type="button"

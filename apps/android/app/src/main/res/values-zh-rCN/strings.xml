@@ -28,6 +28,8 @@
     <string name="latest_research">最新研究</string>
     <string name="credits">Credits</string>
     <string name="plan">套餐</string>
+    <string name="tier_silver">白银</string>
+    <string name="tier_gold">黄金</string>
     <string name="status">状态</string>
     <string name="nav">净资产</string>
     <string name="available_cash">可用现金</string>

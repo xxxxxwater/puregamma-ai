@@ -31,10 +31,17 @@ def get_user_entitlement(db: Session, user_id: str) -> dict:
         raise ValueError(f"User not found: {user_id}")
     subscription = latest_subscription(db, user_id)
     status = subscription.status if subscription else None
+    # Priority: an active/trialing Stripe subscription always wins. Without a
+    # subscription, the stored plan (kept in sync with membership_tier by the
+    # admin tier endpoint) is authoritative.
     plan_name = subscription.plan_name if subscription and subscription.plan_name else user.plan
     if get_settings().billing_mode == "stripe" and plan_name not in {"Free", "Invite Preview", "Enterprise"} and status not in {"active", "trialing"}:
         status = status or "inactive"
-    return entitlement_for_plan(plan_name, status)
+    entitlement = entitlement_for_plan(plan_name, status)
+    from packages.billing.plans import canonical_tier
+
+    entitlement["membership_tier"] = canonical_tier(user.membership_tier)
+    return entitlement
 
 
 def assert_action_allowed(db: Session, user_id: str, action: str) -> None:

@@ -405,6 +405,18 @@ private fun TodayScreen(model: AppViewModel) {
     }
 }
 
+/**
+ * Display label for the membership tier; falls back to the billing plan name.
+ * Unknown/legacy tier values never crash: they degrade to the raw plan string.
+ */
+@Composable
+private fun tierOrPlanLabel(tier: String?, plan: String): String =
+    when (tier) {
+        "gold" -> stringResource(R.string.tier_gold)
+        "silver" -> stringResource(R.string.tier_silver)
+        else -> plan
+    }
+
 @Composable
 private fun BillingStrip(state: LoadState<BillingSummary>) {
     when (state) {
@@ -414,7 +426,7 @@ private fun BillingStrip(state: LoadState<BillingSummary>) {
             Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 14.dp),
             horizontalArrangement = Arrangement.spacedBy(12.dp),
         ) {
-            Metric(stringResource(R.string.plan), state.value.plan, Modifier.weight(1f))
+            Metric(stringResource(R.string.plan), tierOrPlanLabel(state.value.membershipTier, state.value.plan), Modifier.weight(1f))
             Metric(stringResource(R.string.credits), state.value.credits.toString(), Modifier.weight(1f))
             Metric(stringResource(R.string.status), state.value.status.uppercase(), Modifier.weight(1f))
         }
@@ -837,7 +849,7 @@ private fun AccountScreen(model: AppViewModel) {
             Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
                 Text(user.name, style = MaterialTheme.typography.headlineSmall)
                 Text(user.email, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${user.plan.uppercase()} / ${user.credits} CREDITS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text("${tierOrPlanLabel(user.membershipTier, user.plan).uppercase()} / ${user.credits} CREDITS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
         }
         item { SectionTitle("01", stringResource(R.string.language), null) }

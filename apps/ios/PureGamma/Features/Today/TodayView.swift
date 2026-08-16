@@ -33,9 +33,9 @@ struct TodayView: View {
         // Three monospaced columns hard-truncate at Accessibility sizes; stack
         // vertically instead so each metric keeps its full width.
         if dynamicTypeSize.isAccessibilitySize {
-            VStack(alignment: .leading, spacing: 14) { metric("PLAN", value.plan); metric("CREDITS", String(value.credits)); metric("STATUS", value.status.uppercased()) }
+            VStack(alignment: .leading, spacing: 14) { metric("PLAN", MembershipTier.label(value.membershipTier, plan: value.plan)); metric("CREDITS", String(value.credits)); metric("STATUS", value.status.uppercased()) }
         } else {
-            HStack { metric("PLAN", value.plan); metric("CREDITS", String(value.credits)); metric("STATUS", value.status.uppercased()) }
+            HStack { metric("PLAN", MembershipTier.label(value.membershipTier, plan: value.plan)); metric("CREDITS", String(value.credits)); metric("STATUS", value.status.uppercased()) }
         }
     }
     private func metric(_ label: String, _ value: String) -> some View { VStack(alignment: .leading, spacing: 5) { Text(label).font(.caption2.monospaced()).foregroundStyle(.secondary); Text(value).font(.headline.monospaced()).lineLimit(1).minimumScaleFactor(0.7) }.frame(maxWidth: .infinity, alignment: .leading).accessibilityElement(children: .combine) }

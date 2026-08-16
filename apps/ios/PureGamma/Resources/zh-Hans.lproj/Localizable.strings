@@ -89,6 +89,8 @@
 "Opening Plaid…" = "正在打开 Plaid…";
 "Opens Google sign in in a secure system browser" = "将在安全的系统浏览器中打开 Google 登录";
 "Options data unavailable" = "期权数据暂不可用";
+"tier.silver" = "白银";
+"tier.gold" = "黄金";
 "Plan" = "套餐";
 "Portfolio NAV history chart" = "组合 NAV 历史曲线";
 "Portfolio unavailable" = "组合数据暂不可用";

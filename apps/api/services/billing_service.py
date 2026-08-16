@@ -427,6 +427,11 @@ def upsert_subscription(
     sub.current_period_end = current_period_end or sub.current_period_end
     sub.cancel_at_period_end = cancel_at_period_end
     user.plan = plan_name if status not in {"canceled", "deleted"} else "Free"
+    # Keep the loyalty tier badge consistent with the subscription plan so
+    # Web / Admin / iOS / Android always render the same tier.
+    from packages.billing.plans import tier_for_plan
+
+    user.membership_tier = tier_for_plan(user.plan)
     if stripe_customer_id:
         user.stripe_customer_id = stripe_customer_id
     _sync_cancel_preference(user, sub)

@@ -10,6 +10,7 @@ data class User(
     val name: String,
     val role: String,
     val plan: String,
+    val membershipTier: String? = null,
     val credits: Int,
     val avatarUrl: String?,
 )
@@ -38,6 +39,7 @@ data class Report(
 
 data class BillingSummary(
     val plan: String,
+    val membershipTier: String? = null,
     val status: String,
     val credits: Int,
 )
@@ -143,6 +145,7 @@ internal fun JSONObject.toUser(): User = User(
     name = string("name"),
     role = string("role"),
     plan = string("plan"),
+    membershipTier = nullableString("membership_tier"),
     credits = optInt("credit_balance"),
     avatarUrl = nullableString("avatar_url"),
 )

@@ -28,6 +28,8 @@
     <string name="latest_research">Latest research</string>
     <string name="credits">Credits</string>
     <string name="plan">Plan</string>
+    <string name="tier_silver">Silver</string>
+    <string name="tier_gold">Gold</string>
     <string name="status">Status</string>
     <string name="nav">NAV</string>
     <string name="available_cash">Available cash</string>

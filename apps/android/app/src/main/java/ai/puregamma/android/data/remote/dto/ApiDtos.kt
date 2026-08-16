@@ -8,6 +8,7 @@ data class UserDto(
     val name: String,
     val role: String,
     val plan: String,
+    @SerializedName("membership_tier") val membershipTier: String? = null,
     @SerializedName("credit_balance") val creditBalance: Int,
     @SerializedName("avatar_url") val avatarUrl: String?,
     val locale: String?
@@ -78,6 +79,7 @@ data class ReportsEnvelopeDto(val reports: List<ReportDto>)
 
 data class SubscriptionDto(
     val plan: String,
+    @SerializedName("membership_tier") val membershipTier: String? = null,
     @SerializedName("subscription_status") val subscriptionStatus: String,
     @SerializedName("credit_balance") val creditBalance: Int,
     @SerializedName("current_period_end") val currentPeriodEnd: String?,

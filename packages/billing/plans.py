@@ -97,3 +97,45 @@ PLANS: dict[str, Plan] = {
 
 def get_plan(name: str) -> Plan:
     return PLANS.get(name, PLANS["Free"])
+
+
+# ---------------------------------------------------------------------------
+# Membership tiers (2.2 canonical: Silver / Gold).
+#
+# Tiers are loyalty/display levels stored on ``User.membership_tier``.
+# Entitlement priority is documented in ``entitlement_service``:
+#   active/trialing Stripe subscription  ->  subscription plan wins
+#   otherwise                            ->  user.plan (synced from tier by
+#                                            the admin tier endpoint)
+# Admin tier changes on users with an active Stripe subscription are REJECTED
+# (subscriptions are managed through Stripe only).
+# "bronze" is a legacy label normalized to "silver" on read.
+# ---------------------------------------------------------------------------
+
+TIERS: dict[str, dict] = {
+    "silver": {"display_en": "Silver", "display_zh": "白银", "plan": "Pro"},
+    "gold": {"display_en": "Gold", "display_zh": "黄金", "plan": "Max"},
+}
+
+# Display-only reverse mapping: keeps the tier badge consistent with the
+# subscription plan after Stripe sync.
+PLAN_TO_TIER: dict[str, str] = {
+    "Free": "silver",
+    "Invite Preview": "silver",
+    "Pro": "silver",
+    "Max": "gold",
+    "Enterprise": "gold",
+}
+
+
+def canonical_tier(value: str | None) -> str:
+    """Normalize stored tier to the canonical set; legacy/unknown -> silver."""
+    return value if value in TIERS else "silver"
+
+
+def tier_for_plan(plan_name: str) -> str:
+    return PLAN_TO_TIER.get(plan_name, "silver")
+
+
+def plan_for_tier(tier: str) -> str:
+    return TIERS[canonical_tier(tier)]["plan"]

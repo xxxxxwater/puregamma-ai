@@ -58,7 +58,7 @@ struct RepositoryContainer {
         do { let dto: ReportsEnvelopeDTO = try await client.request("/reports"); try? await cache.save(dto, key: "reports"); return .init(value: dto.reports.map(\.domain), cachedAt: nil) }
         catch { if canUseCache(error), let cached = try? await cache.load(ReportsEnvelopeDTO.self, key: "reports", maximumAge: 604_800) { return .init(value: cached.0.reports.map(\.domain), cachedAt: cached.1) }; throw error }
     }
-    func subscription() async throws -> BillingSummary { let dto: SubscriptionDTO = try await client.request("/billing/subscription"); return .init(plan: dto.plan, status: dto.subscriptionStatus, credits: dto.creditBalance, periodEnd: dto.currentPeriodEnd, cancelAtPeriodEnd: dto.cancelAtPeriodEnd ?? false, availableSources: dto.entitlement.allowedDataSources ?? []) }
+    func subscription() async throws -> BillingSummary { let dto: SubscriptionDTO = try await client.request("/billing/subscription"); return .init(plan: dto.plan, status: dto.subscriptionStatus, membershipTier: dto.membershipTier, credits: dto.creditBalance, periodEnd: dto.currentPeriodEnd, cancelAtPeriodEnd: dto.cancelAtPeriodEnd ?? false, availableSources: dto.entitlement.allowedDataSources ?? []) }
 }
 
 @MainActor struct AgentRepository {
@@ -159,7 +159,7 @@ func canUseCache(_ error: Error) -> Bool {
         "production"
         #endif
     }
-    func subscription() async throws -> BillingSummary { let dto: SubscriptionDTO = try await client.request("/billing/subscription"); return .init(plan: dto.plan, status: dto.subscriptionStatus, credits: dto.creditBalance, periodEnd: dto.currentPeriodEnd, cancelAtPeriodEnd: dto.cancelAtPeriodEnd ?? false, availableSources: dto.entitlement.allowedDataSources ?? []) }
+    func subscription() async throws -> BillingSummary { let dto: SubscriptionDTO = try await client.request("/billing/subscription"); return .init(plan: dto.plan, status: dto.subscriptionStatus, membershipTier: dto.membershipTier, credits: dto.creditBalance, periodEnd: dto.currentPeriodEnd, cancelAtPeriodEnd: dto.cancelAtPeriodEnd ?? false, availableSources: dto.entitlement.allowedDataSources ?? []) }
     func pushPreference() async throws -> DailyPushPreference { let dto: DailyPushEnvelopeDTO = try await client.request("/notifications/preferences/daily-brief"); return dto.preference.domain }
     func updatePush(_ value: DailyPushPreference) async throws -> DailyPushPreference { let body = DailyPushDTO(enabled: value.enabled, timezone: value.timezone, localTime: value.localTime, channel: value.channel, locale: value.locale, includePortfolio: value.includePortfolio, includeMarket: value.includeMarket, includeSignals: value.includeSignals, includeRisk: value.includeRisk, includeSentiment: value.includeSentiment, nextDeliveryAt: value.nextDelivery); let dto: DailyPushEnvelopeDTO = try await client.request("/notifications/preferences/daily-brief", method: "PUT", body: body); return dto.preference.domain }
     func registerPushDevice(token: String) async throws -> Bool {

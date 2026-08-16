@@ -136,6 +136,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     name = dto.name,
                     role = dto.role,
                     plan = dto.plan,
+                    membershipTier = dto.membershipTier,
                     credits = dto.creditBalance,
                     avatarUrl = dto.avatarUrl,
                 )
@@ -189,7 +190,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             tokenStore.save(response.accessToken)
             val dto = response.user
             session = SessionState.SignedIn(
-                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.creditBalance, dto.avatarUrl),
+                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.membershipTier, dto.creditBalance, dto.avatarUrl),
             )
             loadAll()
         } catch (e: Exception) {
@@ -208,7 +209,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             tokenStore.save(response.accessToken)
             val dto = response.user
             session = SessionState.SignedIn(
-                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.creditBalance, dto.avatarUrl),
+                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.membershipTier, dto.creditBalance, dto.avatarUrl),
             )
             loadAll()
         } catch (e: Exception) {
@@ -235,7 +236,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             oauthPending.edit().clear().apply()
             val dto = response.user
             session = SessionState.SignedIn(
-                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.creditBalance, dto.avatarUrl),
+                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.membershipTier, dto.creditBalance, dto.avatarUrl),
             )
             loadAll()
         } catch (e: Exception) {

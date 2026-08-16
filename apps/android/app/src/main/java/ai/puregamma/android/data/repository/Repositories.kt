@@ -21,6 +21,7 @@ class TodayRepository(private val api: PureGammaApi) {
         val dto = api.getSubscription()
         return BillingSummary(
             plan = dto.plan ?: "free",
+            membershipTier = dto.membershipTier,
             status = dto.subscriptionStatus ?: "unknown",
             credits = dto.creditBalance ?: 0,
         )

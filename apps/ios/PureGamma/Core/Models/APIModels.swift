@@ -2,7 +2,7 @@ import Foundation
 
 struct EmptyResponseDTO: Decodable { }
 struct UserEnvelopeDTO: Decodable { let user: UserDTO }
-struct UserDTO: Codable { let id, email, name, role, plan: String; let creditBalance: Int; let avatarURL: URL?; let locale: String?; enum CodingKeys: String, CodingKey { case id, email, name, role, plan, locale; case creditBalance = "credit_balance"; case avatarURL = "avatar_url" }; var domain: User { User(id: id, email: email, name: name, role: role, plan: plan, creditBalance: creditBalance, avatarURL: avatarURL, locale: locale ?? "en") } }
+struct UserDTO: Codable { let id, email, name, role, plan: String; let membershipTier: String?; let creditBalance: Int; let avatarURL: URL?; let locale: String?; enum CodingKeys: String, CodingKey { case id, email, name, role, plan, locale; case membershipTier = "membership_tier"; case creditBalance = "credit_balance"; case avatarURL = "avatar_url" }; var domain: User { User(id: id, email: email, name: name, role: role, plan: plan, membershipTier: membershipTier, creditBalance: creditBalance, avatarURL: avatarURL, locale: locale ?? "en") } }
 struct MobileOAuthStartDTO: Encodable { let redirectURI, codeChallenge, clientState, nonce: String; enum CodingKeys: String, CodingKey { case nonce; case redirectURI = "redirect_uri"; case codeChallenge = "code_challenge"; case clientState = "client_state" } }
 struct MobileOAuthStartResponseDTO: Decodable { let authURL: String; enum CodingKeys: String, CodingKey { case authURL = "auth_url" } }
 struct MobileOAuthExchangeDTO: Encodable { let code, codeVerifier, nonce: String; enum CodingKeys: String, CodingKey { case code, nonce; case codeVerifier = "code_verifier" } }
@@ -39,7 +39,7 @@ struct MarketAssetDTO: Codable { let symbol: String; let price, volume24H: Decim
 struct ReportsEnvelopeDTO: Codable { let reports: [ReportDTO] }
 struct ReportEnvelopeDTO: Decodable { let report: ReportDTO }
 struct ReportDTO: Codable { let id, title, reportType, contentMarkdown: String; let assets: [String]; let createdAt: Date; enum CodingKeys: String, CodingKey { case id, title, assets; case reportType = "report_type"; case contentMarkdown = "content_markdown"; case createdAt = "created_at" }; var domain: Report { .init(id: id, title: title, type: reportType, markdown: contentMarkdown, assets: assets, createdAt: createdAt) } }
-struct SubscriptionDTO: Decodable { let plan, subscriptionStatus: String; let creditBalance: Int; let currentPeriodEnd: Date?; let cancelAtPeriodEnd: Bool?; let entitlement: EntitlementDTO; enum CodingKeys: String, CodingKey { case plan, entitlement; case subscriptionStatus = "subscription_status"; case creditBalance = "credit_balance"; case currentPeriodEnd = "current_period_end"; case cancelAtPeriodEnd = "cancel_at_period_end" } }
+struct SubscriptionDTO: Decodable { let plan, subscriptionStatus: String; let membershipTier: String?; let creditBalance: Int; let currentPeriodEnd: Date?; let cancelAtPeriodEnd: Bool?; let entitlement: EntitlementDTO; enum CodingKeys: String, CodingKey { case plan, entitlement; case membershipTier = "membership_tier"; case subscriptionStatus = "subscription_status"; case creditBalance = "credit_balance"; case currentPeriodEnd = "current_period_end"; case cancelAtPeriodEnd = "cancel_at_period_end" } }
 struct EntitlementDTO: Decodable { let allowedDataSources: [String]?; enum CodingKeys: String, CodingKey { case allowedDataSources = "allowed_data_sources" } }
 
 struct ConversationEnvelopeDTO: Decodable { let conversation: ConversationDTO }

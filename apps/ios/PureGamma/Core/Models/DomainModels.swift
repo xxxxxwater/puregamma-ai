@@ -1,11 +1,23 @@
 import Foundation
 
-struct User: Identifiable, Equatable, Sendable { let id, email, name, role, plan: String; let creditBalance: Int; let avatarURL: URL?; let locale: String }
+struct User: Identifiable, Equatable, Sendable { let id, email, name, role, plan: String; let membershipTier: String?; let creditBalance: Int; let avatarURL: URL?; let locale: String }
 struct MarketAsset: Identifiable, Equatable, Sendable {
     var id: String { symbol }; let symbol: String; let price, volume24H: Decimal; let change24H, fundingRate, openInterest, riskScore: Decimal?; let timestamp: Date; let source: String; let isRealtime: Bool
 }
 struct Report: Identifiable, Equatable, Sendable { let id, title, type, markdown: String; let assets: [String]; let createdAt: Date }
-struct BillingSummary: Equatable, Sendable { let plan, status: String; let credits: Int; let periodEnd: Date?; let cancelAtPeriodEnd: Bool; let availableSources: [String] }
+struct BillingSummary: Equatable, Sendable { let plan, status: String; let membershipTier: String?; let credits: Int; let periodEnd: Date?; let cancelAtPeriodEnd: Bool; let availableSources: [String] }
+
+/// Canonical membership tier labels (Silver / Gold; legacy/unknown values
+/// fall back to the billing plan name and never crash).
+enum MembershipTier {
+    static func label(_ tier: String?, plan: String) -> String {
+        switch tier {
+        case "gold": return NSLocalizedString("tier.gold", comment: "")
+        case "silver": return NSLocalizedString("tier.silver", comment: "")
+        default: return plan
+        }
+    }
+}
 struct AgentConversation: Identifiable, Equatable, Sendable { let id, title, status: String; let summary: String?; let createdAt, updatedAt: Date; let archivedAt: Date? }
 struct AgentSource: Identifiable, Equatable, Sendable { let id, provider, title: String; let url: URL?; let publishedAt, sourceTimestamp, fetchedAt: Date?; let citationIndex: Int }
 struct AgentMessage: Identifiable, Equatable, Sendable { let id, conversationID, role: String; var content, status: String; let model: String?; var sources: [AgentSource]; let createdAt: Date; var errorMessage: String? }
