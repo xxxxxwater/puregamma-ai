@@ -50,5 +50,10 @@ build/
 .vscode/
 *.swp
 
+# 2.2 release hygiene: local release snapshots and migration backups never ship
+releases/
+docker-compose.*.bak*
+*.bak-migrate
+
 # Playwright MCP artifacts.playwright-mcp/
 

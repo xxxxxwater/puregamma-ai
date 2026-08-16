@@ -28,7 +28,7 @@ test -s "${DATABASE_TMP}"
 mv "${DATABASE_TMP}" "${DATABASE_BACKUP}"
 
 docker run --rm \
-  --volume puregamma-ai_nautilus_state:/source:ro \
+  --volume /puregamma/data/nautilus_state:/source:ro \
   --volume "${BACKUP_DIR}:/backup" \
   alpine:3.22 \
   tar -C /source -czf "/backup/$(basename "${RUNTIME_BACKUP}")" .
