@@ -127,4 +127,26 @@ import Testing
         """)
         #expect(dto.domain.harnessResearchEnabled == false)
     }
+
+    @Test func subscriptionToleratesMissingAndUnknownMembershipTier() throws {
+        let missing = try decode(SubscriptionDTO.self, """
+        {"plan": "Pro", "subscription_status": "active", "credit_balance": 42,
+         "entitlement": {"allowed_data_sources": ["market"]}}
+        """)
+        #expect(missing.membershipTier == nil)
+
+        let unknown = try decode(SubscriptionDTO.self, """
+        {"plan": "Max", "membership_tier": "diamond", "subscription_status": "active",
+         "credit_balance": 42, "entitlement": {}}
+        """)
+        #expect(unknown.membershipTier == "diamond")
+        // Unknown tier never crashes and falls back to the raw plan label.
+        #expect(MembershipTier.label(unknown.membershipTier, plan: "Max") == "Max")
+
+        let gold = try decode(SubscriptionDTO.self, """
+        {"plan": "Max", "membership_tier": "gold", "subscription_status": "active",
+         "credit_balance": 42, "entitlement": {}}
+        """)
+        #expect(MembershipTier.label(gold.membershipTier, plan: "Max") == NSLocalizedString("tier.gold", comment: ""))
+    }
 }

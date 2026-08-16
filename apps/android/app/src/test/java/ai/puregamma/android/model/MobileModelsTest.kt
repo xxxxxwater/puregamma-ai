@@ -123,4 +123,24 @@ class MobileModelsTest {
         assertNull(MobileCapabilities.UNAVAILABLE.appMinVersion)
         assertNull(MobileCapabilities.UNAVAILABLE.maintenanceMessage)
     }
+
+    @Test
+    fun userParsingToleratesMissingAndUnknownMembershipTier() {
+        val missing = JSONObject(
+            """{"id":"u1","email":"a@b.c","name":"A","role":"user","plan":"Pro","credit_balance":1}""",
+        ).toUser()
+        assertNull(missing.membershipTier)
+
+        val unknown = JSONObject(
+            """{"id":"u1","email":"a@b.c","name":"A","role":"user","plan":"Max","membership_tier":"diamond","credit_balance":1}""",
+        ).toUser()
+        // Unknown tier never crashes: it is carried as an opaque string and
+        // the UI falls back to the plan label.
+        assertEquals("diamond", unknown.membershipTier)
+
+        val gold = JSONObject(
+            """{"id":"u1","email":"a@b.c","name":"A","role":"user","plan":"Max","membership_tier":"gold","credit_balance":1}""",
+        ).toUser()
+        assertEquals("gold", gold.membershipTier)
+    }
 }
