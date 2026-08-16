@@ -290,7 +290,31 @@ def build_scheduler() -> BlockingScheduler:
 
 
 def main() -> None:
-    build_scheduler().start()
+    # Single-scheduler invariant: refuse to start if another scheduler holds
+    # the lock (fails open when Redis is down; idempotency keys still apply).
+    from packages.workers.redis_lock import acquire_redis_lock, release_redis_lock
+
+    if not acquire_redis_lock("scheduler", ttl_seconds=600):
+        raise SystemExit(
+            "Another scheduler instance holds pg:lock:scheduler; refusing to "
+            "start a duplicate (deploy checklist: only one scheduler may run)"
+        )
+    scheduler = build_scheduler()
+    # Keep the lock alive while this process runs; the lock expires naturally
+    # if the process dies and a restart can then take over.
+    scheduler.add_job(
+        acquire_redis_lock,
+        IntervalTrigger(minutes=5),
+        args=["scheduler"],
+        kwargs={"ttl_seconds": 600},
+        id="scheduler_lock_renew",
+        max_instances=1,
+        coalesce=True,
+    )
+    try:
+        scheduler.start()
+    finally:
+        release_redis_lock("scheduler")
 
 
 if __name__ == "__main__":
