@@ -25,11 +25,10 @@ from packages.live_trading.flags import evaluate_static_gate
 
 router = APIRouter(prefix="/api/mobile", tags=["mobile"])
 
-# Flip to True when the corresponding contract endpoints ship (and their
-# ownership/id validation tests pass). Until then capabilities stay false and
-# mobile/web render honest "unavailable" states.
-RESEARCH_RUNS_CONTRACT_IMPLEMENTED = False
-MEMORY_CONTRACT_IMPLEMENTED = False
+# The contract endpoints shipped in apps/api/routers/harness_runs.py and
+# apps/api/routers/memory.py (backed by tests/security/test_harness_contract.py).
+RESEARCH_RUNS_CONTRACT_IMPLEMENTED = True
+MEMORY_CONTRACT_IMPLEMENTED = True
 
 APP_MIN_VERSION = "1.4.0"
 

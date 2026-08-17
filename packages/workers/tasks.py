@@ -491,6 +491,24 @@ def execute_research_run(self, run_id: str) -> dict:
         db.close()
 
 
+@celery_app.task(name="puregamma.execute_harness_research_run", bind=True, max_retries=0)
+def execute_harness_research_run(self, run_id: str) -> dict:
+    """Execute one Harness deep-research run (evidence -> gateway -> artifact).
+
+    Runs entirely in the worker against audited services: the research event
+    pipeline freezes real evidence, one bounded gateway call produces the
+    report, citations are verified, and the run settles its credit
+    reservation. No user code ever executes here.
+    """
+    from apps.api.services.harness_run_service import execute_queued_run
+
+    db = SessionLocal()
+    try:
+        return execute_queued_run(db, run_id)
+    finally:
+        db.close()
+
+
 @celery_app.task(name="puregamma.sync_plaid_investments_account", bind=True, max_retries=8)
 def sync_plaid_investments_account(self, account_id: str) -> dict:
     """Fetch holdings and investment activity after Link, refresh, or webhook."""

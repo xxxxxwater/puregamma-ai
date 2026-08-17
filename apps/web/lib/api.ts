@@ -1210,6 +1210,13 @@ export function getResearchRuns(limit = 20, offset = 0) {
   return requestStrict<{ runs: HarnessResearchRun[]; total?: number; limit?: number; offset?: number }>(`/api/research/runs?limit=${limit}&offset=${offset}`);
 }
 
+export function createResearchRun(payload: { name: string; prompt: string; data_sources: string[]; skill: string }) {
+  return requestStrict<{ run: HarnessResearchRun; created: boolean }>("/api/research/runs", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
 export function getResearchRun(runId: string) {
   return requestStrict<{ run: HarnessResearchRun }>(`/api/research/runs/${encodeURIComponent(runId)}`);
 }

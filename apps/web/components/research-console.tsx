@@ -7,10 +7,11 @@ import { CapabilityGate, useCapabilityGate } from "@/components/ocean/capability
 import { RippleEffect } from "@/components/ocean/ripple-effect";
 import { OceanShell } from "@/components/ocean/ocean-shell";
 import { StatusBadge, StatusBadgeWithPulse } from "@/components/ocean/status-badge";
-import { getResearchRuns, type HarnessResearchRun } from "@/lib/api";
+import { createResearchRun, getResearchRuns, type HarnessResearchRun } from "@/lib/api";
 import { type Locale, withLocale } from "@/i18n/routing";
 
 const ACTIVE_STATUSES = new Set(["queued", "preparing", "running", "validating"]);
+const DATA_SOURCE_OPTIONS = ["market", "news", "options", "earnings"] as const;
 
 function formatTime(value: string, locale: string) {
   const date = new Date(value);
@@ -24,21 +25,50 @@ export function ResearchConsole({ locale }: { locale: Locale }) {
   const { state, retry } = useCapabilityGate(() => getResearchRuns(), []);
   const [runs, setRuns] = useState<HarnessResearchRun[]>([]);
   const [lastRefresh, setLastRefresh] = useState<string>("");
+  const [showForm, setShowForm] = useState(false);
+  const [name, setName] = useState("");
+  const [prompt, setPrompt] = useState("");
+  const [sources, setSources] = useState<string[]>(["market", "news"]);
+  const [submitting, setSubmitting] = useState(false);
+  const [formError, setFormError] = useState<string>("");
 
-  useEffect(() => {
-    if (state.status !== "available") return;
-    let cancelled = false;
+  const refresh = () => {
     getResearchRuns()
       .then((payload) => {
-        if (cancelled) return;
         setRuns(payload.runs || []);
         setLastRefresh(new Date().toISOString());
       })
       .catch(() => undefined);
-    return () => {
-      cancelled = true;
-    };
+  };
+
+  useEffect(() => {
+    if (state.status !== "available") return;
+    refresh();
+    const timer = setInterval(refresh, 15000);
+    return () => clearInterval(timer);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [state.status]);
+
+  const submit = async () => {
+    setSubmitting(true);
+    setFormError("");
+    try {
+      await createResearchRun({ name: name.trim() || prompt.trim().slice(0, 40), prompt: prompt.trim(), data_sources: sources, skill: "harness_deep_research" });
+      setName("");
+      setPrompt("");
+      setShowForm(false);
+      refresh();
+    } catch (error) {
+      const detail = (error as { payload?: { detail?: { message?: string } | string } })?.payload?.detail;
+      setFormError(typeof detail === "string" ? detail : typeof detail === "object" && detail ? detail.message || "创建失败" : "创建失败");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  const toggleSource = (source: string) => {
+    setSources((prev) => (prev.includes(source) ? prev.filter((s) => s !== source) : [...prev, source]));
+  };
 
   return (
     <OceanShell locale={locale} variant="research" className="min-h-[calc(100dvh-7rem)] rounded-2xl">
@@ -69,9 +99,61 @@ export function ResearchConsole({ locale }: { locale: Locale }) {
           title={zh ? "Harness Research 暂不可用" : "Harness Research not available yet"}
           onRetry={retry}
         >
+          <div className="mb-4 flex items-center justify-between gap-3">
+            <button
+              type="button"
+              onClick={() => setShowForm((value) => !value)}
+              className="border border-border-pg px-3 py-2 text-xs font-medium transition hover:border-border-pg-strong"
+            >
+              {showForm ? (zh ? "收起" : "Collapse") : (zh ? "+ 新建研究任务" : "+ New research run")}
+            </button>
+            <p className="text-xs text-text-pg-dim">
+              {zh ? "每天最多 3 个任务 · 结果仅供研究参考" : "Up to 3 runs per day · research output only"}
+            </p>
+          </div>
+
+          {showForm ? (
+            <div className="mb-4 border border-border-pg bg-bg-panel p-4">
+              <input
+                value={name}
+                onChange={(event) => setName(event.target.value)}
+                placeholder={zh ? "任务名称(可选)" : "Run name (optional)"}
+                className="w-full border border-border-pg bg-transparent px-3 py-2 text-sm text-text-pg outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong"
+              />
+              <textarea
+                value={prompt}
+                onChange={(event) => setPrompt(event.target.value)}
+                placeholder={zh ? "研究问题,例如:近 90 天 BTC 资金费率与价格偏离的关系" : "Research question, e.g. how funding rates diverged from BTC price over 90 days"}
+                rows={3}
+                className="mt-2 w-full border border-border-pg bg-transparent px-3 py-2 text-sm text-text-pg outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong"
+              />
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                {DATA_SOURCE_OPTIONS.map((source) => (
+                  <button
+                    key={source}
+                    type="button"
+                    onClick={() => toggleSource(source)}
+                    className={`border px-2.5 py-1 text-xs transition ${sources.includes(source) ? "border-ocean-cyan text-ocean-cyan" : "border-border-pg text-text-pg-muted hover:border-border-pg-strong"}`}
+                  >
+                    {source}
+                  </button>
+                ))}
+              </div>
+              {formError ? <p className="mt-2 text-xs text-status-negative">{formError}</p> : null}
+              <button
+                type="button"
+                onClick={() => void submit()}
+                disabled={submitting || !prompt.trim()}
+                className="mt-3 border border-ocean-cyan px-4 py-2 text-xs font-medium text-ocean-cyan transition disabled:opacity-40"
+              >
+                {submitting ? (zh ? "创建中…" : "Creating…") : (zh ? "开始研究" : "Start research")}
+              </button>
+            </div>
+          ) : null}
+
           {runs.length === 0 ? (
             <div className="border border-border-pg bg-bg-panel p-6 text-sm text-text-pg-muted">
-              {zh ? "还没有研究任务。Harness Research 开放创建入口后，新任务会显示在这里。" : "No research runs yet. Once the Harness Research creation flow opens, new runs will appear here."}
+              {zh ? "还没有研究任务。点击上方“新建研究任务”开始第一个深度研究。" : "No research runs yet. Click “New research run” above to start your first deep research."}
             </div>
           ) : (
             <ul className="space-y-3">
