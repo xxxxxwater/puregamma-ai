@@ -437,10 +437,29 @@ def _sync_hyperliquid(db: Session, account: TradingAccount) -> None:
         price = 1.0 if coin in {"USDC", "USDT", "USDH"} else float(mids.get(coin) or 0)
         value = quantity * price
         spot_value += value
-        spot_positions.append({"symbol": coin, "quantity": quantity, "price": price, "value": value, "cost": float(balance.get("entryNtl") or 0)})
+        spot_positions.append({"symbol": coin, "quantity": quantity, "price": price, "value": value, "cost": float(balance.get("entryNtl") or 0), "unrealizedPnl": 0.0, "venue": "hyperliquid-spot"})
+    # Perpetual positions are marked with live mids so every position carries a
+    # mark price and unrealized PnL into the NAV snapshot.
+    perp_positions = []
+    for item in data.get("assetPositions", []):
+        position = item.get("position") or {}
+        coin = position.get("coin")
+        szi = float(position.get("szi") or 0)
+        entry = float(position.get("entryPx") or 0)
+        mark = float(mids.get(coin) or entry or 0)
+        unrealized = (mark - entry) * szi
+        perp_positions.append({
+            "coin": coin,
+            "szi": szi,
+            "entryPx": entry,
+            "markPx": mark,
+            "unrealizedPnl": unrealized,
+            "value": abs(szi) * mark,
+            "venue": "hyperliquid-perp",
+        })
     equity += spot_value
     raw = {"perpetual": data, "spot": spot_data}
-    _save_snapshot(db, account, equity, max(equity - margin, 0), raw, [*data.get("assetPositions", []), *spot_positions], "hyperliquid")
+    _save_snapshot(db, account, equity, max(equity - margin, 0), raw, [*perp_positions, *spot_positions], "hyperliquid")
 
 
 def _evm_native_fallback(address: str, chain: str, base_url: str, headers: dict) -> dict | None:
@@ -1301,6 +1320,40 @@ def _asset_class_totals(holdings: list[dict]) -> dict:
     return totals
 
 
+def _unrealized_positions(
+    db: Session, user_id: str, accounts: list, latest_snapshots: list
+) -> tuple[float, list[dict]]:
+    """Mark-to-market positions attached to the latest account snapshots."""
+    account_ids = [account.id for account in accounts]
+    captured_times = [snapshot.captured_at for snapshot in latest_snapshots]
+    if not account_ids or not captured_times:
+        return 0.0, []
+    rows = (
+        db.query(PositionSnapshot)
+        .filter(
+            PositionSnapshot.user_id == user_id,
+            PositionSnapshot.account_id.in_(account_ids),
+            PositionSnapshot.captured_at.in_(captured_times),
+        )
+        .order_by(PositionSnapshot.unrealized_pnl.desc())
+        .all()
+    )
+    venue_by_account = {account.id: str(account.venue).lower() for account in accounts}
+    unrealized = round(sum(float(row.unrealized_pnl or 0) for row in rows), 2)
+    positions = [
+        {
+            "symbol": row.instrument,
+            "venue": venue_by_account.get(row.account_id, "unknown"),
+            "side": row.side,
+            "quantity": round(float(row.quantity or 0), 8),
+            "mark_price": round(float(row.mark_price or 0), 8),
+            "unrealized_pnl": round(float(row.unrealized_pnl or 0), 2),
+        }
+        for row in rows[:25]
+    ]
+    return unrealized, positions
+
+
 def portfolio_view(db: Session, user: User) -> dict:
     settings = get_settings()
     plaid_configured = bool(
@@ -1364,6 +1417,7 @@ def portfolio_view(db: Session, user: User) -> dict:
     daily_change = sum(float(row.daily_pnl) for row in latest)
     previous_nav = nav - daily_change
     holdings = _aggregate_holdings(db, user.id, accounts, latest, limit=50)
+    unrealized, positions = _unrealized_positions(db, user.id, accounts, latest)
     return {
         "connected": bool(latest),
         "stale": any(_snapshot_is_stale(account, next(row for row in latest if row.account_id == account.id)) for account in accounts if any(row.account_id == account.id for row in latest)),
@@ -1372,6 +1426,8 @@ def portfolio_view(db: Session, user: User) -> dict:
         "available_cash": sum(row.available_margin for row in latest),
         "daily_change": round(daily_change, 2),
         "daily_change_pct": round(daily_change / previous_nav * 100, 4) if previous_nav > 0 else None,
+        "unrealized_pnl": unrealized,
+        "positions": positions,
         "nav_history": timeline,
         "holdings": holdings,
         "asset_classes": _asset_class_totals(holdings),
@@ -1435,6 +1491,7 @@ def portfolio_context(db: Session, user_id: str, *, detailed: bool = False) -> d
     duplicate_exposure = sorted({item["symbol"] for item in holdings_full if item["symbol"].upper() in {"BTC", "MSTR", "IBIT"}})
     daily_change = round(sum(float(row.daily_pnl) for row in latest_snapshots), 2)
     previous_nav = nav - daily_change
+    unrealized_pnl, _positions = _unrealized_positions(db, user_id, accounts, latest_snapshots)
     data_as_of = min((row.captured_at for row in latest_snapshots), default=None)
     account_summaries = [
         {
@@ -1459,6 +1516,7 @@ def portfolio_context(db: Session, user_id: str, *, detailed: bool = False) -> d
         "total_nav": round(nav, 2) if latest_snapshots else None,
         "daily_change": daily_change if latest_snapshots else None,
         "daily_change_pct": round(daily_change / previous_nav * 100, 4) if latest_snapshots and previous_nav > 0 else None,
+        "unrealized_pnl": unrealized_pnl if latest_snapshots else None,
         "top_holdings": holdings,
         "holding_count": len(holdings_full),
         "concentration_hhi": round(concentration, 6) if holdings else None,

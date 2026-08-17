@@ -236,13 +236,26 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
           <p className="text-4xl font-semibold tracking-normal">{portfolio.connected ? money(portfolio.nav) : "--"}</p>
           {portfolio.connected && (dailyChange !== 0 || dailyChangePct !== null && dailyChangePct !== undefined) ? <p className={`pb-1 text-sm font-medium ${dailyChange >= 0 ? "text-status-positive" : "text-status-negative"}`}>{signedMoney(dailyChange)} ({pct(dailyChangePct)}) · 24h</p> : null}
         </div>
-        <div className="mt-3 flex flex-wrap gap-5 text-xs text-text-pg-muted"><span>{zh ? "可用资金" : "Available"}: {portfolio.connected ? money(portfolio.available_cash) : "--"}</span><span>{holdings.length} {zh ? "种资产" : "assets"} · {portfolio.connections.length} {zh ? "个账户" : "accounts"}</span>{portfolio.data_as_of ? <span>{zh ? "数据截至" : "As of"}: {new Date(portfolio.data_as_of).toLocaleString(locale)}</span> : null}</div>
+        <div className="mt-3 flex flex-wrap gap-5 text-xs text-text-pg-muted"><span>{zh ? "可用资金" : "Available"}: {portfolio.connected ? money(portfolio.available_cash) : "--"}</span>{portfolio.unrealized_pnl !== undefined && portfolio.unrealized_pnl !== null ? <span className={portfolio.unrealized_pnl >= 0 ? "text-status-positive" : "text-status-negative"}>{zh ? "未实现盈亏" : "Unrealized PnL"}: {portfolio.unrealized_pnl >= 0 ? "+" : ""}{money(portfolio.unrealized_pnl)}</span> : null}<span>{holdings.length} {zh ? "种资产" : "assets"} · {portfolio.connections.length} {zh ? "个账户" : "accounts"}</span>{portfolio.data_as_of ? <span>{zh ? "数据截至" : "As of"}: {new Date(portfolio.data_as_of).toLocaleString(locale)}</span> : null}</div>
         <div className="mt-5 flex gap-1">{(["1D", "1W", "1M", "ALL"] as const).map((item) => <button key={item} type="button" onClick={() => setRange(item)} className={`h-7 min-w-11 px-2 font-mono text-[10px] ${range === item ? "bg-text-pg text-bg-app" : "text-text-pg-dim hover:bg-bg-panel-muted"}`}>{item}</button>)}</div>
       </div>
       {chartData.length > 1 ? <NavHistoryChart data={chartData} /> : <div className="grid h-56 place-items-center border-t border-border-pg text-sm text-text-pg-muted">{portfolio.nav_history.length > 1 ? (zh ? "该时间范围内暂无足够快照" : "Not enough snapshots in this range") : (zh ? "至少同步两次后显示真实净值曲线" : "The real NAV curve appears after at least two syncs")}</div>}
     </ResearchCard>
 
     {portfolio.connected && portfolio.stale ? <StaleDataBanner stale updatedAt={portfolio.data_as_of} locale={locale} onRefresh={() => void syncAll()} /> : null}
+
+    {(portfolio.positions?.length ?? 0) > 0 ? <ResearchCard className="overflow-hidden p-0">
+      <div className="border-b border-border-pg p-5">
+        <div className="text-xs font-semibold uppercase text-text-pg-muted">{zh ? "持仓标记" : "Position marks"}</div>
+        <h2 className="mt-2 text-lg font-semibold">{zh ? "逐仓标记价格与未实现盈亏" : "Per-position mark prices and unrealized PnL"}</h2>
+      </div>
+      <div className="max-h-72 overflow-x-auto overflow-y-auto">
+        <table className="w-full min-w-[640px] text-xs">
+          <thead><tr className="border-b border-border-pg text-left text-[10px] uppercase text-text-pg-dim"><th className="px-4 py-3 font-medium">{zh ? "资产" : "Asset"}</th><th className="px-3 py-3 font-medium">{zh ? "场所" : "Venue"}</th><th className="px-3 py-3 font-medium">{zh ? "方向" : "Side"}</th><th className="px-3 py-3 text-right font-medium">{zh ? "数量" : "Qty"}</th><th className="px-3 py-3 text-right font-medium">{zh ? "标记价" : "Mark"}</th><th className="px-4 py-3 text-right font-medium">{zh ? "未实现盈亏" : "Unrealized"}</th></tr></thead>
+          <tbody className="divide-y divide-border-pg">{portfolio.positions!.map((position) => <tr key={`${position.venue}-${position.symbol}`}><td className="px-4 py-3 font-medium">{position.symbol}</td><td className="px-3 py-3 text-text-pg-muted">{position.venue}</td><td className="px-3 py-3">{position.side}</td><td className="px-3 py-3 text-right">{quantity(position.quantity)}</td><td className="px-3 py-3 text-right">{money(position.mark_price)}</td><td className={`px-4 py-3 text-right font-medium ${position.unrealized_pnl >= 0 ? "text-status-positive" : "text-status-negative"}`}>{position.unrealized_pnl >= 0 ? "+" : ""}{money(position.unrealized_pnl)}</td></tr>)}</tbody>
+        </table>
+      </div>
+    </ResearchCard> : null}
 
     <ResearchCard className="overflow-hidden p-0">
       <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border-pg p-5">
