@@ -9,7 +9,7 @@ type Column<T> = {
 
 export function PGTable<T>({ columns, rows, minWidth = 720, empty }: { columns: Column<T>[]; rows: T[]; minWidth?: number; empty?: ReactNode }) {
   return (
-    <div className="overflow-x-auto">
+    <div className="max-h-[28rem] overflow-auto">
       <table className="w-full text-sm" style={{ minWidth }}>
         <thead>
           <tr className="border-y border-border-pg text-left text-xs text-text-pg-muted rounded-lg">

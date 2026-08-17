@@ -109,10 +109,11 @@ export default async function BillingPage({ params }: { params: { locale: Locale
           </ResearchCard>
         ))}
       </div>
-      <p className="border border-border-pg bg-bg-panel-muted p-3 text-xs text-text-pg-muted rounded-lg">{copy.noPerformancePromise}</p>
       <ResearchCard>
         <h2 className="mb-3 font-semibold">{copy.summary.usageHistory}</h2>
-        <PGTable columns={[{ key: "action", header: copy.usageTable.action, render: (item: typeof credits.usage_history[number]) => item.action }, { key: "delta", header: copy.usageTable.delta, render: (item: typeof credits.usage_history[number]) => <span className={item.credits_delta > 0 ? "text-status-positive" : "text-status-negative"}>{item.credits_delta}</span> }, { key: "balance", header: copy.usageTable.balanceAfter, render: (item: typeof credits.usage_history[number]) => item.balance_after }, { key: "created", header: copy.usageTable.created, render: (item: typeof credits.usage_history[number]) => formatDateTime(locale, item.created_at) }]} rows={credits.usage_history} />
+        <div className="max-h-[26rem] overflow-y-auto rounded-xl">
+          <PGTable columns={[{ key: "action", header: copy.usageTable.action, render: (item: typeof credits.usage_history[number]) => item.action }, { key: "delta", header: copy.usageTable.delta, render: (item: typeof credits.usage_history[number]) => <span className={item.credits_delta > 0 ? "text-status-positive" : "text-status-negative"}>{item.credits_delta}</span> }, { key: "balance", header: copy.usageTable.balanceAfter, render: (item: typeof credits.usage_history[number]) => item.balance_after }, { key: "created", header: copy.usageTable.created, render: (item: typeof credits.usage_history[number]) => formatDateTime(locale, item.created_at) }]} rows={credits.usage_history} />
+        </div>
       </ResearchCard>
     </div>
   );

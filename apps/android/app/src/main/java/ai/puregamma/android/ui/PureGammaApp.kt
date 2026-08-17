@@ -1,6 +1,7 @@
 package ai.puregamma.android.ui
 
 import android.content.res.Configuration
+import android.graphics.BitmapFactory
 import android.net.Uri
 import android.app.Activity
 import androidx.compose.foundation.BorderStroke
@@ -34,9 +35,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
@@ -52,6 +55,9 @@ import ai.puregamma.android.*
 import ai.puregamma.android.R
 import ai.puregamma.android.model.*
 import ai.puregamma.android.ui.component.NavHistoryChart
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.withContext
+import java.net.URL
 import java.text.NumberFormat
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -839,6 +845,34 @@ private fun AutopilotBlock(state: LoadState<Autopilot>, run: () -> Unit) {
     }
 }
 
+/**
+ * Google profile avatar with an initials fallback. Loads on IO; unknown or
+ * unreachable URLs degrade to the initial — never a crash.
+ */
+@Composable
+private fun AccountAvatar(url: String?, name: String) {
+    var avatar by remember(url) { mutableStateOf<ImageBitmap?>(null) }
+    LaunchedEffect(url) {
+        if (url.isNullOrBlank()) return@LaunchedEffect
+        avatar = withContext(Dispatchers.IO) {
+            runCatching {
+                URL(url).openStream().use { stream ->
+                    val bytes = stream.readBytes()
+                    BitmapFactory.decodeByteArray(bytes, 0, bytes.size)?.asImageBitmap()
+                }
+            }.getOrNull()
+        }
+    }
+    Box(Modifier.size(56.dp).clip(CircleShape).background(MaterialTheme.colorScheme.surfaceVariant), contentAlignment = Alignment.Center) {
+        val image = avatar
+        if (image != null) {
+            Image(image, contentDescription = name, modifier = Modifier.fillMaxSize(), contentScale = ContentScale.Crop)
+        } else {
+            Text(name.firstOrNull()?.uppercase() ?: "?", style = MaterialTheme.typography.titleLarge, color = MaterialTheme.colorScheme.primary)
+        }
+    }
+}
+
 @Composable
 private fun AccountScreen(model: AppViewModel) {
     val user = (model.session as? SessionState.SignedIn)?.user ?: return
@@ -846,10 +880,13 @@ private fun AccountScreen(model: AppViewModel) {
     LazyColumn(Modifier.fillMaxSize()) {
         item { ScreenHeader(stringResource(R.string.account), "SECURITY / PREFERENCES") }
         item {
-            Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                Text(user.name, style = MaterialTheme.typography.headlineSmall)
-                Text(user.email, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                Text("${tierOrPlanLabel(user.membershipTier, user.plan).uppercase()} / ${user.credits} CREDITS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+            Row(Modifier.fillMaxWidth().padding(16.dp), verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                AccountAvatar(user.avatarUrl, user.name)
+                Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                    Text(user.name, style = MaterialTheme.typography.headlineSmall)
+                    Text(user.email, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("${tierOrPlanLabel(user.membershipTier, user.plan).uppercase()} / ${user.credits} CREDITS", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                }
             }
         }
         item { SectionTitle("01", stringResource(R.string.language), null) }

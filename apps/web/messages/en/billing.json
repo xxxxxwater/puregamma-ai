@@ -108,7 +108,6 @@
     "Bloomberg adapter",
     "Private deployment"
   ],
-  "noPerformancePromise": "Subscriptions provide research tools and workflows, not guaranteed investment performance or outcomes.",
   "usageTable": {
     "action": "Action",
     "delta": "Delta",
