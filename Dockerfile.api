@@ -7,6 +7,9 @@ FROM python:3.12-slim
 # (set INSTALL_DOCKER_CLI=false for the api service build).
 ARG DOCKER_CLI_VERSION=27.5.1
 ARG INSTALL_DOCKER_CLI=true
+# Operator-selectable PyPI mirror (e.g. https://mirrors.aliyun.com/pypi/simple/)
+# for CN/HK deployments; defaults to the official index.
+ARG PIP_INDEX_URL=https://pypi.org/simple
 RUN if [ "$INSTALL_DOCKER_CLI" = "true" ]; then \
       apt-get update \
       && apt-get install -y --no-install-recommends ca-certificates curl \
@@ -20,7 +23,7 @@ RUN if [ "$INSTALL_DOCKER_CLI" = "true" ]; then \
 
 WORKDIR /app
 COPY apps/api/requirements.txt /app/apps/api/requirements.txt
-RUN pip install --no-cache-dir -r /app/apps/api/requirements.txt
+RUN pip install --no-cache-dir -i "$PIP_INDEX_URL" -r /app/apps/api/requirements.txt
 COPY . /app
 RUN useradd --create-home --uid 10001 puregamma \
     && mkdir -p /var/lib/puregamma/backtests \
