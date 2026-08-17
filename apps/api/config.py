@@ -415,12 +415,12 @@ class Settings:
         os.getenv("NAUTILUS_ALLOW_TRANSFER", "false").lower() == "true"
     )
 
-    # ---- DeepSeek Harness research (additive, default OFF) ----
+    # ---- DeepSeek Harness research (enabled by default; still no network/code) ----
     harness_research_enabled: bool = (
-        os.getenv("HARNESS_RESEARCH_ENABLED", "false").lower() == "true"
+        os.getenv("HARNESS_RESEARCH_ENABLED", "true").lower() == "true"
     )
     harness_research_admin_only: bool = (
-        os.getenv("HARNESS_RESEARCH_ADMIN_ONLY", "true").lower() == "true"
+        os.getenv("HARNESS_RESEARCH_ADMIN_ONLY", "false").lower() == "true"
     )
     harness_research_network_enabled: bool = (
         os.getenv("HARNESS_RESEARCH_NETWORK_ENABLED", "false").lower() == "true"
@@ -499,9 +499,9 @@ class Settings:
         "LIVE_CREDENTIAL_ENCRYPTION_KEY", ""
     )
 
-    # ---- Memory service (additive, default OFF until rolled out) ----
+    # ---- Memory service (enabled by default) ----
     memory_service_enabled: bool = (
-        os.getenv("MEMORY_SERVICE_ENABLED", "false").lower() == "true"
+        os.getenv("MEMORY_SERVICE_ENABLED", "true").lower() == "true"
     )
     memory_auto_accept_low_risk: bool = (
         os.getenv("MEMORY_AUTO_ACCEPT_LOW_RISK", "true").lower() == "true"
