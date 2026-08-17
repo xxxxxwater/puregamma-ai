@@ -87,9 +87,78 @@ def _scheduled_events(db: Session, event_type: str, start: datetime, end: dateti
     )
 
 
+def _earnings_gamma_section(language: str) -> tuple[str, list[str]]:
+    """Top-3 Long Gamma candidates during earnings season (deterministic)."""
+    zh = language == "zh"
+    try:
+        from packages.options.earnings_gamma import get_earnings_candidates
+
+        candidates = get_earnings_candidates("zh" if zh else "en")[:3]
+    except Exception:
+        candidates = []
+    if not candidates:
+        return "", []
+    lines = [
+        "## Long Gamma 候选（财报季 · 推荐 3 个）"
+        if zh
+        else "## Long Gamma candidates (earnings season · top 3)"
+    ]
+    assets: list[str] = []
+    for candidate in candidates:
+        symbol = str(candidate.get("symbol") or "").upper()
+        name = str(candidate.get("name") or symbol)
+        earnings_date = str(candidate.get("earnings_date") or "")
+        score = candidate.get("research_score")
+        rationale = "；".join(str(r) for r in (candidate.get("rationale") or [])[:2])
+        if zh:
+            lines.append(f"- {symbol}（{name}）：财报 {earnings_date}，研究评分 {score}，{rationale}。")
+        else:
+            lines.append(f"- {symbol} ({name}): earnings {earnings_date}, research score {score}, {rationale}.")
+        if symbol:
+            assets.append(symbol)
+    return "\n".join(lines), assets
+
+
+def _long_gamma_crypto_section(language: str) -> str:
+    """BTC + MSTR/STRC premium/discount snapshot for the crypto daily brief."""
+    zh = language == "zh"
+    try:
+        from apps.api.services import mstr_btc_service
+
+        dashboard = mstr_btc_service.get_dashboard("zh" if zh else "en")
+        metrics = dashboard.get("metrics") or {}
+    except Exception:
+        metrics = {}
+
+    def fmt(metric_id: str) -> str | None:
+        metric = metrics.get(metric_id) or {}
+        if not metric or metric.get("status") == "unavailable":
+            return None
+        return metric.get("formattedValue")
+
+    premium = fmt("premium_discount")
+    btc_nav = fmt("btc_nav")
+    mnav = fmt("mnav")
+    lines = [
+        "## Long Gamma 候选 — BTC / MSTR 折价溢价" if zh else "## Long Gamma candidates — BTC / MSTR premium/discount"
+    ]
+    if premium:
+        lines.append(f"- MSTR 相对 BTC 净资产溢价/折价：{premium}。" if zh else f"- MSTR premium/discount to BTC NAV: {premium}.")
+    if mnav:
+        lines.append(f"- mNAV：{mnav}。" if zh else f"- mNAV: {mnav}.")
+    if btc_nav:
+        lines.append(f"- BTC 储备价值：{btc_nav}。" if zh else f"- BTC reserve value: {btc_nav}.")
+    if not (premium or btc_nav):
+        lines.append("数据源暂不可用，不提供估算数字。" if zh else "Data source unavailable; no estimated figures are shown.")
+    return "\n".join(lines)
+
+
 def _render_crypto_daily(db: Session, user_id: str, language: str, local_date: date) -> dict:
     content = generate_daily_brief(db, user_id, language)
     intelligence = latest_or_create_intelligence(db)
+    long_gamma = _long_gamma_crypto_section(language)
+    if long_gamma and long_gamma not in content:
+        content = f"{content.rstrip()}\n\n{long_gamma}"
     disclaimer = disclaimer_for(language)
     if disclaimer not in content:
         content = f"{content.rstrip()}\n\n{disclaimer}"
@@ -116,6 +185,9 @@ def _render_us_daily(db: Session, user_id: str, language: str, local_date: date)
             lines.append(f"- {event.title}")
     else:
         lines.append("今明两天没有已确认的财报记录。" if zh else "No confirmed earnings recorded for today or tomorrow.")
+    gamma_section, gamma_assets = _earnings_gamma_section(language)
+    if gamma_section:
+        lines.extend(["", gamma_section])
     lines.append("")
     lines.append("## 宏观日程（未来 3 天）" if zh else "## Macro schedule (next 3 days)")
     if macro:
@@ -143,7 +215,7 @@ def _render_us_daily(db: Session, user_id: str, language: str, local_date: date)
         else f"As of {as_of} (UTC). Sources: Nasdaq earnings calendar and the rule-based macro calendar via the research event pipeline; no quotes are fabricated when no source is configured."
     )
     lines.extend(["", disclaimer_for(language)])
-    assets = sorted({str(asset).upper() for event in earnings for asset in (event.assets or [])})
+    assets = sorted({str(asset).upper() for event in earnings for asset in (event.assets or [])} | {asset for asset in gamma_assets if asset})
     return {"title": title, "content_markdown": "\n".join(lines), "assets": assets, "source_intelligence_id": None}
 
 

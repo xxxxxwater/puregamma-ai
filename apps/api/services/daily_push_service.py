@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.daily_brief_service import gather_context
+from apps.api.services import research_event_service, mstr_btc_service
 from packages.database.models import DailyBriefPreference, NormalizedDocument, NotificationDelivery, Report, Signal, User, UserPreference
 from packages.reports.templates import disclaimer_for
 
@@ -142,6 +143,29 @@ def render_daily_brief_delivery(db: Session, preference: DailyBriefPreference, r
         signals = db.query(Signal).order_by(Signal.created_at.desc()).limit(3).all()
         lines.extend(["", "信号" if zh else "Signals"])
         lines.extend(f"{row.asset} {row.direction} · {row.thesis[:120]}" for row in signals) if signals else lines.append("暂无新信号。" if zh else "No new signals.")
+    if preference.include_market:
+        lines.extend(["", "Long Gamma 候选" if zh else "Long Gamma candidates"])
+        try:
+            opportunities = research_event_service.get_opportunities(db, user, preference.locale)
+            earnings = opportunities.get("earnings") or []
+            long_gamma = opportunities.get("long_gamma") or []
+            if zh:
+                lines.append("美股财报季推荐 3 个：" + "、".join((item.get("title") or item.get("asset") or "未命名")[:60] for item in earnings[:3]) if earnings else "美股财报候选暂不可用。")
+                lines.extend(f"{item.get('instrument') or item.get('currency')}: {item.get('rationale') or '待研究'}" for item in long_gamma[:3])
+            else:
+                lines.append("US earnings-season top 3: " + ", ".join((item.get("title") or item.get("asset") or "Unnamed")[:60] for item in earnings[:3]) if earnings else "US earnings candidates unavailable.")
+                lines.extend(f"{item.get('instrument') or item.get('currency')}: {item.get('rationale') or 'Needs research'}" for item in long_gamma[:3])
+        except Exception:
+            lines.append("候选数据暂不可用。" if zh else "Candidate data is temporarily unavailable.")
+        try:
+            dashboard = mstr_btc_service.get_dashboard(preference.locale)
+            metrics = {item.get("id"): item for item in dashboard.get("metrics") or []}
+            premium = metrics.get("premium_discount", {}).get("formatted")
+            btc = metrics.get("btc_price", {}).get("formatted")
+            mstr = metrics.get("mstr_price", {}).get("formatted")
+            lines.append((f"BTC / MSTR + STRC：BTC {btc or '—'}，MSTR {mstr or '—'}，MSTR 相对 NAV 溢价/折价 {premium or '—'}。" if zh else f"BTC / MSTR + STRC: BTC {btc or '—'}, MSTR {mstr or '—'}, MSTR NAV premium/discount {premium or '—'}."))
+        except Exception:
+            lines.append("BTC、MSTR + STRC 溢价/折价数据暂不可用。" if zh else "BTC and MSTR + STRC premium/discount data is temporarily unavailable.")
     if preference.include_risk:
         portfolio = context["portfolio"]
         notes = []
