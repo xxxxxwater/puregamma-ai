@@ -5,10 +5,10 @@
 providers:
   moonshot:
     display_name: Moonshot AI
-    # Global official Kimi endpoint. A China-region Moonshot account must use
-    # a matching region-specific catalog and CNY prices instead of this USD
-    # catalog.
-    base_url: https://api.moonshot.ai/v1
+    # China-region Moonshot account: official Kimi endpoint is api.moonshot.cn.
+    # Official CNY prices are converted to the USD ledger at the operator-
+    # approved rate (6.6 CNY/USD).
+    base_url: https://api.moonshot.cn/v1
     health_path: models
     models:
       - public_id: kimi-k3-max
@@ -30,14 +30,14 @@ providers:
           reasoning_priced_as: output
         official_prices:
           input:
-            usd: "3.00"
+            usd: "3.0303"
             unit: per_million_tokens
             description: cache-miss input
           output:
-            usd: "15.00"
+            usd: "15.1515"
             unit: per_million_tokens
           cache:
-            usd: "0.30"
+            usd: "0.3030"
             unit: per_million_tokens
             description: cache-hit input
         source_reference: https://platform.kimi.ai/docs/pricing/chat-k3
