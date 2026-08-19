@@ -39,6 +39,14 @@ def mobile_capabilities(
 ) -> dict:
     settings = get_settings()
     static_gate = evaluate_static_gate()
+    # The admin-only flag must be reflected here too: when set, non-admin
+    # users see the create/retry entrances closed (the creation guard rejects
+    # them with HARNESS_ADMIN_ONLY), never an open door that 403s later.
+    harness_open_for_user = (
+        settings.harness_research_enabled
+        and RESEARCH_RUNS_CONTRACT_IMPLEMENTED
+        and (not settings.harness_research_admin_only or user.role == "admin")
+    )
     return {
         "harness_research_enabled": settings.harness_research_enabled,
         "memory_service_enabled": settings.memory_service_enabled,
@@ -48,9 +56,7 @@ def mobile_capabilities(
         # Information only: the mobile clients never render a LIVE entry
         # regardless of this value (hard client-side policy).
         "live_trading_enabled": static_gate.enabled,
-        "user_can_start_research": (
-            settings.harness_research_enabled and RESEARCH_RUNS_CONTRACT_IMPLEMENTED
-        ),
+        "user_can_start_research": harness_open_for_user,
         "user_can_manage_memory": (
             settings.memory_service_enabled and MEMORY_CONTRACT_IMPLEMENTED
         ),
@@ -58,8 +64,6 @@ def mobile_capabilities(
         "user_can_pause_mandates": True,
         "app_min_version": APP_MIN_VERSION,
         "maintenance_message": None,
-        "harness_retry_enabled": (
-            settings.harness_research_enabled and RESEARCH_RUNS_CONTRACT_IMPLEMENTED
-        ),
+        "harness_retry_enabled": harness_open_for_user,
         "membership_tier": canonical_tier(user.membership_tier),
     }

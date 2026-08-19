@@ -52,6 +52,22 @@ class TestCapabilities:
         assert payload["harness_research_enabled"] is True
         assert payload["memory_service_enabled"] is True
 
+    def test_admin_only_flag_reflected_in_capabilities(self, api_client, pro_user, admin_user, monkeypatch):
+        from types import SimpleNamespace
+
+        from apps.api.config import get_settings as real_get_settings
+
+        real = real_get_settings()
+        admin_only = SimpleNamespace(**{**real.__dict__, "harness_research_admin_only": True})
+        monkeypatch.setattr("apps.api.routers.mobile.get_settings", lambda: admin_only)
+
+        normal_payload = api_client.get("/api/mobile/capabilities", headers=_bearer(pro_user)).json()
+        assert normal_payload["user_can_start_research"] is False
+        assert normal_payload["harness_retry_enabled"] is False
+
+        admin_payload = api_client.get("/api/mobile/capabilities", headers=_bearer(admin_user)).json()
+        assert admin_payload["user_can_start_research"] is True
+
 
 class TestResearchRuns:
     def test_create_list_and_ownership(self, api_client, pro_user, normal_user):
@@ -181,6 +197,47 @@ class TestHarnessPipeline:
         assert result["status"] == "degraded"
         assert result["is_degraded"] is True
 
+    def test_pipeline_degraded_when_no_evidence(self, api_client, pro_user, db, monkeypatch):
+        run = _create_run(api_client, pro_user).json()["run"]
+        monkeypatch.setattr(harness_run_service, "_gather_evidence", lambda db, row: [])
+        with patch("packages.gateway.service.execute_chat", return_value=self._fake_gateway()):
+            result = harness_run_service.execute_queued_run(db, run["id"])
+        assert result["status"] == "degraded"
+        assert result["is_degraded"] is True
+        row = db.get(HarnessResearchRun, run["id"])
+        assert (row.usage_json or {}).get("degraded_reason")
+        artifact = db.query(ResearchArtifact).filter_by(research_run_id=run["id"]).first()
+        assert artifact.status == "degraded"
+
+    def test_evidence_respects_data_sources(self, api_client, pro_user, db, monkeypatch):
+        from types import SimpleNamespace
+
+        from apps.api.services import research_event_service
+        from packages.database.models import HarnessResearchRun, MarketEvent, utcnow as model_utcnow
+
+        run = _create_run(api_client, pro_user, sources=["earnings"]).json()["run"]
+        snapshot = SimpleNamespace(id="snap-filter-test")
+        monkeypatch.setattr(research_event_service, "build_research_events", lambda db, **kwargs: snapshot)
+        row = db.get(HarnessResearchRun, run["id"])
+        for event_type, title in [("earnings_confirmed", "E1"), ("news", "N1"), ("price_move", "P1")]:
+            db.add(
+                MarketEvent(
+                    event_type=event_type,
+                    title=title,
+                    summary=title,
+                    source_provider="test",
+                    collected_at=model_utcnow(),
+                    data_cutoff_at=model_utcnow(),
+                    fingerprint=f"fp-{event_type}",
+                    confidence=0.9,
+                    research_snapshot_id="snap-filter-test",
+                    status="active",
+                )
+            )
+        db.commit()
+        items = harness_run_service._gather_evidence(db, row)
+        assert {item["source_scope"] for item in items} == {"earnings_confirmed"}
+
     def test_pipeline_failed_refunds_credits(self, api_client, pro_user, db, monkeypatch):
         run = _create_run(api_client, pro_user).json()["run"]
         monkeypatch.setattr(harness_run_service, "_gather_evidence", lambda db, row: [])
@@ -196,7 +253,10 @@ class TestMemoryContract:
     def test_settings_roundtrip(self, api_client, pro_user, db):
         payload = api_client.get("/api/memory/settings", headers=_bearer(pro_user)).json()["settings"]
         assert payload["conversation_summary_enabled"] is True
-        assert payload["consent_required"] is False
+        # Consent is REQUIRED until the user explicitly grants it: a fresh
+        # account must never have memory injected or enabled silently.
+        assert payload["consent_required"] is True
+        # Disabling is always allowed without consent (fail-closed direction).
         patched = api_client.patch(
             "/api/memory/settings",
             json={"research_memory_enabled": False, "short_term_enabled": False},
@@ -206,6 +266,34 @@ class TestMemoryContract:
         updated = patched.json()["settings"]
         assert updated["research_memory_enabled"] is False
         assert updated["short_term_enabled"] is False
+        assert updated["consent_required"] is True
+
+    def test_enabling_requires_consent_then_records_it(self, api_client, pro_user):
+        denied = api_client.patch(
+            "/api/memory/settings",
+            json={"research_memory_enabled": True},
+            headers=_bearer(pro_user),
+        )
+        assert denied.status_code == 403
+        assert denied.json()["detail"]["code"] == "CONSENT_REQUIRED"
+
+        granted = api_client.patch(
+            "/api/memory/settings",
+            json={"research_memory_enabled": True, "consent_granted": True},
+            headers=_bearer(pro_user),
+        )
+        assert granted.status_code == 200
+        settings = granted.json()["settings"]
+        assert settings["consent_required"] is False
+        assert settings["research_memory_enabled"] is True
+        # Once consented, enabling without the flag keeps working.
+        again = api_client.patch(
+            "/api/memory/settings",
+            json={"portfolio_memory_enabled": True},
+            headers=_bearer(pro_user),
+        )
+        assert again.status_code == 200
+        assert again.json()["settings"]["portfolio_memory_enabled"] is True
 
     def test_items_approve_delete_clear(self, api_client, pro_user, db):
         service = MemoryService(auto_accept_low_risk=False)
@@ -225,6 +313,9 @@ class TestMemoryContract:
         approved = api_client.post(f"/api/memory/proposals/{proposal.id}/approve", headers=_bearer(pro_user))
         assert approved.status_code == 200
         assert approved.json()["proposal"]["status"] == "user_approved"
+        # Explicit approval records memory consent.
+        settings_after = api_client.get("/api/memory/settings", headers=_bearer(pro_user)).json()["settings"]
+        assert settings_after["consent_required"] is False
 
         items = api_client.get("/api/memory/items?scope=short_term", headers=_bearer(pro_user)).json()
         assert items["total"] == 1

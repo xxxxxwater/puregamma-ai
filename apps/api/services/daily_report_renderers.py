@@ -126,7 +126,14 @@ def _long_gamma_crypto_section(language: str) -> str:
         from apps.api.services import mstr_btc_service
 
         dashboard = mstr_btc_service.get_dashboard("zh" if zh else "en")
-        metrics = dashboard.get("metrics") or {}
+        raw_metrics = dashboard.get("metrics") or []
+        # get_dashboard returns metrics as a LIST of {"id", "formattedValue",
+        # "status", ...}; index it by id so unavailable entries degrade to None.
+        metrics = {
+            str(item.get("id")): item
+            for item in raw_metrics
+            if isinstance(item, dict) and item.get("id")
+        }
     except Exception:
         metrics = {}
 

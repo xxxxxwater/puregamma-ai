@@ -43,6 +43,14 @@ HARNESS_SKILL_ALLOWLIST: frozenset[str] = frozenset({"harness_deep_research"})
 HARNESS_DATA_SOURCES: frozenset[str] = frozenset({"market", "news", "options", "earnings"})
 RETRYABLE_STATUSES: frozenset[str] = frozenset({"failed", "canceled", "timed_out"})
 
+# data_source -> research event types it is allowed to freeze into evidence.
+DATA_SOURCE_EVENT_TYPES: dict[str, frozenset[str]] = {
+    "market": frozenset({"price_move"}),
+    "news": frozenset({"news"}),
+    "earnings": frozenset({"earnings_confirmed"}),
+    "options": frozenset({"options_regime"}),
+}
+
 MAX_EVIDENCE_ITEMS = 12
 MAX_EVIDENCE_EXCERPT = 300
 MAX_GOAL_CHARS = 4000
@@ -399,13 +407,29 @@ def _settle_run(db: Session, row: HarnessResearchRun, actual: int) -> None:
 
 
 def _gather_evidence(db: Session, row: HarnessResearchRun) -> list[dict[str, Any]]:
-    """Freeze real market research events as the run's evidence bundle."""
+    """Freeze real market research events as the run's evidence bundle.
+
+    The requested ``data_sources`` narrow which event types may enter the
+    bundle (empty means all supported types). Macro-scheduled events are
+    calendar items, not research evidence, and are never included.
+    """
     from apps.api.services.research_event_service import build_research_events
+
+    sources = (row.usage_json or {}).get("data_sources") or list(HARNESS_DATA_SOURCES)
+    allowed_types: set[str] = set()
+    for source in sources:
+        allowed_types |= DATA_SOURCE_EVENT_TYPES.get(str(source), set())
+    if not allowed_types:
+        allowed_types = set().union(*DATA_SOURCE_EVENT_TYPES.values())
 
     snapshot = build_research_events(db, kind="harness", window_hours=24)
     events = (
         db.query(MarketEvent)
-        .filter(MarketEvent.research_snapshot_id == snapshot.id, MarketEvent.status == "active")
+        .filter(
+            MarketEvent.research_snapshot_id == snapshot.id,
+            MarketEvent.status == "active",
+            MarketEvent.event_type.in_(allowed_types),
+        )
         .order_by(MarketEvent.confidence.desc(), MarketEvent.collected_at.desc())
         .limit(MAX_EVIDENCE_ITEMS)
         .all()
@@ -528,7 +552,18 @@ def _execute_run(db: Session, run: HarnessResearchRun) -> dict[str, Any]:
                     "source_scope": item["source_scope"],
                 }
             )
-    final_status = "completed" if (matched > 0 or not evidence_items) else "degraded"
+    # Honest completion: a run is only "completed" when it had evidence AND
+    # the model actually cited at least one item. No evidence or no citations
+    # => degraded, never silently verified.
+    if not evidence_items:
+        final_status = "degraded"
+        degraded_reason = "no evidence could be gathered for the requested data sources"
+    elif matched == 0:
+        final_status = "degraded"
+        degraded_reason = "model produced no verifiable citations"
+    else:
+        final_status = "completed"
+        degraded_reason = None
     transition_run(
         db,
         run,
@@ -558,6 +593,7 @@ def _execute_run(db: Session, run: HarnessResearchRun) -> dict[str, Any]:
         validation_result_json={
             "citations_matched": matched,
             "citations_total": len(evidence_items),
+            "degraded_reason": degraded_reason,
             "route_provider": getattr(route, "provider", None).id if getattr(route, "provider", None) else None,
         },
     )
@@ -571,6 +607,8 @@ def _execute_run(db: Session, run: HarnessResearchRun) -> dict[str, Any]:
     usage["summary"] = summary
     usage["input_tokens"] = input_tokens
     usage["output_tokens"] = output_tokens
+    if degraded_reason:
+        usage["degraded_reason"] = degraded_reason
     run.usage_json = usage
     from apps.api.services.credit_service import quote_task
 

@@ -105,6 +105,9 @@ def get_settings_view(
     secretary = _scope_enabled(db, user.id, "secretary")
     research = _scope_enabled(db, user.id, "research")
     portfolio = _scope_enabled(db, user.id, "portfolio")
+    consent_required = bool(
+        settings.memory_service_enabled and user.memory_consent_granted_at is None
+    )
     return {
         "settings": {
             "short_term_enabled": chat and secretary,
@@ -112,7 +115,7 @@ def get_settings_view(
             "conversation_summary_enabled": chat,
             "research_memory_enabled": research,
             "portfolio_memory_enabled": portfolio,
-            "consent_required": False,
+            "consent_required": consent_required,
             "retention_days": settings.memory_summary_ttl_days,
         }
     }
@@ -138,6 +141,17 @@ def patch_settings(
     service = _service()
     requested = payload.model_dump(exclude_none=True)
     requested.pop("consent_granted", None)
+
+    consent_missing = user.memory_consent_granted_at is None
+    enabling = any(value is True for value in requested.values() if isinstance(value, bool))
+    if consent_missing and enabling and not payload.consent_granted:
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "CONSENT_REQUIRED", "message": "Memory personalization requires explicit consent"},
+        )
+    if payload.consent_granted and consent_missing:
+        user.memory_consent_granted_at = utcnow()
+
     for key, enabled in requested.items():
         if not isinstance(enabled, bool):
             continue
@@ -145,6 +159,7 @@ def patch_settings(
             if scope in WRITE_DISABLED_NAMESPACES:
                 continue
             service.set_scope_enabled(db, user_id=user.id, scope=scope, enabled=enabled)
+    db.commit()
     return get_settings_view(db, user)
 
 
@@ -188,6 +203,11 @@ def approve_proposal(
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except ValueError as exc:
         raise HTTPException(status_code=409, detail=str(exc)) from exc
+    # Approving a proposal is an explicit, informed act: it also records
+    # memory consent so the Agent may keep personalizing this user.
+    if user.memory_consent_granted_at is None:
+        user.memory_consent_granted_at = utcnow()
+        db.commit()
     proposal = (
         db.query(MemoryProposal)
         .filter(MemoryProposal.id == proposal_id, MemoryProposal.user_id == user.id)

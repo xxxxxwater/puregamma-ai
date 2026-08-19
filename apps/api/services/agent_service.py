@@ -559,32 +559,35 @@ def _context_messages(db: Session, conversation: AgentConversation, current_user
         messages.append(ChatMessage(role="system", content=f"Earlier conversation summary:\n{conversation.summary[:4000]}"))
     # User-owned memory (consented scopes only): personalization context that
     # never authorizes or influences trading decisions. Injection is best-effort
-    # and can never break the conversation pipeline.
+    # and can never break the conversation pipeline. Hard gate: no explicit
+    # memory consent means NO memory is ever injected, regardless of flags.
     if settings.memory_service_enabled:
         try:
-            from packages.memory.service import MemoryService
+            consenting_user = db.get(User, conversation.user_id)
+            if consenting_user is not None and consenting_user.memory_consent_granted_at is not None:
+                from packages.memory.service import MemoryService
 
-            memories = MemoryService(
-                auto_accept_low_risk=settings.memory_auto_accept_low_risk,
-                summary_ttl_days=settings.memory_summary_ttl_days,
-            ).retrieve_for_context(
-                db,
-                user_id=conversation.user_id,
-                namespaces=("chat", "research"),
-                limit=6,
-            )
-            if memories:
-                memory_lines = "\n".join(f"- {memory.content[:300]}" for memory in memories)
-                messages.append(
-                    ChatMessage(
-                        role="system",
-                        content=(
-                            "User-owned memory (consented; personalization context only, "
-                            "never trading authorization):\n"
-                            f"{memory_lines[:4000]}"
-                        ),
-                    )
+                memories = MemoryService(
+                    auto_accept_low_risk=settings.memory_auto_accept_low_risk,
+                    summary_ttl_days=settings.memory_summary_ttl_days,
+                ).retrieve_for_context(
+                    db,
+                    user_id=conversation.user_id,
+                    namespaces=("chat", "research"),
+                    limit=6,
                 )
+                if memories:
+                    memory_lines = "\n".join(f"- {memory.content[:300]}" for memory in memories)
+                    messages.append(
+                        ChatMessage(
+                            role="system",
+                            content=(
+                                "User-owned memory (consented; personalization context only, "
+                                "never trading authorization):\n"
+                                f"{memory_lines[:4000]}"
+                            ),
+                        )
+                    )
         except Exception:  # noqa: BLE001 - memory must never break chat
             logger.exception("memory_context_injection_failed")
     total = 0
