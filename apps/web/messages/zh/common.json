@@ -11,13 +11,13 @@
   "nav": {
     "tagline": "面向个人投资者的 Beta、Alpha 与 Long Gamma AI 决策助手。",
     "groups": {
-      "research": "研究",
+      "research": "Harness",
       "portfolio": "组合",
       "infrastructure": "基础设施",
       "company": "公司"
     },
     "dashboard": "控制台",
-    "research": "研究",
+    "research": "Harness",
     "reports": "报告",
     "options": "期权",
     "backtest": "回测",

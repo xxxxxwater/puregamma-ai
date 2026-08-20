@@ -11,13 +11,13 @@
   "nav": {
     "tagline": "AI decisions for Beta, Alpha, and Long Gamma.",
     "groups": {
-      "research": "Research",
+      "research": "Harness",
       "portfolio": "Portfolio",
       "infrastructure": "Infrastructure",
       "company": "Company"
     },
     "dashboard": "Dashboard",
-    "research": "Research",
+    "research": "Harness",
     "reports": "Reports",
     "options": "Options",
     "backtest": "Backtest",
