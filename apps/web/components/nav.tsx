@@ -15,6 +15,7 @@ import { t } from "@/lib/translations";
 import type { TranslationKey } from "@/lib/translations";
 import { getMe, AUTH_EXPIRED_EVENT } from "@/lib/api";
 import { publishUserState, USER_STATE_EVENT, type SessionUserState } from "@/lib/user-state";
+import { PluginRuntime } from "@/plugins/core/runtime";
 
 type NavItem = {
   href: string;
@@ -96,19 +97,21 @@ export function AppShell({ children, locale }: { children: ReactNode; locale: Lo
   }, [mobileNavOpen]);
   return (
     <LocaleProvider locale={locale}>
-      <div className="relative min-h-screen">
-        <AuthExpiredRedirector locale={locale} />
+      <PluginRuntime>
+        <div className="relative min-h-screen">
+          <AuthExpiredRedirector locale={locale} />
         <SidebarNav locale={locale} />
         <MobileNavDrawer locale={locale} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
         <div className="lg:pl-72">
           <TopStatusBar locale={locale} onMenuClick={() => setMobileNavOpen(true)} />
 
-          <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
-            {children}
-          </main>
+            <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
+              {children}
+            </main>
+          </div>
         </div>
-      </div>
+      </PluginRuntime>
     </LocaleProvider>
   );
 }
