@@ -11,8 +11,7 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from apps.api.services.entitlement_service import get_user_entitlement
 from packages.database.models import DailyBriefPreference, IMessageVerificationChallenge, NotificationDelivery, User, UserPreference, utcnow
-from packages.notifications.imessage.macos_relay_client import MacOSIMessageRelayClient
-from packages.notifications.imessage.mock_provider import MockIMessageProvider
+from packages.notifications.imessage.provider_factory import get_imessage_provider
 
 
 E164 = re.compile(r"^\+[1-9]\d{7,14}$")
@@ -63,7 +62,10 @@ def request_verification(db: Session, user: User, recipient: str) -> dict:
     challenge = IMessageVerificationChallenge(user_id=user.id, recipient=recipient, code_hash=_hash(user.id, recipient, code), expires_at=utcnow() + timedelta(minutes=10))
     db.add(challenge)
     db.flush()
-    provider = MacOSIMessageRelayClient() if settings.imessage_provider == "macos_relay" else MockIMessageProvider()
+    try:
+        provider = get_imessage_provider(settings)
+    except RuntimeError as exc:
+        raise RuntimeError("IMESSAGE_PROVIDER_UNAVAILABLE") from exc
     result = provider.send(recipient, f"PureGamma AI verification code: {code}", f"imessage-verify:{challenge.id}")
     delivery = NotificationDelivery(user_id=user.id, channel="imessage", recipient=recipient, payload={"type": "verification"}, locale=preference.locale, status="sent" if result.ok else "failed_retryable", provider_response={"type": "verification", "status": result.response.get("status")}, idempotency_key=f"imessage-verify:{challenge.id}", attempt_count=1, last_attempt_at=utcnow(), next_retry_at=None if result.ok else utcnow() + timedelta(minutes=1), last_error=None if result.ok else "provider_failed", sent_at=utcnow() if result.ok else None)
     db.add(delivery)

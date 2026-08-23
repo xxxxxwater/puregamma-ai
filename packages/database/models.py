@@ -1047,6 +1047,32 @@ class IMessageInboundEvent(Base, TimestampMixin):
     assistant_message_id = Column(String, ForeignKey("agent_messages.id", ondelete="SET NULL"), nullable=True)
 
 
+class PhotonInboundTask(Base, TimestampMixin):
+    """Persistent, retryable pending event for a Photon inbound iMessage.
+
+    The Photon webhook persists the event and enqueues a Celery task, then
+    returns 2xx immediately; the worker runs the shared agent flow and sends
+    the reply through PhotonIMessageProvider. message_id is the idempotency
+    key: duplicate webhooks can never run the agent twice, double-bill, or
+    double-send the reply."""
+
+    __tablename__ = "photon_inbound_tasks"
+    __table_args__ = (UniqueConstraint("message_id", name="uq_photon_inbound_message_id"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    message_id = Column(String, nullable=False, index=True)  # Photon message.id
+    sender = Column(String, nullable=False)  # operational data, like NotificationDelivery.recipient
+    content = Column(Text, nullable=False)  # inbound text required by the worker
+    provider = Column(String, nullable=False, default="photon")
+    status = Column(String, nullable=False, default="pending", index=True)
+    # pending | processing | sent | no_reply | failed_retryable | failed_permanent
+    attempt_count = Column(Integer, nullable=False, default=0)
+    last_attempt_at = Column(DateTime(timezone=True), nullable=True)
+    next_retry_at = Column(DateTime(timezone=True), nullable=True, index=True)
+    last_error = Column(String, nullable=True)  # safe error code only, never content
+    outbound_delivery_id = Column(String, ForeignKey("notification_deliveries.id", ondelete="SET NULL"), nullable=True)
+
+
 class AgentRun(Base):
     __tablename__ = "agent_runs"
 

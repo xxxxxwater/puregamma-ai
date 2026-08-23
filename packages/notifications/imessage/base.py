@@ -14,3 +14,6 @@ class IMessageProvider(ABC):
 
     def send(self, recipient: str, message: str, idempotency_key: str) -> NotificationResult:
         return self.send_message(recipient, message, idempotency_key)
+
+    def send_media(self, recipient: str, file_bytes: bytes, *, filename: str, kind: str, idempotency_key: str) -> NotificationResult:
+        raise NotImplementedError

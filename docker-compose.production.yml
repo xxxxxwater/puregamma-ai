@@ -105,7 +105,7 @@ services:
       ENABLE_MOCK_AGENT: "false"
       ENABLE_MOCK_MARKET_DATA: "false"
       ENABLE_MOCK_DATA_SOURCES: "false"
-      IMESSAGE_PROVIDER: ${IMESSAGE_PROVIDER:?IMESSAGE_PROVIDER is required; use disabled or macos_relay}
+      IMESSAGE_PROVIDER: ${IMESSAGE_PROVIDER:?IMESSAGE_PROVIDER is required; use disabled, macos_relay or photon}
       STRIPE_SECRET_KEY: ${STRIPE_SECRET_KEY:-}
       STRIPE_WEBHOOK_SECRET: ${STRIPE_WEBHOOK_SECRET:-}
       STRIPE_SUCCESS_URL: https://${APP_DOMAIN}/billing/success

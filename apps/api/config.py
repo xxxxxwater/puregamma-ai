@@ -281,6 +281,21 @@ class Settings:
     imessage_verification_per_user_per_hour: int = int(os.getenv("IMESSAGE_VERIFICATION_PER_USER_PER_HOUR", "3") or 3)
     imessage_verification_per_recipient_per_day: int = int(os.getenv("IMESSAGE_VERIFICATION_PER_RECIPIENT_PER_DAY", "5") or 5)
 
+    # ---- Photon-hosted iMessage (https://photon.codes) --------------------------
+    # A switchable iMessage provider that runs ALONGSIDE the self-hosted macOS
+    # relay; it is never an automatic fallback for it. Select with
+    # IMESSAGE_PROVIDER=photon. See docs/integrations/PHOTON_IMESSAGE.md.
+    photon_api_key: str = os.getenv("PHOTON_API_KEY", "")
+    photon_line_id: str = os.getenv("PHOTON_LINE_ID", "")
+    photon_http_proxy_url: str = os.getenv(
+        "PHOTON_HTTP_PROXY_URL", "https://imessage-swagger.photon.codes"
+    )
+    photon_server_url: str = os.getenv("PHOTON_SERVER_URL", "")
+    photon_webhook_secret: str = os.getenv("PHOTON_WEBHOOK_SECRET", "")
+    photon_request_timeout_seconds: float = float(
+        os.getenv("PHOTON_REQUEST_TIMEOUT_SECONDS", "10") or 10
+    )
+
     market_data_mode: str = os.getenv("MARKET_DATA_MODE", "auto")
     market_snapshot_cache_ttl_seconds: int = int(
         os.getenv("MARKET_SNAPSHOT_CACHE_TTL_SECONDS", "15") or 15
@@ -648,7 +663,26 @@ def validate_production_settings(settings: Settings) -> None:
     if settings.enable_mock_agent or settings.enable_mock_market_data or settings.enable_mock_data_sources:
         errors.append("Mock Agent, market data, and data-source providers must be disabled in production")
     if settings.imessage_provider == "mock":
-        errors.append("IMESSAGE_PROVIDER cannot be mock in production; use disabled or macos_relay")
+        errors.append("IMESSAGE_PROVIDER cannot be mock in production; use disabled, macos_relay or photon")
+    if settings.imessage_provider == "macos_relay" and not settings.imessage_relay_secret:
+        errors.append("IMESSAGE_RELAY_SECRET is required when IMESSAGE_PROVIDER=macos_relay in production")
+    if settings.imessage_provider == "photon":
+        missing_photon = [
+            name
+            for name, value in {
+                "PHOTON_API_KEY": settings.photon_api_key,
+                "PHOTON_LINE_ID": settings.photon_line_id,
+                "PHOTON_SERVER_URL": settings.photon_server_url,
+                "PHOTON_HTTP_PROXY_URL": settings.photon_http_proxy_url,
+                "PHOTON_WEBHOOK_SECRET": settings.photon_webhook_secret,
+            }.items()
+            if not value
+        ]
+        if missing_photon:
+            errors.append(
+                "Required when IMESSAGE_PROVIDER=photon in production: "
+                + ", ".join(missing_photon)
+            )
     if settings.nautilus_execution_mode.lower() not in {"paper", "shadow"}:
         errors.append("NAUTILUS_EXECUTION_MODE must remain paper or shadow")
     if settings.nautilus_live_trading_enabled or settings.nautilus_allow_live_order:

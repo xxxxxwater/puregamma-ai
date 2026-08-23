@@ -19,11 +19,25 @@ from packages.billing.budgets import AutomationBudgetExceeded
 from packages.database.models import NotificationDelivery, PushDevice, User, UserPreference, utcnow
 from packages.notifications.apns import APNsProvider
 from packages.notifications.email import EmailProvider
-from packages.notifications.imessage.macos_relay_client import MacOSIMessageRelayClient
-from packages.notifications.imessage.mock_provider import MockIMessageProvider
+from packages.notifications.imessage.provider_factory import get_imessage_provider
 from packages.notifications.slack import SlackProvider
 from packages.notifications.telegram import TelegramProvider
 from apps.api.services.imessage_verification_service import normalize_e164
+
+
+def _imessage_provider_configured(settings) -> bool:
+    """Production readiness check for the configured iMessage provider."""
+    if settings.imessage_provider == "macos_relay":
+        return bool(settings.imessage_relay_secret)
+    if settings.imessage_provider == "photon":
+        return bool(
+            settings.photon_api_key
+            and settings.photon_line_id
+            and settings.photon_server_url
+            and settings.photon_http_proxy_url
+            and settings.photon_webhook_secret
+        )
+    return False
 
 
 CHANNEL_ACTION = {
@@ -47,11 +61,7 @@ class NotificationDispatcher:
         if channel == "email":
             return EmailProvider()
         if channel == "imessage":
-            if self.settings.imessage_provider == "macos_relay":
-                return MacOSIMessageRelayClient()
-            if self.settings.app_environment.lower() != "production" and self.settings.imessage_provider == "mock":
-                return MockIMessageProvider()
-            raise RuntimeError("IMESSAGE_PROVIDER_UNAVAILABLE")
+            return get_imessage_provider(self.settings)
         raise ValueError(f"Unsupported channel: {channel}")
 
     def _recipient(
@@ -206,8 +216,7 @@ class NotificationDispatcher:
                     or getattr(pref, "slack_webhook_url", None)
                 ),
                 "email": bool(self.settings.smtp_host),
-                "imessage": self.settings.imessage_provider == "macos_relay"
-                and bool(self.settings.imessage_relay_secret),
+                "imessage": _imessage_provider_configured(self.settings),
                 "push": self.settings.apns_enabled,
             }.get(channel, False)
             if not configured:
@@ -217,7 +226,7 @@ class NotificationDispatcher:
                 recipient = normalize_e164(recipient)
             except ValueError:
                 return _finish("skipped", {"reason": "invalid_recipient"})
-            if self.settings.imessage_provider == "macos_relay" and (not pref.imessage_recipient_verified_at or pref.imessage_recipient != recipient):
+            if self.settings.imessage_provider in {"macos_relay", "photon"} and (not pref.imessage_recipient_verified_at or pref.imessage_recipient != recipient):
                 return _finish("skipped", {"reason": "recipient_unverified"})
             if len(message) > self.settings.imessage_max_message_length:
                 return _finish("skipped", {"reason": "message_too_long"})
@@ -279,10 +288,10 @@ class NotificationDispatcher:
             if reservation:
                 refund_task(db, user_id, reservation, "NOTIFICATION_PROVIDER_EXCEPTION", metadata={"channel": channel})
                 db.commit()
-            if channel == "imessage" and self.settings.imessage_provider == "macos_relay":
+            if channel == "imessage" and self.settings.imessage_provider in {"macos_relay", "photon"}:
                 from apps.api.services.ops_alert import notify_ops
 
-                notify_ops("iMessage relay is failing; check the Mac mini relay host", level="error")
+                notify_ops(f"iMessage provider is failing (provider={self.settings.imessage_provider})", level="error")
             raise
         if result.ok and result.response.get("mode") == "mock":
             # A mock recipient/endpoint delivers nothing: refund the hold and

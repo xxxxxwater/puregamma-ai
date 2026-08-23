@@ -1336,3 +1336,30 @@ def daily_live_reconciliation() -> dict:
         return {"reconciled": reconciled}
     finally:
         db.close()
+
+
+@celery_app.task(name="puregamma.process_photon_inbound", bind=True, max_retries=0)
+def process_photon_inbound_task(self, task_id: str) -> dict:
+    """Process one persisted Photon inbound event: shared agent flow, then the
+    reply goes out through PhotonIMessageProvider. Retries are bounded by the
+    PhotonInboundTask row (MAX_ATTEMPTS); a crashed attempt is recovered by
+    puregamma.reap_photon_inbound_tasks. task_acks_late + reject_on_worker_lost
+    requeue on worker loss."""
+    from apps.api.services.photon_inbound_service import process_photon_inbound
+
+    try:
+        return process_photon_inbound(task_id)
+    except Exception:
+        logger.exception("photon_inbound_task_crashed task_id=%s", task_id)
+        raise
+
+
+@celery_app.task(name="puregamma.reap_photon_inbound_tasks")
+def reap_photon_inbound_tasks_task() -> dict:
+    from apps.api.services.photon_inbound_service import reap_photon_inbound_tasks
+
+    try:
+        return reap_photon_inbound_tasks()
+    except Exception:
+        logger.exception("photon_inbound_reaper_failed")
+        raise

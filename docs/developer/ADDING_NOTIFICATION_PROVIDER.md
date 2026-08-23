@@ -18,6 +18,9 @@ class NotificationProvider(Protocol):
 3. Add credit cost in `packages/billing/credits.py`.
 4. Add plan channel entitlement in `packages/billing/plans.py`.
 5. Add provider selection in `NotificationDispatcher._provider`.
+   iMessage providers are resolved through the shared factory
+   `packages/notifications/imessage/provider_factory.py` so the dispatcher and
+   the verification service always agree on the selected provider.
 6. Add recipient preference field if needed.
 7. Add environment variables and docs.
 8. Add tests for success, missing recipient, entitlement denied, insufficient credits, provider failure refund, and idempotency.

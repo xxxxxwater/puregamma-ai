@@ -82,6 +82,7 @@ POST_BASELINE_TABLES = {
     "gateway_provider_syncs",
     "gateway_ip_blocks",
     "gateway_security_events",
+    "photon_inbound_tasks",
     "skills",
     "skill_versions",
     "skill_installations",

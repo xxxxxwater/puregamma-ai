@@ -42,8 +42,24 @@ def main() -> int:
         errors.append("OPENAI_API_KEY and OPENAI_MODEL are required for LLM_PROVIDER=openai")
     if os.getenv("LLM_PROVIDER", "").lower() not in {"openai", "deepseek"}:
         errors.append("LLM_PROVIDER must be openai or deepseek")
-    if os.getenv("IMESSAGE_PROVIDER", "").lower() not in {"disabled", "macos_relay"}:
-        errors.append("IMESSAGE_PROVIDER must be disabled or macos_relay")
+    imessage_provider = os.getenv("IMESSAGE_PROVIDER", "").lower()
+    if imessage_provider not in {"disabled", "macos_relay", "photon"}:
+        errors.append("IMESSAGE_PROVIDER must be disabled, macos_relay or photon")
+    if imessage_provider == "macos_relay" and not os.getenv("IMESSAGE_RELAY_SECRET"):
+        errors.append("IMESSAGE_RELAY_SECRET is required when IMESSAGE_PROVIDER=macos_relay")
+    if imessage_provider == "photon":
+        photon_required = (
+            "PHOTON_API_KEY",
+            "PHOTON_LINE_ID",
+            "PHOTON_SERVER_URL",
+            "PHOTON_HTTP_PROXY_URL",
+            "PHOTON_WEBHOOK_SECRET",
+        )
+        missing_photon = [name for name in photon_required if not os.getenv(name)]
+        if missing_photon:
+            errors.append(
+                "Required when IMESSAGE_PROVIDER=photon: " + ", ".join(missing_photon)
+            )
     for name in ("NEXT_PUBLIC_API_URL", "SITE_URL", "GOOGLE_OAUTH_REDIRECT_URI"):
         if os.getenv(name) and urlparse(os.environ[name]).scheme != "https":
             errors.append(f"{name} must use https")

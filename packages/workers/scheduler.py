@@ -67,6 +67,15 @@ def build_scheduler() -> BlockingScheduler:
         max_instances=1,
         coalesce=True,
     )
+    # Photon inbound crash/retry recovery (no-op until IMESSAGE_PROVIDER=photon).
+    scheduler.add_job(
+        enqueue,
+        IntervalTrigger(minutes=1),
+        args=["puregamma.reap_photon_inbound_tasks"],
+        id="photon_inbound_reaper",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.add_job(
         enqueue,
         CronTrigger(hour=1, minute=0),

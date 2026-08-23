@@ -126,6 +126,40 @@ def test_unsafe_production_configuration_fails(field, value, message):
         validate_production_settings(replace(valid_production_settings(), **{field: value}))
 
 
+def test_production_macos_relay_requires_relay_secret():
+    settings = replace(valid_production_settings(), imessage_provider="macos_relay", imessage_relay_secret="")
+    with pytest.raises(RuntimeError, match="IMESSAGE_RELAY_SECRET"):
+        validate_production_settings(settings)
+
+
+def test_production_macos_relay_passes_with_secret():
+    settings = replace(
+        valid_production_settings(),
+        imessage_provider="macos_relay",
+        imessage_relay_secret="relay-secret",
+    )
+    validate_production_settings(settings)
+
+
+def test_production_photon_requires_each_credential():
+    settings = replace(valid_production_settings(), imessage_provider="photon")
+    with pytest.raises(RuntimeError, match="PHOTON_API_KEY"):
+        validate_production_settings(settings)
+
+
+def test_production_photon_passes_with_full_configuration():
+    settings = replace(
+        valid_production_settings(),
+        imessage_provider="photon",
+        photon_api_key="photon-api-key",
+        photon_line_id="+14243825596",
+        photon_server_url="https://server.photon.codes",
+        photon_http_proxy_url="https://imessage-swagger.photon.codes",
+        photon_webhook_secret="photon-webhook-secret",
+    )
+    validate_production_settings(settings)
+
+
 def test_cookie_authenticated_state_change_requires_approved_origin(monkeypatch):
     settings = valid_production_settings()
     monkeypatch.setattr(main, "settings", settings)
