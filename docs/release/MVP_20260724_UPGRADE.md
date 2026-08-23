@@ -4,6 +4,16 @@ This document records the capabilities delivered after the `upgrade/mvp-20260724
 baseline. It is a product and technical summary, not a claim that every optional
 integration is enabled in production.
 
+## Delivery scope
+
+The `upgrade/mvp-20260724` branch is the complete local upgrade candidate: it
+contains both the **Cordis web-plugin refactor** and the **Glass visual system**,
+together with the supporting API, mobile, research, and notification changes
+listed below. A branch update only publishes this complete code version; it does
+not itself deploy production. If production is currently running an earlier
+baseline with only the Glass presentation changes, Cordis and the other upgrade
+components remain pending its separate deployment and rollout checks.
+
 ## What was added
 
 ### Research, agent, and personalization
