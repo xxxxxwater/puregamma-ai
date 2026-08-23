@@ -6,6 +6,38 @@ Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [
 Start with the full documentation index: [docs/README.md](./docs/README.md).
 For the current upgrade's added capabilities, chosen technologies, and rollout
 boundaries, see [MVP Upgrade — 2026-07-24](./docs/release/MVP_20260724_UPGRADE.md).
+
+## Branch Snapshot — `upgrade/mvp-20260724`
+
+This branch is the **complete local MVP upgrade candidate**. It includes the
+full **Cordis built-in web-plugin architecture** and the **Glass visual system**
+in the same codebase, rather than only the earlier baseline plus its visual
+layer.
+
+What this branch adds on top of that baseline:
+
+- **Cordis plugin runtime**: typed built-in plugins for Research, Portfolio,
+  Options, Trading, and Secretary; shared runtime services; and FastAPI
+  server-side manifest gating.
+- **Glass product experience**: the self-authored Glass presentation system,
+  classic appearance switch, capability-gated research surfaces, financial
+  stale-state handling, and accessible reduced-motion behavior.
+- **Research and personalization**: Harness deep research with evidence
+  snapshots, user-owned consent-gated memory, executable strategy specs,
+  compiled backtests, and a sandboxed Research Runner.
+- **Portfolio and controlled trading**: server-side NAV, trading mandates,
+  PAPER/SHADOW Nautilus execution, plus a gated LIVE spot-trading control plane
+  with risk checks, kill switches, an immutable ledger, and reconciliation.
+- **Cross-platform delivery**: Next.js web, SwiftUI iOS, Kotlin/Compose
+  Android, and asynchronous Photon iMessage inbound handling alongside existing
+  notification channels.
+
+The branch is a source release candidate, **not a production-deployment
+claim**. Enabling optional providers, Harness/Memory, broker connectivity, or
+LIVE trading remains subject to environment configuration, explicit feature
+gates, approvals, and the deployment runbooks. If production is still on the
+earlier baseline plus Glass-only presentation, the Cordis runtime and the rest
+of this branch's capabilities require a separate deployment and rollout.
 ## What is PureGamma AI?
 PureGamma AI is an AI decision-support system for individual secondary-market investors. It helps users answer three daily questions:
 - What changed in the market?
