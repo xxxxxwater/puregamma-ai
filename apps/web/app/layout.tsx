@@ -27,6 +27,8 @@ export const metadata: Metadata = {
   },
 };
 
+const visualStyleDefault = process.env.NEXT_PUBLIC_VISUAL_STYLE_DEFAULT === "classic" ? "classic" : "glass";
+
 export default function RootLayout({ children }: { children: ReactNode }) {
   return (
     <html lang="en" suppressHydrationWarning>
@@ -34,6 +36,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <link rel="icon" href="/logo.png" type="image/png" />
         <link rel="apple-touch-icon" href="/logo.png" />
         <meta name="google-site-verification" content="am4owqouAFJwpQpOFy__OAAm1HeW2MPH5hqDlJ2C1vM" />
+        <Script id="pg-visual-style" strategy="beforeInteractive" dangerouslySetInnerHTML={{ __html: `(function(){try{var s=window.localStorage.getItem('pg_visual_style');document.documentElement.dataset.visualStyle=(s==='classic'?'classic':${JSON.stringify(visualStyleDefault)});}catch(e){document.documentElement.dataset.visualStyle=${JSON.stringify(visualStyleDefault)};}})();` }} />
         <Script async src="https://www.googletagmanager.com/gtag/js?id=AW-18313089953" />
         <Script id="gtag-init" dangerouslySetInnerHTML={{ __html: `window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'AW-18313089953');` }} />
       </head>

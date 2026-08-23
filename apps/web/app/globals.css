@@ -351,3 +351,175 @@ textarea {
     border: 1px solid var(--border-pg);
   }
 }
+
+/* ────────────────────────────────────────────────────────────────────────
+   PureGamma Glass visual system (self-authored; no external assets).
+
+   Two visual styles: "glass" (default) and "classic". The style lives on
+   <html data-visual-style>, persisted as localStorage "pg_visual_style"
+   and applied pre-paint by an inline script in the root layout.
+
+   Glass works by OVERRIDING the surface tokens (--panel / --panel-muted /
+   --panel-strong / --border*) so every existing bg-bg-panel / bg-bg-card
+   surface becomes translucent, then adding one shared backdrop-filter
+   rule for those surfaces. No component markup changes, no images, no
+   remote fonts. Financial/security routes set data-surface-tier=
+   "financial" for higher-opacity surfaces; Ocean pages use "ocean" to
+   disable double blur over the existing Ocean layers.
+   ──────────────────────────────────────────────────────────────────────── */
+
+:root {
+  --glass-blur: 12px;
+  --glass-blur-mobile: 6px;
+  --glass-saturate: 1.35;
+  --glass-edge: rgba(255, 255, 255, 0.07);
+  --glass-chrome-bg: rgba(16, 18, 22, 0.72);
+  --glass-ambient-a: rgba(46, 125, 255, 0.10);
+  --glass-ambient-b: rgba(66, 217, 255, 0.07);
+  --glass-ambient-c: rgba(139, 124, 255, 0.08);
+}
+
+/* Dark glass surface tokens. */
+:root[data-visual-style="glass"] {
+  --panel: rgba(23, 26, 33, 0.66);
+  --panel-muted: rgba(30, 33, 41, 0.60);
+  --panel-strong: rgba(36, 40, 49, 0.76);
+  --border: rgba(255, 255, 255, 0.08);
+  --border-strong: rgba(255, 255, 255, 0.16);
+}
+
+:root[data-visual-style="glass"][data-theme="light"] {
+  --panel: rgba(255, 255, 255, 0.64);
+  --panel-muted: rgba(244, 245, 246, 0.58);
+  --panel-strong: rgba(235, 237, 240, 0.76);
+  --border: rgba(15, 23, 42, 0.10);
+  --border-strong: rgba(15, 23, 42, 0.18);
+  --glass-edge: rgba(255, 255, 255, 0.65);
+  --glass-chrome-bg: rgba(246, 247, 248, 0.78);
+  --glass-ambient-a: rgba(37, 99, 235, 0.10);
+  --glass-ambient-b: rgba(8, 145, 178, 0.07);
+  --glass-ambient-c: rgba(124, 58, 237, 0.07);
+}
+
+/* Financial / security routes: prices, positions, alerts and action
+   buttons must stay crisp — near-solid panels, softer blur. */
+:root[data-visual-style="glass"][data-surface-tier="financial"] {
+  --panel: rgba(23, 26, 33, 0.93);
+  --panel-muted: rgba(30, 33, 41, 0.90);
+  --panel-strong: rgba(36, 40, 49, 0.97);
+  --glass-blur: 8px;
+}
+
+:root[data-visual-style="glass"][data-surface-tier="financial"][data-theme="light"] {
+  --panel: rgba(255, 255, 255, 0.94);
+  --panel-muted: rgba(246, 247, 248, 0.92);
+  --panel-strong: rgba(236, 238, 241, 0.97);
+}
+
+/* Ocean pages: the Ocean layers already blur beneath the work panel; a
+   second backdrop-filter would double-blur. Keep translucent panels but
+   disable the filter here. */
+:root[data-visual-style="glass"][data-surface-tier="ocean"] {
+  --panel: rgba(10, 14, 22, 0.80);
+  --panel-muted: rgba(16, 21, 32, 0.74);
+  --panel-strong: rgba(22, 28, 42, 0.88);
+}
+
+:root[data-visual-style="glass"][data-surface-tier="ocean"][data-theme="light"] {
+  --panel: rgba(255, 255, 255, 0.86);
+  --panel-muted: rgba(244, 245, 246, 0.82);
+  --panel-strong: rgba(235, 237, 240, 0.90);
+}
+
+/* One shared glass treatment for every surface token consumer. */
+[data-visual-style="glass"] .bg-bg-panel,
+[data-visual-style="glass"] .bg-bg-card,
+[data-visual-style="glass"] .bg-bg-panel-muted,
+[data-visual-style="glass"] .bg-bg-card-muted,
+[data-visual-style="glass"] .bg-bg-app-elevated,
+[data-visual-style="glass"] .pg-glass-chrome {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+[data-visual-style="glass"] .pg-glass-chrome {
+  background: var(--glass-chrome-bg);
+  box-shadow: inset 0 1px 0 var(--glass-edge);
+}
+
+/* No double blur on Ocean pages. */
+[data-visual-style="glass"][data-surface-tier="ocean"] .bg-bg-panel,
+[data-visual-style="glass"][data-surface-tier="ocean"] .bg-bg-card,
+[data-visual-style="glass"][data-surface-tier="ocean"] .bg-bg-panel-muted,
+[data-visual-style="glass"][data-surface-tier="ocean"] .bg-bg-card-muted,
+[data-visual-style="glass"][data-surface-tier="ocean"] .bg-bg-app-elevated {
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+
+/* Shell chrome (sidebar / topbar) keeps its blur on Ocean pages: it sits over
+   the app frame, not over body text, so readability is unaffected. */
+[data-visual-style="glass"][data-surface-tier="ocean"] .pg-glass-chrome {
+  backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+  -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-saturate));
+}
+
+/* Ambient backdrop: pure CSS light fields behind the app chrome. Static
+   gradients only — no animation, no images, no tracking. */
+.pg-glass-ambient {
+  position: fixed;
+  inset: 0;
+  z-index: -10;
+  pointer-events: none;
+  background:
+    radial-gradient(52% 44% at 14% 6%, var(--glass-ambient-a), transparent 64%),
+    radial-gradient(46% 40% at 86% 12%, var(--glass-ambient-b), transparent 62%),
+    radial-gradient(58% 46% at 50% 104%, var(--glass-ambient-c), transparent 66%);
+}
+
+:root[data-visual-style="classic"] .pg-glass-ambient {
+  display: none;
+}
+
+/* Graceful degradation: browsers without backdrop-filter get solid,
+   high-opacity panels (never translucent mush). */
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  :root[data-visual-style="glass"] {
+    --panel: #191c22;
+    --panel-muted: #212123;
+    --panel-strong: #292929;
+  }
+  :root[data-visual-style="glass"][data-theme="light"] {
+    --panel: #ffffff;
+    --panel-muted: #f0f1f2;
+    --panel-strong: #e7e8ea;
+  }
+}
+
+/* User preference + low-end device degradation. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-visual-style="glass"] .bg-bg-panel,
+  [data-visual-style="glass"] .bg-bg-card,
+  [data-visual-style="glass"] .bg-bg-panel-muted,
+  [data-visual-style="glass"] .bg-bg-card-muted,
+  [data-visual-style="glass"] .bg-bg-app-elevated,
+  [data-visual-style="glass"] .pg-glass-chrome {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (max-width: 767px) {
+  [data-visual-style="glass"] .bg-bg-panel,
+  [data-visual-style="glass"] .bg-bg-card,
+  [data-visual-style="glass"] .bg-bg-panel-muted,
+  [data-visual-style="glass"] .bg-bg-card-muted,
+  [data-visual-style="glass"] .bg-bg-app-elevated,
+  [data-visual-style="glass"] .pg-glass-chrome {
+    backdrop-filter: blur(var(--glass-blur-mobile)) saturate(var(--glass-saturate));
+    -webkit-backdrop-filter: blur(var(--glass-blur-mobile)) saturate(var(--glass-saturate));
+  }
+  .pg-glass-ambient {
+    opacity: 0.55;
+  }
+}

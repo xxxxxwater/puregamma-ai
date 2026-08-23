@@ -15,6 +15,7 @@ import { t } from "@/lib/translations";
 import type { TranslationKey } from "@/lib/translations";
 import { getMe, AUTH_EXPIRED_EVENT } from "@/lib/api";
 import { publishUserState, USER_STATE_EVENT, type SessionUserState } from "@/lib/user-state";
+import { applySurfaceTier, surfaceTierForPath } from "@/lib/visual-style";
 import { PluginRuntime } from "@/plugins/core/runtime";
 
 type NavItem = {
@@ -87,6 +88,14 @@ export function AppShell({ children, locale }: { children: ReactNode; locale: Lo
   useEffect(() => {
     setMobileNavOpen(false);
   }, [pathname, locale]);
+  // Route-derived surface tier for the glass visual system: financial/security
+  // pages get higher-opacity panels, Ocean pages skip the extra blur. The
+  // attribute lives on <html> so CSS tokens can scope it; remove it when the
+  // shell unmounts (non-locale pages have no shell).
+  useEffect(() => {
+    applySurfaceTier(surfaceTierForPath(pathname || "/"));
+    return () => applySurfaceTier(null);
+  }, [pathname]);
   useEffect(() => {
     if (!mobileNavOpen) return;
     const onKeyDown = (event: KeyboardEvent) => {
@@ -99,6 +108,7 @@ export function AppShell({ children, locale }: { children: ReactNode; locale: Lo
     <LocaleProvider locale={locale}>
       <PluginRuntime>
         <div className="relative min-h-screen">
+          <div className="pg-glass-ambient" aria-hidden />
           <AuthExpiredRedirector locale={locale} />
         <SidebarNav locale={locale} />
         <MobileNavDrawer locale={locale} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
@@ -122,7 +132,7 @@ export function MobileNavDrawer({ locale, open, onClose }: { locale: Locale; ope
   return (
     <>
       {open ? <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} aria-hidden /> : null}
-      <div role="dialog" aria-modal="true" aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className={`fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] transform flex-col border-r border-border-pg bg-bg-panel p-4 transition-transform duration-200 lg:hidden ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <div role="dialog" aria-modal="true" aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className={`pg-glass-chrome fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] transform flex-col border-r border-border-pg bg-bg-panel p-4 transition-transform duration-200 lg:hidden ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between gap-2">
           <Link href={withLocale(locale, "/")} className="flex min-w-0 items-center gap-2 font-semibold text-text-pg">
             <Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI
@@ -161,7 +171,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   const pathname = usePathname();
   const activePathname = stripLocale(pathname);
   return (
-    <aside className="fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border-pg bg-bg-panel p-4 lg:block">
+    <aside className="pg-glass-chrome fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border-pg bg-bg-panel p-4 lg:block">
       <Link href={withLocale(locale, "/")} className="flex items-center gap-2 text-lg font-semibold text-text-pg">
         <Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI
       </Link>
@@ -233,7 +243,7 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
     };
   }, [refreshUser]);
   return (
-    <header className="sticky top-0 z-20 border-b border-border-pg bg-bg-app/95 backdrop-blur">
+    <header className="pg-glass-chrome sticky top-0 z-20 border-b border-border-pg bg-bg-app/95 backdrop-blur">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
         <button type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong lg:hidden rounded-lg"><Menu className="h-4 w-4" /></button>
         <Link href={withLocale(locale, "/")} className="min-w-0 shrink flex items-center gap-2 truncate font-semibold text-text-pg lg:hidden">

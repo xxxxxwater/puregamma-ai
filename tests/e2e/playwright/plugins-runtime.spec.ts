@@ -53,6 +53,11 @@ test.describe("Cordis frontend plugin runtime", () => {
     await expect
       .poll(() => page.evaluate(() => window.__PUREGAMMA_PLUGIN_RUNTIME__?.loadedPlugins ?? []))
       .toContain("puregamma.portfolio");
+    // Builtin plugins load through async dynamic imports: wait until the
+    // whole whitelist set has applied before asserting the exact list.
+    await expect
+      .poll(() => page.evaluate(() => window.__PUREGAMMA_PLUGIN_RUNTIME__?.loadedPlugins.length ?? 0))
+      .toBe(4);
 
     const state = await page.evaluate(() => window.__PUREGAMMA_PLUGIN_RUNTIME__);
     expect(state).toBeTruthy();
