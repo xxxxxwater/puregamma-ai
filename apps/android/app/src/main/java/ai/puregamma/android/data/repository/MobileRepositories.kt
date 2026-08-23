@@ -28,6 +28,21 @@ class MobileRepository(
 
     private val capabilities: MobileCapabilities get() = capabilitiesProvider()
 
+    /**
+     * Normalize every API failure into [RetrofitApiException] regardless of
+     * whether the production OkHttpClient has [ApiErrorInterceptor] wired in:
+     * without it, Retrofit's suspend `await()` throws a bare
+     * `retrofit2.HttpException` for non-2xx responses, and callers must not
+     * depend on interceptor wiring to branch on status.
+     */
+    private suspend fun <T> apiCall(block: suspend () -> T): T {
+        try {
+            return block()
+        } catch (e: retrofit2.HttpException) {
+            throw RetrofitApiException(e.code(), e.message())
+        }
+    }
+
     private companion object {
         val ID_PATTERN = Regex("^[A-Za-z0-9_-]{1,64}$")
         val ALLOWED_DATA_SOURCES = setOf("market", "news", "research")
@@ -40,7 +55,7 @@ class MobileRepository(
     /** 拉取服务端能力。404/501 视为契约缺失 → 全部不可用。 */
     suspend fun getCapabilities(): MobileCapabilities {
         return try {
-            val dto = api.getMobileCapabilities()
+            val dto = apiCall { api.getMobileCapabilities() }
             MobileCapabilities(
                 harnessResearchEnabled = dto.harnessResearchEnabled ?: false,
                 memoryServiceEnabled = dto.memoryServiceEnabled ?: false,
@@ -104,7 +119,7 @@ class MobileRepository(
 
     suspend fun getResearchRuns(): List<ResearchRun> {
         requireHarnessResearch()
-        val envelope = api.getResearchRuns()
+        val envelope = apiCall { api.getResearchRuns() }
         return envelope.runs.map { dtoToRun(it) }
     }
 
@@ -121,18 +136,18 @@ class MobileRepository(
             .filter { it.isNotEmpty() && it.length <= DATA_SOURCE_MAX_LENGTH && ALLOWED_DATA_SOURCES.contains(it) }
             .distinct()
             .take(DATA_SOURCE_MAX_COUNT)
-        val envelope = api.createResearchRun(ResearchRunCreateRequest(name = taskName, prompt = taskPrompt, dataSources = sources))
+        val envelope = apiCall { api.createResearchRun(ResearchRunCreateRequest(name = taskName, prompt = taskPrompt, dataSources = sources)) }
         return dtoToRun(envelope.run)
     }
 
     suspend fun getResearchRun(id: String): ResearchRun {
         requireHarnessResearch()
-        return dtoToRun(api.getResearchRun(requireId(id, "run identifier")).run)
+        return dtoToRun(apiCall { api.getResearchRun(requireId(id, "run identifier")).run })
     }
 
     suspend fun cancelResearchRun(id: String): ResearchRun {
         requireHarnessResearch()
-        return dtoToRun(api.cancelResearchRun(requireId(id, "run identifier")).run)
+        return dtoToRun(apiCall { api.cancelResearchRun(requireId(id, "run identifier")).run })
     }
 
     suspend fun retryResearchRun(id: String): ResearchRun {
@@ -140,12 +155,12 @@ class MobileRepository(
         if (!capabilities.harnessRetryEnabled) {
             throw MobileFeatureException(MobileFeatureException.Kind.DISABLED, "Retry is disabled for this run")
         }
-        return dtoToRun(api.retryResearchRun(requireId(id, "run identifier")).run)
+        return dtoToRun(apiCall { api.retryResearchRun(requireId(id, "run identifier")).run })
     }
 
     suspend fun getResearchRunEvidence(id: String): List<ResearchEvidence> {
         requireHarnessResearch()
-        val envelope = api.getResearchRunEvidence(requireId(id, "run identifier"))
+        val envelope = apiCall { api.getResearchRunEvidence(requireId(id, "run identifier")) }
         return envelope.evidence.map {
             ResearchEvidence(
                 id = it.id,
@@ -164,7 +179,7 @@ class MobileRepository(
 
     suspend fun getMemorySettings(): MemorySettings {
         requireMemory(mutation = false)
-        return api.getMemorySettings().settings.toDomain()
+        return apiCall { api.getMemorySettings() }.settings.toDomain()
     }
 
     suspend fun updateMemorySettings(
@@ -176,28 +191,30 @@ class MobileRepository(
         consentGranted: Boolean,
     ): MemorySettings {
         requireMemory(mutation = true)
-        return api.updateMemorySettings(
-            MemorySettingsPatchRequest(
-                shortTermEnabled = shortTerm,
-                midTermEnabled = midTerm,
-                conversationSummaryEnabled = conversationSummary,
-                researchMemoryEnabled = researchMemory,
-                portfolioMemoryEnabled = portfolioMemory,
-                consentGranted = consentGranted,
-            ),
-        ).settings.toDomain()
+        return apiCall {
+            api.updateMemorySettings(
+                MemorySettingsPatchRequest(
+                    shortTermEnabled = shortTerm,
+                    midTermEnabled = midTerm,
+                    conversationSummaryEnabled = conversationSummary,
+                    researchMemoryEnabled = researchMemory,
+                    portfolioMemoryEnabled = portfolioMemory,
+                    consentGranted = consentGranted,
+                ),
+            )
+        }.settings.toDomain()
     }
 
     // ---- 自动交易 Mandate（只读 + 有限管理） ----
 
     suspend fun getTradingMandates(): List<TradingMandate> {
         requireMandatesView()
-        return api.getTradingMandates().mandates.map { dtoToMandate(it) }
+        return apiCall { api.getTradingMandates() }.mandates.map { dtoToMandate(it) }
     }
 
     suspend fun getTradingMandate(id: String): TradingMandate {
         requireMandatesView()
-        return dtoToMandate(api.getTradingMandate(requireId(id, "mandate identifier")).mandate)
+        return dtoToMandate(apiCall { api.getTradingMandate(requireId(id, "mandate identifier")).mandate })
     }
 
     /**
@@ -215,7 +232,7 @@ class MobileRepository(
         if (!MandateActionPolicy.pauseAllowed(current.environment, current.paused, capabilities)) {
             throw MobileFeatureException(MobileFeatureException.Kind.DISABLED, "This mandate cannot be paused from mobile")
         }
-        return dtoToMandate(api.pauseTradingMandate(mandateId).mandate)
+        return dtoToMandate(apiCall { api.pauseTradingMandate(mandateId).mandate })
     }
 
     /** 恢复：同样的硬边界与幂等语义；服务端仍会二次校验。 */
@@ -230,7 +247,7 @@ class MobileRepository(
         if (!MandateActionPolicy.resumeAllowed(current.environment, current.paused, capabilities)) {
             throw MobileFeatureException(MobileFeatureException.Kind.DISABLED, "This mandate cannot be resumed from mobile")
         }
-        return dtoToMandate(api.resumeTradingMandate(mandateId).mandate)
+        return dtoToMandate(apiCall { api.resumeTradingMandate(mandateId).mandate })
     }
 
     private fun dtoToRun(dto: ResearchRunDto) = ResearchRun(

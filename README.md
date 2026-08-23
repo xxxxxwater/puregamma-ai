@@ -4,6 +4,8 @@ The versioned declarative Skills Library is documented in
 [`docs/SKILLS_LIBRARY.md`](docs/SKILLS_LIBRARY.md).
 Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [Harness research](docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md), [Memory service](docs/developer/MEMORY_ARCHITECTURE.md), [Automated trading foundation](docs/developer/AUTOMATED_TRADING_FOUNDATION.md), [LIVE trading + NAV](docs/live-trading/ARCHITECTURE.md), [LIVE feature flags](docs/live-trading/FEATURE_FLAGS.md), [LIVE rollout status](docs/live-trading/STATUS.md), [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), [implementation report](docs/IMPLEMENTATION_REPORT.md), and [AI API gateway](docs/AI_API_GATEWAY.md).
 Start with the full documentation index: [docs/README.md](./docs/README.md).
+For the current upgrade's added capabilities, chosen technologies, and rollout
+boundaries, see [MVP Upgrade — 2026-07-24](./docs/release/MVP_20260724_UPGRADE.md).
 ## What is PureGamma AI?
 PureGamma AI is an AI decision-support system for individual secondary-market investors. It helps users answer three daily questions:
 - What changed in the market?

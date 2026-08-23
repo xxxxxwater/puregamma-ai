@@ -1,5 +1,9 @@
 # PureGamma AI Documentation
 This documentation turns PureGamma AI from a code project into an operating manual for users, developers, administrators, operators, and enterprise customers.
+
+For the complete scope of the current MVP upgrade, including what was added,
+the technologies adopted, and availability boundaries, see
+[MVP Upgrade — 2026-07-24](./release/MVP_20260724_UPGRADE.md).
 ## Current Implementation Status
 | Area | Status |
 | --- | --- |
@@ -16,9 +20,9 @@ This documentation turns PureGamma AI from a code project into an operating manu
 | DeepSeek Harness deep research | Phase 1 foundation; flags default OFF |
 | Memory service | Phase 1 foundation; flag default OFF |
 | Trading mandate foundation (PAPER/SHADOW audits) | Phase 1 foundation; flags default OFF |
-| Portfolio NAV backend | Planned; frontend mock/fallback exists |
-| Plaid, exchange, on-chain wallet sync | Planned; documented contract |
-| NautilusTrader runtime | Planned; mock backtest engine exists |
+| Server-computed Portfolio NAV | Implemented; freshness is explicit and stale valuations are never fabricated |
+| Plaid, IBKR, and Hyperliquid portfolio connectors | Implemented behind configured credentials and source freshness checks |
+| NautilusTrader runtime | Implemented as an isolated BACKTEST/PAPER/SHADOW execution data plane; LIVE remains gated and disabled by default |
 | Bloomberg import | Planned enterprise import |
 ## Product
 - [Overview](./product/OVERVIEW.md)
