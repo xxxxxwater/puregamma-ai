@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.daily_brief_service import gather_context
 from apps.api.services import research_event_service, mstr_btc_service
+from packages.data.provider_aliases import expand_document_providers
 from packages.database.models import DailyBriefPreference, NormalizedDocument, NotificationDelivery, Report, Signal, User, UserPreference
 from packages.reports.templates import disclaimer_for
 
@@ -180,7 +181,8 @@ def render_daily_brief_delivery(db: Session, preference: DailyBriefPreference, r
         entitlement = get_user_entitlement(db, preference.user_id)
         allowed = set(entitlement["allowed_data_sources"])
         providers = [provider for provider in ("rss", "fintwit", "x-twitter", "bloomberg") if "all" in allowed or provider in allowed or (provider == "x-twitter" and "x" in allowed)]
-        documents = db.query(NormalizedDocument).filter(NormalizedDocument.provider.in_(providers)).order_by(NormalizedDocument.published_at.desc(), NormalizedDocument.created_at.desc()).limit(3).all()
+        storage_providers = expand_document_providers(providers)
+        documents = db.query(NormalizedDocument).filter(NormalizedDocument.provider.in_(storage_providers)).order_by(NormalizedDocument.published_at.desc(), NormalizedDocument.created_at.desc()).limit(3).all()
         lines.extend(["", "来源观点" if zh else "Source sentiment"])
         lines.extend(f"{row.source_name}: {(row.sentiment or {}).get('label', 'neutral')} · {row.title[:100]}" for row in documents) if documents else lines.append("当前没有可追溯的情绪来源。" if zh else "No traceable sentiment sources are available.")
     disclaimer = disclaimer_for(preference.locale)

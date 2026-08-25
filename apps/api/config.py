@@ -333,6 +333,24 @@ class Settings:
         or 15
     )
     rss_request_timeout: float = float(os.getenv("RSS_REQUEST_TIMEOUT", "10") or 10)
+    chaincatcher_sync_enabled: bool = (
+        os.getenv("CHAINCATCHER_SYNC_ENABLED", "true").lower() == "true"
+    )
+    chaincatcher_rss_url: str = os.getenv(
+        "CHAINCATCHER_RSS_URL", "https://www.chaincatcher.com/rss/clist"
+    )
+    chaincatcher_api_base_url: str = os.getenv(
+        "CHAINCATCHER_API_BASE_URL", "https://api.chaincatcher.com/v1/open-api"
+    )
+    chaincatcher_languages: tuple[str, ...] = tuple(
+        _csv(os.getenv("CHAINCATCHER_LANGUAGES", "zh-CN,en,ja,ko"))
+    )
+    chaincatcher_sync_interval_minutes: int = int(
+        os.getenv("CHAINCATCHER_SYNC_INTERVAL_MINUTES", "5") or 5
+    )
+    chaincatcher_api_refresh_minutes: int = int(
+        os.getenv("CHAINCATCHER_API_REFRESH_MINUTES", "15") or 15
+    )
     fintwit_config_path: str = os.getenv(
         "FIN_TWIT_CONFIG_PATH", "config/fintwit_accounts.yaml"
     )

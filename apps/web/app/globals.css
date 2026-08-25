@@ -523,3 +523,205 @@ textarea {
     opacity: 0.55;
   }
 }
+
+/* ════════════════════════════════════════════════════════════════════════
+   Glass — commercial-grade polish layer (added on top of the base system;
+   no markup changes; classic mode and reduced-transparency users keep the
+   baseline look).
+
+   Adds what the base token-override system cannot: a top highlight edge on
+   every glass surface, layered soft shadows, film-grain over the ambient
+   fields, a very slow motion-safe ambient drift, a brand-gold focus ring,
+   glass input focus, thin scrollbars, table-row hover, and deeper modal
+   elevation. Financial-tier panels keep their near-solid fill and simply
+   gain the highlight/shadow treatment.
+   ════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --brand-gold: #d6b35a;
+  --brand-gold-strong: #e9cd82;
+  --glass-edge-strong: rgba(255, 255, 255, 0.13);
+  --glass-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25);
+  --glass-shadow-2: 0 14px 34px -14px rgba(0, 0, 0, 0.5);
+  --glass-noise-opacity: 0.045;
+  --glass-ambient-gold: rgba(214, 179, 90, 0.10);
+  --glass-focus-ring: rgba(214, 179, 90, 0.55);
+  --glass-scrollbar: rgba(255, 255, 255, 0.14);
+  --glass-scrollbar-hover: rgba(255, 255, 255, 0.28);
+  --glass-row-hover: rgba(255, 255, 255, 0.04);
+  --glass-modal-bg: rgba(17, 20, 26, 0.90);
+}
+
+:root[data-theme="light"] {
+  --brand-gold: #8a6d1f;
+  --brand-gold-strong: #a5842c;
+  --glass-edge-strong: rgba(255, 255, 255, 0.95);
+  --glass-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
+  --glass-shadow-2: 0 14px 34px -14px rgba(15, 23, 42, 0.16);
+  --glass-noise-opacity: 0.03;
+  --glass-ambient-gold: rgba(202, 138, 4, 0.09);
+  --glass-focus-ring: rgba(138, 109, 31, 0.45);
+  --glass-scrollbar: rgba(15, 23, 42, 0.16);
+  --glass-scrollbar-hover: rgba(15, 23, 42, 0.30);
+  --glass-row-hover: rgba(15, 23, 42, 0.04);
+  --glass-modal-bg: rgba(250, 251, 252, 0.92);
+}
+
+/* 1. App background: a soft top light source over the base colour. */
+[data-visual-style="glass"] body {
+  background:
+    radial-gradient(110% 70% at 50% -8%, rgba(46, 125, 255, 0.055), transparent 58%),
+    var(--background);
+}
+
+/* 2. Ambient fields: a brand-gold corner light joins the blue/cyan/violet
+      fields, plus an inline-SVG film grain (no external assets). */
+.pg-glass-ambient {
+  background:
+    radial-gradient(58% 46% at 12% 4%, var(--glass-ambient-a), transparent 62%),
+    radial-gradient(50% 42% at 88% 10%, var(--glass-ambient-b), transparent 60%),
+    radial-gradient(34% 30% at 80% 88%, var(--glass-ambient-gold), transparent 60%),
+    radial-gradient(62% 48% at 46% 106%, var(--glass-ambient-c), transparent 66%);
+}
+
+.pg-glass-ambient::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
+  background-size: 140px 140px;
+  opacity: var(--glass-noise-opacity);
+  mix-blend-mode: overlay;
+}
+
+/* 3. Very slow ambient drift — motion-safe only, disabled on small screens. */
+@media (prefers-reduced-motion: no-preference) {
+  .pg-glass-ambient {
+    animation: glass-ambient-drift 90s ease-in-out infinite alternate;
+    will-change: transform;
+  }
+}
+
+@keyframes glass-ambient-drift {
+  from { transform: translate3d(-1.2%, -0.8%, 0) scale(1); }
+  to   { transform: translate3d(1.2%, 0.9%, 0) scale(1.035); }
+}
+
+@media (max-width: 767px) {
+  .pg-glass-ambient {
+    animation: none;
+    will-change: auto;
+  }
+}
+
+/* 4. Surface polish: 1px top highlight edge + layered soft shadows. */
+[data-visual-style="glass"] .bg-bg-panel,
+[data-visual-style="glass"] .bg-bg-card,
+[data-visual-style="glass"] .bg-bg-panel-muted,
+[data-visual-style="glass"] .bg-bg-card-muted,
+[data-visual-style="glass"] .bg-bg-app-elevated {
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    var(--glass-shadow-1),
+    var(--glass-shadow-2);
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+/* Restrained hover lift for interactive cards/panels (chrome excluded). */
+[data-visual-style="glass"] .bg-bg-panel:hover:not(.pg-glass-chrome),
+[data-visual-style="glass"] .bg-bg-card:hover:not(.pg-glass-chrome) {
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge-strong),
+    var(--glass-shadow-1),
+    0 18px 40px -14px rgba(0, 0, 0, 0.55);
+  border-color: var(--border-strong);
+}
+
+/* Chrome keeps its crisp inner edge and gains a deep ambient drop. */
+[data-visual-style="glass"] .pg-glass-chrome {
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    8px 0 32px -18px rgba(0, 0, 0, 0.6);
+}
+
+/* 5. Modals: stronger blur, near-solid fill, deep elevation. */
+[data-visual-style="glass"] [aria-modal="true"] {
+  background: var(--glass-modal-bg);
+  backdrop-filter: blur(24px) saturate(1.5);
+  -webkit-backdrop-filter: blur(24px) saturate(1.5);
+  box-shadow:
+    inset 0 1px 0 var(--glass-edge),
+    0 28px 72px -20px rgba(0, 0, 0, 0.65);
+}
+
+/* 6. Component-level detail: thin scrollbars, brand focus rings, inputs,
+      table rows, link brightness. */
+[data-visual-style="glass"] * {
+  scrollbar-width: thin;
+  scrollbar-color: var(--glass-scrollbar) transparent;
+}
+
+[data-visual-style="glass"] ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+[data-visual-style="glass"] ::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+[data-visual-style="glass"] ::-webkit-scrollbar-thumb {
+  background: var(--glass-scrollbar);
+  border-radius: 999px;
+  border: 2px solid transparent;
+  background-clip: content-box;
+}
+
+[data-visual-style="glass"] ::-webkit-scrollbar-thumb:hover {
+  background-color: var(--glass-scrollbar-hover);
+}
+
+[data-visual-style="glass"] :focus-visible {
+  outline: 2px solid var(--brand-gold);
+  outline-offset: 2px;
+}
+
+[data-visual-style="glass"] input:focus,
+[data-visual-style="glass"] select:focus,
+[data-visual-style="glass"] textarea:focus {
+  border-color: var(--brand-gold);
+  box-shadow: 0 0 0 3px var(--glass-focus-ring);
+}
+
+[data-visual-style="glass"] tbody tr:hover {
+  background: var(--glass-row-hover);
+}
+
+/* Links brighten on hover without shifting their semantic colour. */
+[data-visual-style="glass"] a:hover {
+  filter: brightness(1.18);
+}
+
+/* 7. Reduced transparency: drop the translucent polish, keep the layout. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-visual-style="glass"] .bg-bg-panel,
+  [data-visual-style="glass"] .bg-bg-card,
+  [data-visual-style="glass"] .bg-bg-panel-muted,
+  [data-visual-style="glass"] .bg-bg-card-muted,
+  [data-visual-style="glass"] .bg-bg-app-elevated,
+  [data-visual-style="glass"] .pg-glass-chrome {
+    box-shadow: none;
+  }
+  [data-visual-style="glass"] [aria-modal="true"] {
+    background: var(--background);
+    box-shadow: none;
+  }
+  .pg-glass-ambient::after {
+    opacity: 0;
+  }
+  [data-visual-style="glass"] input:focus,
+  [data-visual-style="glass"] select:focus,
+  [data-visual-style="glass"] textarea:focus {
+    box-shadow: none;
+  }
+}

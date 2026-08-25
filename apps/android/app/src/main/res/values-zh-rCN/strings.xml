@@ -74,4 +74,6 @@
     <string name="trading_safety">交易安全</string>
     <string name="live_trading_row">LIVE 交易</string>
     <string name="live_trading_disabled_caption">本应用永久禁用 — 无下单能力</string>
+    <string name="connect_plaid">连接 Plaid</string>
+    <string name="plaid_connect_hint">连接券商、退休金与投资账户（只读）。</string>
 </resources>

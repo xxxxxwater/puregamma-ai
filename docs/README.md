@@ -55,6 +55,7 @@ the technologies adopted, and availability boundaries, see
 - [Exchange Read-only Keys](./integrations/EXCHANGE_READONLY_KEYS.md)
 - [On-chain Wallets](./integrations/ONCHAIN_WALLETS.md)
 - [CoinDesk RSS](./integrations/COINDESK_RSS.md)
+- [ChainCatcher Newswire](./integrations/CHAINCATCHER_NEWSWIRE.md)
 - [X KOL](./integrations/X_KOL.md)
 - [Bloomberg](./integrations/BLOOMBERG.md)
 - [NautilusTrader](./integrations/NAUTILUS_TRADER.md)

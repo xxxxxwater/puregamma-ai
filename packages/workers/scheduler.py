@@ -203,6 +203,15 @@ def build_scheduler() -> BlockingScheduler:
             max_instances=1,
             coalesce=True,
         )
+        if settings.chaincatcher_sync_enabled:
+            scheduler.add_job(
+                enqueue,
+                IntervalTrigger(minutes=max(2, settings.chaincatcher_sync_interval_minutes)),
+                args=["puregamma.sync_data_provider", "chaincatcher"],
+                id="provider_chaincatcher_newswire_sync",
+                max_instances=1,
+                coalesce=True,
+            )
         scheduler.add_job(
             enqueue,
             IntervalTrigger(minutes=settings.fintwit_sync_interval),

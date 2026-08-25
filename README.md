@@ -25,6 +25,11 @@ What this branch adds on top of that baseline:
 - **Research and personalization**: Harness deep research with evidence
   snapshots, user-owned consent-gated memory, executable strategy specs,
   compiled backtests, and a sandboxed Research Runner.
+- **Market Wire / 新闻流**: a ChainCatcher RSS + REST provider with attributed
+  short summaries, multilingual repair/backfill, independent health monitoring,
+  RSS-plan entitlement inheritance, cursor pagination, explicit language
+  fallback, and Agent/Daily Brief evidence integration. Full articles are never
+  stored or republished; commercial enablement remains license-gated.
 - **Portfolio and controlled trading**: server-side NAV, trading mandates,
   PAPER/SHADOW Nautilus execution, plus a gated LIVE spot-trading control plane
   with risk checks, kill switches, an immutable ledger, and reconciliation.
@@ -332,13 +337,14 @@ PureGamma uses an isolated Nautilus-compatible runtime for research, backtesting
 - The LIVE control plane talks to the runtime through an **Execution Gateway adapter layer** (`packages/live_trading/gateway_adapter.py`): a Nautilus adapter (submit/query/cancel/balances/positions with UNKNOWN-on-timeout semantics) and an honest mock that never fakes fills while `LIVE_TRADING_GATEWAY=mock`.
 Details: [NautilusTrader](./docs/integrations/NAUTILUS_TRADER.md), [Phase 2 public market runtime](./docs/trading/PHASE_2_PUBLIC_MARKET_RUNTIME.md), [Phase 3 persistent paper portfolio sync](./docs/trading/PHASE_3_PAPER_PORTFOLIO_SYNC.md), [Trading Safety](./docs/trading/TRADING_SAFETY.md), [LIVE architecture](./docs/live-trading/ARCHITECTURE.md).
 ## Data Pipeline
-Data adapters live in `packages/data`. Mock data is active by default in development. The primary document pipeline is RSS, curated FinTwit, the official X API, and authorized Bloomberg data; normalized records carry provenance, license status, retention policy, entity mentions, sentiment components, event fingerprints, and provider sync logs. Optional extension providers: Binance, DefiLlama, EVM RPC, and an allow-listed Subgraph registry (disabled by default).
+Data adapters live in `packages/data`. Mock data is active by default in development. The primary document pipeline is RSS, the ChainCatcher RSS + REST newswire, curated FinTwit, the official X API, and authorized Bloomberg data; normalized records carry provenance, license status, retention policy, entity mentions, sentiment components, event fingerprints, and provider sync logs. Optional extension providers: Binance, DefiLlama, EVM RPC, and an allow-listed Subgraph registry (disabled by default).
 Pipeline docs:
 - [Adding a Data Provider](./docs/developer/ADDING_DATA_PROVIDER.md)
 - [Data Sources](./docs/DATA_SOURCES.md)
 - [Data License](./docs/DATA_LICENSE.md)
 - [Agent Evidence Pipeline](./docs/AGENT_DATA_PIPELINE.md)
 - [CoinDesk RSS](./docs/integrations/COINDESK_RSS.md)
+- [ChainCatcher Newswire](./docs/integrations/CHAINCATCHER_NEWSWIRE.md)
 - [X KOL](./docs/integrations/X_KOL.md)
 - [Bloomberg](./docs/integrations/BLOOMBERG.md)
 ## Credits and Plans

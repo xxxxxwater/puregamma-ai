@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from packages.data.lexicon import understand_query
+from packages.data.provider_aliases import expand_document_providers
 from packages.database.models import (
     AccountSnapshot,
     DataSource,
@@ -907,9 +908,10 @@ class AgentToolRegistry:
             if provider in allowed_providers
         ]
         cutoff = datetime.now(timezone.utc) - timedelta(hours=min(max(hours, 1), 720))
+        storage_providers = expand_document_providers(requested_providers)
         q = self.db.query(NormalizedDocument).filter(
             NormalizedDocument.created_at >= cutoff,
-            NormalizedDocument.provider.in_(requested_providers),
+            NormalizedDocument.provider.in_(storage_providers),
         )
         allow_nonredistributable = get_settings().allow_nonredistributable_llm_input
         rows = (

@@ -326,6 +326,61 @@ export type SubscriptionState = {
 };
 export type DataSourceRow = { id: string; source: string; type: string; provider: string; status: string; requiredPlan: string; lastSync: string | null; lastSuccess?: string | null; error: string; itemsIngested: number; enabled: boolean; primary?: boolean; configured?: boolean; entitled?: boolean; sourceTimestamp?: string | null; freshnessSeconds?: number | null; stale?: boolean; failureReason?: string | null; redistributionAllowed?: boolean; isMock?: boolean; quotaLimit?: number | null; quotaRemaining?: number | null; rateLimitResetAt?: string | null; requestCount?: number; errorCount?: number; circuitOpenUntil?: string | null; retentionPolicy?: string; licenseStatus?: string; accountCount?: number };
 export type DataSourcePreview = { raw: Array<{ id: string; externalId: string; url?: string | null; publishedAt?: string | null; fetchedAt: string; licenseStatus: string; retentionPolicy: string; processingStatus: string }>; normalized: Array<{ id: string; provider: string; sourceType: string; sourceName: string; title: string; summary: string; url?: string | null; author?: string | null; publishedAt?: string | null; symbols: string[]; topics: string[]; sentiment: { label?: string; score?: number }; credibilityScore: number; finalScore: number; licenseStatus: string; retentionPolicy: string }> };
+export type NewsFeedItem = {
+  id: string;
+  provider: string;
+  source: string;
+  kind: "flash" | "article";
+  title: string;
+  summary: string;
+  url?: string | null;
+  language: string;
+  published_at: string;
+  fetched_at: string;
+  age_seconds: number;
+  symbols: string[];
+  topics: string[];
+  keywords: string[];
+  sentiment: { label?: string; score?: number };
+  original?: boolean | null;
+  thumbnail?: string | null;
+  attribution: string;
+  license_status: string;
+  redistribution_allowed: boolean;
+};
+export type NewsFeedResponse = {
+  items: NewsFeedItem[];
+  page: { limit: number; has_more: boolean; next_cursor?: string | null };
+  meta: {
+    status: string;
+    source: string;
+    kind: string;
+    language?: string | null;
+    language_fallback?: boolean;
+    window_hours: number;
+    last_success_at?: string | null;
+    generated_at?: string | null;
+    refresh_after_seconds: number;
+    rss_target_latency_minutes: number;
+    rest_documented_latency_minutes: number;
+    research_only: boolean;
+    disclaimer: string;
+  };
+  unavailable?: boolean;
+  unauthorized?: boolean;
+  error_code?: string;
+  http_status?: number;
+};
+export type NewsFeedParams = {
+  kind?: "all" | "flash" | "article";
+  source?: "all" | "chaincatcher" | "rss";
+  language?: string;
+  symbol?: string;
+  q?: string;
+  hours?: number;
+  limit?: number;
+  cursor?: string;
+};
 
 export const fallbackMarket: MarketSnapshotResponse = {
   mockMode: false,
@@ -797,6 +852,40 @@ export function getGlobalMarket(locale: Locale = defaultLocale) {
 
 export function getReports(locale: Locale = defaultLocale) {
   return api<ReturnType<typeof fallbackReportForLocale>>(`/reports?locale=${locale}`, { fallback: fallbackReportForLocale(locale), locale });
+}
+
+export function getNewsFeed(locale: Locale = defaultLocale, params: NewsFeedParams = {}) {
+  const query = new URLSearchParams({
+    kind: params.kind || "flash",
+    source: params.source || "chaincatcher",
+    language: params.language || locale,
+    hours: String(params.hours || 72),
+    limit: String(params.limit || 30)
+  });
+  if (params.symbol) query.set("symbol", params.symbol);
+  if (params.q) query.set("q", params.q);
+  if (params.cursor) query.set("cursor", params.cursor);
+  const fallback: NewsFeedResponse = {
+    items: [],
+    page: { limit: params.limit || 30, has_more: false, next_cursor: null },
+    meta: {
+      status: "UNAVAILABLE",
+      source: params.source || "chaincatcher",
+      kind: params.kind || "flash",
+      language: params.language || locale,
+      language_fallback: false,
+      window_hours: params.hours || 72,
+      last_success_at: null,
+      generated_at: null,
+      refresh_after_seconds: 60,
+      rss_target_latency_minutes: 5,
+      rest_documented_latency_minutes: 15,
+      research_only: true,
+      disclaimer: ""
+    },
+    unavailable: true
+  };
+  return api<NewsFeedResponse>(`/api/news?${query.toString()}`, { fallback, locale });
 }
 
 export function getReport(id: string, locale: Locale = defaultLocale) {

@@ -10,6 +10,7 @@ import errorsEn from "@/messages/en/errors.json";
 import integrationsEn from "@/messages/en/integrations.json";
 import landingEn from "@/messages/en/landing.json";
 import nautilusEn from "@/messages/en/nautilus.json";
+import newsEn from "@/messages/en/news.json";
 import onboardingEn from "@/messages/en/onboarding.json";
 import optionsSurfaceEn from "@/messages/en/options-surface.json";
 import playbooksEn from "@/messages/en/playbooks.json";
@@ -29,6 +30,7 @@ import errorsZh from "@/messages/zh/errors.json";
 import integrationsZh from "@/messages/zh/integrations.json";
 import landingZh from "@/messages/zh/landing.json";
 import nautilusZh from "@/messages/zh/nautilus.json";
+import newsZh from "@/messages/zh/news.json";
 import onboardingZh from "@/messages/zh/onboarding.json";
 import optionsSurfaceZh from "@/messages/zh/options-surface.json";
 import playbooksZh from "@/messages/zh/playbooks.json";
@@ -51,6 +53,7 @@ const en = {
   integrations: integrationsEn,
   landing: landingEn,
   nautilus: nautilusEn,
+  news: newsEn,
   onboarding: onboardingEn,
   "options-surface": optionsSurfaceEn,
   playbooks: playbooksEn,
@@ -73,6 +76,7 @@ const zh = {
   integrations: integrationsZh,
   landing: landingZh,
   nautilus: nautilusZh,
+  news: newsZh,
   onboarding: onboardingZh,
   "options-surface": optionsSurfaceZh,
   playbooks: playbooksZh,

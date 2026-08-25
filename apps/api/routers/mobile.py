@@ -30,7 +30,7 @@ router = APIRouter(prefix="/api/mobile", tags=["mobile"])
 RESEARCH_RUNS_CONTRACT_IMPLEMENTED = True
 MEMORY_CONTRACT_IMPLEMENTED = True
 
-APP_MIN_VERSION = "1.4.0"
+APP_MIN_VERSION = "1.5.0"
 
 
 @router.get("/capabilities")

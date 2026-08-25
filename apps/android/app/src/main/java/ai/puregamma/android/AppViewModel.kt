@@ -410,6 +410,20 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             .onFailure { globalError = it.message }
     }
 
+    /** 打开 Plaid Link（只读投资账户）。回调经 puregamma://plaid/callback 由 [handleDeepLink] 处理。 */
+    fun connectPlaid(openBrowser: (Uri) -> Unit) = viewModelScope.launch {
+        globalError = null
+        runCatching { portfolioRepo.createPlaidLinkToken() }
+            .onSuccess { token ->
+                val plaidUrl = "https://cdn.plaid.com/link/v2/stable/link.html" +
+                    "?token=$token" +
+                    "&isMobileWebview=true" +
+                    "&oauthRedirectUri=puregamma://plaid/callback"
+                openBrowser(Uri.parse(plaidUrl))
+            }
+            .onFailure { globalError = resolveError(it, "Unable to open Plaid Link") }
+    }
+
     fun syncConnection(id: String) = viewModelScope.launch {
         runCatching { portfolioRepo.syncConnection(id) }
             .onSuccess { loadPortfolio() }
@@ -481,11 +495,12 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
 
     // ---- 深链与 Web 产品路由（最小化、白名单化的受信通道） ----
 
-    /** App Link / intent 深链入口。仅处理 OAuth 回调与受信的研究路由。 */
+    /** App Link / intent 深链入口。仅处理 OAuth 回调、Plaid 回调与受信的研究路由。 */
     fun handleDeepLink(uri: Uri?) {
         if (uri == null || uri.scheme != "puregamma") return
         when {
             uri.host == "oauth" -> handleOAuth(uri)
+            uri.host == "plaid" -> handlePlaidCallback(uri)
             uri.host == "research" -> {
                 // puregamma://research/runs/{run_id}
                 val segments = uri.pathSegments
@@ -494,6 +509,17 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
                     openProductRoute("${languagePrefix()}/research/runs/$runId")
                 }
             }
+        }
+    }
+
+    /** Plaid Link 回调：一次性 public_token → 服务端交换并刷新组合。 */
+    private fun handlePlaidCallback(uri: Uri) {
+        val publicToken = uri.getQueryParameter("public_token") ?: return
+        viewModelScope.launch {
+            globalError = null
+            runCatching { portfolioRepo.exchangePlaidToken(publicToken) }
+                .onSuccess { portfolio = LoadState.Ready(it); loadPortfolio() }
+                .onFailure { globalError = resolveError(it, "Plaid connection failed") }
         }
     }
 

@@ -5,6 +5,9 @@ Every persisted record includes provider, source URL when applicable, source tim
 ## RSS
 Feeds are configured in `config/rss_sources.yaml`. Only HTTPS hosts from this server-side file are accepted. Responses have a size limit and timeout, redirects are rejected, and ETag/Last-Modified validators are retained by the running worker. The parser stores title, short sanitized summary, canonical URL, publication time, source, deterministic sentiment, related symbols, and a content hash. It does not store full articles.
 RSS deduplicates by canonical URL, source/external ID, and content hash. One failed feed produces `PARTIAL`; all failed feeds produce `ERROR`.
+
+## ChainCatcher
+ChainCatcher is isolated as its own document provider. RSS is the 5-minute target path; the REST API is a 15-minute multilingual repair/backfill path and an immediate fallback when RSS fails. Only linked headlines, short summaries, metadata, and source URLs are retained. The commercial launch remains subject to an enterprise-terms review with the publisher.
 ## Binance
 `BinanceProvider` uses market-data-only Spot endpoints: ping, server time, exchange info, 24h ticker, current price, klines, and depth. It never exposes or calls order endpoints. Normalized quote amounts use `Decimal`/database `Numeric` and keep base volume separate from quote volume.
 Default spot pairs are BTCUSDT, ETHUSDT, SOLUSDT, and HYPEUSDT. An unavailable pair fails independently. Equity and preferred-equity symbols never enter this provider.

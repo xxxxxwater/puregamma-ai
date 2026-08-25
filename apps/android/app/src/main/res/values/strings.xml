@@ -74,4 +74,6 @@
     <string name="trading_safety">Trading safety</string>
     <string name="live_trading_row">LIVE trading</string>
     <string name="live_trading_disabled_caption">Permanently disabled in this app — no order entry</string>
+    <string name="connect_plaid">Connect Plaid</string>
+    <string name="plaid_connect_hint">Connect brokerage, retirement, and investment accounts (read-only).</string>
 </resources>

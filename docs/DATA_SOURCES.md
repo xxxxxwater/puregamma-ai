@@ -1,5 +1,5 @@
 # Data Sources
-PureGamma's primary research-document pipeline supports RSS, FinTwit, the official X API, and authorized Bloomberg connections. Legacy market and on-chain adapters remain extension providers but are not part of this pipeline's scheduler.
+PureGamma's primary research-document pipeline supports RSS, the dedicated ChainCatcher RSS+REST newswire, FinTwit, the official X API, and authorized Bloomberg connections. Legacy market and on-chain adapters remain extension providers but are not part of this pipeline's scheduler.
 ## Common contract
 Every provider implements `DataProvider` in `packages/data/provider.py`: health, latest/cursor fetch, normalization, deduplication, usage, and status. Documents are stored in this order:
 `Source -> RawDocument -> NormalizedDocument -> EntityMention/SentimentSignal`
@@ -7,6 +7,9 @@ All timestamps are UTC. The normalized record retains provider, original URL, au
 ## RSS
 Feeds are configured in `config/rss_sources.yaml`; URLs are not embedded in business services. Each feed can set credibility, language, license, redistribution, and retention metadata. The provider sends `If-None-Match` and `If-Modified-Since`, retries transient failures with exponential backoff, canonicalizes URLs, sanitizes markup, and derives stable hashes.
 Set `RSS_SYNC_INTERVAL`, `RSS_REQUEST_TIMEOUT`, and `RSS_CONFIG_PATH`. The admin can sync, pause, resume, check configuration, and inspect recent records.
+
+## ChainCatcher newswire
+`packages/data/chaincatcher_provider.py` combines ChainCatcher's low-latency RSS feed with its approximately 15-minute-latency multilingual REST API. It stores linked metadata and short summaries only, merges both paths by language plus article ID, and has an independent sync status while inheriting the product's RSS entitlement. See [ChainCatcher Newswire](./integrations/CHAINCATCHER_NEWSWIRE.md).
 ## FinTwit
 FinTwit is a curated opinion stream, not a newswire. Accounts are seeded from `config/fintwit_accounts.yaml` into `fintwit_accounts`, then maintained in the admin API. Only enabled whitelist accounts are accepted. Each account has a category, credibility, weight, optional historical accuracy, provider user ID, and collection method.
 The current production method is `official_api`, backed by X user timelines. Set each account's official X user ID and `X_BEARER_TOKEN`. The service does not scrape X pages or bypass platform controls.

@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, UserRound, X, type LucideIcon } from "lucide-react";
+import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, Newspaper, UserRound, X, type LucideIcon } from "lucide-react";
 import { AppearanceControls } from "@/components/appearance-controls";
 import { PlanBadge, Badge } from "@/components/puregamma";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
@@ -36,6 +36,7 @@ const groups: NavGroup[] = [
     labelKey: "common.nav.groups.research",
     items: [
       { href: "/dashboard", labelKey: "common.nav.dashboard", icon: LayoutDashboard },
+      { href: "/news", labelKey: "common.nav.news", icon: Newspaper },
       { href: "/chat", labelKey: "common.nav.chat", icon: Bot },
       { href: "/research", labelKey: "common.nav.research", icon: FlaskConical },
       { href: "/reports", labelKey: "common.nav.reports", icon: BookOpen },

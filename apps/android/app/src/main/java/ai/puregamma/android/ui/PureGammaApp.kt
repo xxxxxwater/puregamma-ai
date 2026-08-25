@@ -129,7 +129,7 @@ fun PureGammaApp(model: AppViewModel, openBrowser: (Uri) -> Unit) {
                 when (model.session) {
                     SessionState.Checking -> LoadingScreen()
                     SessionState.SignedOut -> LoginScreen(model, openBrowser)
-                    is SessionState.SignedIn -> SignedInApp(model)
+                    is SessionState.SignedIn -> SignedInApp(model, openBrowser)
                 }
             }
         }
@@ -303,7 +303,7 @@ private fun LoginScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
 }
 
 @Composable
-private fun SignedInApp(model: AppViewModel) {
+private fun SignedInApp(model: AppViewModel, openBrowser: (Uri) -> Unit) {
     var selected by rememberSaveable { mutableStateOf(AppTab.TODAY) }
     var webOverlayUrl by rememberSaveable { mutableStateOf<String?>(null) }
     val snackbar = remember { SnackbarHostState() }
@@ -340,7 +340,7 @@ private fun SignedInApp(model: AppViewModel) {
                 AppTab.TODAY -> TodayScreen(model)
                 AppTab.AGENT -> AgentScreen(model)
                 AppTab.RESEARCH -> ResearchScreen(model)
-                AppTab.PORTFOLIO -> PortfolioScreen(model)
+                AppTab.PORTFOLIO -> PortfolioScreen(model, openBrowser)
                 AppTab.ACCOUNT -> AccountScreen(model)
             }
             webOverlayUrl?.let { url ->
@@ -759,7 +759,7 @@ private fun HarnessResearchBlock(model: AppViewModel) {
 }
 
 @Composable
-private fun PortfolioScreen(model: AppViewModel) {
+private fun PortfolioScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
     var wallet by remember { mutableStateOf("") }
     var navPoints by remember { mutableStateOf<List<NavPoint>>(emptyList()) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
@@ -796,6 +796,25 @@ private fun PortfolioScreen(model: AppViewModel) {
                         IconButton(onClick = { model.syncConnection(connection.id) }) { Icon(Icons.Default.Sync, contentDescription = stringResource(R.string.refresh)) }
                     }
                     HorizontalDivider(Modifier.padding(horizontal = 16.dp))
+                }
+                item {
+                    Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Icon(Icons.Default.AccountBalance, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                            Spacer(Modifier.width(8.dp))
+                            Text("Plaid Investments", style = MaterialTheme.typography.titleMedium)
+                        }
+                        Text(
+                            stringResource(R.string.plaid_connect_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                        OutlinedButton(onClick = { model.connectPlaid(openBrowser) }, shape = RoundedCornerShape(6.dp)) {
+                            Icon(Icons.Default.Add, contentDescription = null)
+                            Spacer(Modifier.width(8.dp))
+                            Text(stringResource(R.string.connect_plaid))
+                        }
+                    }
                 }
                 item {
                     Column(Modifier.fillMaxWidth().padding(16.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -846,6 +865,26 @@ private fun AutopilotBlock(state: LoadState<Autopilot>, run: () -> Unit) {
     }
 }
 
+/** 主题切换循环：System → Light → Dark → System。 */
+private fun nextTheme(current: ThemeMode): ThemeMode = when (current) {
+    ThemeMode.SYSTEM -> ThemeMode.LIGHT
+    ThemeMode.LIGHT -> ThemeMode.DARK
+    ThemeMode.DARK -> ThemeMode.SYSTEM
+}
+
+@Composable
+private fun themeIcon(mode: ThemeMode): ImageVector = when (mode) {
+    ThemeMode.SYSTEM -> Icons.Default.BrightnessAuto
+    ThemeMode.LIGHT -> Icons.Default.LightMode
+    ThemeMode.DARK -> Icons.Default.DarkMode
+}
+
+private fun themeLabel(mode: ThemeMode): Int = when (mode) {
+    ThemeMode.SYSTEM -> R.string.system_theme
+    ThemeMode.LIGHT -> R.string.light_theme
+    ThemeMode.DARK -> R.string.dark_theme
+}
+
 /**
  * Google profile avatar with an initials fallback. Loads on IO; unknown or
  * unreachable URLs degrade to the initial — never a crash.
@@ -892,30 +931,28 @@ private fun AccountScreen(model: AppViewModel) {
         }
         item { SectionTitle("01", stringResource(R.string.language), null) }
         item {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(16.dp)) {
-                listOf("en" to R.string.english, "zh" to R.string.chinese).forEachIndexed { index, (code, label) ->
-                    SegmentedButton(
-                        selected = model.language == code,
-                        onClick = { model.updateLanguage(code) },
-                        shape = SegmentedButtonDefaults.itemShape(index, 2),
-                    ) { Text(stringResource(label)) }
+            Row(Modifier.fillMaxWidth().padding(16.dp), horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedButton(
+                    onClick = { model.updateLanguage(if (model.language == "zh") "en" else "zh") },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(6.dp),
+                ) {
+                    Icon(Icons.Default.Language, contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(if (model.language == "zh") R.string.chinese else R.string.english))
+                }
+                OutlinedButton(
+                    onClick = { model.setTheme(nextTheme(model.themeMode)) },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(6.dp),
+                ) {
+                    Icon(themeIcon(model.themeMode), contentDescription = null)
+                    Spacer(Modifier.width(8.dp))
+                    Text(stringResource(themeLabel(model.themeMode)))
                 }
             }
         }
-        item { SectionTitle("02", stringResource(R.string.theme), null) }
-        item {
-            SingleChoiceSegmentedButtonRow(Modifier.fillMaxWidth().padding(16.dp)) {
-                val modes = listOf(ThemeMode.SYSTEM to R.string.system_theme, ThemeMode.LIGHT to R.string.light_theme, ThemeMode.DARK to R.string.dark_theme)
-                modes.forEachIndexed { index, (mode, label) ->
-                    SegmentedButton(
-                        selected = model.themeMode == mode,
-                        onClick = { model.setTheme(mode) },
-                        shape = SegmentedButtonDefaults.itemShape(index, modes.size),
-                    ) { Text(stringResource(label), maxLines = 1) }
-                }
-            }
-        }
-        item { SectionTitle("03", stringResource(R.string.research_safety_section), "SERVER GATED") }
+        item { SectionTitle("02", stringResource(R.string.research_safety_section), "SERVER GATED") }
         item { ServiceCapabilityRows(model) }
         item {
             TextButton(onClick = model::signOut, modifier = Modifier.fillMaxWidth().padding(16.dp)) {

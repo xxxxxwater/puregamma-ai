@@ -8,6 +8,7 @@ export const localePrefixPattern = /^\/(en|zh)(?=\/|$)/;
 
 export const legacyLocaleRoutes = [
   "/dashboard",
+  "/news",
   "/reports",
   "/options",
   "/signals",

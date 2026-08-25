@@ -39,7 +39,7 @@
   "user_can_manage_memory": true,
   "user_can_view_trading_mandates": true,
   "user_can_pause_mandates": false,
-  "app_min_version": "1.4.0",
+  "app_min_version": "1.5.0",
   "maintenance_message": null,
   "harness_retry_enabled": true
 }

@@ -12,9 +12,11 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from packages.data.binance_provider import BinanceProvider
 from packages.data.bloomberg_provider import BloombergProvider
+from packages.data.chaincatcher_provider import ChainCatcherProvider
 from packages.data.defillama_provider import DefiLlamaProvider
 from packages.data.fintwit_provider import FinTwitAccountConfig, FinTwitProvider
 from packages.data.onchain_provider import EVMRPCProvider
+from packages.data.provider_aliases import expand_document_providers
 from packages.data.provider import DataSourceStatus, ProviderError
 from packages.data.rss_provider import RSSProvider
 from packages.data.subgraph_provider import SubgraphProvider
@@ -26,6 +28,7 @@ from apps.api.services.entitlement_service import get_user_entitlement
 
 SOURCE_DEFINITIONS = (
     ("rss", "RSS News", "news", "rss", True),
+    ("chaincatcher", "ChainCatcher Newswire", "news", "chaincatcher", True),
     ("fintwit", "FinTwit Curated Opinion Flow", "opinion", "fintwit", True),
     ("x-twitter", "X / Twitter Official API", "opinion", "x", True),
     ("bloomberg", "Bloomberg Authorized Data", "licensed_news", "bloomberg", True),
@@ -40,7 +43,7 @@ SOURCE_DEFINITIONS = (
     ("wallet", "Wallet", "portfolio", "wallet", False),
 )
 
-DOCUMENT_PROVIDER_IDS = {"rss", "fintwit", "x-twitter", "bloomberg"}
+DOCUMENT_PROVIDER_IDS = {"rss", "chaincatcher", "fintwit", "x-twitter", "bloomberg"}
 
 
 def redact_error(value: str | None) -> str | None:
@@ -55,6 +58,7 @@ def seed_data_sources(db: Session) -> None:
     settings = get_settings()
     optional_status = {
         "rss": DataSourceStatus.DEGRADED.value,
+        "chaincatcher": DataSourceStatus.DEGRADED.value,
         "fintwit": FinTwitProvider().health_check().status.value,
         "x-twitter": XTwitterProvider().health_check().status.value,
         "bloomberg": BloombergProvider().health_check().status.value,
@@ -66,6 +70,7 @@ def seed_data_sources(db: Session) -> None:
     }
     enabled_map = {
         "rss": settings.rss_sync_enabled,
+        "chaincatcher": settings.chaincatcher_sync_enabled,
         "fintwit": True,
         "x-twitter": True,
         "bloomberg": settings.bloomberg_mode in {"mock", "production"},
@@ -94,11 +99,17 @@ def seed_data_sources(db: Session) -> None:
             metadata["retentionPolicy"] = "commercial-contract-defined"
         elif source_id == "rss":
             metadata["licenseStatus"] = "per-feed configuration"
+        elif source_id == "chaincatcher":
+            metadata["licenseStatus"] = "linked-summary-only; enterprise terms review required"
+            metadata["retentionPolicy"] = "30 days, metadata and short summary only"
+            metadata["redistributionAllowed"] = False
+            metadata["documentedApiLatencyMinutes"] = 15
+            metadata["ingestionPaths"] = ["rss", "rest"]
         row.metadata_json = metadata
-        if source_id in optional_status:
-            row.status = optional_status[source_id]
-        elif not row.enabled:
+        if not row.enabled:
             row.status = DataSourceStatus.DISABLED.value
+        elif source_id in optional_status:
+            row.status = optional_status[source_id]
         db.add(row)
     _seed_fintwit_accounts(db)
     db.commit()
@@ -112,6 +123,7 @@ def provider_registry(db: Session | None = None) -> dict[str, object]:
     x_provider = XTwitterProvider()
     return {
         "rss": RSSProvider(validators=rss_metadata.get("validators") or {}),
+        "chaincatcher": ChainCatcherProvider(),
         "fintwit": FinTwitProvider(accounts=account_configs, x_provider=x_provider),
         "x-twitter": x_provider,
         "bloomberg": BloombergProvider(),
@@ -263,7 +275,7 @@ def sync_provider(db: Session, provider_id: str, *, force: bool = False):
 
 def sync_all_providers(db: Session) -> list[DataSourceSyncRun]:
     runs = []
-    for provider_id in ("rss", "fintwit", "x-twitter", "bloomberg"):
+    for provider_id in ("rss", "chaincatcher", "fintwit", "x-twitter", "bloomberg"):
         source = db.get(DataSource, provider_id)
         if source and source.enabled:
             try:
@@ -320,10 +332,11 @@ def data_capability(db: Session, row: DataSource, user_id: str | None = None) ->
     entitled = True
     if user_id:
         allowed = set(get_user_entitlement(db, user_id)["allowed_data_sources"])
+        expanded_allowed = set(expand_document_providers(allowed))
         aliases = {row.id, row.provider, row.category}
         if row.id == "x-twitter":
             aliases.add("x")
-        entitled = "all" in allowed or bool(aliases.intersection(allowed))
+        entitled = "all" in allowed or bool(aliases.intersection(allowed.union(expanded_allowed)))
     configured = row.status not in unavailable
     stale = freshness_seconds is None or freshness_seconds > stale_after
     failure_reason = redact_error(row.last_error)
@@ -365,7 +378,7 @@ def serialize_source(row: DataSource, db: Session | None = None, user_id: str | 
         "type": row.category,
         "provider": row.provider,
         "status": row.status,
-        "requiredPlan": "Free" if row.id == "rss" else "Max" if row.id in {"fintwit", "x-twitter", "bloomberg"} else "Extension",
+        "requiredPlan": "Free" if row.id in {"rss", "chaincatcher"} else "Max" if row.id in {"fintwit", "x-twitter", "bloomberg"} else "Extension",
         "lastSync": row.last_sync_at.isoformat() if row.last_sync_at else None,
         "lastSuccess": row.last_success_at.isoformat() if row.last_success_at else None,
         "error": redact_error(row.last_error) or "",

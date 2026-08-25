@@ -13,6 +13,7 @@ from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from packages.database.models import EntityMention, NormalizedDocument
+from packages.data.provider_aliases import expand_document_providers
 
 
 def top_trending(
@@ -35,10 +36,11 @@ def top_trending(
         db.query(EntityMention.symbol, func.count(EntityMention.id).label("mentions"))
         .filter(EntityMention.created_at >= cutoff)
     )
-    if providers:
+    storage_providers = expand_document_providers(providers or ())
+    if storage_providers:
         query = query.join(
             NormalizedDocument, EntityMention.document_id == NormalizedDocument.id
-        ).filter(NormalizedDocument.provider.in_(providers))
+        ).filter(NormalizedDocument.provider.in_(storage_providers))
     rows = (
         query.group_by(EntityMention.symbol)
         .order_by(func.count(EntityMention.id).desc(), EntityMention.symbol.asc())
@@ -52,8 +54,8 @@ def top_trending(
             .join(EntityMention, EntityMention.document_id == NormalizedDocument.id)
             .filter(EntityMention.symbol == symbol, EntityMention.created_at >= cutoff)
         )
-        if providers:
-            sample_query = sample_query.filter(NormalizedDocument.provider.in_(providers))
+        if storage_providers:
+            sample_query = sample_query.filter(NormalizedDocument.provider.in_(storage_providers))
         sample = sample_query.order_by(NormalizedDocument.created_at.desc()).first()
         trending.append(
             {

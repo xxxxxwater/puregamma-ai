@@ -124,6 +124,10 @@ Exchange sync is planned. All keys must be read-only.
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |
 | `COINDESK_RSS_URL` | No | CoinDesk RSS URL | `https://www.coindesk.com/arc/outboundfeeds/rss/` | RSS does not require a secret. | Public |
+| `CHAINCATCHER_SYNC_ENABLED` | No | `true` | `true` | Disable independently during upstream incidents or before license approval. | Public |
+| `CHAINCATCHER_LANGUAGES` | No | `zh-CN,en,ja,ko` | `zh-CN,en,ja,ko` | REST backfill languages; use only officially supported values. | Public |
+| `CHAINCATCHER_SYNC_INTERVAL_MINUTES` | No | `5` | `5` | RSS polling interval; coordinate higher frequency with the publisher. | Public |
+| `CHAINCATCHER_API_REFRESH_MINUTES` | No | `15` | `15` | Do not set below the API's documented cache latency without agreement. | Public |
 | `COINGECKO_API_KEY` | Optional | empty | `CG-...` | Use for higher rate limits. | Secret |
 | `DEFILLAMA_API_KEY` | Optional | empty | `...` | Only if paid API is used. | Secret |
 | `X_API_KEY` | Required for real X scans | empty | `...` | Treat as high-risk API key. | Secret |
