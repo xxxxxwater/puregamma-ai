@@ -63,6 +63,12 @@ class ConnectionTestRequest(BaseModel):
     connection_id: str
 
 
+class ConnectionBindRequest(BaseModel):
+    provider: str = Field(min_length=1, max_length=64)
+    account_label: str = Field(min_length=1, max_length=128)
+    credentials: dict = Field(default_factory=dict)
+
+
 def _http_error(exc: Exception) -> HTTPException:
     if isinstance(exc, LookupError):
         return HTTPException(status_code=404, detail=str(exc))
@@ -130,6 +136,45 @@ def list_connections(
     db: Session = Depends(get_db), user: User = Depends(get_current_user)
 ) -> dict:
     return {"connections": control_plane.list_connections(db, user.id)}
+
+
+@trading_router.post("/connections")
+def bind_connection(
+    payload: ConnectionBindRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Self-service exchange API key binding.
+
+    Credentials are Fernet-encrypted server-side (plaintext is never persisted
+    nor echoed back) and the key is immediately health/permission-verified.
+    An unsafe key (withdrawal/transfer/leverage/futures/options enabled) is
+    rejected with a 400 and the stored connection is marked ERROR.
+    """
+    try:
+        connection = control_plane.bind_connection(
+            db,
+            user.id,
+            provider=payload.provider,
+            account_label=payload.account_label,
+            credentials=payload.credentials,
+        )
+        return {"connection": control_plane._serialize_connection(connection)}
+    except Exception as exc:
+        raise _http_error(exc) from exc
+
+
+@trading_router.post("/connections/{connection_id}/revoke")
+def revoke_connection(
+    connection_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    try:
+        connection = control_plane.revoke_connection(db, user.id, connection_id)
+        return {"connection": control_plane._serialize_connection(connection)}
+    except Exception as exc:
+        raise _http_error(exc) from exc
 
 
 @trading_router.post("/connections/test")
@@ -224,6 +269,15 @@ def get_order(
         return {"order": control_plane.get_order(db, user.id, order_id)}
     except Exception as exc:
         raise _http_error(exc) from exc
+
+
+@trading_router.get("/fills")
+def list_fills(
+    order_id: str | None = None,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    return {"fills": control_plane.list_fills(db, user.id, order_id=order_id)}
 
 
 @trading_router.post("/orders/preview")

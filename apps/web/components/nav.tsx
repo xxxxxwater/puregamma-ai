@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, Newspaper, UserRound, X, type LucideIcon } from "lucide-react";
+import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, Newspaper, Smartphone, UserRound, X, type LucideIcon } from "lucide-react";
 import { AppearanceControls } from "@/components/appearance-controls";
 import { PlanBadge, Badge } from "@/components/puregamma";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
@@ -17,6 +17,7 @@ import { getMe, AUTH_EXPIRED_EVENT } from "@/lib/api";
 import { publishUserState, USER_STATE_EVENT, type SessionUserState } from "@/lib/user-state";
 import { applySurfaceTier, surfaceTierForPath } from "@/lib/visual-style";
 import { PluginRuntime } from "@/plugins/core/runtime";
+import { usePluginNavItems } from "@/plugins/core/services/navigation";
 
 type NavItem = {
   href: string;
@@ -59,6 +60,7 @@ const groups: NavGroup[] = [
       { href: "/billing", labelKey: "common.nav.billing", icon: CreditCard },
       { href: "/gateway", labelKey: "common.nav.gateway", icon: Network },
       { href: "/memory", labelKey: "common.nav.memory", icon: BrainCircuit },
+      { href: "/mobile-access", labelKey: "common.nav.mobileAccess", icon: Smartphone },
       { href: "/account", labelKey: "common.nav.account", icon: UserRound }
     ]
   }
@@ -76,6 +78,42 @@ function AuthExpiredRedirector({ locale }: { locale: Locale }) {
     return () => window.removeEventListener(AUTH_EXPIRED_EVENT, handler);
   }, [locale, pathname, router]);
   return null;
+}
+
+/**
+ * Nav items registered by Cordis plugins (currently the LIVE trading
+ * console). Disabled items are honest placeholders — a plugin may advertise
+ * a surface the server has not enabled, and that must read as "not enabled",
+ * never as a fake working entry.
+ */
+function PluginNavSection({ locale, onNavigate }: { locale: Locale; onNavigate?: () => void }) {
+  const items = usePluginNavItems();
+  const pathname = usePathname();
+  if (!items.length) return null;
+  const activePathname = stripLocale(pathname);
+  return (
+    <div>
+      <div className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-text-pg-dim">{t(locale, "common.nav.groups.trading")}</div>
+      <div className="space-y-1">
+        {items.map((item) => {
+          const label = item.labelKey ? t(locale, item.labelKey) : item.label;
+          const active = activePathname.startsWith(item.href);
+          if (item.disabled) {
+            return (
+              <span key={item.href} aria-disabled="true" title={label} className="flex cursor-not-allowed items-center gap-2 border border-transparent px-3 py-2 text-sm text-text-pg-dim opacity-70">
+                {label}
+              </span>
+            );
+          }
+          return (
+            <Link key={item.href} href={withLocale(locale, item.href)} onClick={onNavigate} aria-current={active ? "page" : undefined} className={`flex items-center gap-2 border px-3 py-2 text-sm  rounded-lg ${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
+              {label}
+            </Link>
+          );
+        })}
+      </div>
+    </div>
+  );
 }
 
 export function AppShell({ children, locale }: { children: ReactNode; locale: Locale }) {
@@ -158,6 +196,7 @@ export function MobileNavDrawer({ locale, open, onClose }: { locale: Locale; ope
               </div>
             </div>
           ))}
+          <PluginNavSection locale={locale} onNavigate={onClose} />
         </nav>
         <Link href={withLocale(locale, "/account#imessage-bind")} onClick={onClose} className="flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg">
           <MessageCircle className="h-4 w-4" aria-hidden />
@@ -198,6 +237,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
             </div>
           </div>
         ))}
+        <PluginNavSection locale={locale} />
       </nav>
       <Link href={withLocale(locale, "/account#imessage-bind")} className="absolute bottom-5 left-4 right-4 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg">
         <MessageCircle className="h-4 w-4" aria-hidden />

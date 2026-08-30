@@ -759,7 +759,7 @@ def sync_data_source(provider_id: str, db: Session = Depends(get_db), user: User
 
 @router.get("/data-sources/{provider_id}/runs")
 def data_source_runs(provider_id: str, db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    if provider_id in {"rss", "fintwit", "x-twitter", "bloomberg"}:
+    if provider_id in {"rss", "chaincatcher", "fintwit", "x-twitter", "bloomberg"}:
         rows = db.query(ProviderSyncLog).filter(ProviderSyncLog.provider_id == provider_id).order_by(ProviderSyncLog.started_at.desc()).limit(100).all()
     else:
         rows = db.query(DataSourceSyncRun).filter(DataSourceSyncRun.provider_id == provider_id).order_by(DataSourceSyncRun.started_at.desc()).limit(100).all()

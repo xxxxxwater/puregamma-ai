@@ -32,6 +32,7 @@ from decimal import Decimal
 
 from sqlalchemy.orm import Session
 
+from apps.api.config import get_settings
 from packages.database.models import (
     BrokerConnection,
     Fill,
@@ -47,6 +48,7 @@ from packages.live_trading import flags as flags_service
 from packages.live_trading import kill_switch as kill_switch_service
 from packages.live_trading import ledger as ledger_service
 from packages.live_trading import risk_engine
+from packages.live_trading import secret_store
 from packages.live_trading.enums import (
     IntentStatus,
     LiveOrderStatus,
@@ -382,6 +384,7 @@ def confirm_order(
         "client_order_id": order.client_order_id,
         "account_id": mandate.account_id,
         "mandate_id": mandate.id,
+        "connection_id": connection.id if connection else None,
         "symbol": order.symbol,
         "side": order.side,
         "quantity": str(order.quantity),
@@ -582,9 +585,15 @@ def sync_order_status(db: Session, order: LiveOrder, gateway: ExecutionGateway |
         return order
     mandate = db.query(TradingMandate).filter_by(id=order.mandate_id).one_or_none()
     account_id = mandate.account_id if mandate else ""
+    connection_id = mandate.broker_connection_id if mandate else None
     gw = gateway or get_execution_gateway()
     try:
-        result = gw.query_order(order.client_order_id, account_id)
+        result = gw.query_order(
+            order.client_order_id,
+            account_id,
+            connection_id=connection_id,
+            symbol=order.symbol,
+        )
         state = str(result.get("state") or LiveOrderStatus.UNKNOWN.value).lower()
         if state in {item.value for item in LiveOrderStatus}:
             order.status = state
@@ -644,9 +653,19 @@ def cancel_order(
         LiveOrderStatus.EXPIRED.value,
     }:
         return order
+    mandate = (
+        db.query(TradingMandate).filter_by(id=order.mandate_id).one_or_none()
+    )
+    if not mandate:
+        raise LookupError("Mandate not found")
     gw = gateway or get_execution_gateway()
     try:
-        ack = gw.cancel_order(order.client_order_id, order.mandate.account_id)
+        ack = gw.cancel_order(
+            order.client_order_id,
+            mandate.account_id,
+            connection_id=mandate.broker_connection_id,
+            symbol=order.symbol,
+        )
         state = str(ack.get("state") or LiveOrderStatus.CANCELED.value).lower()
         if state in {item.value for item in LiveOrderStatus}:
             order.status = state
@@ -838,6 +857,24 @@ def _serialize_order(row: LiveOrder) -> dict:
     }
 
 
+def _serialize_connection(row: BrokerConnection) -> dict:
+    return {
+        "id": row.id,
+        "provider": row.provider,
+        "account_label": row.account_label,
+        "environment": row.environment,
+        "status": row.status,
+        "permissions": row.permissions_json,
+        "has_credentials": bool(row.encrypted_credentials_ref),
+        "last_health_check_at": row.last_health_check_at.isoformat()
+        if row.last_health_check_at
+        else None,
+        "error_code": row.error_code,
+        "revoked_at": row.revoked_at.isoformat() if row.revoked_at else None,
+        "created_at": row.created_at.isoformat(),
+    }
+
+
 def list_connections(db: Session, user_id: str) -> list[dict]:
     rows = (
         db.query(BrokerConnection)
@@ -845,35 +882,26 @@ def list_connections(db: Session, user_id: str) -> list[dict]:
         .order_by(BrokerConnection.created_at.desc())
         .all()
     )
-    return [
-        {
-            "id": row.id,
-            "provider": row.provider,
-            "account_label": row.account_label,
-            "environment": row.environment,
-            "status": row.status,
-            "permissions": row.permissions_json,
-            "has_credentials": bool(row.encrypted_credentials_ref),
-            "last_health_check_at": row.last_health_check_at.isoformat()
-            if row.last_health_check_at
-            else None,
-            "revoked_at": row.revoked_at.isoformat() if row.revoked_at else None,
-            "created_at": row.created_at.isoformat(),
-        }
-        for row in rows
-    ]
+    return [_serialize_connection(row) for row in rows]
 
 
 def test_connection(
     db: Session, user_id: str, connection_id: str, gateway: ExecutionGateway | None = None
 ) -> dict:
-    """Health test only; credentials are never echoed back."""
+    """Health test only; credentials are never echoed back.
+
+    - a DISABLED gateway is reported honestly as DISCONNECTED (mock semantics);
+    - an API key whose permissions allow withdrawal/transfer/leverage/futures/
+      options is hard-rejected (status ERROR + UNSAFE_API_PERMISSIONS) and an
+      ops alert is raised — the connection can never trade;
+    - network/credential failures mark ERROR and surface the reason.
+    """
     connection = owned_connection(db, user_id, connection_id)
     if connection.revoked_at:
         raise ControlPlaneError("Connection is revoked")
     gw = gateway or get_execution_gateway()
     try:
-        health = gw.health()
+        health = gw.health(connection_id=connection.id)
     except GatewayError as exc:
         connection.status = "ERROR"
         connection.error_code = "HEALTH_CHECK_FAILED"
@@ -881,12 +909,183 @@ def test_connection(
         connection.last_health_check_at = utcnow()
         db.commit()
         raise ControlPlaneError(f"Connection health check failed: {exc}") from exc
+
+    if health.get("status") == "DISABLED":
+        # Honest mock semantics: the gateway refuses execution; the connection
+        # is not unhealthy, it simply cannot trade yet.
+        connection.status = "DISCONNECTED"
+        connection.error_code = "GATEWAY_DISABLED"
+        connection.error_message = "Execution gateway is disabled; no real venue is reachable"
+        connection.last_health_check_at = utcnow()
+        db.commit()
+        return {"status": connection.status, "health": health}
+
+    permissions = health.get("permissions") or {}
+    if permissions.get("safe") is False:
+        connection.status = "ERROR"
+        connection.error_code = "UNSAFE_API_PERMISSIONS"
+        connection.error_message = "; ".join(
+            permissions.get("unsafe_permissions") or ["unknown"]
+        )[:300]
+        connection.last_health_check_at = utcnow()
+        db.commit()
+        _notify_ops(
+            user_id,
+            connection_id,
+            "broker API key permissions are unsafe; connection rejected "
+            f"({connection.error_message})",
+        )
+        raise ControlPlaneError(
+            "Broker API key permissions are unsafe: "
+            + (connection.error_message or "withdrawal/transfer/leverage enabled")
+        )
+
     connection.status = "HEALTHY" if health.get("status") in {"HEALTHY", "CONNECTED"} else "ERROR"
     connection.last_health_check_at = utcnow()
     connection.error_code = None
     connection.error_message = None
     db.commit()
     return {"status": connection.status, "health": health}
+
+
+def bind_connection(
+    db: Session,
+    user_id: str,
+    *,
+    provider: str,
+    account_label: str,
+    credentials: dict,
+    environment: str = "production",
+    gateway: ExecutionGateway | None = None,
+) -> BrokerConnection:
+    """User self-service exchange API key binding.
+
+    Credentials are Fernet-encrypted before they ever touch the database, the
+    provider must be the one the deployment has provisioned, and the key is
+    immediately health/permission-verified — an unsafe key (withdrawal,
+    transfer, leverage, futures, options) is stored but marked ERROR and the
+    bind call fails closed. Plaintext is never returned to the caller.
+    """
+    settings = get_settings()
+    if not settings.live_trading_provider:
+        raise ControlPlaneError(
+            "Live trading provider is not configured on this deployment"
+        )
+    if settings.live_trading_provider and provider != settings.live_trading_provider:
+        raise ControlPlaneError(
+            f"Provider '{provider}' is not enabled by this deployment"
+        )
+    if environment != "production":
+        raise ControlPlaneError("Self-service binding is production-only in this release")
+    api_key = str(credentials.get("api_key") or "").strip()
+    api_secret = str(credentials.get("api_secret") or "").strip()
+    if not api_key or not api_secret:
+        raise ControlPlaneError("api_key and api_secret are required credentials")
+    active = (
+        db.query(BrokerConnection)
+        .filter_by(user_id=user_id)
+        .filter(BrokerConnection.revoked_at.is_(None))
+        .count()
+    )
+    if active >= 3:
+        raise ControlPlaneError("Connection limit reached (max 3 active connections)")
+    existing = (
+        db.query(BrokerConnection)
+        .filter_by(user_id=user_id, provider=provider, account_label=account_label)
+        .one_or_none()
+    )
+    if existing:
+        raise ControlPlaneError("Connection label already exists")
+
+    trace_id = audit_service.new_trace_id()
+    row = BrokerConnection(
+        user_id=user_id,
+        provider=provider,
+        account_label=account_label[:128],
+        encrypted_credentials_ref=secret_store.encrypt_secrets(
+            {"api_key": api_key, "api_secret": api_secret}
+        ),
+        permissions_json={
+            "spot": True,
+            "margin": False,
+            "futures": False,
+            "options": False,
+            "shorting": False,
+            "withdraw": False,
+            "transfer": False,
+        },
+        environment=environment,
+        status="DISCONNECTED",
+    )
+    db.add(row)
+    # Flush so the ORM default assigns row.id before it is embedded in the
+    # audit idempotency key — otherwise every first bind logs
+    # "audit:bind:None" and later binds silently skip their audit entry.
+    db.flush()
+    audit_service.audit(
+        db,
+        user_id=user_id,
+        action="LIVE_CONNECTION_BOUND",
+        status="DISCONNECTED",
+        trace_id=trace_id,
+        idempotency_key=f"audit:bind:{row.id}",
+        actor_type="user",
+        result_json={"provider": provider, "account_label": account_label},
+    )
+    db.commit()
+    db.refresh(row)
+    # Immediate verification: health + API-key permission hard-check.
+    try:
+        test_connection(db, user_id, row.id, gateway=gateway)
+    except ControlPlaneError as exc:
+        raise ControlPlaneError(f"Connection rejected: {exc}") from exc
+    return row
+
+
+def revoke_connection(
+    db: Session, user_id: str, connection_id: str
+) -> BrokerConnection:
+    """Self-service revoke. Also pauses every LIVE mandate bound to it."""
+    connection = owned_connection(db, user_id, connection_id)
+    if connection.revoked_at:
+        return connection
+    connection.revoked_at = utcnow()
+    connection.revoked_by = user_id
+    connection.status = "REVOKED"
+    trace_id = audit_service.new_trace_id()
+    paused = []
+    for mandate in (
+        db.query(TradingMandate)
+        .filter_by(user_id=user_id, broker_connection_id=connection.id)
+        .all()
+    ):
+        if mandate.execution_mode != "live" or mandate.paused:
+            continue
+        mandate.paused = True
+        mandate.pause_reason = "connection_revoked"
+        paused.append(mandate.id)
+    audit_service.audit(
+        db,
+        user_id=user_id,
+        action="LIVE_CONNECTION_REVOKED",
+        status="REVOKED",
+        trace_id=trace_id,
+        idempotency_key=f"audit:revoke:{connection.id}",
+        actor_type="user",
+        result_json={"paused_mandates": paused},
+    )
+    db.commit()
+    db.refresh(connection)
+    return connection
+
+
+def _notify_ops(user_id: str, connection_id: str, message: str) -> None:
+    try:
+        from apps.api.services.ops_alert import notify_ops
+
+        notify_ops(f"[live-trading] user={user_id} connection={connection_id} {message}")
+    except Exception:
+        pass
 
 
 def safety_status(db: Session, user_id: str) -> dict:

@@ -45,5 +45,7 @@
   "daysAgo": "{count}d ago",
   "disclaimer": "PureGamma displays attributed headlines, short linked summaries, and metadata for research only. The publisher's page is the authoritative text. This feed is not investment advice and does not trigger trades.",
   "latency": "RSS target ≤5m · API backfill ≈15m",
-  "languageFallback": "English updates are not available for this filter yet. Showing attributed updates in other available languages."
+  "languageFallback": "English updates are not available for this filter yet. Showing attributed updates in other available languages.",
+  "headline": "Top story",
+  "askAgent": "Ask Agent"
 }

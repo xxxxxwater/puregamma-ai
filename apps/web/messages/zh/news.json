@@ -45,5 +45,7 @@
   "daysAgo": "{count} 天前",
   "disclaimer": "PureGamma 仅展示带出处的标题、短摘要、元数据和原文链接，用于研究参考。发布方页面为权威原文。本快讯流不构成投资建议，也不会触发交易。",
   "latency": "RSS 目标 ≤5 分钟 · API 回补约 15 分钟",
-  "languageFallback": "当前筛选条件下暂无英文内容，正在显示其他可用语言的已署名快讯。"
+  "languageFallback": "当前筛选条件下暂无英文内容，正在显示其他可用语言的已署名快讯。",
+  "headline": "头条",
+  "askAgent": "问 Agent"
 }

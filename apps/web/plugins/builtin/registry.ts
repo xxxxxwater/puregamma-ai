@@ -15,6 +15,7 @@ export const builtinPluginLoaders = {
   "puregamma.options": () => import("./options").then(({ default: plugin }) => plugin),
   "puregamma.secretary": () => import("./secretary").then(({ default: plugin }) => plugin),
   "puregamma.trading": () => import("./trading").then(({ default: plugin }) => plugin),
+  "puregamma.live-trading": () => import("./live-trading").then(({ default: plugin }) => plugin),
 } as const;
 
 export type BuiltinPluginId = keyof typeof builtinPluginLoaders;

@@ -265,6 +265,9 @@ class Settings:
     imessage_provider: str = os.getenv("IMESSAGE_PROVIDER", "mock")
     imessage_relay_url: str = os.getenv("IMESSAGE_RELAY_URL", "http://localhost:8787")
     imessage_relay_secret: str = os.getenv("IMESSAGE_RELAY_SECRET", "")
+    # ---- Pocket relay（手机访问 / cloudflared 隧道，iMessage 备选路径）-------------
+    pocket_relay_url: str = os.getenv("POCKET_RELAY_URL", "")
+    pocket_rpc_secret: str = os.getenv("POCKET_RPC_SECRET", "")
     imessage_replay_tolerance_seconds: int = int(
         os.getenv("IMESSAGE_REPLAY_TOLERANCE_SECONDS", "300") or 300
     )
@@ -501,12 +504,21 @@ class Settings:
     live_trading_allowed_symbols: tuple[str, ...] = tuple(
         _csv(os.getenv("LIVE_TRADING_ALLOWED_SYMBOLS", ""))
     )
-    live_trading_gateway: str = os.getenv("LIVE_TRADING_GATEWAY", "mock")  # mock | nautilus
+    live_trading_gateway: str = os.getenv("LIVE_TRADING_GATEWAY", "mock")  # mock | nautilus | binance
     live_trading_order_timeout_seconds: float = float(
         os.getenv("LIVE_TRADING_ORDER_TIMEOUT_SECONDS", "8") or 8
     )
     live_trading_default_max_notional: str = os.getenv(
         "LIVE_TRADING_DEFAULT_MAX_NOTIONAL", "1000"
+    )
+    # Real Binance spot gateway (LIVE_TRADING_GATEWAY=binance). The base URL
+    # can point at the Binance testnet sandbox for rehearsal without code
+    # changes; production deployment uses https://api.binance.com.
+    live_trading_binance_base_url: str = os.getenv(
+        "LIVE_TRADING_BINANCE_BASE_URL", "https://api.binance.com"
+    )
+    live_trading_binance_recv_window_ms: int = int(
+        os.getenv("LIVE_TRADING_BINANCE_RECV_WINDOW_MS", "5000") or 5000
     )
     # Intervals must stay inside the single-server budget documented in
     # docs/live-trading/PRODUCTION_DEPLOYMENT.md.
@@ -707,6 +719,21 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("LIVE trading must remain disabled in the production baseline")
     if settings.nautilus_allow_withdrawal or settings.nautilus_allow_transfer:
         errors.append("Withdrawal and transfer must remain disabled")
+    # LIVE Trading Control Plane: opening LIVE in production requires the full
+    # credential-protection and provider chain. The legacy runtime LIVE flags
+    # above must still be false — LIVE flows only through the control plane.
+    if settings.live_trading_enabled and settings.live_trading_gateway != "mock":
+        if not settings.live_trading_provider:
+            errors.append("LIVE_TRADING_PROVIDER is required when LIVE_TRADING_ENABLED=true")
+        if settings.live_trading_gateway == "binance" and settings.live_trading_provider != "binance_spot":
+            errors.append("LIVE_TRADING_GATEWAY=binance requires LIVE_TRADING_PROVIDER=binance_spot")
+        if not settings.live_credential_encryption_key and (
+            not settings.encryption_master_key or len(settings.encryption_master_key) < 32
+        ):
+            errors.append(
+                "LIVE_CREDENTIAL_ENCRYPTION_KEY (or a strong ENCRYPTION_MASTER_KEY) "
+                "is required when LIVE_TRADING_ENABLED=true"
+            )
     if not settings.session_cookie_domain:
         errors.append("SESSION_COOKIE_DOMAIN is required in production")
     else:

@@ -1,0 +1,50 @@
+{
+  "seo": {
+    "title": "手机访问 | PureGamma AI",
+    "description": "用手机使用 PureGamma：扫码远程访问，或绑定 iPhone/iMessage 接收回复与简报。"
+  },
+  "eyebrow": "你的手机",
+  "title": "手机访问",
+  "subtitle": "在外用手机也能用 PureGamma：扫码远程访问，或绑定 iPhone/iMessage 接收回复与每日简报。",
+  "remote": {
+    "title": "手机远程控制",
+    "subtitle": "扫码 + 8 位密码，在手机上用完整 PureGamma（Agent、市场快讯、组合）。公网走 cloudflared 隧道，不暴露服务器地址。",
+    "public": "公网隧道",
+    "pin": "密码",
+    "show": "显示",
+    "hide": "隐藏",
+    "rotatePin": "刷新密码",
+    "customPin": "设置固定 8 位密码",
+    "customPlaceholder": "8 位数字",
+    "apply": "应用",
+    "startTunnel": "开启公网访问",
+    "stopTunnel": "关闭公网访问",
+    "running": "运行中",
+    "stopped": "未开启",
+    "autoStart": "重启后自动恢复",
+    "restartNotice": "中继重启后手机需重新输入密码。公网隧道 URL 与二维码不要外发。",
+    "userNote": "用手机扫码、输入密码，即可随时随地使用 PureGamma。隧道与密码由平台运营方管理。",
+    "loading": "正在加载…",
+    "unavailable": "手机远程控制暂时不可用。",
+    "notConfigured": "未配置 POCKET_RELAY_URL。",
+    "retry": "重试"
+  },
+  "imessage": {
+    "title": "iMessage",
+    "subtitle": "把 iPhone/iMessage 绑定到账号：手机直接收发 Agent 回复，接收每日简报。",
+    "officialNumber": "官方号码",
+    "bound": "已绑定 {recipient}",
+    "verifiedAt": "验证于 {time}",
+    "notBound": "尚未绑定手机",
+    "recipientPlaceholder": "+1 区号手机号",
+    "sendCode": "发送验证码",
+    "sending": "发送中…",
+    "codePlaceholder": "6 位验证码",
+    "confirm": "确认绑定",
+    "planRequired": "iMessage 需要 Max 及以上套餐。",
+    "test": "发送测试消息",
+    "testing": "发送中…",
+    "testSent": "测试消息已发送。",
+    "error": "操作失败，请重试。"
+  }
+}

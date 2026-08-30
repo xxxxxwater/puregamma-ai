@@ -293,15 +293,16 @@ def build_ctx(
         ctx.last_order_at = last_order.created_at
 
     gw = gateway or get_execution_gateway()
+    connection_id = connection.id if connection else None
     try:
-        positions = gw.positions(mandate.account_id)
+        positions = gw.positions(mandate.account_id, connection_id=connection_id)
         ctx.exchange_positions_notional = {
             str(item.get("instrument") or item.get("symbol") or "?").upper(): _decimal(
                 item.get("notional") or item.get("market_value")
             )
             for item in positions
         }
-        balances = gw.account_balances(mandate.account_id)
+        balances = gw.account_balances(mandate.account_id, connection_id=connection_id)
         ctx.available_cash = _decimal(balances.get("available") or balances.get("cash"))
     except GatewayError:
         # Gateway unavailable: keep None so balance check rejects honestly.

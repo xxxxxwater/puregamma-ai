@@ -1,5 +1,6 @@
 import type { ComponentType } from "react";
 import type { Context } from "cordis";
+import type { TranslationKey } from "@/lib/translations";
 import type { ApiClientService } from "./services/api-client";
 import type { SessionService } from "./services/session";
 import type { EntitlementsService } from "./services/entitlements";
@@ -18,7 +19,7 @@ import type { RealtimeService } from "./services/realtime";
  * rights are enforced exclusively by the API.
  */
 
-export type FrontendPermission = "read:portfolio" | "read:research" | "trade:paper";
+export type FrontendPermission = "read:portfolio" | "read:research" | "trade:paper" | "trade:live";
 
 export interface FrontendPluginManifestEntry {
   id: string;
@@ -50,7 +51,12 @@ export interface CommandDefinition {
 
 export interface PluginNavItem {
   href: string;
+  /** Fallback display label used when `labelKey` is not provided. */
   label: string;
+  /** Optional i18n key resolved against the active locale at render time. */
+  labelKey?: TranslationKey;
+  /** Disabled items render as non-interactive placeholders. */
+  disabled?: boolean;
 }
 
 export interface FrontendPlugin {

@@ -24,14 +24,43 @@
 - [x] 部署:内存上限(已有)、日志限制、加密异地备份脚本、资源告警脚本
 - [x] 文档 8 份;测试 16 个新用例 + 迁移链更新
 
+## 已完成(实盘开启批次,见 LIVE_LAUNCH_ARCHITECTURE.md)
+
+- [x] **真实执行网关**:`packages/live_trading/binance_spot_gateway.py`
+      (Binance 现货 REST,与 runtime `BinanceSpotTestnetAdapter` 同语义)
+      — `submit_order / cancel_order / query_order / account_balances /
+      positions / fetch_prices / health`,全协议覆盖;
+- [x] **超时语义**:提交超时/传输失败/5xx → `GatewayOrderUnknown` → 订单
+      `UNKNOWN`,只查询、绝不盲目重试;Binance 业务拒单(4xx)→ REJECTED
+      ack(无重试歧义);时钟偏差 -1021 同步后重试一次;
+- [x] **API Key 权限硬校验**:`/sapi/v1/account/apiRestrictions`
+      发现提现/内部转账/万能转账/期权/合约/杠杆任一开启 → 连接
+      `ERROR` + `UNSAFE_API_PERMISSIONS` + ops 告警,禁止下单(60s 缓存);
+- [x] **凭据流**:凭据经 `secret_store`(Fernet/KMS)加密入库,网关按
+      connection 解密,明文永不入库/入日志/入订单 ack;
+- [x] **用户自助绑定**:`POST /api/trading/connections`(加密存储 + 立即
+      健康/权限验证,不安全密钥被拒)、`POST /api/trading/connections/
+      {id}/revoke`(撤销即暂停绑定 Mandate);
+- [x] **余额/持仓/行情接真实数据**:`sync_live_balances_and_positions`
+      经真实网关同步并写服务器行情;`refresh_live_market_prices` 优先
+      用网关 ticker,失败回退 runtime 公共行情;每日对账走真实余额;
+- [x] 网关选择:`LIVE_TRADING_GATEWAY=mock | nautilus | binance`,默认
+      仍是 mock(诚实拒绝);
+- [x] 前端配套:服务端插件 manifest 新增 `puregamma.live-trading`
+      (默认 disabled,`LIVE_TRADING_ENABLED=true` 后放行);
+- [x] 测试:新增 `tests/security/test_live_trading_gateway.py`
+      (13 用例:超时→UNKNOWN 不重试、业务拒单、权限硬拒绝、签名与映射、
+      端到端小额下单全链路、对账 ok/error、诚实 mock、绑定/撤销);
+- [x] 上线 runbook:`LIVE_LAUNCH_RUNBOOK.md`;首单验证报告模板:
+      `FIRST_ORDER_VERIFICATION.md`。
+
 ## 仍是 mock 的接口/能力
 
 | 项 | 说明 |
 | --- | --- |
-| `LIVE_TRADING_GATEWAY=mock` | 默认网关:健康检查诚实返回 DISABLED,提交**不会**触碰任何券商;接真实券商前保持 mock |
-| `NautilusExecutionGateway` | 已实现适配(nautilus runtime `submit_order` 等),但真实交易所 API 凭据/授权尚未接入,`submit_order` 在 runtime 侧仍为 paper/mock |
-| `POST /api/trading/connections/test` | 走 Gateway 健康检查;mock 网关下返回 DISABLED(诚实) |
-| 余额/持仓同步 | 经 Gateway 适配;mock 网关返回不可用,Ledger 派生数据不受影响 |
+| `LIVE_TRADING_GATEWAY=mock`(默认) | 默认网关:健康检查诚实返回 DISABLED,提交**不会**触碰任何券商;接真实券商前保持 mock |
+| `NautilusExecutionGateway` | 适配层已实现;runtime 侧 LIVE 模式仍硬禁用(旧运行时 LIVE 保持关闭),此路径留给未来 runtime 化执行 |
+| 真实券商凭证 | 代码链全通,生产凭证须按 runbook 由客户绑定并经审批后方可使用 |
 
 ## 仅支持 PAPER 的能力
 
@@ -49,7 +78,7 @@
 3. `LIVE_TRADING_PROVIDER` 未配置;
 4. 无任何用户通过 `live_user_approvals` 审批;
 5. 无 `execution_mode=live` 且已批准的 Mandate;
-6. `LIVE_TRADING_GATEWAY=mock`(真实券商适配与凭据未接入);
+6. `LIVE_TRADING_GATEWAY=mock`(默认);
 7. 未完成真实交易所连接健康检查与对账。
 
 ⇒ 当前系统状态恒为 **LIVE_DISABLED**,所有 LIVE 接口诚实返回状态而非假数据。

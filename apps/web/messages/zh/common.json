@@ -14,7 +14,8 @@
       "research": "Harness",
       "portfolio": "组合",
       "infrastructure": "基础设施",
-      "company": "公司"
+      "company": "公司",
+      "trading": "交易"
     },
     "dashboard": "控制台",
     "news": "市场快讯",
@@ -40,7 +41,8 @@
     "docs": "帮助文档",
     "access": "访问权限",
     "signup": "注册",
-    "signin": "登录"
+    "signin": "登录",
+    "mobileAccess": "手机访问"
   },
   "auth": {
     "googleLogin": "使用 Google 登录",
@@ -84,7 +86,7 @@
     "forgotPasswordDescription": "输入您的邮箱地址，我们将发送重置链接。",
     "sendResetLink": "发送重置链接",
     "resetLinkSent": "如果账户存在，重置链接已发送。",
-    "resetPasswordTitle": "设置新密码",     
+    "resetPasswordTitle": "设置新密码",
     "resetPasswordSuccess": "密码已重置成功。",
     "resetPasswordFailed": "密码重置失败，请稍后重试。",
     "resetLinkInvalid": "该重置链接无效或已过期，请重新获取。",

@@ -197,3 +197,72 @@
 - 多语言新闻流界面：apps/web/components/news-feed.tsx
 - Provider 单测：tests/unit/test_chaincatcher_provider.py
 - 接口/鉴权/回退集成测试：tests/integration/test_news_feed.py
+---
+
+## 8. 部署前 Review（2026-08-25，第四次）
+
+### 8.1 结论：具备灰度部署条件（代码与配置层面）
+部署链路已逐项核实；代码与配置无阻塞问题。仅剩 1 项非代码硬阻塞（ChainCatcher 商用书面确认）与 1 项上线后核对项（新增 RSS 源健康状态）。
+
+### 8.2 部署正确性（已核实，无需改动）
+1. .env.example 含全部 CHAINCATCHER_* 与 RSS_* 变量（含 zh-CN,en,ja,ko 四语）。
+2. deploy/production.env.example 含 CHAINCATCHER_SYNC_ENABLED / LANGUAGES(4语) / 双间隔。
+3. docker-compose.production.yml：api / worker / scheduler 均 env_file: .env，CHAINCATCHER_* 变量流入三容器；scheduler 显式映射 DATA_SYNC_WORKER_ENABLED 与 RSS_SYNC_INTERVAL。
+4. Dockerfile.api 执行 COPY . /app → config/rss_sources.yaml 随镜像打包，RSSProvider.load_sources 可读到。
+5. 数据源种子：main.py lifespan → ensure_bootstrap() → packages/database/seed.py:82 → seed_data_sources 启动时自动创建 chaincatcher 数据源行（初始 DEGRADED，首次同步后转 HEALTHY），无需手工迁移。
+6. 权益：Free/Invite Preview/Pro/Max 均含 rss，Enterprise 为 all；/api/news 的 rss|all 门禁对全套餐放行。
+7. 回滚开关：CHAINCATCHER_SYNC_ENABLED=false 即停同步，不影响其余 RSS/Agent/日报。
+8. config.py 默认 CHAINCATCHER_LANGUAGES=zh-CN,en,ja,ko（已对齐四语联调）；ChainCatcherProvider.__init__ 回退同样为四语。
+9. config.py 默认 RSS/API 地址与 B1 核实的生产地址一致。
+
+### 8.3 本轮修复（部署前 Review 发现并已修）
+- deploy/production.env.example 补齐 CHAINCATCHER_RSS_URL 与 CHAINCATCHER_API_BASE_URL（原依赖 config.py 默认；现显式声明，与运行手册「配置」节一致，避免运维误以为不可覆盖）。
+
+### 8.4 非代码遗留（部署/上线时处理）
+1. 正式商业发布前取得 ChainCatcher 对摘要再分发、商用流量与 SLA 的书面确认（当前为灰度，代码已按仅标题+短摘要+原文链接实现）。
+2. 灰度后核对 8 个新增 RSS 源在管理端 data-sources 的 per-feed 健康状态（沙箱外网被阻断，无法提前验证 200/redirect/403）。
+3. 8 个既有失败（通知模拟 6 + Nautilus 回测假设 2）单独立项，不阻塞本次灰度。
+
+### 8.5 建议（非阻塞）
+- scheduler 的 environment 块未显式列出 CHAINCATCHER_SYNC_ENABLED（依赖 env_file: .env 透传），功能正确；如需与 RSS_SYNC_INTERVAL 同等的显式声明，可补一行 CHAINCATCHER_SYNC_ENABLED: ${CHAINCATCHER_SYNC_ENABLED:-true}。
+- ChainCatcherProvider.__init__ 对 languages 做大小写敏感过滤（SUPPORTED_LANGUAGES），env 用正确大小写（zh-CN）即无影响；如担心运维误填小写，可在 __init__ 前先 _normalize_language。
+---
+
+## 9. 部署前 Review 增补（2026-08-25，第五次 —— 顺带发现并修复一处 admin 缺陷）
+
+### 9.1 新发现并修复的缺陷
+- apps/api/routers/admin.py 的 GET /data-sources/{provider_id}/runs 用硬编码集合 {"rss","fintwit","x-twitter","bloomberg"} 区分 ProviderSyncLog 与 DataSourceSyncRun，漏了 chaincatcher。
+  后果：chaincatcher 是文档 provider（走 run_document_pipeline → ProviderSyncLog），但被归入 else 分支去查 DataSourceSyncRun，管理端「同步运行历史」对 chaincatcher 恒为空。
+  修复：白名单补 chaincatcher。已验证：admin.py py_compile 通过；test_admin_console.py + test_admin_access.py 共 21 例全绿，无回归。
+
+### 9.2 本轮新增交付物
+- docs/integrations/CHAINCATCHER_GRAY_RELEASE_RUNBOOK.md：灰度上线清单（前置阻塞 / feed 预检命令 / 同步激活 / 功能验收 / 监控 / 回滚）。
+- deploy/production.env.example：补 CHAINCATCHER_RSS_URL 与 CHAINCATCHER_API_BASE_URL（见 §8.3）。
+
+### 9.3 部署前 Review 最终结论
+代码与配置层面无阻塞项；唯一硬阻塞为 ChainCatcher 商用书面确认（非代码）。可进入灰度。
+---
+
+## 10. 生产部署记录（2026-08-25）
+
+### 10.1 部署目标
+- 服务器 47.245.55.228（阿里云 ECS，root），部署目录 /puregamma/app/。
+- 服务器原部署 commit 44dea1a6（= 本地 HEAD）；本次部署本地 6 个已跟踪改动 + 1 个新文档。
+
+### 10.2 部署动作（保留用户数据库）
+1. pg_dump 备份到 /puregamma/backup/db-pre-newsrss-20260825-142103.sql（122 MB，18 用户）。
+2. tar+scp 传输 7 个文件（admin.py / news-feed.tsx / rss_sources.yaml / production.env.example / 3 文档），服务器其余文件原样保留。
+3. docker compose build api worker scheduler web + up -d（非 down -v），postgres/redis/nautilus 卷未动（42h uptime 保持）。
+4. 验证：app.puregamma.ai=200、api.puregamma.ai=200；数据源种子正常。
+
+### 10.3 服务器可达性检查暴露并修复 3 个坏 feed
+| 源 | 问题 | 处理 |
+| --- | --- | --- |
+| The Block | 403（站点级封锁，浏览器/无 UA 均 403） | enabled=false |
+| Glassnode Insights | insights.glassnode.com/rss/ 403+重定向 | 改 research.glassnode.com/rss/（200） |
+| Messari | messari.io/rss 404 | 改 messari.substack.com/feed（200） |
+
+### 10.4 最终验证
+- RSS 手动同步：HEALTHY，258 抓取 / 146 新增 / 112 去重，0 错误（10 个启用源全部可达）。
+- 数据源状态：rss HEALTHY（1008 条）、chaincatcher 近次同步 HEALTHY（534 条，四语 RSS+REST 正常）。
+- 注：data_sources.status 在容器重启后会被 seed_data_sources 短暂置回 DEGRADED，下次同步（≤10 分钟）自动恢复 HEALTHY——既有行为，非本次引入。

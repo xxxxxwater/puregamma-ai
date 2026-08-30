@@ -46,7 +46,8 @@ Harness 只能生成研究结论和策略建议,不得直接调用交易所接�
 | 对账 | `packages/live_trading/reconciliation.py` | 每日:交易所余额 vs Ledger vs NAV |
 | Secret Store | `packages/live_trading/secret_store.py` | Fernet 密文/KMS 引用;数据库无明文 |
 | Feature Gate | `packages/live_trading/flags.py` | 多条件门;任一不满足 → LIVE_DISABLED |
-| Execution Gateway 适配层 | `packages/live_trading/gateway_adapter.py` | nautilus 适配器 + 诚实 mock |
+| Execution Gateway 适配层 | `packages/live_trading/gateway_adapter.py` | nautilus 适配 + 诚实 mock + 网关工厂 |
+| 真实执行网关(Binance 现货) | `packages/live_trading/binance_spot_gateway.py` | `LIVE_TRADING_GATEWAY=binance` 时启用:签名下单/撤单/查询/余额/持仓/行情;超时→UNKNOWN 只查询不重试;API Key 权限硬校验(提现/转账/杠杆/合约/期权→拒绝) |
 | 行情记录 | `packages/live_trading/price_feed.py` | 服务器时间戳,读取时判 stale |
 | 审计 | `packages/live_trading/audit.py` | 每笔请求 trace_id + append-only 审计 |
 

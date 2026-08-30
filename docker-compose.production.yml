@@ -148,12 +148,17 @@ services:
       LIVE_TRADING_ORDER_TIMEOUT_SECONDS: ${LIVE_TRADING_ORDER_TIMEOUT_SECONDS:-8}
       LIVE_TRADING_DEFAULT_MAX_NOTIONAL: ${LIVE_TRADING_DEFAULT_MAX_NOTIONAL:-1000}
       LIVE_CREDENTIAL_ENCRYPTION_KEY: ${LIVE_CREDENTIAL_ENCRYPTION_KEY:-}
+      LIVE_TRADING_BINANCE_BASE_URL: ${LIVE_TRADING_BINANCE_BASE_URL:-https://api.binance.com}
+      LIVE_TRADING_BINANCE_RECV_WINDOW_MS: ${LIVE_TRADING_BINANCE_RECV_WINDOW_MS:-5000}
       LIVE_PRICE_REFRESH_INTERVAL_SECONDS: ${LIVE_PRICE_REFRESH_INTERVAL_SECONDS:-10}
       LIVE_BALANCE_SYNC_INTERVAL_SECONDS: ${LIVE_BALANCE_SYNC_INTERVAL_SECONDS:-45}
       LIVE_ORDER_SYNC_INTERVAL_SECONDS: ${LIVE_ORDER_SYNC_INTERVAL_SECONDS:-8}
       LIVE_NAV_CALC_INTERVAL_SECONDS: ${LIVE_NAV_CALC_INTERVAL_SECONDS:-45}
       LIVE_NAV_PRICE_STALE_SECONDS: ${LIVE_NAV_PRICE_STALE_SECONDS:-60}
       LIVE_RECONCILIATION_HOUR_UTC: ${LIVE_RECONCILIATION_HOUR_UTC:-0}
+      # Pocket relay（手机访问 / cloudflared 隧道，iMessage 备选路径）
+      POCKET_RELAY_URL: http://pocket:8788
+      POCKET_RPC_SECRET: ${POCKET_RPC_SECRET:-}
     expose: ["8000"]
     logging:
       driver: json-file
@@ -227,6 +232,8 @@ services:
       LIVE_TRADING_ORDER_TIMEOUT_SECONDS: ${LIVE_TRADING_ORDER_TIMEOUT_SECONDS:-8}
       LIVE_TRADING_DEFAULT_MAX_NOTIONAL: ${LIVE_TRADING_DEFAULT_MAX_NOTIONAL:-1000}
       LIVE_CREDENTIAL_ENCRYPTION_KEY: ${LIVE_CREDENTIAL_ENCRYPTION_KEY:-}
+      LIVE_TRADING_BINANCE_BASE_URL: ${LIVE_TRADING_BINANCE_BASE_URL:-https://api.binance.com}
+      LIVE_TRADING_BINANCE_RECV_WINDOW_MS: ${LIVE_TRADING_BINANCE_RECV_WINDOW_MS:-5000}
       LIVE_PRICE_REFRESH_INTERVAL_SECONDS: ${LIVE_PRICE_REFRESH_INTERVAL_SECONDS:-10}
       LIVE_BALANCE_SYNC_INTERVAL_SECONDS: ${LIVE_BALANCE_SYNC_INTERVAL_SECONDS:-45}
       LIVE_ORDER_SYNC_INTERVAL_SECONDS: ${LIVE_ORDER_SYNC_INTERVAL_SECONDS:-8}
@@ -294,6 +301,32 @@ services:
     depends_on:
       api: { condition: service_healthy }
 
+  pocket:
+    build:
+      context: ./apps/pocket-relay
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    environment:
+      POCKET_WEB_TARGET: http://web:3000
+      POCKET_PORT: "8788"
+      POCKET_STATE_DIR: /pocket/state
+      POCKET_RPC_SECRET: ${POCKET_RPC_SECRET:-}
+      POCKET_AUTO_START_PUBLIC: ${POCKET_AUTO_START_PUBLIC:-true}
+    volumes:
+      - pocket_state:/pocket/state
+    networks: [edge, egress]
+    mem_limit: 192m
+    cpus: 0.20
+    pids_limit: 96
+    security_opt: ["no-new-privileges:true"]
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8788/health', timeout=3)"]
+      interval: 15s
+      timeout: 5s
+      retries: 10
+    depends_on:
+      web: { condition: service_healthy }
+
   web:
     build:
       context: .
@@ -346,6 +379,7 @@ volumes:
   redisdata:
   nautilus_state:
   backtest_artifacts:
+  pocket_state:
   caddy_data:
   caddy_config:
 

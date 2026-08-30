@@ -1171,22 +1171,54 @@ def _live_mandate_accounts(db) -> list:
 
 @celery_app.task(name="puregamma.refresh_live_market_prices")
 def refresh_live_market_prices() -> dict:
-    """Record server-side market prices for LIVE positions/whitelist (5-15s)."""
+    """Record server-side market prices for LIVE positions/whitelist (5-15s).
+
+    With a real execution gateway configured, prices are read from the
+    gateway's own venue ticker (per-connection); otherwise the runtime's
+    public quotes keep serving as the honest fallback."""
     db = SessionLocal()
     recorded = 0
     try:
         from apps.api.config import get_settings
         from packages.live_trading import ledger as ledger_service
         from packages.live_trading import price_feed as price_feed_service
+        from packages.live_trading.gateway_adapter import get_execution_gateway
 
         settings = get_settings()
         symbols: set[str] = set(settings.live_trading_allowed_symbols or ())
-        client = NautilusRuntimeClient()
-        for mandate, _connection in _live_mandate_accounts(db):
+        pairs = _live_mandate_accounts(db)
+        for mandate, _connection in pairs:
             quantities = ledger_service.position_quantities(db, mandate.account_id)
             symbols.update(q for q, v in quantities.items() if v != 0)
         if not symbols:
             return {"recorded": 0, "reason": "no symbols"}
+
+        gateway = get_execution_gateway()
+        fetch_prices = getattr(gateway, "fetch_prices", None)
+        live_connection = next(
+            (connection for _mandate, connection in pairs if connection), None
+        )
+        if callable(fetch_prices) and getattr(gateway, "name", "") != "mock" and live_connection:
+            try:
+                prices = fetch_prices(
+                    sorted(symbols), connection_id=live_connection.id
+                )
+                for raw_symbol, price in prices.items():
+                    price_feed_service.record_price(
+                        db,
+                        symbol=str(raw_symbol).upper(),
+                        price=str(price),
+                        venue=settings.live_trading_venue,
+                        source="gateway",
+                    )
+                    recorded += 1
+                db.commit()
+                return {"recorded": recorded, "source": "gateway"}
+            except Exception:
+                logger.exception("live_market_price_refresh_gateway_failed")
+                db.rollback()
+
+        client = NautilusRuntimeClient()
         try:
             quotes = client.market_quotes(sorted(symbols), refresh=True).get("quotes", {})
         except Exception:
@@ -1206,7 +1238,7 @@ def refresh_live_market_prices() -> dict:
                 )
                 recorded += 1
         db.commit()
-        return {"recorded": recorded}
+        return {"recorded": recorded, "source": "runtime"}
     finally:
         db.close()
 
@@ -1243,12 +1275,20 @@ def sync_live_order_statuses() -> dict:
 
 @celery_app.task(name="puregamma.sync_live_balances_and_positions")
 def sync_live_balances_and_positions() -> dict:
-    """Balance/position refresh (30-60s): connection health + NAV trigger."""
+    """Balance/position refresh (30-60s): connection health, then real
+    balance/position sync through the execution gateway with mark prices
+    recorded into the server price feed for NAV marking."""
     db = SessionLocal()
     checked = 0
+    positions_recorded = 0
     try:
+        from apps.api.config import get_settings
+        from packages.live_trading import price_feed as price_feed_service
         from packages.live_trading.control_plane import test_connection
+        from packages.live_trading.gateway_adapter import get_execution_gateway
 
+        settings = get_settings()
+        gateway = get_execution_gateway()
         for mandate, connection in _live_mandate_accounts(db):
             if not connection:
                 continue
@@ -1258,7 +1298,30 @@ def sync_live_balances_and_positions() -> dict:
             except Exception:
                 db.rollback()
                 continue
-        return {"checked": checked}
+            if getattr(gateway, "name", "") == "mock":
+                continue
+            try:
+                positions = gateway.positions(
+                    mandate.account_id, connection_id=connection.id
+                )
+            except Exception:
+                db.rollback()
+                continue
+            for position in positions:
+                mark = position.get("mark_price")
+                instrument = position.get("instrument")
+                if mark is None or not instrument:
+                    continue
+                price_feed_service.record_price(
+                    db,
+                    symbol=str(instrument).upper(),
+                    price=str(mark),
+                    venue=settings.live_trading_venue,
+                    source="gateway",
+                )
+                positions_recorded += 1
+            db.commit()
+        return {"checked": checked, "positions_recorded": positions_recorded}
     finally:
         db.close()
 

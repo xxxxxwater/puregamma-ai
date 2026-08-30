@@ -52,7 +52,9 @@ def reconcile_account(
 ) -> TradingReconciliation:
     exchange_balance: dict = {}
     try:
-        balances = gateway.account_balances(account_id)
+        balances = gateway.account_balances(
+            account_id, connection_id=connection.id if connection else None
+        )
         exchange_balance = {
             "cash": str(balances.get("cash") or balances.get("available") or 0),
             "equity": str(balances.get("equity") or 0),

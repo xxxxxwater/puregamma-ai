@@ -1,12 +1,17 @@
 """Execution Gateway adapter layer.
 
 Only the Trading Control Plane talks to this layer; Harness, Agent, Memory,
-and mobile/web clients can never reach it. Two implementations:
+and mobile/web clients can never reach it. Three implementations:
 
 - ``MockExecutionGateway`` (default): always healthy-but-refusing. It is used
   until a real broker adapter is provisioned, and it NEVER fakes a fill.
 - ``NautilusExecutionGateway``: delegates to the Nautilus Runtime
-  (submit_order / cancel_order / reconcile) with ``mode="live"`` payloads.
+  (submit_order / cancel_order / reconcile). The runtime itself still refuses
+  LIVE-mode commands (legacy runtime LIVE stays OFF), so this path remains
+  for future runtime-based execution.
+- ``BinanceSpotLiveGateway``: the REAL spot execution gateway
+  (``packages/live_trading/binance_spot_gateway.py``) — selected by
+  ``LIVE_TRADING_GATEWAY=binance`` + ``LIVE_TRADING_PROVIDER=binance_spot``.
 
 Order-state rules enforced by the control plane on top of this layer:
 - a submit timeout never triggers a blind retry;
@@ -37,17 +42,35 @@ class GatewayOrderUnknown(GatewayError):
 class ExecutionGateway(Protocol):
     name: str
 
-    def health(self) -> dict[str, Any]: ...
+    def health(self, connection_id: str | None = None) -> dict[str, Any]: ...
 
     def submit_order(self, payload: dict[str, Any]) -> dict[str, Any]: ...
 
-    def query_order(self, client_order_id: str, account_id: str) -> dict[str, Any]: ...
+    def query_order(
+        self,
+        client_order_id: str,
+        account_id: str,
+        *,
+        connection_id: str | None = None,
+        symbol: str | None = None,
+    ) -> dict[str, Any]: ...
 
-    def cancel_order(self, client_order_id: str, account_id: str) -> dict[str, Any]: ...
+    def cancel_order(
+        self,
+        client_order_id: str,
+        account_id: str,
+        *,
+        connection_id: str | None = None,
+        symbol: str | None = None,
+    ) -> dict[str, Any]: ...
 
-    def account_balances(self, account_id: str) -> dict[str, Any]: ...
+    def account_balances(
+        self, account_id: str, *, connection_id: str | None = None
+    ) -> dict[str, Any]: ...
 
-    def positions(self, account_id: str) -> list[dict[str, Any]]: ...
+    def positions(
+        self, account_id: str, *, connection_id: str | None = None
+    ) -> list[dict[str, Any]]: ...
 
 
 class MockExecutionGateway:
@@ -55,7 +78,7 @@ class MockExecutionGateway:
 
     name = "mock"
 
-    def health(self) -> dict[str, Any]:
+    def health(self, connection_id: str | None = None) -> dict[str, Any]:
         return {"status": "DISABLED", "adapter": self.name, "live": False}
 
     def submit_order(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -64,16 +87,34 @@ class MockExecutionGateway:
             "no real order was submitted"
         )
 
-    def query_order(self, client_order_id: str, account_id: str) -> dict[str, Any]:
+    def query_order(
+        self,
+        client_order_id: str,
+        account_id: str,
+        *,
+        connection_id: str | None = None,
+        symbol: str | None = None,
+    ) -> dict[str, Any]:
         raise GatewayOrderUnknown("No gateway configured; order state is unknown")
 
-    def cancel_order(self, client_order_id: str, account_id: str) -> dict[str, Any]:
+    def cancel_order(
+        self,
+        client_order_id: str,
+        account_id: str,
+        *,
+        connection_id: str | None = None,
+        symbol: str | None = None,
+    ) -> dict[str, Any]:
         raise GatewayUnavailable("No gateway configured; cancel is unavailable")
 
-    def account_balances(self, account_id: str) -> dict[str, Any]:
+    def account_balances(
+        self, account_id: str, *, connection_id: str | None = None
+    ) -> dict[str, Any]:
         raise GatewayUnavailable("No gateway configured; balances unavailable")
 
-    def positions(self, account_id: str) -> list[dict[str, Any]]:
+    def positions(
+        self, account_id: str, *, connection_id: str | None = None
+    ) -> list[dict[str, Any]]:
         raise GatewayUnavailable("No gateway configured; positions unavailable")
 
 
@@ -85,7 +126,7 @@ class NautilusExecutionGateway:
     def __init__(self, client: NautilusRuntimeClient | None = None):
         self.client = client or NautilusRuntimeClient()
 
-    def health(self) -> dict[str, Any]:
+    def health(self, connection_id: str | None = None) -> dict[str, Any]:
         try:
             return self.client.health()
         except RuntimeUnavailable as exc:
@@ -107,7 +148,14 @@ class NautilusExecutionGateway:
             raise GatewayOrderUnknown(ack.get("error", "Gateway returned UNKNOWN"))
         return ack
 
-    def query_order(self, client_order_id: str, account_id: str) -> dict[str, Any]:
+    def query_order(
+        self,
+        client_order_id: str,
+        account_id: str,
+        *,
+        connection_id: str | None = None,
+        symbol: str | None = None,
+    ) -> dict[str, Any]:
         try:
             ack = self.client.command(
                 "reconcile",
@@ -123,7 +171,14 @@ class NautilusExecutionGateway:
                 return {"state": order.get("state", "UNKNOWN"), "order": order}
         return {"state": "UNKNOWN", "order": None, "reason": "order not found in open orders"}
 
-    def cancel_order(self, client_order_id: str, account_id: str) -> dict[str, Any]:
+    def cancel_order(
+        self,
+        client_order_id: str,
+        account_id: str,
+        *,
+        connection_id: str | None = None,
+        symbol: str | None = None,
+    ) -> dict[str, Any]:
         try:
             return self.client.command(
                 "cancel_order",
@@ -133,7 +188,9 @@ class NautilusExecutionGateway:
         except RuntimeUnavailable as exc:
             raise GatewayUnavailable(str(exc)) from exc
 
-    def account_balances(self, account_id: str) -> dict[str, Any]:
+    def account_balances(
+        self, account_id: str, *, connection_id: str | None = None
+    ) -> dict[str, Any]:
         try:
             state = self.client.account_state(account_id)
         except RuntimeUnavailable as exc:
@@ -145,7 +202,9 @@ class NautilusExecutionGateway:
             "available": account.get("available_margin"),
         }
 
-    def positions(self, account_id: str) -> list[dict[str, Any]]:
+    def positions(
+        self, account_id: str, *, connection_id: str | None = None
+    ) -> list[dict[str, Any]]:
         try:
             state = self.client.account_state(account_id)
         except RuntimeUnavailable as exc:
@@ -155,9 +214,23 @@ class NautilusExecutionGateway:
 
 def get_execution_gateway() -> ExecutionGateway:
     """Factory. Defaults to the mock gateway so LIVE can never accidentally
-    reach a broker until ``LIVE_TRADING_GATEWAY=nautilus`` AND
-    ``LIVE_TRADING_ENABLED=true`` are both set."""
+    reach a broker until the gates below are all satisfied.
+
+    - ``LIVE_TRADING_GATEWAY=binance`` + ``LIVE_TRADING_PROVIDER=binance_spot``
+      + ``LIVE_TRADING_ENABLED=true`` selects the real Binance spot gateway
+      (credentials are resolved per connection from the secret store).
+    - ``LIVE_TRADING_GATEWAY=nautilus`` keeps the runtime-delegating path.
+    - Anything else fails closed to the honest mock.
+    """
     settings = get_settings()
+    if (
+        settings.live_trading_gateway == "binance"
+        and settings.live_trading_enabled
+        and settings.live_trading_provider == "binance_spot"
+    ):
+        from packages.live_trading.binance_spot_gateway import BinanceSpotLiveGateway
+
+        return BinanceSpotLiveGateway()
     if (
         settings.live_trading_gateway == "nautilus"
         and settings.live_trading_enabled

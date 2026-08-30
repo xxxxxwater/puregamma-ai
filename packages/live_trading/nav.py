@@ -46,18 +46,32 @@ def calculate_nav(
     user_id: str,
     account_id: str,
     mandate_id: str | None = None,
+    connection_id: str | None = None,
     gateway: ExecutionGateway | None = None,
     trace_id: str | None = None,
 ) -> NavSnapshot:
     settings = get_settings()
     positions = ledger_service.position_quantities(db, account_id)
 
+    # Resolve the broker connection when a mandate is known but the caller
+    # did not pass it explicitly (e.g. the periodic NAV task).
+    if connection_id is None and mandate_id:
+        from packages.database.models import TradingMandate
+
+        mandate_row = (
+            db.query(TradingMandate).filter_by(id=mandate_id).one_or_none()
+        )
+        if mandate_row:
+            connection_id = mandate_row.broker_connection_id
+
     # Cash: broker balance when reachable, else ledger-derived cash.
     cash = ledger_service.cash_balance(db, account_id)
     broker_available = None
     if gateway is not None:
         try:
-            balances = gateway.account_balances(account_id)
+            balances = gateway.account_balances(
+                account_id, connection_id=connection_id
+            )
             broker_available = _decimal(balances.get("available") or balances.get("cash"))
             cash = broker_available
         except GatewayError:

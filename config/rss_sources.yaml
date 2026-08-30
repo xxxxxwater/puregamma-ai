@@ -1,4 +1,7 @@
 sources:
+  # ────────────────────────────────────────────────────────────────
+  # 核心加密综合新闻（已有）
+  # ────────────────────────────────────────────────────────────────
   - id: coindesk
     name: CoinDesk
     url: https://www.coindesk.com/arc/outboundfeeds/rss
@@ -26,6 +29,95 @@ sources:
     source_license: linked-summary-only
     redistribution_allowed: false
     retention_policy: 30d-metadata-and-summary
+
+  # ────────────────────────────────────────────────────────────────
+  # 机构 / 市场结构 / 政策（互补 CoinDesk/Blockworks）
+  # ────────────────────────────────────────────────────────────────
+  - id: theblock
+    name: The Block
+    url: https://www.theblock.co/rss.xml
+    language: en
+    # Disabled 2026-08-25: feed returns HTTP 403 for all clients (site-level block, verified from server).
+    enabled: false
+    credibility_score: 0.84
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+  - id: cointelegraph
+    name: CoinTelegraph
+    url: https://cointelegraph.com/rss
+    language: en
+    enabled: true
+    credibility_score: 0.72
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+  - id: dlnews
+    name: DL News
+    url: https://www.dlnews.com/arc/outboundfeeds/rss/
+    language: en
+    enabled: true
+    credibility_score: 0.80
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+
+  # ────────────────────────────────────────────────────────────────
+  # 垂直专项
+  # ────────────────────────────────────────────────────────────────
+  - id: bitcoinmagazine
+    name: Bitcoin Magazine
+    url: https://bitcoinmagazine.com/feed
+    language: en
+    enabled: true
+    credibility_score: 0.70
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+
+  # ────────────────────────────────────────────────────────────────
+  # 研究型 Feed（Agent 投资研究：链上 / 市场结构 / 衍生品 / 协议）
+  # ────────────────────────────────────────────────────────────────
+  - id: glassnode-insights
+    name: Glassnode Insights
+    url: https://research.glassnode.com/rss/
+    language: en
+    enabled: true
+    credibility_score: 0.85
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+  - id: coinmetrics
+    name: Coin Metrics
+    url: https://coinmetrics.substack.com/feed
+    language: en
+    enabled: true
+    credibility_score: 0.82
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+  - id: deribit-insights
+    name: Deribit Insights
+    url: https://insights.deribit.com/feed/
+    language: en
+    enabled: true
+    credibility_score: 0.78
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+  - id: messari
+    name: Messari
+    url: https://messari.substack.com/feed
+    language: en
+    enabled: true
+    credibility_score: 0.80
+    source_license: linked-summary-only
+    redistribution_allowed: false
+    retention_policy: 30d-metadata-and-summary
+
+  # ────────────────────────────────────────────────────────────────
+  # 已停用（记录，避免重复接入）
+  # ────────────────────────────────────────────────────────────────
   - id: cryptoslate
     name: CryptoSlate
     url: https://cryptoslate.com/feed/

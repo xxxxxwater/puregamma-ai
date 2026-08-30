@@ -1,0 +1,50 @@
+{
+  "seo": {
+    "title": "Mobile Access | PureGamma AI",
+    "description": "Use PureGamma on your phone: scan to access remotely, or bind your iPhone over iMessage."
+  },
+  "eyebrow": "Your phone",
+  "title": "Mobile Access",
+  "subtitle": "Use PureGamma on the go: scan to open it remotely, or bind your iPhone over iMessage for replies and daily briefs.",
+  "remote": {
+    "title": "Remote control",
+    "subtitle": "Scan the QR and enter the 8-digit PIN to use the full PureGamma on your phone (Agent, market wire, portfolio). Public access runs over a cloudflared tunnel — the server address is never exposed.",
+    "public": "Public tunnel",
+    "pin": "PIN",
+    "show": "Show",
+    "hide": "Hide",
+    "rotatePin": "Refresh PIN",
+    "customPin": "Set a fixed 8-digit PIN",
+    "customPlaceholder": "8 digits",
+    "apply": "Apply",
+    "startTunnel": "Enable public access",
+    "stopTunnel": "Disable public access",
+    "running": "Running",
+    "stopped": "Stopped",
+    "autoStart": "Auto-recover on restart",
+    "restartNotice": "After the relay restarts, phones must re-enter the PIN. Never share the tunnel URL or QR outside your team.",
+    "userNote": "Scan with your phone and enter the PIN to use PureGamma anywhere. The tunnel and PIN are managed by the platform operator.",
+    "loading": "Loading…",
+    "unavailable": "Remote control is temporarily unavailable.",
+    "notConfigured": "POCKET_RELAY_URL is not configured.",
+    "retry": "Try again"
+  },
+  "imessage": {
+    "title": "iMessage",
+    "subtitle": "Bind your iPhone over iMessage: get Agent replies and the daily brief right in Messages.",
+    "officialNumber": "Official number",
+    "bound": "Bound to {recipient}",
+    "verifiedAt": "Verified {time}",
+    "notBound": "No phone bound yet",
+    "recipientPlaceholder": "Phone in E.164 (e.g. +1…)",
+    "sendCode": "Send code",
+    "sending": "Sending…",
+    "codePlaceholder": "6-digit code",
+    "confirm": "Confirm",
+    "planRequired": "iMessage requires a Max plan or above.",
+    "test": "Send test",
+    "testing": "Sending…",
+    "testSent": "Test message sent.",
+    "error": "Something went wrong. Please try again."
+  }
+}

@@ -64,6 +64,26 @@ BUILTIN_PLUGINS: tuple[dict, ...] = (
         "routes": ["/trading/paper", "/trading/positions", "/trading/risk", "/trading/runtime"],
         "feature_flags": {"auto_trading_paper_enabled": True},
     },
+    {
+        # LIVE trading console (Cordis plugin). Disabled by default: the flag
+        # below only opens when LIVE_TRADING_ENABLED=true; the plugin itself
+        # must additionally verify /api/trading/safety-status is not
+        # LIVE_DISABLED before rendering any live panel. trade:live is UX-only —
+        # real trading rights are enforced exclusively by the FastAPI control
+        # plane.
+        "id": "puregamma.live-trading",
+        "version": "1.0.0",
+        "entry": "builtin",
+        "required_entitlements": [],
+        "permissions": ["trade:live", "read:portfolio"],
+        "routes": [
+            "/trading/live",
+            "/trading/live/connect",
+            "/trading/live/orders",
+            "/trading/live/account",
+        ],
+        "feature_flags": {"live_trading_enabled": True},
+    },
 )
 
 

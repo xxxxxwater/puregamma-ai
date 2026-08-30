@@ -27,6 +27,32 @@ ChainCatcher REST（多语言）─┘                              ├─ Agent
 4. `chaincatcher` 是独立存储/运维 provider，拥有单独健康状态、游标、熔断器、同步日志和调度；产品权限映射到既有 `rss` entitlement，因此不破坏现有套餐。
 5. RSS 与 REST 都优先使用规范化 URL 中的文章 ID 作为合并键；REST `item.id` 只在 URL 不含 ID 时回退。RSS 语言来自 channel/entry language 并规范化为 BCP-47 风格值。
 
+## 其他 RSS 新闻源（"其他 RSS"分类）
+
+ChainCatcher 承担"快讯"，其余 RSS 源承担"文章"覆盖，统一由 `config/rss_sources.yaml` 配置（URL 不内嵌到业务服务），走 `rss` provider 与既有文档管道。当前启用源及可信度：
+
+| 分组 | 源 | Feed | 可信度 |
+| --- | --- | --- | --- |
+| 综合新闻 | CoinDesk | https://www.coindesk.com/arc/outboundfeeds/rss | 0.82 |
+| 综合新闻 | Decrypt | https://decrypt.co/feed | 0.72 |
+| 综合新闻 | Blockworks | https://blockworks.com/feed | 0.80 |
+| 机构/市场结构 | The Block | https://www.theblock.co/rss.xml | 0.84 |
+| 综合广度 | CoinTelegraph | https://cointelegraph.com/rss | 0.72 |
+| DeFi/调查 | DL News | https://www.dlnews.com/arc/outboundfeeds/rss/ | 0.80 |
+| BTC 专项 | Bitcoin Magazine | https://bitcoinmagazine.com/feed | 0.70 |
+| 研究/链上 | Glassnode Insights | https://insights.glassnode.com/rss/ | 0.85 |
+| 研究/市场结构 | Coin Metrics | https://coinmetrics.substack.com/feed | 0.82 |
+| 研究/衍生品 | Deribit Insights | https://insights.deribit.com/feed/ | 0.78 |
+| 研究/协议 | Messari | https://messari.io/rss | 0.80 |
+
+说明：
+
+- 全部源均为 `linked-summary-only`、`redistribution_allowed=false`、`30d-metadata-and-summary`、`en`。
+- RSS provider 只存标题与短摘要，不存全文；拒绝 redirect、限大小/超时、ETag/Last-Modified 条件请求。
+- 这些源在快讯页归为"文章"类型；Agent/日报/trending 通过 `rss` alias 自动纳入。
+- 单个源 403/超时会由健康检查标记为 DEGRADED，不影响其余源与 ChainCatcher 快讯。
+- 新增源只需向 `config/rss_sources.yaml` 追加条目；上线后看管理端 data-sources 健康状态确认可达。
+
 ## 合规与安全边界
 
 - 只持久化标题、最多 600 字符的短摘要、发布时间、关键词、分类、资产标签、原创标记和原文 URL；不保存 RSS `content:encoded` 或 REST `content` 全文。

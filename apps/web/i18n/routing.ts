@@ -22,6 +22,8 @@ export const legacyLocaleRoutes = [
   "/trading/runtime",
   "/trading/positions",
   "/trading/risk",
+  "/trading/live",
+  "/mobile-access",
   "/daily-push",
   "/billing",
   "/admin",

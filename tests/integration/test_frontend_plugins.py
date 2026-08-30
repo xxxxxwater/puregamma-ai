@@ -17,7 +17,7 @@ def test_frontend_plugins_manifest_shape(api_client, max_user):
     response = api_client.get("/api/frontend/plugins", headers=auth_headers(max_user))
     assert response.status_code == 200, response.text
     plugins = response.json()["plugins"]
-    assert len(plugins) == 5
+    assert len(plugins) == 6
     by_id = {entry["id"]: entry for entry in plugins}
     for entry in plugins:
         assert entry["entry"] == "builtin"
@@ -28,6 +28,28 @@ def test_frontend_plugins_manifest_shape(api_client, max_user):
     assert by_id["puregamma.portfolio"]["enabled"] is True
     # Paper trading stays OFF until AUTO_TRADING_PAPER_ENABLED=true.
     assert by_id["puregamma.trading"]["enabled"] is False
+    # LIVE trading console stays OFF until LIVE_TRADING_ENABLED=true.
+    live = by_id["puregamma.live-trading"]
+    assert live["enabled"] is False
+    assert "trade:live" in live["permissions"]
+
+
+def test_frontend_plugins_live_trading_flag_gate(api_client, max_user, monkeypatch):
+    from apps.api.config import Settings
+    from apps.api.routers import frontend
+
+    monkeypatch.setattr(
+        frontend,
+        "get_settings",
+        lambda: Settings(
+            auto_trading_paper_enabled=True, live_trading_enabled=True
+        ),
+    )
+    response = api_client.get("/api/frontend/plugins", headers=auth_headers(max_user))
+    assert response.status_code == 200, response.text
+    by_id = {entry["id"]: entry for entry in response.json()["plugins"]}
+    assert by_id["puregamma.trading"]["enabled"] is True
+    assert by_id["puregamma.live-trading"]["enabled"] is True
 
 
 def test_frontend_plugins_trading_flag_gate(api_client, max_user, monkeypatch):

@@ -8,11 +8,30 @@ LIVE 订单必须经过服务端授权,移动端/Web 不允许直连交易所。
 ### GET /api/trading/connections
 列出当前用户的券商连接(**永不返回任何密钥字段**,仅 `has_credentials` 布尔)。
 
+### POST /api/trading/connections(自助绑定)
+```json
+{
+  "provider": "binance_spot",
+  "account_label": "main",
+  "credentials": { "api_key": "...", "api_secret": "..." }
+}
+```
+- `provider` 必须是部署配置的 `LIVE_TRADING_PROVIDER`(当前仅 `binance_spot`);
+- 凭据服务端 Fernet 加密入库,**响应永不回显明文**;
+- 绑定即触发健康检查 + API Key 权限硬校验(提现/转账/杠杆/合约/期权
+  任一开启 → 400 拒绝,连接标记 `ERROR`/`UNSAFE_API_PERMISSIONS`);
+- 每用户最多 3 个活跃连接;仅支持 production 环境。
+
+### POST /api/trading/connections/{id}/revoke
+自助撤销连接。撤销后该连接绑定的一切 LIVE Mandate 自动暂停
+(`pause_reason=connection_revoked`)。
+
 ### POST /api/trading/connections/test
 ```json
 { "connection_id": "..." }
 ```
-仅健康检查,不回显凭据。
+仅健康检查,不回显凭据。mock 网关诚实返回 `DISABLED`(状态
+`DISCONNECTED`,不误报为错误)。
 
 ### GET /api/trading/mandates
 列出当前用户的 TradingMandate。
@@ -54,6 +73,10 @@ LIVE 订单列表(PAPER 订单仍在 `/trading/orders`)。
 
 ### GET /api/trading/orders/{id}
 单笔 LIVE 订单(含 `status`、`broker_order_id`、`filled_quantity`)。
+
+### GET /api/trading/fills?order_id=
+LIVE 成交流水(append-only Fill 记录,含 `broker_fill_id`、`fee`、
+`executed_at`)。
 
 ### POST /api/trading/mandates/{id}/pause
 ```json
@@ -98,5 +121,14 @@ LIVE 订单列表(PAPER 订单仍在 `/trading/orders`)。
 | --- | --- |
 | 400 `ORDER_REJECTED` | 风控拒绝(附 checks 明细) |
 | 400 | 参数/门控/确认短语错误 |
+| 400 `Connection rejected: ...` | 自助绑定被拒(凭据不合法/密钥权限不安全/券商不可达) |
 | 404 | 对象不存在或不属于当前用户 |
 | 503 | Gateway 不可用 |
+
+## 执行网关(LIVE_TRADING_GATEWAY)
+
+| 值 | 行为 |
+| --- | --- |
+| `mock`(默认) | 诚实拒绝:health=`DISABLED`,提交**不会**触碰任何券商 |
+| `binance` | 真实 Binance 现货执行(生产 `https://api.binance.com`,或经 `LIVE_TRADING_BINANCE_BASE_URL` 指向测试网演练);超时→UNKNOWN 只查询不重试;权限不安全密钥硬拒绝 |
+| `nautilus` | 委托 Nautilus Runtime(旧运行时 LIVE 仍硬禁用,预留路径) |

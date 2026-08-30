@@ -47,7 +47,7 @@ class FakeGateway:
         self.fills = fills
         self.submitted: list[dict] = []
 
-    def health(self):
+    def health(self, connection_id=None):
         return {"status": "HEALTHY", "adapter": "fake"}
 
     def submit_order(self, payload):
@@ -68,16 +68,16 @@ class FakeGateway:
             ]
         return ack
 
-    def query_order(self, client_order_id, account_id):
+    def query_order(self, client_order_id, account_id, *, connection_id=None, symbol=None):
         return {"state": "filled", "order": {"broker_order_id": "brk-x"}}
 
-    def cancel_order(self, client_order_id, account_id):
+    def cancel_order(self, client_order_id, account_id, *, connection_id=None, symbol=None):
         return {"state": "canceled"}
 
-    def account_balances(self, account_id):
+    def account_balances(self, account_id, *, connection_id=None):
         return {"cash": self.balance, "available": self.balance, "equity": self.balance}
 
-    def positions(self, account_id):
+    def positions(self, account_id, *, connection_id=None):
         return []
 
 

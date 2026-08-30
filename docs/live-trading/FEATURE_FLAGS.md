@@ -40,13 +40,26 @@ LIVE **不能只依赖一个环境变量**。系统在两层评估:
 
 | 变量 | 含义 | 默认 |
 | --- | --- | --- |
-| `LIVE_TRADING_GATEWAY` | `mock`(默认,拒绝下单) 或 `nautilus` | mock |
+| `LIVE_TRADING_GATEWAY` | `mock`(默认,拒绝下单)/ `binance`(真实现货执行)/ `nautilus`(runtime 委托,预留) | mock |
 | `LIVE_TRADING_VENUE` / `LIVE_TRADING_ALLOWED_SYMBOLS` | 场所 + 全局白名单 | MOCK / 空 |
 | `LIVE_CREDENTIAL_ENCRYPTION_KEY` | 券商凭据 Fernet 密钥(不设则从 `ENCRYPTION_MASTER_KEY` 派生) | 空 |
 | `LIVE_TRADING_ORDER_TIMEOUT_SECONDS` | 提交超时(超时→UNKNOWN,不重试) | 8 |
 | `LIVE_TRADING_DEFAULT_MAX_NOTIONAL` | 审批默认最大名义金额 | 1000 |
 | `LIVE_NAV_PRICE_STALE_SECONDS` | 价格 stale 窗口(超时 NAV=NULL) | 60 |
+| `LIVE_TRADING_BINANCE_BASE_URL` | Binance 现货 REST 基址(演练可指向 `https://testnet.binance.vision`) | https://api.binance.com |
+| `LIVE_TRADING_BINANCE_RECV_WINDOW_MS` | Binance 签名 recvWindow | 5000 |
 | `LIVE_PRICE_REFRESH_INTERVAL_SECONDS` 等 | 同步预算 | 见 `.env.example` |
+
+## 真实网关(Binance 现货)的附加行为
+
+- **超时语义**:提交超时/传输失败/5xx → `UNKNOWN`,后续只查询
+  (`/api/v3/order` + `/api/v3/myTrades`),绝不盲目重试;
+- **权限硬校验**:API Key 在 `/sapi/v1/account/apiRestrictions` 上发现
+  提现/内部转账/万能转账/期权/合约/杠杆任一开启 → 连接拒绝
+  (`UNSAFE_API_PERMISSIONS`),与动态门「连接健康」叠加;
+- **凭据**:每连接 Fernet 密文入库,网关按需解密,明文永不落库/日志/ack;
+- 这些行为不改变门控模型:任一静态/动态门不满足,状态依然
+  `LIVE_DISABLED`。
 
 ## 查看当前状态
 

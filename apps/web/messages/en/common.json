@@ -14,7 +14,8 @@
       "research": "Harness",
       "portfolio": "Portfolio",
       "infrastructure": "Infrastructure",
-      "company": "Company"
+      "company": "Company",
+      "trading": "Trading"
     },
     "dashboard": "Dashboard",
     "news": "Market Wire",
@@ -40,7 +41,8 @@
     "docs": "Docs",
     "access": "Access",
     "signup": "Sign Up",
-    "signin": "Sign In"
+    "signin": "Sign In",
+    "mobileAccess": "Mobile Access"
   },
   "auth": {
     "googleLogin": "Continue with Google",

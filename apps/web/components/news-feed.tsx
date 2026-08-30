@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react";
-import { ArrowUpRight, Clock3, RefreshCw, Search, ShieldCheck } from "lucide-react";
+import { Clock3, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import { getNewsFeed, type NewsFeedItem, type NewsFeedResponse } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
 
@@ -46,6 +46,8 @@ type Copy = {
   disclaimer: string;
   latency: string;
   languageFallback: string;
+  headline: string;
+  askAgent: string;
 };
 
 type Filters = {
@@ -65,6 +67,17 @@ function uniqueItems(items: NewsFeedItem[]): NewsFeedItem[] {
     seen.add(item.id);
     return true;
   });
+}
+
+function preciseTime(item: NewsFeedItem, locale: Locale): string {
+  const date = new Date(item.published_at);
+  const now = new Date();
+  const sameDay = date.toDateString() === now.toDateString();
+  return new Intl.DateTimeFormat(locale === "zh" ? "zh-CN" : "en", sameDay ? { hour: "2-digit", minute: "2-digit", hour12: false } : { month: "numeric", day: "numeric", hour: "2-digit", minute: "2-digit", hour12: false }).format(date);
+}
+
+function askAgentHref(item: NewsFeedItem, locale: Locale): string {
+  return `/${locale}/chat?topic=${encodeURIComponent(item.title)}`;
 }
 
 function relativeTime(item: NewsFeedItem, copy: Copy): string {
@@ -152,6 +165,14 @@ export function NewsFeed({ locale, initial, copy }: { locale: Locale; initial: N
     setFilters((current) => ({ ...current, q: "" }));
   }
 
+  function setSource(source: Filters["source"]) {
+    setFilters((value) => {
+      // "其他 RSS" 只含文章：切到 RSS 时若内容仍为"快讯"，自动切到"全部"避免空列表。
+      const kind = source === "rss" && value.kind === "flash" ? "all" : value.kind;
+      return { ...value, source, kind };
+    });
+  }
+
   return (
     <div className="space-y-4">
       <section className="rounded-2xl border border-border-pg bg-bg-panel p-4 md:p-5">
@@ -171,9 +192,9 @@ export function NewsFeed({ locale, initial, copy }: { locale: Locale; initial: N
             <FilterButton active={filters.kind === "all"} onClick={() => setFilters((value) => ({ ...value, kind: "all" }))}>{copy.filters.all}</FilterButton>
           </div></div>
           <div><div className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.filters.source}</div><div className="flex flex-wrap gap-2">
-            <FilterButton active={filters.source === "chaincatcher"} onClick={() => setFilters((value) => ({ ...value, source: "chaincatcher" }))}>{copy.filters.chaincatcher}</FilterButton>
-            <FilterButton active={filters.source === "rss"} onClick={() => setFilters((value) => ({ ...value, source: "rss" }))}>{copy.filters.otherRss}</FilterButton>
-            <FilterButton active={filters.source === "all"} onClick={() => setFilters((value) => ({ ...value, source: "all" }))}>{copy.filters.allSources}</FilterButton>
+            <FilterButton active={filters.source === "chaincatcher"} onClick={() => setSource("chaincatcher")}>{copy.filters.chaincatcher}</FilterButton>
+            <FilterButton active={filters.source === "rss"} onClick={() => setSource("rss")}>{copy.filters.otherRss}</FilterButton>
+            <FilterButton active={filters.source === "all"} onClick={() => setSource("all")}>{copy.filters.allSources}</FilterButton>
           </div></div>
           <div><div className="mb-2 text-[0.66rem] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.filters.asset}</div><div className="flex flex-wrap gap-2">
             <FilterButton active={!filters.symbol} onClick={() => setFilters((value) => ({ ...value, symbol: "" }))}>{copy.filters.allAssets}</FilterButton>
@@ -197,23 +218,52 @@ export function NewsFeed({ locale, initial, copy }: { locale: Locale; initial: N
         {error ? <div className="rounded-xl border border-status-negative/40 bg-bg-panel p-5"><strong>{copy.errorTitle}</strong><div className="mt-3"><button type="button" onClick={() => void request("reset")} className="rounded-lg border border-border-pg px-3 py-2 text-sm">{copy.retry}</button></div></div> : null}
         {loading && !feed.items.length ? <div className="rounded-xl border border-border-pg bg-bg-panel p-8 text-center text-sm text-text-pg-muted">{copy.loading}</div> : null}
         {!loading && !error && !feed.items.length ? <div className="rounded-xl border border-dashed border-border-pg bg-bg-panel p-10 text-center"><Clock3 className="mx-auto h-6 w-6 text-text-pg-dim" /><h2 className="mt-3 font-semibold">{copy.emptyTitle}</h2><p className="mt-2 text-sm text-text-pg-muted">{copy.emptyDescription}</p></div> : null}
-        {feed.items.map((item) => (
-          <article key={item.id} className="group rounded-xl border border-border-pg bg-bg-panel p-4 transition hover:border-border-pg-strong md:grid md:grid-cols-[6.5rem_1fr_auto] md:gap-4 md:p-5">
-            <div className="flex items-center gap-2 text-xs text-text-pg-muted md:block">
-              <time dateTime={item.published_at} className="font-medium text-text-pg">{relativeTime(item, copy)}</time>
-              <div className="md:mt-2"><span className="rounded border border-border-pg px-1.5 py-0.5 text-[0.65rem] uppercase tracking-wide">{item.kind === "flash" ? copy.flashLabel : copy.articleLabel}</span></div>
-            </div>
-            <div className="mt-3 min-w-0 md:mt-0">
-              <div className="flex flex-wrap items-center gap-2 text-[0.68rem] text-text-pg-muted"><span className="font-semibold text-text-pg">{item.attribution}</span>{item.original ? <span className="rounded-full border border-border-pg px-2 py-0.5">{copy.original}</span> : null}</div>
-              <h2 className="mt-2 text-base font-semibold leading-6 text-text-pg md:text-[1.05rem]">
-                {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer nofollow" className="outline-none hover:underline focus-visible:underline">{item.title}</a> : item.title}
-              </h2>
-              {item.summary ? <p className="mt-2 line-clamp-3 text-sm leading-6 text-text-pg-muted">{item.summary}</p> : null}
-              <div className="mt-3 flex flex-wrap gap-1.5">{item.symbols.map((symbol) => <span key={symbol} className="rounded-md border border-border-pg bg-bg-app px-2 py-0.5 text-[0.68rem] font-medium">{symbol}</span>)}</div>
-            </div>
-            {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer nofollow" aria-label={copy.openSource} className="mt-3 inline-flex h-9 w-9 items-center justify-center rounded-lg border border-border-pg text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg md:mt-0"><ArrowUpRight className="h-4 w-4" /></a> : null}
-          </article>
-        ))}
+        {feed.items.length > 0 ? (
+          <div className="space-y-8">
+            {(() => {
+              const top = feed.items[0];
+              return (
+                <section className="rounded-2xl border border-border-pg-strong bg-bg-panel p-5 md:p-6">
+                  <div className="flex flex-wrap items-center gap-2 text-xs">
+                    <span className="rounded bg-status-positive/15 px-2 py-0.5 font-semibold text-status-positive">{copy.headline}</span>
+                    <span className="font-medium text-text-pg">{top.attribution}</span>
+                    <time dateTime={top.published_at} className="text-text-pg-dim">{relativeTime(top, copy)}</time>
+                  </div>
+                  <h2 className="mt-2 text-xl font-semibold leading-7 text-text-pg md:text-2xl">
+                    {top.url ? <a href={top.url} target="_blank" rel="noopener noreferrer nofollow" className="outline-none hover:underline focus-visible:underline">{top.title}</a> : top.title}
+                  </h2>
+                  {top.summary ? <p className="mt-2 line-clamp-3 text-sm leading-6 text-text-pg-muted">{top.summary}</p> : null}
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {top.symbols.map((symbol) => <span key={symbol} className="rounded-md border border-border-pg bg-bg-app px-2 py-0.5 text-[0.68rem] font-medium">{symbol}</span>)}
+                    <a href={askAgentHref(top, locale)} className="text-xs font-medium text-text-pg-muted underline-offset-2 hover:text-text-pg hover:underline">{copy.askAgent}</a>
+                  </div>
+                </section>
+              );
+            })()}
+
+            <ol className="relative ml-2 space-y-8 border-l-2 border-border-pg">
+              {feed.items.slice(1).map((item) => (
+                <li key={item.id} className="group relative ml-6">
+                  <span className="absolute -left-[31px] top-1 h-3 w-3 rounded-full border-2 border-border-pg-strong bg-bg-panel ring-4 ring-bg-app" />
+                  <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
+                    <time dateTime={item.published_at} className="font-mono text-xs text-text-pg-dim">{preciseTime(item, locale)}</time>
+                    <span className="text-[0.68rem] font-medium text-text-pg">{item.attribution}</span>
+                    <span className="rounded border border-border-pg px-1.5 py-0.5 text-[0.62rem] uppercase tracking-wide text-text-pg-muted">{item.kind === "flash" ? copy.flashLabel : copy.articleLabel}</span>
+                    {item.original ? <span className="rounded-full border border-border-pg px-2 py-0.5 text-[0.62rem] text-text-pg-muted">{copy.original}</span> : null}
+                  </div>
+                  <h3 className="mt-1 text-[0.95rem] font-semibold leading-6 text-text-pg">
+                    {item.url ? <a href={item.url} target="_blank" rel="noopener noreferrer nofollow" className="outline-none hover:underline focus-visible:underline">{item.title}</a> : item.title}
+                  </h3>
+                  {item.summary ? <p className="mt-1 line-clamp-2 text-sm leading-6 text-text-pg-muted">{item.summary}</p> : null}
+                  <div className="mt-2 flex flex-wrap items-center gap-2">
+                    {item.symbols.map((symbol) => <span key={symbol} className="rounded-md border border-border-pg bg-bg-app px-2 py-0.5 text-[0.66rem] font-medium">{symbol}</span>)}
+                    <a href={askAgentHref(item, locale)} className="text-[0.68rem] font-medium text-text-pg-dim underline-offset-2 hover:text-text-pg hover:underline">{copy.askAgent}</a>
+                  </div>
+                </li>
+              ))}
+            </ol>
+          </div>
+        ) : null}
       </div>
 
       {feed.page.has_more && feed.page.next_cursor ? <button type="button" disabled={loadingMore} onClick={() => void request("append", feed.page.next_cursor || undefined)} className="w-full rounded-xl border border-border-pg bg-bg-panel py-3 text-sm font-medium hover:border-border-pg-strong disabled:opacity-50">{loadingMore ? copy.loadingMore : copy.loadMore}</button> : null}

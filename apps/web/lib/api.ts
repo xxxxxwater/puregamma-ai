@@ -888,6 +888,57 @@ export function getNewsFeed(locale: Locale = defaultLocale, params: NewsFeedPara
   return api<NewsFeedResponse>(`/api/news?${query.toString()}`, { fallback, locale });
 }
 
+// ── Mobile Access（手机访问 / pocket-relay，管理员） ──────────────────
+
+export type MobileAccessStatus = {
+  target: string;
+  port: number;
+  lan: { ips: string[]; urls: string[]; pin: string; custom: boolean };
+  public: {
+    running: boolean;
+    url?: string | null;
+    pin: string;
+    custom: boolean;
+    auto_start: boolean;
+    last_error?: string | null;
+  };
+  session: { restart_requires_relogin: boolean };
+  is_admin?: boolean;
+};
+
+export function getMobileAccessStatus() {
+  return requestStrict<MobileAccessStatus>("/api/mobile-access/status");
+}
+
+export function startMobileAccessTunnel() {
+  return requestStrict<{ running: boolean; url?: string | null; pin: string }>("/api/mobile-access/tunnel/start", { method: "POST" });
+}
+
+export function stopMobileAccessTunnel() {
+  return requestStrict<{ running: boolean }>("/api/mobile-access/tunnel/stop", { method: "POST" });
+}
+
+export function rotateMobileAccessPin(which: "public" | "lan") {
+  return requestStrict<Record<string, string>>("/api/mobile-access/pin/rotate", { method: "POST", body: JSON.stringify({ which }) });
+}
+
+export function setMobileAccessPin(which: "public" | "lan", pin: string) {
+  return requestStrict<Record<string, string>>("/api/mobile-access/pin/custom", { method: "POST", body: JSON.stringify({ which, pin }) });
+}
+
+export async function getMobileAccessQr(kind: "lan" | "public", host?: string): Promise<string> {
+  const query = `kind=${kind}${host ? `&host=${encodeURIComponent(host)}` : ""}`;
+  const sessionHeaders = await forwardedSessionHeaders();
+  const response = await fetch(`${API_URL}/api/mobile-access/qr?${query}`, {
+    headers: { ...sessionHeaders },
+    credentials: "include",
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(`QR failed: ${response.status}`);
+  const blob = await response.blob();
+  return URL.createObjectURL(blob);
+}
+
 export function getReport(id: string, locale: Locale = defaultLocale) {
   return api<{ report: ReportRow }>(`/reports/${id}?locale=${locale}`, { fallback: { report: fallbackReportForLocale(locale).reports[0] }, locale });
 }
@@ -1404,6 +1455,174 @@ export function getTradingNavHistory(limit = 100) {
   return requestStrict<{ history: NavSnapshot[] }>(`/api/portfolio/nav/history?limit=${limit}`);
 }
 
+// ── LIVE trading console (control plane; honest-by-design) ──────────────
+// All monetary values travel as Decimal STRINGS and are rendered verbatim —
+// the frontend never converts them through binary floats and never computes
+// risk itself. Endpoints that are not implemented (e.g. binding credentials)
+// surface as strict failures so the console renders an honest "unavailable"
+// state instead of fabricating success.
+
+export type LiveBrokerConnection = {
+  id: string;
+  provider: string;
+  account_label: string;
+  environment: string;
+  status: string;
+  permissions: Record<string, boolean> | null;
+  has_credentials: boolean;
+  last_health_check_at: string | null;
+  revoked_at: string | null;
+  created_at: string;
+};
+
+export type LiveOrderRow = {
+  id: string;
+  mandate_id: string;
+  order_intent_id: string;
+  symbol: string;
+  side: string;
+  quantity: string;
+  order_type: string;
+  limit_price: string | null;
+  status: string;
+  client_order_id: string;
+  broker_order_id: string | null;
+  filled_quantity: string;
+  average_price: string | null;
+  submitted_at: string | null;
+  last_sync_at: string | null;
+  error_code: string | null;
+  error_message: string | null;
+  created_at: string;
+  trace_id?: string | null;
+};
+
+export type LiveRiskCheckEntry = { check: string; ok: boolean; detail: string };
+
+export type LiveOrderPreviewResult = {
+  intent: {
+    id: string;
+    mandate_id: string;
+    symbol: string;
+    side: string;
+    quantity: string;
+    order_type: string;
+    limit_price: string | null;
+    source: string;
+    status: string;
+    requested_at: string;
+    expires_at: string;
+    confirmation_required: boolean;
+  };
+  confirmation: string;
+  trace_id: string;
+};
+
+export type LivePositionRow = {
+  symbol: string;
+  quantity: string;
+  mark_price: string | null;
+  market_value: string | null;
+  price_timestamp: string | null;
+  stale: boolean;
+};
+
+/** Preview rejection carries the full RiskCheck list from the server. */
+export class LiveOrderRejectedError extends Error {
+  readonly status: number;
+  readonly checks: LiveRiskCheckEntry[];
+  constructor(message: string, status: number, checks: LiveRiskCheckEntry[]) {
+    super(message);
+    this.name = "LiveOrderRejectedError";
+    this.status = status;
+    this.checks = checks;
+  }
+}
+
+export function getLiveConnections() {
+  return requestStrict<{ connections: LiveBrokerConnection[] }>("/api/trading/connections");
+}
+
+export function testLiveConnection(connectionId: string) {
+  return requestStrict<{ health: { status: string; health: Record<string, unknown> } }>("/api/trading/connections/test", {
+    method: "POST",
+    body: JSON.stringify({ connection_id: connectionId }),
+  });
+}
+
+export function createLiveConnection(payload: {
+  provider: string;
+  account_label: string;
+  api_key: string;
+  api_secret: string;
+  passphrase?: string | null;
+}) {
+  return requestStrict<{ connection: LiveBrokerConnection }>("/api/trading/connections", {
+    method: "POST",
+    body: JSON.stringify(payload),
+  });
+}
+
+export function getLiveOrders() {
+  return requestStrict<{ orders: LiveOrderRow[] }>("/api/trading/orders");
+}
+
+export async function previewLiveOrder(payload: {
+  mandate_id: string;
+  symbol: string;
+  side: "buy" | "sell";
+  quantity: string;
+  order_type?: "market" | "limit";
+  limit_price?: string | null;
+}): Promise<LiveOrderPreviewResult> {
+  const sessionHeaders = await forwardedSessionHeaders();
+  const response = await fetch(`${API_URL}/api/trading/orders/preview`, {
+    method: "POST",
+    credentials: "include",
+    cache: "no-store",
+    headers: { "Content-Type": "application/json", ...sessionHeaders },
+    body: JSON.stringify(payload),
+  });
+  if (!response.ok) {
+    if (response.status === 401) notifyAuthExpired();
+    const raw = await response.text();
+    let message = raw || `Order preview failed (HTTP ${response.status})`;
+    let checks: LiveRiskCheckEntry[] = [];
+    try {
+      const parsed = JSON.parse(raw) as {
+        detail?: { code?: string; message?: string; checks?: LiveRiskCheckEntry[] } | string;
+      };
+      const detail = typeof parsed.detail === "string" ? null : parsed.detail;
+      if (detail?.message) message = detail.message;
+      if (Array.isArray(detail?.checks)) checks = detail.checks;
+    } catch {
+      /* non-JSON error body — keep the raw message */
+    }
+    throw new LiveOrderRejectedError(message, response.status, checks);
+  }
+  const result = (await response.json()) as LiveOrderPreviewResult;
+  syncUserStateFromPayload(result);
+  return result;
+}
+
+export function confirmLiveOrder(orderIntentId: string, confirmation: string) {
+  return requestStrict<{ order: LiveOrderRow }>("/api/trading/orders/confirm", {
+    method: "POST",
+    body: JSON.stringify({ order_intent_id: orderIntentId, confirmation }),
+  });
+}
+
+export function cancelLiveOrder(clientOrderId: string) {
+  return requestStrict<{ order: LiveOrderRow }>("/api/trading/orders/cancel", {
+    method: "POST",
+    body: JSON.stringify({ client_order_id: clientOrderId }),
+  });
+}
+
+export function getLivePortfolioPositions() {
+  return requestStrict<{ positions: LivePositionRow[] }>("/api/portfolio/positions");
+}
+
 // ── Memory service (contract: docs/mobile/MOBILE_API_CONTRACT.md) ──────────
 // HTTP layer not open yet; strict calls so 404/501 surface as gated UI.
 
@@ -1849,6 +2068,10 @@ export function requestIMessageVerification(recipient: string) {
 
 export function confirmIMessageVerification(challenge_id: string, code: string) {
   return requestStrict<{ recipient: string; recipient_verified_at: string }>("/notifications/imessage/verify/confirm", { method: "POST", body: JSON.stringify({ challenge_id, code }) });
+}
+
+export function sendIMessageTest(locale: Locale = defaultLocale) {
+  return requestStrict<{ delivery: unknown }>("/notifications/imessage/test", { method: "POST", body: JSON.stringify({ locale }) });
 }
 
 export function getBillingSubscription(locale: Locale = defaultLocale) {
