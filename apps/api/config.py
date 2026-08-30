@@ -240,6 +240,14 @@ class Settings:
     plaid_redirect_uri: str = os.getenv("PLAID_REDIRECT_URI", "http://localhost:3000/portfolio")
     plaid_webhook_url: str = os.getenv("PLAID_WEBHOOK_URL", "")
     plaid_cash_transactions_enabled: bool = os.getenv("PLAID_ENABLE_CASH_TRANSACTIONS", "false").lower() == "true"
+    # NAV upgrades (enterprise entitlements). Real-time Balance refreshes
+    # /accounts/balance/get during sync; Liabilities adds /liabilities/get so
+    # NAV can report debt and net NAV; Transactions Refresh enables on-demand
+    # /transactions/refresh. All degrade honestly when the product is not
+    # enabled on the Plaid account (status recorded, core sync unaffected).
+    plaid_realtime_balance_enabled: bool = os.getenv("PLAID_REALTIME_BALANCE", "true").lower() == "true"
+    plaid_liabilities_enabled: bool = os.getenv("PLAID_LIABILITIES_ENABLED", "false").lower() == "true"
+    plaid_transactions_refresh_enabled: bool = os.getenv("PLAID_TRANSACTIONS_REFRESH_ENABLED", "true").lower() == "true"
     plaid_investments_refresh_min_minutes: int = int(
         os.getenv("PLAID_INVESTMENTS_REFRESH_MINUTES", "15") or 15
     )

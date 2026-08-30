@@ -141,6 +141,22 @@ export async function googleLogin(locale: Locale = defaultLocale) {
   return response.json() as Promise<{ auth_url: string; state: string }>;
 }
 
+// ── Wallet sign-in (SIWE / EIP-4361) ──────────────────────────────────────
+
+export function getWalletNonce(address: string, chainId = 1) {
+  return requestStrict<{ message: string; nonce: string; expires_in: number }>("/auth/wallet/nonce", {
+    method: "POST",
+    body: JSON.stringify({ address, chain_id: chainId })
+  });
+}
+
+export function verifyWallet(address: string, signature: string, wallet: "metamask" | "zerion" | "injected") {
+  return requestStrict<AuthResponse>("/auth/wallet/verify", {
+    method: "POST",
+    body: JSON.stringify({ address, signature, wallet })
+  });
+}
+
 export async function googleCallback(code: string, state: string, locale: Locale = defaultLocale) {
   const query = new URLSearchParams({ code, state });
   const response = await fetch(`${API_URL}/auth/google/callback?${query.toString()}`, {

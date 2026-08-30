@@ -5,6 +5,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { Chrome, Loader2 } from "lucide-react";
 import { AuthLegalNotice } from "@/components/auth-legal-notice";
+import { WalletLoginButtons } from "@/components/wallet-login-buttons";
 import { PasswordInput } from "@/components/password-input";
 import { CaptchaModal } from "@/components/captcha-modal";
 import type { CaptchaResult } from "@/components/puzzle-captcha";
@@ -159,6 +160,9 @@ export default function SignUpPage() {
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Chrome className="h-4 w-4" />}
             {t(locale, "common.auth.googleLogin")}
           </button>
+
+          <WalletLoginButtons locale={locale} onError={setError} />
+          <p className="text-center text-xs text-text-pg-dim">{t(locale, "common.auth.walletSignInHint")}</p>
         </div>
 
         <p className="text-center text-sm text-text-pg-muted">

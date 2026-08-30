@@ -24,7 +24,7 @@ from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.cex_connection_service import cex_connection_status, connect_cex
 from apps.api.services.credit_service import InsufficientCreditsError, quote_task, refund_task, reserve_task, settle_task
-from apps.api.services.portfolio_service import PlaidDataPending, PlaidRefreshRateLimited, PlaidRefreshUnsupported, PlaidWebhookVerificationError, PortfolioAccessError, autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_investment_transactions, plaid_link_token, portfolio_view, process_plaid_webhook, request_plaid_investments_refresh, run_autopilot_review, sync_account, update_autopilot, verify_plaid_webhook
+from apps.api.services.portfolio_service import PlaidDataPending, PlaidRefreshRateLimited, PlaidRefreshUnsupported, PlaidWebhookVerificationError, PortfolioAccessError, autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_investment_transactions, plaid_link_token, portfolio_view, process_plaid_webhook, request_plaid_investments_refresh, request_plaid_transactions_refresh, run_autopilot_review, sync_account, update_autopilot, verify_plaid_webhook
 from packages.data.cex_private import CexPermissionDenied
 from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
@@ -618,6 +618,25 @@ def refresh_plaid_investments(account_id: str, db: Session = Depends(get_db), us
         raise HTTPException(status_code=409, detail={"code": "PLAID_REFRESH_UNSUPPORTED", "message": str(exc)}) from exc
     except Exception as exc:
         raise HTTPException(status_code=502, detail="Plaid Investments Refresh failed") from exc
+
+
+@router.post("/accounts/{account_id}/transactions-refresh")
+def refresh_plaid_transactions(account_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    account = db.query(TradingAccount).filter_by(id=account_id, user_id=user.id, account_type="READ_ONLY").one_or_none()
+    if not account:
+        raise HTTPException(status_code=404, detail="Portfolio account not found")
+    try:
+        result = request_plaid_transactions_refresh(db, user, account)
+        _enqueue_plaid_history_sync(account.id)
+        return result
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except PlaidRefreshRateLimited as exc:
+        raise HTTPException(status_code=429, detail={"code": "PLAID_REFRESH_RATE_LIMITED", "message": str(exc)}) from exc
+    except PlaidRefreshUnsupported as exc:
+        raise HTTPException(status_code=409, detail={"code": "PLAID_REFRESH_UNSUPPORTED", "message": str(exc)}) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail="Plaid Transactions Refresh failed") from exc
 
 
 @router.delete("/accounts/{account_id}")

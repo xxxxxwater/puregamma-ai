@@ -277,11 +277,19 @@ def plaid_link_token(user: User) -> str:
         "products": ["investments"],
         "redirect_uri": settings.plaid_redirect_uri,
     }
+    optional_products: list[str] = []
     if bool(getattr(settings, "plaid_cash_transactions_enabled", False)):
         # Keep brokerage-only institutions selectable while asking Plaid to
         # prepare the user-authorized cash-account history when available.
-        payload["optional_products"] = ["transactions"]
+        optional_products.append("transactions")
         payload["transactions"] = {"days_requested": 730}
+    if bool(getattr(settings, "plaid_liabilities_enabled", False)):
+        # Debt visibility (credit cards, mortgages, student loans) feeds net
+        # NAV. Optional so investments-only institutions stay linkable and a
+        # dashboard-side product gap degrades instead of blocking Link.
+        optional_products.append("liabilities")
+    if optional_products:
+        payload["optional_products"] = optional_products
     if _plaid_webhook_url():
         payload["webhook"] = _plaid_webhook_url()
     response = _plaid_request("/link/token/create", payload=payload, timeout=25)
@@ -940,6 +948,78 @@ def _sync_plaid_cash_transactions(db: Session, account: TradingAccount, token: s
         return changes
 
 
+def _plaid_realtime_accounts(token: str) -> list[dict] | None:
+    """Real-time balances via /accounts/balance/get (Balance product).
+
+    Returns None on any failure — holdings-derived balances remain the honest
+    fallback and the sync is never blocked by the fresher source.
+    """
+    if not bool(getattr(get_settings(), "plaid_realtime_balance_enabled", True)):
+        return None
+    try:
+        response = _plaid_request("/accounts/balance/get", token, timeout=30)
+        if response.status_code >= 400:
+            logger.warning(
+                "plaid_realtime_balance_rejected code=%s", _plaid_error_code(response)
+            )
+            return None
+        return list(response.json().get("accounts") or [])
+    except Exception as exc:
+        logger.warning("plaid_realtime_balance_failed error=%s", type(exc).__name__)
+        return None
+
+
+def _plaid_liabilities_payload(db: Session, connection: ExchangeConnection, token: str) -> dict | None:
+    """Debt snapshot via /liabilities/get (credit cards, mortgages, student
+    loans). Product gaps are recorded on the connection metadata and never
+    break the core NAV sync."""
+    if not bool(getattr(get_settings(), "plaid_liabilities_enabled", False)):
+        return None
+    response = _plaid_request("/liabilities/get", token, timeout=30)
+    error_code = _plaid_error_code(response)
+    if response.status_code >= 400:
+        metadata = dict(connection.metadata_json or {})
+        metadata["plaid_liabilities_status"] = (error_code or f"http_{response.status_code}").lower()
+        connection.metadata_json = metadata
+        db.commit()
+        logger.warning("plaid_liabilities_rejected code=%s", error_code)
+        return None
+    payload = response.json()
+    liabilities = payload.get("liabilities") or {}
+    breakdown: list[dict] = []
+    total = 0.0
+    for account_id, credit in (liabilities.get("credit") or {}).items():
+        balance = _finite((credit.get("balances") or {}).get("current"))
+        total += max(balance, 0.0)
+        breakdown.append({
+            "type": "credit_card",
+            "account_id": str(account_id),
+            "current_balance": balance,
+            "last_statement_balance": _finite(credit.get("last_statement_balance")),
+            "minimum_payment": _finite(credit.get("minimum_payment_amount")),
+            "aprs": [
+                {"type": str(apr.get("apr_type") or ""), "percentage": _finite(apr.get("apr_percentage"))}
+                for apr in (credit.get("aprs") or [])[:4]
+            ],
+        })
+    for key, loan_type in (("mortgage", "mortgage"), ("student", "student_loan")):
+        for account_id, loan in (liabilities.get(key) or {}).items():
+            outstanding = _finite(loan.get("outstanding_balance") or (loan.get("balances") or {}).get("current"))
+            total += max(outstanding, 0.0)
+            breakdown.append({
+                "type": loan_type,
+                "account_id": str(account_id),
+                "current_balance": outstanding,
+                "interest_rate": _finite((loan.get("interest_rate") or {}).get("percentage")),
+                "next_monthly_payment": _finite(loan.get("next_monthly_payment")),
+                "origination_principal": _finite(loan.get("origination_principal_amount")),
+            })
+    metadata = dict(connection.metadata_json or {})
+    metadata["plaid_liabilities_status"] = "ok"
+    connection.metadata_json = metadata
+    return {"total": round(total, 2), "breakdown": breakdown, "request_id": payload.get("request_id")}
+
+
 def _sync_plaid(db: Session, account: TradingAccount, *, include_transactions: bool = True) -> None:
     connection = _connection(db, account)
     token = decrypt_token(connection.credential_ciphertext or "")
@@ -947,6 +1027,19 @@ def _sync_plaid(db: Session, account: TradingAccount, *, include_transactions: b
     response = _plaid_request("/investments/holdings/get", token, timeout=45)
     _plaid_raise_for_status(response, "investments/holdings/get")
     data = response.json()
+    # Fresher balances when the Balance product answers; holdings-derived
+    # numbers stay as the fallback source of truth.
+    realtime_accounts = _plaid_realtime_accounts(token)
+    if realtime_accounts:
+        holdings_accounts = {str(item.get("account_id") or ""): item for item in data.get("accounts", [])}
+        merged = []
+        for item in realtime_accounts:
+            account_id = str(item.get("account_id") or "")
+            base = holdings_accounts.get(account_id) or {}
+            merged.append({**base, **item})
+        if merged:
+            data["accounts"] = merged
+    liabilities = _plaid_liabilities_payload(db, connection, token)
     securities = {str(item["security_id"]): item for item in data.get("securities", []) if item.get("security_id")}
     positions = []
     holdings_value_by_account: dict[str, float] = {}
@@ -1021,6 +1114,7 @@ def _sync_plaid(db: Session, account: TradingAccount, *, include_transactions: b
             "item_id": (connection.metadata_json or {}).get("item_id"),
             "accounts": account_summaries,
             "holding_count": len(positions),
+            "liabilities": liabilities,
         },
         positions,
         "plaid",
@@ -1069,6 +1163,52 @@ def request_plaid_investments_refresh(db: Session, user: User, account: TradingA
         "account_id": account.id,
         "status": "refresh_requested",
         "request_id": payload.get("request_id"),
+        "retry_after_seconds": minimum_minutes * 60,
+    }
+
+
+def request_plaid_transactions_refresh(db: Session, user: User, account: TradingAccount) -> dict:
+    """On-demand /transactions/refresh (Transactions Refresh add-on).
+
+    Same anti-bill-shock rate limit as Investments Refresh. Only meaningful
+    for Items created with the Transactions consent; unsupported/!enabled
+    institutions surface honestly."""
+    if account.user_id != user.id or account.venue != "PLAID" or account.account_type != "READ_ONLY":
+        raise LookupError("Plaid portfolio account not found")
+    settings = get_settings()
+    if not bool(getattr(settings, "plaid_transactions_refresh_enabled", True)):
+        raise PlaidRefreshUnsupported("Plaid Transactions Refresh is disabled on this deployment")
+    if not bool(getattr(settings, "plaid_cash_transactions_enabled", False)):
+        raise PlaidRefreshUnsupported("Plaid Transactions is not enabled on this deployment")
+    connection = _connection(db, account)
+    metadata = dict(connection.metadata_json or {})
+    if not metadata.get("plaid_cash_transactions_requested"):
+        raise PlaidRefreshUnsupported("This Item was linked without the Transactions consent; relink to enable it")
+    last_requested = _parse_aware_datetime(metadata.get("plaid_transactions_refresh_requested_at"))
+    minimum_minutes = max(1, int(getattr(settings, "plaid_investments_refresh_min_minutes", 15) or 15))
+    if last_requested and datetime.now(timezone.utc) - last_requested < timedelta(minutes=minimum_minutes):
+        raise PlaidRefreshRateLimited(
+            f"Plaid Transactions Refresh can be requested once every {minimum_minutes} minutes for this account"
+        )
+    token = decrypt_token(connection.credential_ciphertext or "")
+    response = _plaid_request("/transactions/refresh", token, timeout=45)
+    if response.status_code >= 400 and _plaid_error_code(response) in {"PRODUCT_NOT_SUPPORTED", "PRODUCT_NOT_ENABLED"}:
+        metadata["plaid_transactions_refresh_supported"] = False
+        connection.metadata_json = metadata
+        db.commit()
+        raise PlaidRefreshUnsupported("This institution does not support Plaid Transactions Refresh")
+    _plaid_raise_for_status(response, "transactions/refresh")
+    metadata.update(
+        {
+            "plaid_transactions_refresh_requested_at": utcnow().isoformat(),
+            "plaid_transactions_refresh_supported": True,
+        }
+    )
+    connection.metadata_json = metadata
+    db.commit()
+    return {
+        "account_id": account.id,
+        "status": "refresh_requested",
         "retry_after_seconds": minimum_minutes * 60,
     }
 
@@ -1434,6 +1574,10 @@ def portfolio_view(db: Session, user: User) -> dict:
                 "refresh_requested_at": metadata.get("plaid_refresh_requested_at"),
             }
         )
+        liabilities_info = None
+        if snapshot:
+            liabilities_info = ((snapshot.raw_event_reference or {}).get("payload") or {}).get("liabilities")
+        liabilities_total = _finite((liabilities_info or {}).get("total")) if liabilities_info else None
         account_summaries.append({
             "id": account.id,
             "provider": account.venue.lower(),
@@ -1443,11 +1587,21 @@ def portfolio_view(db: Session, user: User) -> dict:
             "available_cash": round(float(snapshot.available_margin), 2) if snapshot else 0.0,
             "daily_change": round(float(snapshot.daily_pnl), 2) if snapshot else 0.0,
             "as_of": snapshot.captured_at.astimezone(timezone.utc).isoformat() if snapshot else None,
+            "liabilities": round(liabilities_total, 2) if liabilities_total is not None else None,
+            "liabilities_breakdown": (liabilities_info or {}).get("breakdown") if liabilities_info else None,
+            "net_nav": round(float(snapshot.equity) - liabilities_total, 2) if snapshot and liabilities_total is not None else None,
         })
     data_as_of = min((row.captured_at for row in latest), default=None)
     nav = sum(row.equity for row in latest)
     daily_change = sum(float(row.daily_pnl) for row in latest)
     previous_nav = nav - daily_change
+    liabilities_total = 0.0
+    liabilities_known = False
+    for row in latest:
+        info = ((row.raw_event_reference or {}).get("payload") or {}).get("liabilities")
+        if info and info.get("total") is not None:
+            liabilities_total += _finite(info.get("total"))
+            liabilities_known = True
     holdings = _aggregate_holdings(db, user.id, accounts, latest, limit=50)
     unrealized, positions = _unrealized_positions(db, user.id, accounts, latest)
     return {
@@ -1455,6 +1609,8 @@ def portfolio_view(db: Session, user: User) -> dict:
         "stale": any(_snapshot_is_stale(account, next(row for row in latest if row.account_id == account.id)) for account in accounts if any(row.account_id == account.id for row in latest)),
         "data_as_of": data_as_of.isoformat() if data_as_of else None,
         "nav": nav,
+        "liabilities": round(liabilities_total, 2) if liabilities_known else None,
+        "net_nav": round(nav - liabilities_total, 2) if liabilities_known else None,
         "available_cash": sum(row.available_margin for row in latest),
         "daily_change": round(daily_change, 2),
         "daily_change_pct": round(daily_change / previous_nav * 100, 4) if previous_nav > 0 else None,
@@ -1469,6 +1625,10 @@ def portfolio_view(db: Session, user: User) -> dict:
             "plaid": plaid_configured,
             "plaid_refresh": plaid_configured,
             "plaid_cash_transactions": plaid_configured and bool(getattr(settings, "plaid_cash_transactions_enabled", False)),
+            "plaid_liabilities": plaid_configured and bool(getattr(settings, "plaid_liabilities_enabled", False)),
+            "plaid_transactions_refresh": plaid_configured
+            and bool(getattr(settings, "plaid_cash_transactions_enabled", False))
+            and bool(getattr(settings, "plaid_transactions_refresh_enabled", True)),
             "plaid_webhooks": bool(getattr(settings, "plaid_webhook_url", "")),
             "ibkr": bool(
                 getattr(settings, "ibkr_oauth_authorize_url", "")
