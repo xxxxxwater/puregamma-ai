@@ -204,6 +204,25 @@ def _plaid_error_code(response: requests.Response) -> str | None:
     return str(payload.get("error_code") or "") or None
 
 
+def _plaid_raise_for_status(response: requests.Response, action: str) -> None:
+    """Raise with Plaid's own error_code/error_message instead of a bare
+    '400 Client Error' — the actionable detail (e.g. INVALID_LINK_CUSTOMIZATION
+    telling the operator to configure Data Transparency Messaging) must reach
+    logs and the API caller."""
+    if response.status_code < 400:
+        return
+    try:
+        payload = response.json()
+    except Exception:
+        payload = {}
+    if isinstance(payload, dict) and payload.get("error_code"):
+        message = str(payload.get("display_message") or payload.get("error_message") or "")[:400]
+        raise RuntimeError(
+            f"Plaid {action} failed: {payload['error_code']} — {message}"
+        )
+    response.raise_for_status()
+
+
 def _parse_aware_datetime(value: object) -> datetime | None:
     if not value:
         return None
@@ -266,14 +285,27 @@ def plaid_link_token(user: User) -> str:
     if _plaid_webhook_url():
         payload["webhook"] = _plaid_webhook_url()
     response = _plaid_request("/link/token/create", payload=payload, timeout=25)
-    response.raise_for_status()
+    if response.status_code >= 400 and "optional_products" in payload:
+        # The optional Transactions consent must never block core Investments
+        # linking. Plaid production rejects the token when the dashboard's
+        # Data Transparency Messaging use cases are not configured
+        # (INVALID_LINK_CUSTOMIZATION) — degrade to an investments-only Link
+        # session and log the operator action required.
+        logger.warning(
+            "plaid_link_token_optional_products_rejected code=%s — retrying investments-only",
+            _plaid_error_code(response),
+        )
+        payload.pop("optional_products", None)
+        payload.pop("transactions", None)
+        response = _plaid_request("/link/token/create", payload=payload, timeout=25)
+    _plaid_raise_for_status(response, "link/token/create")
     return response.json()["link_token"]
 
 
 def connect_plaid(db: Session, user: User, public_token: str, institution_name: str = "Plaid Investments") -> TradingAccount:
     _plaid_base_url()
     response = _plaid_request("/item/public_token/exchange", payload={"public_token": public_token}, timeout=20)
-    response.raise_for_status()
+    _plaid_raise_for_status(response, "item/public_token/exchange")
     payload = response.json()
     account = _account(
         db,
@@ -913,7 +945,7 @@ def _sync_plaid(db: Session, account: TradingAccount, *, include_transactions: b
     token = decrypt_token(connection.credential_ciphertext or "")
     _update_plaid_webhook(connection, token)
     response = _plaid_request("/investments/holdings/get", token, timeout=45)
-    response.raise_for_status()
+    _plaid_raise_for_status(response, "investments/holdings/get")
     data = response.json()
     securities = {str(item["security_id"]): item for item in data.get("securities", []) if item.get("security_id")}
     positions = []
@@ -1019,7 +1051,7 @@ def request_plaid_investments_refresh(db: Session, user: User, account: TradingA
         connection.metadata_json = metadata
         db.commit()
         raise PlaidRefreshUnsupported("This institution does not support Plaid Investments Refresh")
-    response.raise_for_status()
+    _plaid_raise_for_status(response, "investments/refresh")
     payload = response.json()
     metadata.update(
         {
