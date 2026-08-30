@@ -617,34 +617,8 @@ def test_invocation_is_idempotent_per_invocation_id(db, normal_user):
 
 
 # ---------------------------------------------------------------------------
-# Autopilot shares the single invocation path
+# (Portfolio Autopilot was removed from the product — its worker task, router
+#  endpoints and UI card were cut on 2026-08-30. Scheduled skill invocation
+#  paths are covered by the module-level tests above.)
 # ---------------------------------------------------------------------------
 
-
-def test_autopilot_invokes_portfolio_impact_review(monkeypatch, db, pro_user):
-    pro_user_id = pro_user.id  # the task closes the shared session on exit
-    preference = db.query(UserPreference).filter_by(user_id=pro_user_id).one()
-    preference.portfolio_autopilot_json = {"enabled": True, "cadence": "daily", "auto_sync": True, "risk_alerts": True, "long_gamma_watch": False, "delivery": "in_app", "skill_refs": []}
-    db.add(TradingAccount(user_id=pro_user_id, name="Test Account", venue="MOCK", account_type="READ_ONLY", base_currency="USD", status="ACTIVE", permissions_json={}))
-    db.commit()
-    monkeypatch.setattr(tasks, "SessionLocal", lambda: db)
-    monkeypatch.setattr(tasks, "sync_account", lambda *args, **kwargs: None)
-    calls: list[dict] = []
-
-    class _FakeRun:
-        evidence_json = {"workflow": {"output": {"nav": 100.0, "impacts": [], "gaps": []}}}
-
-    def _fake_invoke(db_, *, user, slug, inputs, trigger_source, agent_run_id=None, estimated_credits=None, invocation_id=None, allow_autopilot=False):
-        calls.append({"slug": slug, "inputs": inputs, "trigger_source": trigger_source, "allow_autopilot": allow_autopilot, "invocation_id": invocation_id})
-        return _FakeRun()
-
-    monkeypatch.setattr(tasks, "invoke_workflow_skill", _fake_invoke)
-    result = tasks.sync_portfolio_autopilot_accounts.run()
-    assert result["errors"] == 0
-    assert len(calls) == 1
-    assert calls[0]["slug"] == "portfolio_impact_review"
-    assert calls[0]["allow_autopilot"] is True
-    assert calls[0]["trigger_source"] == "scheduled_job"
-    review = db.query(PortfolioAutopilotReview).filter_by(user_id=pro_user_id).one()
-    assert review.nav == 100.0
-    assert review.status == "COMPLETED"

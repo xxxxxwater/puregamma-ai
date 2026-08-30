@@ -226,8 +226,8 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
   }).sort((a, b) => (b.context?.dayNtlVlm ?? -1) - (a.context?.dayNtlVlm ?? -1)), [market]);
 
   const copy = locale === "zh"
-    ? { title: "Autopilot 实时市场观察", subtitle: "Hyperliquid · 15 分钟 K 线", collapse: "收起行情列表", expand: "展开行情列表", price: "最新", change: "15 分钟", volume: "24h 成交额", oi: "未平仓", funding: "资金费率", updated: "UTC" }
-    : { title: "Autopilot live market watch", subtitle: "Hyperliquid · 15-minute candles", collapse: "Collapse market list", expand: "Expand market list", price: "Last", change: "15m", volume: "24h notional", oi: "Open interest", funding: "Funding", updated: "UTC" };
+    ? { title: "Hyperliquid 实时市场观察", subtitle: "Hyperliquid · 15 分钟 K 线", collapse: "收起行情列表", expand: "展开行情列表", price: "最新", change: "15 分钟", volume: "24h 成交额", oi: "未平仓", funding: "资金费率", updated: "UTC" }
+    : { title: "Hyperliquid live market watch", subtitle: "Hyperliquid · 15-minute candles", collapse: "Collapse market list", expand: "Expand market list", price: "Last", change: "15m", volume: "24h notional", oi: "Open interest", funding: "Funding", updated: "UTC" };
 
   return (
     <section className="overflow-hidden border border-border-pg bg-bg-panel rounded-xl">

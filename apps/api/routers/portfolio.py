@@ -7,7 +7,6 @@ import json
 import logging
 import secrets
 import time
-import uuid
 from datetime import datetime, timedelta, timezone
 from urllib.parse import parse_qsl, urlencode, urlsplit, urlunsplit
 
@@ -23,12 +22,9 @@ from sqlalchemy.orm import Session
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.cex_connection_service import cex_connection_status, connect_cex
-from apps.api.services.credit_service import InsufficientCreditsError, quote_task, refund_task, reserve_task, settle_task
-from apps.api.services.portfolio_service import PlaidDataPending, PlaidRefreshRateLimited, PlaidRefreshUnsupported, PlaidWebhookVerificationError, PortfolioAccessError, autopilot_view, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_investment_transactions, plaid_link_token, portfolio_view, process_plaid_webhook, request_plaid_investments_refresh, request_plaid_transactions_refresh, run_autopilot_review, sync_account, update_autopilot, verify_plaid_webhook
+from apps.api.services.portfolio_service import PlaidDataPending, PlaidRefreshRateLimited, PlaidRefreshUnsupported, PlaidWebhookVerificationError, PortfolioAccessError, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_investment_transactions, plaid_link_token, portfolio_view, process_plaid_webhook, request_plaid_investments_refresh, request_plaid_transactions_refresh, sync_account, verify_plaid_webhook
 from packages.data.cex_private import CexPermissionDenied
-from apps.api.services.skill_service import begin_module_skill_invocation, finish_module_skill_invocation
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
-from packages.skills.registry import SkillResolutionError
 
 
 def _portfolio_access_http(exc: PermissionError) -> HTTPException:
@@ -94,16 +90,6 @@ class EVMConnectRequest(EVMChallengeRequest):
     challenge_token: str = Field(min_length=32, max_length=2048)
     message: str = Field(min_length=32, max_length=4096)
     signature: str = Field(min_length=132, max_length=132)
-
-
-class AutopilotRequest(BaseModel):
-    enabled: bool | None = None
-    cadence: str | None = None
-    auto_sync: bool | None = None
-    risk_alerts: bool | None = None
-    long_gamma_watch: bool | None = None
-    delivery: str | None = None
-    skill_refs: list[dict] | None = Field(default=None, max_length=8)
 
 
 class PortfolioPrivacyRequest(BaseModel):
@@ -231,82 +217,6 @@ def update_ai_context(payload: PortfolioPrivacyRequest, db: Session = Depends(ge
     preference.include_portfolio_in_ai = payload.include_portfolio_in_ai
     db.commit()
     return {"include_portfolio_in_ai": preference.include_portfolio_in_ai}
-
-
-@router.get("/autopilot")
-def get_autopilot(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
-    return autopilot_view(db, user)
-
-
-@router.put("/autopilot")
-def put_autopilot(payload: AutopilotRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
-    try:
-        return update_autopilot(db, user, payload.model_dump(exclude_none=True))
-    except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-
-
-@router.post("/autopilot/run")
-def run_review(
-    idempotency_key: str | None = Header(default=None, alias="Idempotency-Key"),
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-) -> dict:
-    quote = quote_task(task_type="portfolio_monitor", async_execution=True)
-    reservation = None
-    skill_invocation_id = None
-    try:
-        config = autopilot_view(db, user)["config"]
-        skill_invocation_id, _ = begin_module_skill_invocation(
-            db,
-            user,
-            config.get("skill_refs", []),
-            trigger_source="autopilot",
-            input_payload={"query": "Run the configured portfolio Autopilot review", "portfolio_user_id": user.id, "config": config},
-            estimated_credits=quote.credits,
-            allow_autopilot=True,
-            required_tool="get_account_snapshot",
-            invocation_id=f"portfolio-skill:{user.id}:{idempotency_key}" if idempotency_key else None,
-        )
-        db.commit()
-        reservation = reserve_task(
-            db,
-            user.id,
-            quote,
-            f"portfolio-review:{user.id}:{idempotency_key or uuid.uuid4()}",
-            {"source": "user_initiated"},
-        )
-        db.commit()
-        result = run_autopilot_review(db, user)
-        settle_task(db, user.id, reservation, quote.credits, metadata={"reviewed_at": result["last_review"]})
-        finish_module_skill_invocation(db, skill_invocation_id, status="completed", credits_used=quote.credits, output_summary="Portfolio Autopilot review", evidence={"reviewed_at": result["last_review"], "account_count": result["account_count"]})
-        db.commit()
-        return result
-    except SkillResolutionError as exc:
-        db.rollback()
-        raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
-    except InsufficientCreditsError as exc:
-        db.rollback()
-        if skill_invocation_id:
-            finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="AUTOPILOT_CREDITS_REJECTED")
-            db.commit()
-        raise HTTPException(status_code=402, detail=str(exc)) from exc
-    except ValueError as exc:
-        db.rollback()
-        if reservation:
-            refund_task(db, user.id, reservation, "PORTFOLIO_REVIEW_REJECTED")
-        if skill_invocation_id:
-            finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="AUTOPILOT_REJECTED")
-        db.commit()
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
-    except Exception:
-        db.rollback()
-        if reservation:
-            refund_task(db, user.id, reservation, "PORTFOLIO_REVIEW_FAILED")
-        if skill_invocation_id:
-            finish_module_skill_invocation(db, skill_invocation_id, status="failed", credits_used=0, error_code="AUTOPILOT_FAILED")
-        db.commit()
-        raise
 
 
 @router.post("/plaid/link-token")

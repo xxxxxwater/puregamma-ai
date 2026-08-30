@@ -25,7 +25,6 @@ from packages.database.models import (
     AccountSnapshot,
     BacktestRun,
     DailyBriefPreference,
-    PortfolioAutopilotReview,
     RawDocument,
     ReconciliationRecord,
     StrategyRun,
@@ -529,123 +528,14 @@ def sync_plaid_investments_account(self, account_id: str) -> dict:
         db.close()
 
 
-def _persist_autopilot_review_from_workflow(db, user, accounts, skill_run) -> dict:
-    """Keep the Autopilot review contract (cadence gating + autopilot_view) on
-    top of the portfolio_impact_review workflow output — no bespoke rules."""
-    output = (((skill_run.evidence_json or {}).get("workflow") or {}).get("output") or {})
-    nav = output.get("nav")
-    nav_value = float(nav) if isinstance(nav, (int, float)) and not isinstance(nav, bool) else 0.0
-    findings: list[dict] = []
-    for impact in output.get("impacts") or []:
-        title = impact.get("event_title") or impact.get("event_type")
-        symbol = impact.get("symbol")
-        if title and symbol:
-            findings.append({"severity": "info", "title": f"{symbol}: {title}"})
-    for gap in output.get("gaps") or []:
-        findings.append({"severity": "warning", "title": str(gap)})
-    if not findings:
-        findings.append({"severity": "info", "title": "No freshness or concentration exception detected"})
-    review = PortfolioAutopilotReview(
-        user_id=user.id,
-        nav=nav_value,
-        account_count=len(accounts),
-        findings_json=findings,
-        concentration_json={},
-        status="COMPLETED",
-        data_as_of=utcnow(),
-    )
-    db.add(review)
-    db.commit()
-    return {"last_review": review.created_at.isoformat(), "findings": findings, "account_count": len(accounts)}
-
-
-@celery_app.task(name="puregamma.sync_portfolio_autopilot_accounts")
-def sync_portfolio_autopilot_accounts() -> dict:
-    db = SessionLocal()
-    synced = 0
-    errors = 0
-    try:
-        preferences = db.query(UserPreference).all()
-        for preference in preferences:
-            config = preference.portfolio_autopilot_json or {}
-            if not config.get("enabled") or not config.get("auto_sync", True):
-                continue
-            user = db.get(User, preference.user_id)
-            accounts = db.query(TradingAccount).filter_by(user_id=preference.user_id, account_type="READ_ONLY", status="ACTIVE").all()
-            for account in accounts:
-                try:
-                    sync_account(db, user, account)
-                    synced += 1
-                except Exception:
-                    db.rollback()
-                    logger.exception("portfolio_autopilot_account_sync_failed user_id=%s account_id=%s", preference.user_id, account.id)
-                    errors += 1
-            cadence = config.get("cadence", "daily")
-            last_review = db.query(PortfolioAutopilotReview).filter_by(user_id=preference.user_id).order_by(PortfolioAutopilotReview.created_at.desc()).first()
-            interval = timedelta(days=7 if cadence == "weekly" else 1)
-            if accounts and (not last_review or utcnow() - last_review.created_at >= interval):
-                reservation = None
-                try:
-                    quote = quote_task(task_type="portfolio_monitor", async_execution=True)
-                    date_key = utcnow().date().isoformat()
-                    reservation = reserve_task(
-                        db,
-                        user.id,
-                        quote,
-                        f"portfolio-monitor:{user.id}:{date_key}",
-                        {"automation_key": "portfolio_monitor", "cadence": cadence},
-                    )
-                    db.commit()
-                    # The scheduled review is the portfolio_impact_review workflow
-                    # Skill: one shared invocation path, fully audited on SkillRun.
-                    skill_run = invoke_workflow_skill(
-                        db,
-                        user=user,
-                        slug="portfolio_impact_review",
-                        inputs={"locale": "en", "cadence": cadence},
-                        trigger_source="scheduled_job",
-                        allow_autopilot=True,
-                        invocation_id=f"portfolio-scheduled-skill:{user.id}:{date_key}",
-                    )
-                    review = _persist_autopilot_review_from_workflow(db, user, accounts, skill_run)
-                    delivery = config.get("delivery", "in_app")
-                    if delivery in {"telegram", "imessage"}:
-                        findings = "; ".join(item["title"] for item in review["findings"][:5])
-                        send_notification(db, user.id, delivery, f"PureGamma AI Portfolio Autopilot\n\n{findings}", {"type": "portfolio_autopilot", "reviewed_at": review["last_review"], "automation_key": "portfolio_monitor_delivery"})
-                    settle_task(db, user.id, reservation, quote.credits, metadata={"reviewed_at": review["last_review"]})
-                    db.commit()
-                except AutomationBudgetExceeded as exc:
-                    _persist_budget_pause(db, user.id, "portfolio_monitor", exc)
-                    current = db.get(UserPreference, preference.user_id)
-                    if current:
-                        paused_config = dict(current.portfolio_autopilot_json or {})
-                        paused_config["enabled"] = False
-                        paused_config["pause_reason"] = str(exc)
-                        current.portfolio_autopilot_json = paused_config
-                        db.commit()
-                    logger.warning("portfolio_autopilot_budget_paused user_id=%s", preference.user_id)
-                except Exception:
-                    db.rollback()
-                    if reservation:
-                        refund_task(db, user.id, reservation, "PORTFOLIO_MONITOR_FAILED")
-                    db.commit()
-                    logger.exception("portfolio_autopilot_review_failed user_id=%s", preference.user_id)
-                    errors += 1
-        return {"synced": synced, "errors": errors}
-    finally:
-        db.close()
-
-
 @celery_app.task(name="puregamma.sync_all_portfolio_accounts")
 def sync_all_portfolio_accounts() -> dict:
     """General scheduled NAV refresh for every connected portfolio account.
 
-    Unlike ``sync_portfolio_autopilot_accounts`` this is not gated on an
-    Autopilot configuration, so any connected portfolio keeps a fresh snapshot
-    and NAV history even when Autopilot is off. Accounts are processed
-    independently: a failing source (Plaid delay, EVM RPC, CEX outage) records
-    an error for that account only and never overwrites another account's last
-    valid snapshot. Accounts whose latest snapshot is still fresh are skipped.
+    Accounts are processed independently: a failing source (Plaid delay, EVM
+    RPC, CEX outage) records an error for that account only and never
+    overwrites another account's last valid snapshot. Accounts whose latest
+    snapshot is still fresh are skipped.
     """
     db = SessionLocal()
     synced = 0

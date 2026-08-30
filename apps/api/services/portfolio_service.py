@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.services.entitlement_service import get_user_entitlement
-from packages.database.models import AccountSnapshot, ExchangeConnection, PortfolioAutopilotReview, PortfolioInvestmentTransaction, PositionSnapshot, Report, TradingAccount, User, UserPreference, utcnow
+from packages.database.models import AccountSnapshot, ExchangeConnection, PortfolioInvestmentTransaction, PositionSnapshot, Report, TradingAccount, User, UserPreference, utcnow
 
 logger = logging.getLogger(__name__)
 
@@ -1719,89 +1719,6 @@ def portfolio_context(db: Session, user_id: str, *, detailed: bool = False) -> d
         "stale": stale,
         "missing_data": missing,
     }
-
-
-DEFAULT_AUTOPILOT = {"enabled": False, "cadence": "daily", "auto_sync": True, "risk_alerts": True, "long_gamma_watch": True, "delivery": "in_app", "skill_refs": []}
-
-
-def autopilot_view(db: Session, user: User) -> dict:
-    preference = db.query(UserPreference).filter_by(user_id=user.id).one_or_none()
-    config = {**DEFAULT_AUTOPILOT, **((preference.portfolio_autopilot_json if preference else {}) or {})}
-    accounts = db.query(TradingAccount).filter_by(user_id=user.id, account_type="READ_ONLY", status="ACTIVE").all()
-    latest_review = db.query(PortfolioAutopilotReview).filter_by(user_id=user.id).order_by(PortfolioAutopilotReview.created_at.desc()).first()
-    findings = list(latest_review.findings_json or []) if latest_review else []
-    for account in accounts:
-        latest = db.query(AccountSnapshot).filter_by(user_id=user.id, account_id=account.id).order_by(AccountSnapshot.captured_at.desc()).first()
-        if not latest and not latest_review:
-            findings.append({"severity": "warning", "title": f"{account.name}: no synchronized snapshot"})
-        elif latest and latest.stale and not latest_review:
-            findings.append({"severity": "warning", "title": f"{account.name}: snapshot is stale"})
-    return {"config": config, "account_count": len(accounts), "findings": findings, "concentration": latest_review.concentration_json if latest_review else {}, "execution": "RESEARCH_ONLY", "last_review": latest_review.created_at.isoformat() if latest_review else None}
-
-
-def update_autopilot(db: Session, user: User, payload: dict) -> dict:
-    preference = db.query(UserPreference).filter_by(user_id=user.id).one_or_none()
-    if not preference:
-        preference = UserPreference(user_id=user.id)
-        db.add(preference)
-    config = {**DEFAULT_AUTOPILOT, **(preference.portfolio_autopilot_json or {})}
-    for key in DEFAULT_AUTOPILOT:
-        if key in payload:
-            config[key] = payload[key]
-    if config["cadence"] not in {"daily", "weekly"} or config["delivery"] not in {"in_app", "telegram", "imessage"} or not isinstance(config["skill_refs"], list) or len(config["skill_refs"]) > 8:
-        raise ValueError("Unsupported Autopilot configuration")
-    preference.portfolio_autopilot_json = config
-    db.commit()
-    return autopilot_view(db, user)
-
-
-def run_autopilot_review(db: Session, user: User) -> dict:
-    preference = db.query(UserPreference).filter_by(user_id=user.id).one_or_none()
-    config = {**DEFAULT_AUTOPILOT, **((preference.portfolio_autopilot_json if preference else {}) or {})}
-    accounts = db.query(TradingAccount).filter_by(user_id=user.id, account_type="READ_ONLY", status="ACTIVE").all()
-    if not accounts:
-        raise ValueError("Connect at least one portfolio account first")
-    latest_snapshots = []
-    values_by_asset: dict[str, float] = {}
-    findings = []
-    data_as_of = None
-    for account in accounts:
-        snapshot = db.query(AccountSnapshot).filter_by(user_id=user.id, account_id=account.id).order_by(AccountSnapshot.captured_at.desc()).first()
-        if not snapshot:
-            findings.append({"severity": "warning", "title": f"{account.name}: no synchronized snapshot"})
-            continue
-        latest_snapshots.append(snapshot)
-        data_as_of = max(filter(None, [data_as_of, snapshot.captured_at])) if data_as_of else snapshot.captured_at
-        age = datetime.now(timezone.utc) - snapshot.captured_at.astimezone(timezone.utc)
-        if config.get("risk_alerts", True) and _snapshot_is_stale(account, snapshot):
-            findings.append({"severity": "warning", "title": f"{account.name}: data is {int(age.total_seconds() // 60)} minutes old"})
-        positions = db.query(PositionSnapshot).filter_by(user_id=user.id, account_id=account.id, captured_at=snapshot.captured_at).all()
-        for position in positions:
-            value = abs(float((position.raw_event_reference or {}).get("value") or position.quantity * position.mark_price))
-            values_by_asset[position.instrument] = values_by_asset.get(position.instrument, 0) + value
-    nav = sum(item.equity for item in latest_snapshots)
-    concentration = {asset: round(value / nav, 4) for asset, value in values_by_asset.items()} if nav > 0 else {}
-    for asset, weight in sorted(concentration.items(), key=lambda item: item[1], reverse=True):
-        if config.get("risk_alerts", True) and weight >= 0.35:
-            findings.append({"severity": "high", "title": f"{asset} concentration is {weight:.1%}"})
-    if config.get("long_gamma_watch", True):
-        try:
-            from apps.api.services.options_service import get_option_chain
-            from packages.options.long_gamma import discover_long_gamma
-
-            chain = get_option_chain("BTC")
-            candidates = discover_long_gamma(chain.get("instruments", []), 3) if chain.get("status") == "HEALTHY" else []
-            if candidates:
-                instrument = candidates[0].get("instrument_name") or candidates[0].get("instrument") or "BTC option structure"
-                findings.append({"severity": "info", "title": f"Long Gamma Watch: {instrument} is available for research review"})
-        except Exception:
-            findings.append({"severity": "warning", "title": "Long Gamma Watch data is currently unavailable"})
-    if not findings:
-        findings.append({"severity": "info", "title": "No freshness or concentration exception detected"})
-    review = PortfolioAutopilotReview(user_id=user.id, nav=nav, account_count=len(accounts), findings_json=findings, concentration_json=concentration, status="COMPLETED", data_as_of=data_as_of)
-    db.add(review)
-    db.commit()
-    return autopilot_view(db, user)
 
 
 def disconnect_account(db: Session, user: User, account: TradingAccount) -> None:

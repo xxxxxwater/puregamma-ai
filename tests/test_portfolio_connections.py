@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import pytest
 
-from apps.api.services.portfolio_service import PortfolioAccessError, autopilot_view, connect_hyperliquid, disconnect_account, portfolio_view, run_autopilot_review, sync_account, update_autopilot
+from apps.api.services.portfolio_service import PortfolioAccessError, connect_hyperliquid, disconnect_account, portfolio_view, sync_account
 from apps.api.services.billing_service import mock_upgrade
 
 
@@ -29,14 +29,6 @@ def test_hyperliquid_read_only_connection_builds_real_nav(db, demo_user, monkeyp
     assert result["connections"][0]["provider"] == "hyperliquid"
     assert account.permissions_json["trade"] is False
     assert account.permissions_json["withdraw"] is False
-
-
-def test_portfolio_autopilot_is_persisted_as_research_only(db, demo_user):
-    result = update_autopilot(db, demo_user, {"enabled": True, "cadence": "weekly", "long_gamma_watch": False})
-    assert result["config"]["enabled"] is True
-    assert result["config"]["cadence"] == "weekly"
-    assert result["execution"] == "RESEARCH_ONLY"
-    assert autopilot_view(db, demo_user)["config"]["long_gamma_watch"] is False
 
 
 def test_multi_account_nav_history_uses_latest_value_for_every_account(db, demo_user, monkeypatch):
@@ -66,15 +58,11 @@ def test_free_plan_allows_one_portfolio_connection(db, normal_user, monkeypatch)
     assert excinfo.value.context == {"plan": "Free", "active_count": 1, "max_portfolios": 1}
 
 
-def test_autopilot_review_persists_concentration_and_disconnects(db, demo_user, monkeypatch):
+def test_disconnect_account_removes_connection_from_view(db, demo_user, monkeypatch):
     mock_upgrade(db, demo_user.id, "Max")
     monkeypatch.setattr("apps.api.services.portfolio_service.requests.post", lambda *args, **kwargs: _Response())
     account = connect_hyperliquid(db, demo_user, "0x" + "3" * 40)
     sync_account(db, demo_user, account)
-    update_autopilot(db, demo_user, {"enabled": True, "long_gamma_watch": False})
-    review = run_autopilot_review(db, demo_user)
-    assert review["last_review"] is not None
-    assert review["concentration"]["BTC"] > 0
-    assert review["execution"] == "RESEARCH_ONLY"
+    assert portfolio_view(db, demo_user)["connected"] is True
     disconnect_account(db, demo_user, account)
     assert portfolio_view(db, demo_user)["connected"] is False

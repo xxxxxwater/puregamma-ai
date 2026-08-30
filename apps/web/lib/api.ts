@@ -989,10 +989,6 @@ export function syncPortfolioAccount(accountId: string) { return requestStrict<P
 export function requestPlaidInvestmentRefresh(accountId: string) { return requestStrict<{ account_id: string; status: string; request_id?: string | null; retry_after_seconds: number }>(`/portfolio/accounts/${encodeURIComponent(accountId)}/plaid-refresh`, { method: "POST" }); }
 export function getPlaidInvestmentTransactions(accountId?: string, limit = 100) { const query = new URLSearchParams({ limit: String(limit) }); if (accountId) query.set("account_id", accountId); return requestStrict<{ transactions: PortfolioInvestmentTransaction[] }>(`/portfolio/plaid/transactions?${query.toString()}`); }
 export function disconnectPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" }); }
-export type PortfolioAutopilot = { config: { enabled: boolean; cadence: "daily" | "weekly"; auto_sync: boolean; risk_alerts: boolean; long_gamma_watch: boolean; delivery: "in_app" | "telegram" | "imessage"; skill_refs: SkillContextRef[] }; account_count: number; findings: Array<{ severity: string; title: string }>; concentration?: Record<string, number>; execution: "RESEARCH_ONLY"; last_review: string | null };
-export function getPortfolioAutopilot() { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot"); }
-export function updatePortfolioAutopilot(config: Partial<PortfolioAutopilot["config"]>) { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot", { method: "PUT", body: JSON.stringify(config) }); }
-export function runPortfolioAutopilot() { return requestStrict<PortfolioAutopilot>("/portfolio/autopilot/run", { method: "POST" }); }
 
 export function getPortfolioPositions() {
   return requestStrict<{ positions: PositionRow[]; status: string }>("/portfolio/positions");

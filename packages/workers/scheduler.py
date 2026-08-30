@@ -97,14 +97,6 @@ def build_scheduler() -> BlockingScheduler:
     )
     scheduler.add_job(
         enqueue,
-        IntervalTrigger(minutes=15),
-        args=["puregamma.sync_portfolio_autopilot_accounts"],
-        id="portfolio_autopilot_account_sync",
-        max_instances=1,
-        coalesce=True,
-    )
-    scheduler.add_job(
-        enqueue,
         CronTrigger(hour=0, minute=5),
         args=["puregamma.generate_portfolio_nav"],
         id="portfolio_nav_snapshot",
