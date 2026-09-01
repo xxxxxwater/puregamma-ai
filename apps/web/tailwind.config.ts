@@ -41,6 +41,12 @@ const config: Config = {
         "text-secondary": "var(--muted)",
         "text-tertiary": "var(--muted-2)",
         "text-muted": "var(--muted-2)",
+        "muted-2": "var(--muted-2)",
+        "foreground": "var(--foreground)",
+        "accent": "var(--accent)",
+        "accent-soft": "var(--accent-soft)",
+        "accent-ring": "var(--accent-ring)",
+        "border": "var(--border)",
 
         // ── Low saturation state colors only ──
         "status-positive": "var(--positive)",

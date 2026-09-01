@@ -14,8 +14,10 @@ import { stripLocale, withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 import type { TranslationKey } from "@/lib/translations";
 import { getMe, AUTH_EXPIRED_EVENT } from "@/lib/api";
+import { formatClockTime, formatUtcTime, useClockNow } from "@/lib/chrono";
 import { publishUserState, USER_STATE_EVENT, type SessionUserState } from "@/lib/user-state";
 import { applySurfaceTier, surfaceTierForPath } from "@/lib/visual-style";
+import { Chronosphere } from "@/components/chrono/chronosphere";
 import { PluginRuntime } from "@/plugins/core/runtime";
 import { usePluginNavItems } from "@/plugins/core/services/navigation";
 
@@ -106,7 +108,7 @@ function PluginNavSection({ locale, onNavigate }: { locale: Locale; onNavigate?:
             );
           }
           return (
-            <Link key={item.href} href={withLocale(locale, item.href)} onClick={onNavigate} aria-current={active ? "page" : undefined} className={`flex items-center gap-2 border px-3 py-2 text-sm  rounded-lg ${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
+            <Link key={item.href} href={withLocale(locale, item.href)} onClick={onNavigate} aria-current={active ? "page" : undefined} className={`nav-item ${active ? "nav-active" : ""}`}>
               {label}
             </Link>
           );
@@ -147,12 +149,12 @@ export function AppShell({ children, locale }: { children: ReactNode; locale: Lo
     <LocaleProvider locale={locale}>
       <PluginRuntime>
         <div className="relative min-h-screen">
-          <div className="pg-glass-ambient" aria-hidden />
+          <Chronosphere />
           <AuthExpiredRedirector locale={locale} />
         <SidebarNav locale={locale} />
         <MobileNavDrawer locale={locale} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
 
-        <div className="lg:pl-72">
+        <div className="lg:pl-[284px]">
           <TopStatusBar locale={locale} onMenuClick={() => setMobileNavOpen(true)} />
 
             <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
@@ -170,8 +172,8 @@ export function MobileNavDrawer({ locale, open, onClose }: { locale: Locale; ope
   const activePathname = stripLocale(pathname);
   return (
     <>
-      {open ? <div className="fixed inset-0 z-40 bg-black/40 lg:hidden" onClick={onClose} aria-hidden /> : null}
-      <div role="dialog" aria-modal="true" aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className={`pg-glass-chrome fixed inset-y-0 left-0 z-50 flex w-72 max-w-[85vw] transform flex-col border-r border-border-pg bg-bg-panel p-4 transition-transform duration-200 lg:hidden ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      {open ? <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden" onClick={onClose} aria-hidden /> : null}
+      <div role="dialog" aria-modal="true" aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className={`fixed inset-y-3 left-3 z-50 flex w-80 max-w-[85vw] transform flex-col rounded-2xl border border-border-pg bg-bg-app p-5 shadow-2xl transition-transform duration-200 lg:hidden ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between gap-2">
           <Link href={withLocale(locale, "/")} className="flex min-w-0 items-center gap-2 font-semibold text-text-pg">
             <Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI
@@ -187,8 +189,8 @@ export function MobileNavDrawer({ locale, open, onClose }: { locale: Locale; ope
                   const Icon = item.icon;
                   const active = item.href === "/" ? activePathname === "/" : activePathname.startsWith(item.href);
                   return (
-                    <Link key={item.href} href={withLocale(locale, item.href)} onClick={onClose} aria-current={active ? "page" : undefined} className={`flex items-center gap-2 border px-3 py-2 text-sm  rounded-lg ${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
-                      <Icon className="h-4 w-4" aria-hidden />
+                    <Link key={item.href} href={withLocale(locale, item.href)} onClick={onClose} aria-current={active ? "page" : undefined} className={`nav-item ${active ? "nav-active" : ""}`}>
+                      <Icon className="nav-icon" aria-hidden />
                       {t(locale, item.labelKey)}
                     </Link>
                   );
@@ -211,15 +213,14 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   const pathname = usePathname();
   const activePathname = stripLocale(pathname);
   return (
-    <aside className="pg-glass-chrome fixed inset-y-0 left-0 z-30 hidden w-72 border-r border-border-pg bg-bg-panel p-4 lg:block">
-      <Link href={withLocale(locale, "/")} className="flex items-center gap-2 text-lg font-semibold text-text-pg">
-        <Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI
+    <aside className="shell-rail hidden flex-col p-4 lg:flex">
+      <Link href={withLocale(locale, "/")} className="flex items-center gap-2.5"><Image src="/logo.png" alt="PureGamma" width={22} height={22} /><span className="text-[0.95rem] font-semibold tracking-tight text-text-pg">PureGamma</span><span className="mt-0.5 text-[0.6rem] font-medium uppercase tracking-[0.3em] text-text-pg-dim">Intelligence</span>
       </Link>
       <div className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
       <div className="mt-4">
         <div className="flex items-center gap-2"><LanguageSwitcher compact /><AppearanceControls locale={locale} /></div>
       </div>
-      <nav className="mt-8 space-y-7">
+      <nav className="shell-nav mt-8 flex-1 space-y-7 overflow-y-auto pr-1">
         {groups.map((group) => (
           <div key={group.labelKey}>
             <div className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-text-pg-dim">{t(locale, group.labelKey)}</div>
@@ -228,8 +229,8 @@ export function SidebarNav({ locale }: { locale: Locale }) {
                 const Icon = item.icon;
                 const active = item.href === "/" ? activePathname === "/" : activePathname.startsWith(item.href);
                 return (
-                  <Link key={item.href} href={withLocale(locale, item.href)} className={`flex items-center gap-2 border px-3 py-2 text-sm  rounded-lg ${active ? "border-border-pg-strong bg-bg-panel-muted text-text-pg" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel-muted hover:text-text-pg"}`}>
-                    <Icon className="h-4 w-4" aria-hidden />
+                  <Link key={item.href} href={withLocale(locale, item.href)} className={`nav-item ${active ? "nav-active" : ""}`}>
+                    <Icon className="nav-icon" aria-hidden />
                     {t(locale, item.labelKey)}
                   </Link>
                 );
@@ -239,7 +240,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
         ))}
         <PluginNavSection locale={locale} />
       </nav>
-      <Link href={withLocale(locale, "/account#imessage-bind")} className="absolute bottom-5 left-4 right-4 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg">
+      <Link href={withLocale(locale, "/account#imessage-bind")} className="mt-3 flex shrink-0 items-center gap-2 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg">
         <MessageCircle className="h-4 w-4" aria-hidden />
         {locale === "zh" ? "绑定 iMessage" : "Bind iMessage"}
       </Link>
@@ -249,6 +250,8 @@ export function SidebarNav({ locale }: { locale: Locale }) {
 
 export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuClick: () => void }) {
   const [storedUser, setStoredUser] = useState<StoredUser | null>(null);
+  const pathname = usePathname();
+  const dashboardRoute = stripLocale(pathname || "/") === "/dashboard";
   const refreshUser = useCallback(async () => {
     const result = await getMe();
     setStoredUser(result.user);
@@ -284,14 +287,15 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
     };
   }, [refreshUser]);
   return (
-    <header className="pg-glass-chrome sticky top-0 z-20 border-b border-border-pg bg-bg-app/95 backdrop-blur">
-      <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-4 sm:py-3">
+    <header className="shell-chrome">
+      <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-5 sm:py-3">
         <button type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong lg:hidden rounded-lg"><Menu className="h-4 w-4" /></button>
         <Link href={withLocale(locale, "/")} className="min-w-0 shrink flex items-center gap-2 truncate font-semibold text-text-pg lg:hidden">
           <Image src="/logo.png" alt="PureGamma" width={20} height={20} />
           PureGamma AI
         </Link>
         <div className="hidden items-center gap-2 text-xs md:flex">
+          {!dashboardRoute ? <TopClock locale={locale} /> : null}
           <PlanBadge plan={storedUser?.plan || "Free"} tier={storedUser?.membership_tier} locale={locale} />
           <Badge tone="neutral">{storedUser ? `${storedUser.credit_balance ?? 0} credits` : t(locale, "common.topbar.credits")}</Badge>
           <LanguageSwitcher compact />
@@ -313,12 +317,23 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
           {storedUser ? null : (
             <>
               <Link href={withLocale(locale, "/signup")} className="border border-border-pg-strong bg-pg-white px-2.5 py-1 font-semibold text-pg-black hover:bg-pg-white-soft rounded-lg">{t(locale, "common.nav.signup")}</Link>
-              <Link href={withLocale(locale, "/login")} className="border border-border-pg px-2.5 py-1 text-text-pg hover:border-border-pg-strong rounded-lg">{t(locale, "common.nav.signin")}</Link>
+              <Link href={withLocale(locale, "/login")} className="hidden min-[420px]:inline-flex border border-border-pg px-2.5 py-1 text-text-pg hover:border-border-pg-strong rounded-lg">{t(locale, "common.nav.signin")}</Link>
             </>
           )}
           <div className="flex items-center gap-1.5"><LanguageSwitcher compact /><AppearanceControls locale={locale} showFontScale={false} /></div>
         </div>
       </div>
     </header>
+  );
+}
+
+function TopClock({ locale }: { locale: Locale }) {
+  const now = useClockNow(1000);
+  return (
+    <span className="hidden items-center gap-2 whitespace-nowrap font-mono text-[0.68rem] tabular-nums text-text-pg-muted xl:inline-flex">
+      <span aria-hidden className="status-dot status-dot-live" />
+      {formatClockTime(now, locale === "zh" ? "zh-CN" : "en-US")}
+      <span className="text-text-pg-dim">· UTC {formatUtcTime(now)}</span>
+    </span>
   );
 }

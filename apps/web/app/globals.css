@@ -31,26 +31,25 @@
 }
 
 :root {
-  /* DeepSeek console grey scale (--dsw-static-neutral-bluish-*):
-     base #101216 (bluish-950) -> layer-1 #191c22 (875) -> layer-2 #212123 (850)
-     -> layer-3 #292929 (800); text bluish-50; borders border-l1/l2. */
-  --background: #101216;
-  --foreground: #f5f6f8;
-  --panel: #191c22;
-  --panel-muted: #212123;
-  --panel-strong: #292929;
-  --secretary-assistant-bg: #3b2a25;
-  --secretary-assistant-text: #f1e4dc;
-  --secretary-assistant-border: #5f443c;
-  --secretary-assistant-muted: #c9aea2;
-  --border: rgba(255, 255, 255, 0.06);
-  --border-strong: rgba(255, 255, 255, 0.12);
-  --muted: #a2a4a6;
-  --muted-2: #7f8287;
-  --positive: #d9f99d;
-  --negative: #fca5a5;
-  --warning: #fde68a;
-  --info: #d4d4d8;
+  /* PureGamma — Night Intelligence scene: deep graphite + night blue-black,
+     faint cool light fields, near-white ink, calm semantic colors. */
+  --background: #0b0e14;
+  --foreground: #eef1f6;
+  --panel: #131a24;
+  --panel-muted: #1a2230;
+  --panel-strong: #212a3a;
+  --secretary-assistant-bg: #2e2624;
+  --secretary-assistant-text: #f0e7e2;
+  --secretary-assistant-border: #5d4a44;
+  --secretary-assistant-muted: #c9b6ac;
+  --border: rgba(150, 172, 214, 0.10);
+  --border-strong: rgba(150, 172, 214, 0.18);
+  --muted: #98a2b3;
+  --muted-2: #6b7484;
+  --positive: #34d399;
+  --negative: #f87171;
+  --warning: #f5b453;
+  --info: #93b4ff;
   --bg-app: var(--background);
   --bg-card: var(--panel);
   --bg-card-muted: var(--panel-muted);
@@ -64,23 +63,25 @@
 }
 
 :root[data-theme="light"] {
-  --background: #f6f7f8;
-  --foreground: #171717;
+  /* PureGamma — California Daylight scene: warm cloud white / titanium,
+     near-black ink (not pure black), very light cool shadows. */
+  --background: #f4f4f2;
+  --foreground: #17181c;
   --panel: #ffffff;
-  --panel-muted: #f0f1f2;
-  --panel-strong: #e7e8ea;
-  --secretary-assistant-bg: #dbeafe;
+  --panel-muted: #f0f1f3;
+  --panel-strong: #e8eaee;
+  --secretary-assistant-bg: #e3edfa;
   --secretary-assistant-text: #172554;
-  --secretary-assistant-border: #93c5fd;
+  --secretary-assistant-border: #9cc3f0;
   --secretary-assistant-muted: #3b5ba9;
-  --border: rgba(0, 0, 0, 0.12);
-  --border-strong: rgba(0, 0, 0, 0.24);
-  --muted: #525252;
-  --muted-2: #737373;
-  --positive: #166534;
-  --negative: #b91c1c;
-  --warning: #92400e;
-  --info: #3f3f46;
+  --border: rgba(15, 23, 42, 0.10);
+  --border-strong: rgba(15, 23, 42, 0.18);
+  --muted: #5b606b;
+  --muted-2: #7c8089;
+  --positive: #0e8f61;
+  --negative: #c2413c;
+  --warning: #a16207;
+  --info: #2f5fc4;
 }
 
 :root[data-font-scale="compact"] { font-size: 14px; }
@@ -171,6 +172,7 @@ textarea {
 
 @keyframes market-cell-flash {
   0% { background-color: var(--flash-bg); }
+  55% { background-color: var(--flash-bg); }
   100% { background-color: transparent; }
 }
 
@@ -222,7 +224,8 @@ textarea {
 }
 
 .market-cell-flash {
-  animation: market-cell-flash 0.7s ease-out;
+  animation: market-cell-flash 0.5s ease-out;
+  transition: background-color 0.2s ease, color 0.2s ease;
 }
 
 .secretary-bubble-assistant .secretary-bubble-muted {
@@ -381,17 +384,17 @@ textarea {
 
 /* Dark glass surface tokens. */
 :root[data-visual-style="glass"] {
-  --panel: rgba(23, 26, 33, 0.66);
-  --panel-muted: rgba(30, 33, 41, 0.60);
-  --panel-strong: rgba(36, 40, 49, 0.76);
-  --border: rgba(255, 255, 255, 0.08);
-  --border-strong: rgba(255, 255, 255, 0.16);
+  --panel: rgba(19, 26, 38, 0.90);
+  --panel-muted: rgba(26, 34, 48, 0.88);
+  --panel-strong: rgba(33, 42, 58, 0.94);
+  --border: rgba(150, 172, 214, 0.10);
+  --border-strong: rgba(150, 172, 214, 0.20);
 }
 
 :root[data-visual-style="glass"][data-theme="light"] {
-  --panel: rgba(255, 255, 255, 0.64);
-  --panel-muted: rgba(244, 245, 246, 0.58);
-  --panel-strong: rgba(235, 237, 240, 0.76);
+  --panel: rgba(255, 255, 255, 0.94);
+  --panel-muted: rgba(240, 241, 243, 0.92);
+  --panel-strong: rgba(233, 235, 238, 0.96);
   --border: rgba(15, 23, 42, 0.10);
   --border-strong: rgba(15, 23, 42, 0.18);
   --glass-edge: rgba(255, 255, 255, 0.65);
@@ -404,9 +407,9 @@ textarea {
 /* Financial / security routes: prices, positions, alerts and action
    buttons must stay crisp — near-solid panels, softer blur. */
 :root[data-visual-style="glass"][data-surface-tier="financial"] {
-  --panel: rgba(23, 26, 33, 0.93);
-  --panel-muted: rgba(30, 33, 41, 0.90);
-  --panel-strong: rgba(36, 40, 49, 0.97);
+  --panel: rgba(16, 21, 31, 0.97);
+  --panel-muted: rgba(22, 29, 41, 0.96);
+  --panel-strong: rgba(30, 38, 53, 0.98);
   --glass-blur: 8px;
 }
 
@@ -523,205 +526,391 @@ textarea {
     opacity: 0.55;
   }
 }
-
 /* ════════════════════════════════════════════════════════════════════════
-   Glass — commercial-grade polish layer (added on top of the base system;
-   no markup changes; classic mode and reduced-transparency users keep the
-   baseline look).
-
-   Adds what the base token-override system cannot: a top highlight edge on
-   every glass surface, layered soft shadows, film-grain over the ambient
-   fields, a very slow motion-safe ambient drift, a brand-gold focus ring,
-   glass input focus, thin scrollbars, table-row hover, and deeper modal
-   elevation. Financial-tier panels keep their near-solid fill and simply
-   gain the highlight/shadow treatment.
+   PureGamma — Liquid Intelligence (Glass + Classic).
+   California precision + liquid glass: modern tight sans display, huge
+   structured type, scarce premium glass (AI command / hero / chrome),
+   near-solid high-contrast data surfaces, complete Dark & Light scenes.
+   Tokens first; semantic classes only. Classic stays static + solid.
    ════════════════════════════════════════════════════════════════════════ */
 
 :root {
+  --font-display: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  /* Intelligence blue: the single interaction color. Violet is refraction only. */
+  --accent: #5b8cff;
+  --accent-strong: #7aa0ff;
+  --accent-soft: rgba(91, 140, 255, 0.13);
+  --accent-ring: rgba(91, 140, 255, 0.38);
+  --accent-violet: #8b7cff;
+
+  /* Brand gold: premium / insight / member signal only — never a UI control color. */
   --brand-gold: #d6b35a;
   --brand-gold-strong: #e9cd82;
-  --glass-edge-strong: rgba(255, 255, 255, 0.13);
-  --glass-shadow-1: 0 1px 2px rgba(0, 0, 0, 0.25);
-  --glass-shadow-2: 0 14px 34px -14px rgba(0, 0, 0, 0.5);
-  --glass-noise-opacity: 0.045;
-  --glass-ambient-gold: rgba(214, 179, 90, 0.10);
-  --glass-focus-ring: rgba(214, 179, 90, 0.55);
-  --glass-scrollbar: rgba(255, 255, 255, 0.14);
-  --glass-scrollbar-hover: rgba(255, 255, 255, 0.28);
-  --glass-row-hover: rgba(255, 255, 255, 0.04);
-  --glass-modal-bg: rgba(17, 20, 26, 0.90);
-}
 
+  /* Liquid glass materials (opt-in, scarce). */
+  --lens-blur: 26px;
+  --lens-saturate: 1.35;
+  --lens-edge: rgba(255, 255, 255, 0.16);
+  --lens-haze: rgba(255, 255, 255, 0.055);
+  --lens-tint: rgba(120, 150, 255, 0.05);
+  --lens-shadow: 0 1px 1px rgba(0,0,0,0.22), 0 30px 70px -36px rgba(0,0,0,0.62);
+  --lens-fill-a: rgba(26, 33, 48, 0.84);
+  --lens-fill-b: rgba(14, 18, 27, 0.88);
+
+  --radius-panel: 18px;
+  --section-gap: clamp(32px, 5vw, 72px);
+}
 :root[data-theme="light"] {
+  --accent: #2f66f5;
+  --accent-strong: #1f55e8;
+  --accent-soft: rgba(47, 102, 245, 0.10);
+  --accent-ring: rgba(47, 102, 245, 0.30);
+  --accent-violet: #6f5cf1;
   --brand-gold: #8a6d1f;
   --brand-gold-strong: #a5842c;
-  --glass-edge-strong: rgba(255, 255, 255, 0.95);
-  --glass-shadow-1: 0 1px 2px rgba(15, 23, 42, 0.06);
-  --glass-shadow-2: 0 14px 34px -14px rgba(15, 23, 42, 0.16);
-  --glass-noise-opacity: 0.03;
-  --glass-ambient-gold: rgba(202, 138, 4, 0.09);
-  --glass-focus-ring: rgba(138, 109, 31, 0.45);
-  --glass-scrollbar: rgba(15, 23, 42, 0.16);
-  --glass-scrollbar-hover: rgba(15, 23, 42, 0.30);
-  --glass-row-hover: rgba(15, 23, 42, 0.04);
-  --glass-modal-bg: rgba(250, 251, 252, 0.92);
+  --lens-edge: rgba(255, 255, 255, 0.92);
+  --lens-haze: rgba(255, 255, 255, 0.6);
+  --lens-tint: rgba(90, 120, 255, 0.045);
+  --lens-shadow: 0 1px 1px rgba(15,23,42,0.04), 0 32px 74px -46px rgba(15,23,42,0.20);
+  --lens-fill-a: rgba(255, 255, 255, 0.78);
+  --lens-fill-b: rgba(248, 250, 253, 0.82);
 }
 
-/* 1. App background: a soft top light source over the base colour. */
+body { font-family: var(--font-sans); }
+
+/* Night atmosphere: whisper-light ice blue + violet + moon white. */
 [data-visual-style="glass"] body {
   background:
-    radial-gradient(110% 70% at 50% -8%, rgba(46, 125, 255, 0.055), transparent 58%),
+    radial-gradient(64% 48% at 10% -8%, var(--accent-soft), transparent 60%),
+    radial-gradient(50% 42% at 94% -2%, rgba(139,124,255,0.06), transparent 58%),
+    radial-gradient(48% 54% at 88% 104%, rgba(190,205,255,0.045), transparent 62%),
+    var(--background);
+}
+:root[data-theme="light"][data-visual-style="glass"] body {
+  background:
+    radial-gradient(60% 46% at 12% -8%, rgba(47,102,245,0.06), transparent 60%),
+    radial-gradient(46% 40% at 92% -2%, rgba(111,92,241,0.045), transparent 58%),
     var(--background);
 }
 
-/* 2. Ambient fields: a brand-gold corner light joins the blue/cyan/violet
-      fields, plus an inline-SVG film grain (no external assets). */
-.pg-glass-ambient {
-  background:
-    radial-gradient(58% 46% at 12% 4%, var(--glass-ambient-a), transparent 62%),
-    radial-gradient(50% 42% at 88% 10%, var(--glass-ambient-b), transparent 60%),
-    radial-gradient(34% 30% at 80% 88%, var(--glass-ambient-gold), transparent 60%),
-    radial-gradient(62% 48% at 46% 106%, var(--glass-ambient-c), transparent 66%);
+/* ── Type: modern sans, tight, structured ──────────────────────────────── */
+.section-eyebrow {
+  font-family: var(--font-sans);
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: var(--muted);
 }
+.section-label {
+  font-family: var(--font-sans);
+  font-size: 0.66rem;
+  font-weight: 600;
+  letter-spacing: 0.13em;
+  text-transform: uppercase;
+  color: var(--muted-2);
+}
+.display-sm { font-family: var(--font-display); font-weight: 700; line-height: 1.05; letter-spacing: -0.03em; font-size: clamp(1.5rem, 2.4vw, 1.9rem); }
+.display-md { font-family: var(--font-display); font-weight: 700; line-height: 1.0; letter-spacing: -0.035em; font-size: clamp(2rem, 4vw, 2.8rem); }
+.display-lg { font-family: var(--font-display); font-weight: 750; line-height: 0.98; letter-spacing: -0.04em; font-size: clamp(2.6rem, 6vw, 4.2rem); }
+.display-xl { font-family: var(--font-display); font-weight: 750; line-height: 0.96; letter-spacing: -0.045em; font-size: clamp(3.3rem, 8.5vw, 6rem); }
+.editorial-rule { border: 0; border-top: 1px solid var(--border); margin: 0; }
 
-.pg-glass-ambient::after {
+/* ── Default data surface: near-solid, high-contrast (no glass everywhere). */
+.terminal-panel {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  border-radius: var(--radius-panel);
+  padding: clamp(18px, 2.6vw, 28px);
+  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+}
+:root[data-theme="light"] .terminal-panel { box-shadow: 0 1px 2px rgba(15,23,42,0.05); }
+
+/* ── The Liquid Lens: scarce, premium glass. ────────────────────────────── */
+.liquid, .lens-surface {
+  position: relative;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-panel);
+  background: var(--panel);
+  transition: border-color 0.25s ease, box-shadow 0.25s ease, transform 0.12s ease;
+}
+[data-visual-style="glass"] .liquid,
+[data-visual-style="glass"] .lens-surface {
+  background:
+    linear-gradient(180deg, var(--lens-fill-a), var(--lens-fill-b)) padding-box,
+    linear-gradient(180deg, var(--lens-edge), rgba(255,255,255,0.04) 30%, transparent 60%) border-box;
+  backdrop-filter: blur(var(--lens-blur)) saturate(var(--lens-saturate));
+  -webkit-backdrop-filter: blur(var(--lens-blur)) saturate(var(--lens-saturate));
+  box-shadow: var(--lens-shadow);
+}
+[data-visual-style="glass"] .liquid::before,
+[data-visual-style="glass"] .lens-surface::before {
   content: "";
   position: absolute;
   inset: 0;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='140'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.8' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='140' height='140' filter='url(%23n)' opacity='0.55'/%3E%3C/svg%3E");
-  background-size: 140px 140px;
-  opacity: var(--glass-noise-opacity);
-  mix-blend-mode: overlay;
+  border-radius: inherit;
+  pointer-events: none;
+  background:
+    radial-gradient(30% 18% at var(--lx, 50%) var(--ly, -10%), rgba(255,255,255,0.09), transparent 62%),
+    linear-gradient(180deg, var(--lens-haze), transparent 26%),
+    radial-gradient(90% 70% at 18% 0%, var(--lens-tint), transparent 60%);
+  opacity: 0.9;
+}
+[data-visual-style="glass"] .liquid::after,
+[data-visual-style="glass"] .lens-surface::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: inset 0 1px 0 var(--lens-edge), inset 1px 0 0 rgba(255,255,255,0.05), inset -1px 0 0 rgba(255,255,255,0.03);
+}
+[data-visual-style="glass"] .liquid:active,
+[data-visual-style="glass"] .lens-surface:active {
+  transform: translateY(0.5px) scale(0.996);
+  box-shadow: inset 0 2px 12px rgba(0,0,0,0.16), var(--lens-shadow);
+}
+:root[data-theme="light"][data-visual-style="glass"] .liquid:active,
+:root[data-theme="light"][data-visual-style="glass"] .lens-surface:active {
+  box-shadow: inset 0 2px 12px rgba(15,23,42,0.06), var(--lens-shadow);
 }
 
-/* 3. Very slow ambient drift — motion-safe only, disabled on small screens. */
-@media (prefers-reduced-motion: no-preference) {
-  .pg-glass-ambient {
-    animation: glass-ambient-drift 90s ease-in-out infinite alternate;
-    will-change: transform;
-  }
+/* Quiet alias for legacy class usage (data panels). */
+[data-visual-style="glass"] .liquid-surface {
+  border: 1px solid var(--border);
+  background: var(--panel);
+  box-shadow: none;
 }
-
-@keyframes glass-ambient-drift {
-  from { transform: translate3d(-1.2%, -0.8%, 0) scale(1); }
-  to   { transform: translate3d(1.2%, 0.9%, 0) scale(1.035); }
+[data-visual-style="glass"] .liquid-lens {
+  background: var(--panel-muted);
+  border: 1px solid var(--border);
+  box-shadow: none;
 }
+[data-visual-style="glass"] .liquid-lens::after { display: none; }
+.refractive-edge { position: relative; overflow: hidden; }
+.refractive-edge::before { content: ""; position: absolute; top: 0; left: 0; right: 0; height: 2px; border-radius: inherit; background: linear-gradient(90deg, transparent, var(--accent-soft), transparent); pointer-events: none; }
 
-@media (max-width: 767px) {
-  .pg-glass-ambient {
-    animation: none;
-    will-change: auto;
-  }
-}
+/* ── Chill ambient (static, whisper quiet) ──────────────────────────────── */
+.chronosphere { position: fixed; inset: 0; z-index: -1; pointer-events: none; overflow: hidden; opacity: 0; }
+[data-visual-style="glass"] .chronosphere { opacity: 1; }
+:root[data-visual-style="classic"] .chronosphere { display: none; }
+.chronosphere-field { position: absolute; inset: 0; background:
 
-/* 4. Surface polish: 1px top highlight edge + layered soft shadows. */
-[data-visual-style="glass"] .bg-bg-panel,
-[data-visual-style="glass"] .bg-bg-card,
-[data-visual-style="glass"] .bg-bg-panel-muted,
-[data-visual-style="glass"] .bg-bg-card-muted,
-[data-visual-style="glass"] .bg-bg-app-elevated {
-  box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    var(--glass-shadow-1),
-    var(--glass-shadow-2);
-  transition: box-shadow 0.18s ease, border-color 0.18s ease;
-}
+    radial-gradient(58% 44% at 12% 4%, rgba(91,140,255,0.05), transparent 62%),
+    radial-gradient(50% 38% at 90% 8%, rgba(139,124,255,0.04), transparent 60%),
+    radial-gradient(56% 46% at 48% 102%, rgba(190,205,255,0.03), transparent 64%); }
 
-/* Restrained hover lift for interactive cards/panels (chrome excluded). */
-[data-visual-style="glass"] .bg-bg-panel:hover:not(.pg-glass-chrome),
-[data-visual-style="glass"] .bg-bg-card:hover:not(.pg-glass-chrome) {
-  box-shadow:
-    inset 0 1px 0 var(--glass-edge-strong),
-    var(--glass-shadow-1),
-    0 18px 40px -14px rgba(0, 0, 0, 0.55);
-  border-color: var(--border-strong);
-}
-
-/* Chrome keeps its crisp inner edge and gains a deep ambient drop. */
-[data-visual-style="glass"] .pg-glass-chrome {
-  box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    8px 0 32px -18px rgba(0, 0, 0, 0.6);
-}
-
-/* 5. Modals: stronger blur, near-solid fill, deep elevation. */
-[data-visual-style="glass"] [aria-modal="true"] {
-  background: var(--glass-modal-bg);
-  backdrop-filter: blur(24px) saturate(1.5);
-  -webkit-backdrop-filter: blur(24px) saturate(1.5);
-  box-shadow:
-    inset 0 1px 0 var(--glass-edge),
-    0 28px 72px -20px rgba(0, 0, 0, 0.65);
-}
-
-/* 6. Component-level detail: thin scrollbars, brand focus rings, inputs,
-      table rows, link brightness. */
-[data-visual-style="glass"] * {
-  scrollbar-width: thin;
-  scrollbar-color: var(--glass-scrollbar) transparent;
-}
-
-[data-visual-style="glass"] ::-webkit-scrollbar {
-  width: 10px;
-  height: 10px;
-}
-
-[data-visual-style="glass"] ::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-[data-visual-style="glass"] ::-webkit-scrollbar-thumb {
-  background: var(--glass-scrollbar);
+/* ── Signal status ──────────────────────────────────────────────────────── */
+.signal-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: content-box;
+  padding: 0.3rem 0.7rem;
+  font-size: 0.62rem;
+  font-weight: 650;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.signal-chip-good { color: var(--positive); border-color: color-mix(in oklab, var(--positive) 40%, transparent); }
+.signal-chip-warn { color: var(--warning); border-color: color-mix(in oklab, var(--warning) 40%, transparent); }
+.signal-chip-accent { color: var(--accent); border-color: color-mix(in oklab, var(--accent) 42%, transparent); }
+.signal-chip-idle { color: var(--muted-2); }
+
+/* ── Clock / presence ───────────────────────────────────────────────────── */
+.intelligence-clock { font-family: var(--font-sans); }
+.clock-time {
+  font-family: var(--font-mono);
+  font-size: clamp(0.9rem, 1.3vw, 1.02rem);
+  letter-spacing: 0.02em;
+  color: var(--foreground);
+}
+.status-dot { display: inline-block; width: 7px; height: 7px; border-radius: 999px; background: var(--muted-2); }
+.status-dot-live { background: var(--accent); position: relative; }
+.status-dot-live::after { content: ""; position: absolute; inset: 0; border-radius: 999px; animation: pg-ping 2.8s ease-out infinite; }
+.status-dot-warn { background: var(--warning); }
+.status-dot-idle { background: var(--muted-2); }
+.status-word { font-family: var(--font-sans); font-weight: 700; letter-spacing: 0.18em; }
+@keyframes pg-ping { 0% { transform: scale(1); opacity: 0.75; } 75%, 100% { transform: scale(2.3); opacity: 0; } }
+.nav-value { font-size: clamp(2rem, 3.6vw, 2.8rem); font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.time-pulse, .time-pulse-live { display: inline-block; width: 0.5rem; height: 0.5rem; border-radius: 999px; background: var(--accent); }
+
+/* ── Shell chrome: floating rail + floating top bar ─────────────────────── */
+.shell-rail {
+  position: fixed;
+  inset: 12px auto 12px 12px;
+  bottom: 12px;
+  width: 260px;
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  background: var(--panel);
+  overflow: hidden;
+}
+[data-visual-style="glass"] .shell-rail {
+  background: color-mix(in oklab, var(--panel) 96%, transparent);
+  backdrop-filter: blur(14px) saturate(1.25);
+  -webkit-backdrop-filter: blur(14px) saturate(1.25);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.08), 0 24px 60px -38px rgba(0,0,0,0.6);
+}
+.shell-chrome {
+  position: sticky;
+  top: 12px;
+  z-index: 30;
+  margin: 12px 14px 0;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: var(--panel);
+}
+[data-visual-style="glass"] .shell-chrome {
+  background: color-mix(in oklab, var(--panel) 82%, transparent);
+  backdrop-filter: blur(20px) saturate(1.3);
+  -webkit-backdrop-filter: blur(20px) saturate(1.3);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.09), 0 18px 50px -34px rgba(0,0,0,0.55);
+}
+:root[data-theme="light"] .shell-chrome {
+  background: color-mix(in oklab, var(--panel) 74%, transparent);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 18px 50px -38px rgba(15,23,42,0.16);
 }
 
-[data-visual-style="glass"] ::-webkit-scrollbar-thumb:hover {
-  background-color: var(--glass-scrollbar-hover);
+/* ── Navigation ─────────────────────────────────────────────────────────── */
+.nav-item {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.5rem 0.8rem;
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 0.875rem;
+  font-weight: 500;
+  position: relative;
+  transition: color 0.16s ease, background 0.16s ease;
+}
+.nav-item:hover { color: var(--foreground); background: var(--panel-muted); }
+.nav-item .nav-icon { width: 1.05rem; height: 1.05rem; opacity: 0.9; }
+.nav-active {
+  color: var(--foreground);
+  font-weight: 600;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 12%, var(--panel)), var(--panel));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+}
+:root[data-theme="light"] .nav-active {
+  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 10%, var(--panel)), var(--panel));
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+}
+.nav-active::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 9px;
+  bottom: 9px;
+  width: 2px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, var(--accent), transparent 72%);
 }
 
-[data-visual-style="glass"] :focus-visible {
-  outline: 2px solid var(--brand-gold);
-  outline-offset: 2px;
+/* The rail's navigation remains scrollable on compact desktops, but its
+   scrollbar must not look like an unstyled browser control. The pinned
+   account action is outside this scroll region, so no navigation item is
+   obscured by it. */
+.shell-nav { scrollbar-width: thin; scrollbar-color: var(--border-strong) transparent; }
+.shell-nav::-webkit-scrollbar { width: 6px; }
+.shell-nav::-webkit-scrollbar-track { background: transparent; }
+.shell-nav::-webkit-scrollbar-thumb { background: var(--border-strong); border-radius: 999px; }
+.shell-nav::-webkit-scrollbar-thumb:hover { background: var(--muted-2); }
+
+/* ── Hub (dashboard) layout ─────────────────────────────────────────────── */
+.dashboard-briefing { display: flex; flex-direction: column; gap: var(--section-gap); }
+.hub-grid { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 56px); }
+.hub-col { display: flex; flex-direction: column; gap: 28px; min-width: 0; }
+.workbench-grid { display: grid; grid-template-columns: minmax(0, 1.7fr) minmax(0, 1fr); gap: clamp(24px, 4vw, 48px); }
+.section-row { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 14px; }
+.intelligence-shell { max-width: 1180px; margin: 0 auto; }
+@media (max-width: 1023px) { .hub-grid, .workbench-grid { grid-template-columns: 1fr; } }
+
+/* ── Precision workbench tables (data-first, calm) ──────────────────────── */
+.workbench { width: 100%; }
+.workbench-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding-bottom: 12px; }
+.workbench table { border-collapse: collapse; width: 100%; font-family: var(--font-mono); font-size: 0.78rem; }
+.workbench thead th { text-align: left; font-family: var(--font-sans); font-size: 0.64rem; font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; color: var(--muted-2); padding: 8px 12px; border-bottom: 1px solid var(--border); }
+.workbench tbody td { padding: 12px; border-top: 1px solid var(--border); color: var(--foreground); font-variant-numeric: tabular-nums; transition: background 0.18s ease; }
+.workbench tbody tr:first-child td { border-top: 0; }
+.workbench tbody tr:hover td { background: var(--panel-muted); }
+.workbench .w-num { text-align: right; }
+.workbench .w-dim { color: var(--muted-2); }
+
+/* ── AI command lens ────────────────────────────────────────────────────── */
+.command-surface { padding: clamp(16px, 2.2vw, 22px); }
+.command-input {
+  flex: 1;
+  min-width: 0;
+  background: transparent;
+  border: 0;
+  outline: none;
+  color: var(--foreground);
+  font-size: clamp(1.02rem, 1.6vw, 1.22rem);
+  font-weight: 500;
+  letter-spacing: -0.01em;
+  font-family: var(--font-sans);
+}
+.command-input::placeholder { color: var(--muted); }
+.command-submit {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  border: 1px solid transparent;
+  background: var(--accent);
+  color: #fff;
+  border-radius: 999px;
+  padding: 0.55rem 1rem;
+  font-size: 0.72rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+  transition: background 0.16s ease, transform 0.12s ease;
+}
+:root[data-theme="light"] .command-submit { color: #fff; }
+.command-submit:hover { background: var(--accent-strong); }
+.command-submit:active { transform: translateY(0.5px) scale(0.99); }
+.command-chip {
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--panel) 70%, transparent);
+  color: var(--muted);
+  padding: 0.4rem 0.8rem;
+  font-size: 0.72rem;
+  font-weight: 500;
+  transition: color 0.16s ease, border-color 0.16s ease, background 0.16s ease;
+}
+.command-chip:hover { color: var(--foreground); border-color: color-mix(in oklab, var(--accent) 45%, transparent); background: var(--accent-soft); }
+
+[data-visual-style="glass"] :focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+[data-visual-style="glass"] input:focus, [data-visual-style="glass"] select:focus, [data-visual-style="glass"] textarea:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
 }
 
-[data-visual-style="glass"] input:focus,
-[data-visual-style="glass"] select:focus,
-[data-visual-style="glass"] textarea:focus {
-  border-color: var(--brand-gold);
-  box-shadow: 0 0 0 3px var(--glass-focus-ring);
+/* ── Degradation ────────────────────────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  .status-dot-live::after { animation: none; opacity: 0.6; }
+  [data-visual-style="glass"] .liquid::before, [data-visual-style="glass"] .lens-surface::before { opacity: 0.5; }
 }
-
-[data-visual-style="glass"] tbody tr:hover {
-  background: var(--glass-row-hover);
-}
-
-/* Links brighten on hover without shifting their semantic colour. */
-[data-visual-style="glass"] a:hover {
-  filter: brightness(1.18);
-}
-
-/* 7. Reduced transparency: drop the translucent polish, keep the layout. */
 @media (prefers-reduced-transparency: reduce) {
-  [data-visual-style="glass"] .bg-bg-panel,
-  [data-visual-style="glass"] .bg-bg-card,
-  [data-visual-style="glass"] .bg-bg-panel-muted,
-  [data-visual-style="glass"] .bg-bg-card-muted,
-  [data-visual-style="glass"] .bg-bg-app-elevated,
-  [data-visual-style="glass"] .pg-glass-chrome {
-    box-shadow: none;
-  }
-  [data-visual-style="glass"] [aria-modal="true"] {
-    background: var(--background);
-    box-shadow: none;
-  }
-  .pg-glass-ambient::after {
-    opacity: 0;
-  }
-  [data-visual-style="glass"] input:focus,
-  [data-visual-style="glass"] select:focus,
-  [data-visual-style="glass"] textarea:focus {
-    box-shadow: none;
-  }
+  [data-visual-style="glass"] .liquid, [data-visual-style="glass"] .lens-surface { background: var(--panel); backdrop-filter: none; -webkit-backdrop-filter: none; }
+  [data-visual-style="glass"] .shell-chrome, [data-visual-style="glass"] .shell-rail { backdrop-filter: none; -webkit-backdrop-filter: none; }
+  .chronosphere { opacity: 0.35; }
+}
+@media (max-width: 767px) {
+  [data-visual-style="glass"] .liquid, [data-visual-style="glass"] .lens-surface { backdrop-filter: blur(10px) saturate(1.2); -webkit-backdrop-filter: blur(10px) saturate(1.2); }
+  .command-chip { display: none; }
+  .command-submit { min-width: 2.65rem; justify-content: center; padding-inline: 0.65rem; }
+  .command-submit-label { display: none; }
+}
+@supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+  [data-visual-style="glass"] .liquid, [data-visual-style="glass"] .lens-surface { background: var(--panel); }
+  [data-visual-style="glass"] .shell-chrome, [data-visual-style="glass"] .shell-rail { background: var(--panel); }
 }

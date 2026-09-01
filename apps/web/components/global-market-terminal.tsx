@@ -2,7 +2,6 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { RefreshCw } from "lucide-react";
-import { ResearchCard } from "@/components/puregamma";
 import { getMessageNamespace } from "@/lib/translations";
 import { getGlobalMarket, type GlobalMarketRow, type GlobalMarketSnapshot } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
@@ -203,8 +202,8 @@ export function GlobalMarketTerminal({ locale }: { locale: Locale }) {
   const hasData = groups.some((item) => item.rows.length > 0);
 
   return (
-    <ResearchCard className="overflow-hidden p-0">
-      <div className="flex items-center justify-between border-b border-border-pg px-4 py-3">
+    <section className="workbench">
+      <div className="workbench-head">
         <div>
           <div className="text-eyebrow uppercase text-text-pg-muted">{copy.marketTerminal}</div>
           <h2 className="mt-1 font-semibold">{copy.crossMarketTape}</h2>
@@ -215,7 +214,7 @@ export function GlobalMarketTerminal({ locale }: { locale: Locale }) {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] font-mono text-xs">
-          <thead className="bg-bg-panel-muted text-left text-[10px] uppercase text-text-pg-dim">
+          <thead className="text-left text-[10px] uppercase text-text-pg-dim">
             <tr><th className="px-4 py-2 font-medium">{copy.ticker}</th><th className="px-3 py-2 text-right font-medium">{copy.last}</th><th className="px-3 py-2 text-right font-medium">%</th><th className="px-3 py-2 font-medium">{zh ? "类别" : "Group"}</th><th className="px-4 py-2 text-right font-medium">UTC</th></tr>
           </thead>
           <tbody>
@@ -226,7 +225,7 @@ export function GlobalMarketTerminal({ locale }: { locale: Locale }) {
         </table>
         {!hasData ? <p className="p-4 text-sm text-text-pg-muted">{data?.unavailable ? copy.waitingFeed : copy.waitingFeed}</p> : null}
       </div>
-    </ResearchCard>
+    </section>
   );
 }
 

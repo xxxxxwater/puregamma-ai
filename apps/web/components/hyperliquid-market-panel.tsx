@@ -230,11 +230,12 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
     : { title: "Hyperliquid live market watch", subtitle: "Hyperliquid · 15-minute candles", collapse: "Collapse market list", expand: "Expand market list", price: "Last", change: "15m", volume: "24h notional", oi: "Open interest", funding: "Funding", updated: "UTC" };
 
   return (
-    <section className="overflow-hidden border border-border-pg bg-bg-panel rounded-xl">
-      <div className="flex items-center justify-between gap-4 px-4 py-3">
+    <section className="workbench">
+      <div className="workbench-head">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-muted">
             <Radio className={status === "live" ? "h-3.5 w-3.5 text-status-positive" : "h-3.5 w-3.5 text-status-warning"} />
+            {status === "live" ? <span className="time-pulse time-pulse-live" aria-hidden /> : null}
             <span>{status === "live" ? "LIVE" : status === "reconnecting" ? "RECONNECTING" : "CONNECTING"}</span>
           </div>
           <h2 className="mt-1 text-lg font-semibold text-text-pg">{copy.title}</h2>
@@ -244,9 +245,9 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
           {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
         </button>
       </div>
-      {isOpen ? <div className="overflow-x-auto border-t border-border-pg">
+      {isOpen ? <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] font-mono text-sm">
-          <thead className="bg-bg-panel-muted text-left text-[10px] uppercase text-text-pg-dim">
+          <thead className="text-left text-[10px] uppercase text-text-pg-dim">
             <tr><th className="px-4 py-2 font-medium">{locale === "zh" ? "合约" : "Contract"}</th><th className="px-3 py-2 text-right font-medium">{copy.price}</th><th className="px-3 py-2 text-right font-medium">{copy.change}</th><th className="px-3 py-2 text-right font-medium">{copy.volume}</th><th className="px-3 py-2 text-right font-medium">{copy.oi}</th><th className="px-3 py-2 text-right font-medium">{copy.funding}</th><th className="px-4 py-2 text-right font-medium">{copy.updated}</th></tr>
           </thead>
           <tbody>
