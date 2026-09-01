@@ -101,9 +101,9 @@ function SynthBadge({ coin }: { coin: string }) {
   );
 }
 
-function AssetIcon({ coin }: { coin: string }) {
+function AssetIcon({ coin, synthetic = false }: { coin: string; synthetic?: boolean }) {
   const [failed, setFailed] = useState(false);
-  if (failed) {
+  if (synthetic || failed) {
     return <SynthBadge coin={coin} />;
   }
   return (
@@ -252,7 +252,7 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
           </thead>
           <tbody>
             {rows.map(({ instrument, candle, context, last, change, openInterestUsd }) => <tr key={instrument.id} className="border-t border-border-pg/70 hover:bg-bg-panel-muted">
-              <td className="px-4 py-3"><div className="flex items-center gap-2.5"><AssetIcon coin={assetCoin(instrument.id)} /><span className="font-semibold text-text-pg">{instrument.symbol}</span></div><div className="mt-1 text-[10px] text-text-pg-dim">{instrument.leverage}x · {instrument.venue}</div></td>
+              <td className="px-4 py-3"><div className="flex items-center gap-2.5"><AssetIcon coin={assetCoin(instrument.id)} synthetic={instrument.id.startsWith("xyz:")} /><span className="font-semibold text-text-pg">{instrument.symbol}</span></div><div className="mt-1 text-[10px] text-text-pg-dim">{instrument.leverage}x · {instrument.venue}</div></td>
               <td key={`px-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right text-text-pg">{price(last)}</td>
               <td key={`chg-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right">
                 <span className="inline-block border border-border-pg-strong bg-pg-white px-1.5 py-0.5 font-semibold text-pg-black rounded-lg">{percent(change)}</span>
