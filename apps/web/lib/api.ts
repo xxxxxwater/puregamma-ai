@@ -959,8 +959,8 @@ export function getReport(id: string, locale: Locale = defaultLocale) {
   return api<{ report: ReportRow }>(`/reports/${id}?locale=${locale}`, { fallback: { report: fallbackReportForLocale(locale).reports[0] }, locale });
 }
 
-export function sendReport(channel: string, locale: Locale = defaultLocale) {
-  return requestStrict<{ delivery: { status: string } }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, message: locale === "zh" ? "PureGamma AI 报告已生成。" : "PureGamma AI report is ready.", locale }) });
+export function sendReport(channel: string, reportId: string, locale: Locale = defaultLocale) {
+  return requestStrict<{ delivery: { status: string } }>("/notifications/send", { method: "POST", body: JSON.stringify({ channel, report_id: reportId, locale }) });
 }
 
 export function getSignals(locale: Locale = defaultLocale) {

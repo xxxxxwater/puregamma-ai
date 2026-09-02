@@ -137,7 +137,7 @@ export function SendReportButton({ channel, reportId }: { channel: string; repor
       onClick={async () => {
         setStatus("sending");
         try {
-          const data = await sendReport(channel, locale);
+          const data = await sendReport(channel, reportId, locale);
           setStatus(data.delivery.status);
         } catch {
           setStatus("failed");

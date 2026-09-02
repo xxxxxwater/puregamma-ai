@@ -45,6 +45,21 @@ class HyperliquidProvider(MarketDataProvider):
                 quotes.append(self._quote_from_context(symbol.upper(), context))
         return quotes
 
+    def get_top_markets(self, limit: int = 20) -> list[MarketQuote]:
+        """Return the most actively traded Hyperliquid perpetuals by 24h notional.
+
+        This reads the same public ``metaAndAssetCtxs`` feed as the console
+        watchlist.  It is intentionally a market-breadth input, not a signal:
+        the caller receives raw price, 24h move, funding, OI and volume only.
+        """
+        contexts = self._asset_contexts()
+        ranked = sorted(
+            contexts.items(),
+            key=lambda item: _float(item[1].get("dayNtlVlm")),
+            reverse=True,
+        )
+        return [self._quote_from_context(symbol, context) for symbol, context in ranked[:max(0, limit)]]
+
     def get_market_regime(self, quotes: list[MarketQuote]) -> str:
         return self._mock.get_market_regime(quotes)
 
@@ -75,6 +90,8 @@ class HyperliquidProvider(MarketDataProvider):
     def _quote_from_context(self, symbol: str, context: dict[str, Any]) -> MarketQuote:
         mark_price = _float(context.get("markPx") or context.get("oraclePx"))
         open_interest = _float(context.get("openInterest"))
+        previous_day_price = _float(context.get("prevDayPx"))
+        change_24h = ((mark_price / previous_day_price) - 1) * 100 if mark_price and previous_day_price else None
         return MarketQuote(
             symbol=symbol,
             price=round(mark_price, 8),
@@ -88,7 +105,7 @@ class HyperliquidProvider(MarketDataProvider):
             timestamp=datetime.now(timezone.utc),
             source=self.provider_name,
             source_symbol=f"{symbol}-PERP",
-            change_24h=None,
+            change_24h=round(change_24h, 4) if change_24h is not None else None,
             is_realtime=True,
             fallback_reason=None,
             open_interest_usd=round(open_interest * mark_price, 2) if open_interest and mark_price else None,

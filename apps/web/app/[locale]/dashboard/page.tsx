@@ -23,6 +23,12 @@ function fmtDate(value: string, locale: Locale) {
   return Number.isNaN(d.getTime()) ? "" : d.toLocaleDateString(locale === "zh" ? "zh-CN" : "en-US", { month: "short", day: "numeric" });
 }
 
+function isFreshMarketBrief(report: ReportRow): boolean {
+  if (!new Set(["daily_market_report", "crypto_daily"]).has(report.report_type)) return false;
+  const createdAt = new Date(report.created_at).getTime();
+  return Number.isFinite(createdAt) && Date.now() - createdAt <= 36 * 60 * 60 * 1000;
+}
+
 export function generateMetadata({ params }: { params: { locale: string } }): Metadata {
   const locale = isLocale(params.locale) ? params.locale : "en";
   return localizedMetadata(locale, "dashboard", "/dashboard");
@@ -37,7 +43,10 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
   const status: MarketStatus = (market as { unavailable?: boolean }).unavailable ? "waiting" : (market.mockMode ? "stale" : "live");
   const liveAssets = typeof market.live_assets === "number" ? market.live_assets : null;
   const recentReports: ReportRow[] = Array.isArray(reports.reports) ? reports.reports.slice(0, 4) : [];
-  const latest = reports.reports[0];
+  // An archived report must never be displayed as the dashboard's current
+  // market thesis.  Users can still inspect it in Research Desk with an
+  // explicit stale label.
+  const latest = reports.reports.find(isFreshMarketBrief);
   const dataAsOf = market.assets.reduce<string | null>((latestTimestamp, asset) => {
     if (!asset.timestamp || Number.isNaN(new Date(asset.timestamp).getTime())) return latestTimestamp;
     if (!latestTimestamp || new Date(asset.timestamp).getTime() > new Date(latestTimestamp).getTime()) return asset.timestamp;

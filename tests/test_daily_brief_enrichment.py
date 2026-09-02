@@ -162,16 +162,25 @@ def test_local_brief_renders_new_sections():
         "market_data_as_of": datetime.now(timezone.utc).isoformat(),
         "market_stale": False,
         "quotes": [{"symbol": "BTC", "price": 66008.01}],
+        "hyperliquid_top20_breadth": {
+            "available": True,
+            "market_count": 20,
+            "up_count": 14,
+            "down_count": 6,
+            "positive_funding_count": 16,
+            "negative_funding_count": 4,
+            "funding_extremes": [{"symbol": "HYPE", "funding_rate": 0.00015}],
+        },
         "upcoming_earnings": ["TSLA 07-22 earnings (est.)"],
         "trending_symbols": [{"symbol": "NVDA", "mentions": 3, "sample_title": "NVDA story"}],
         "portfolio": {"connected": False, "top_holdings": [], "stale": False, "missing_data": [], "total_nav": 0, "daily_change": 0, "concentration_hhi": 0},
     }
     zh = _local_brief(context, "zh", "")
     en = _local_brief(context, "en", "")
-    assert "今日全网热议" in zh and "NVDA" in zh
-    assert "美股财报（未来一周）" in zh and "TSLA" in zh
-    assert "Trending today" in en and "NVDA" in en
-    assert "US earnings this week" in en and "TSLA" in en
+    assert "## 今日判断" in zh and "Top20：14涨/6跌" in zh
+    assert "## 风险线" in zh and len(zh) <= 200
+    assert "## Today's view" in en and "Hyperliquid top 20" in en
+    assert "## Risk line" in en and len(en.split()) <= 120
 
 
 def test_unified_brief_includes_trending_and_week_earnings(db):
@@ -209,6 +218,23 @@ def test_hyperliquid_quote_parses_perp_context(monkeypatch):
     assert quote.funding_rate == 0.00001234
     assert quote.open_interest == 15234.5
     assert quote.open_interest_usd == round(15234.5 * 59.42, 2)
+
+
+def test_hyperliquid_top_markets_uses_24h_notional_and_change(monkeypatch):
+    coins = [f"COIN{index}" for index in range(21)]
+    payload = _hyperliquid_payload(*coins)
+    for index, context in enumerate(payload[1]):
+        context["markPx"] = str(100 + index)
+        context["prevDayPx"] = "100"
+        context["dayNtlVlm"] = str(index * 1_000_000)
+    monkeypatch.setattr(httpx, "post", lambda *args, **kwargs: _FakeResponse(payload))
+
+    markets = HyperliquidProvider().get_top_markets()
+
+    assert len(markets) == 20
+    assert markets[0].symbol == "COIN20"
+    assert markets[-1].symbol == "COIN1"
+    assert markets[0].change_24h == 20.0
 
 
 def test_hyperliquid_missing_symbol_raises(monkeypatch):

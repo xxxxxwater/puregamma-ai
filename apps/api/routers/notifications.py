@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import timedelta, timezone
 from typing import Literal
 
 from fastapi import APIRouter, Cookie, Depends, Header, HTTPException, Query
@@ -13,7 +14,7 @@ from apps.api.services.daily_push_service import delivery_history, get_or_create
 from apps.api.services.imessage_verification_service import VerificationRateLimitError, confirm_verification, request_verification
 from apps.api.services.push_device_service import register_device, serialize_device, unregister_device
 from apps.api.config import get_settings
-from packages.database.models import PushDevice, User, utcnow
+from packages.database.models import PushDevice, Report, User, utcnow
 
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
@@ -24,6 +25,7 @@ class SendNotificationRequest(BaseModel):
     message: str = "PureGamma AI test notification."
     metadata: dict = {}
     locale: str | None = None
+    report_id: str | None = None
 
 
 class DailyBriefPreferenceRequest(BaseModel):
@@ -169,7 +171,23 @@ def send(
 ) -> dict:
     language = resolve_locale(query_locale=payload.locale or locale, header_locale=x_pg_locale, user=user, cookie_locale=pg_locale)
     metadata = {**payload.metadata, "locale": language}
-    delivery = send_notification(db, user.id, payload.channel, payload.message, metadata)
+    message = payload.message
+    if payload.report_id:
+        report = db.get(Report, payload.report_id)
+        if not report or report.user_id != user.id:
+            raise HTTPException(status_code=404, detail={"code": "REPORT_NOT_FOUND"})
+        created_at = report.created_at
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        if utcnow() - created_at.astimezone(timezone.utc) > timedelta(hours=36):
+            raise HTTPException(status_code=409, detail={"code": "REPORT_STALE"})
+        message = report.content_markdown
+        metadata = {
+            **metadata,
+            "report_id": report.id,
+            "idempotency_key": f"manual-report:{report.id}:{payload.channel}",
+        }
+    delivery = send_notification(db, user.id, payload.channel, message, metadata)
     return {"delivery": serialize_delivery(delivery)}
 
 

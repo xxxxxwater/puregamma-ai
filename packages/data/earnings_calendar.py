@@ -103,17 +103,20 @@ def parse_nasdaq_earnings(payload: dict, day: date) -> list[dict]:
     return results
 
 
-def fetch_confirmed_earnings(day: date, session: Any = None) -> list[dict]:
+def fetch_confirmed_earnings(day: date, session: Any = None, *, fresh: bool = False) -> list[dict]:
     """Fetch the CONFIRMED earnings calendar for one day from Nasdaq.
 
     Returns only real fetched rows. Raises :class:`ProviderUnavailable` on any
     provider, transport or payload problem so callers can record health instead
-    of fabricating dates. Results are cached in Redis for 6 hours when
-    available; cache failures degrade to plain no-cache HTTP fetches.
+    of fabricating dates. ``fresh=True`` bypasses Redis and is used by the
+    user-facing daily reports: those reports must not silently present a
+    several-hours-old calendar response as today's facts. Normal research
+    ingestion may use the 6-hour cache.
     """
-    cached = _cache_read(day)
-    if cached is not None:
-        return cached
+    if not fresh:
+        cached = _cache_read(day)
+        if cached is not None:
+            return cached
     from apps.api.config import get_settings
 
     settings = get_settings()
@@ -143,7 +146,7 @@ def fetch_confirmed_earnings(day: date, session: Any = None) -> list[dict]:
     return rows
 
 
-def upcoming_confirmed_earnings(start_day: date, days: int = 7) -> list[dict]:
+def upcoming_confirmed_earnings(start_day: date, days: int = 7, *, fresh: bool = False) -> list[dict]:
     """Return CONFIRMED earnings rows for ``start_day`` .. ``start_day + days``.
 
     Days without confirmed rows (``rows`` is null) are skipped. Provider
@@ -153,7 +156,7 @@ def upcoming_confirmed_earnings(start_day: date, days: int = 7) -> list[dict]:
     items: list[dict] = []
     for offset in range(max(0, days)):
         day = start_day + timedelta(days=offset)
-        rows = fetch_confirmed_earnings(day)
+        rows = fetch_confirmed_earnings(day, fresh=fresh)
         if not rows:
             continue
         items.extend(rows)

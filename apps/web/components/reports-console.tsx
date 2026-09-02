@@ -27,6 +27,7 @@ export default function ReportsPage({ locale, reports, copy, filters }: { locale
   const [selectedId, setSelectedId] = useState<string | null>(reports[0]?.id ?? null);
   const selected = useMemo(() => reports.find((report) => report.id === selectedId) ?? reports[0] ?? null, [reports, selectedId]);
   const zh = locale === "zh";
+  const selectedFreshness = selected ? reportFreshness(selected, locale) : null;
 
   return (
     <div className="space-y-5">
@@ -80,12 +81,13 @@ export default function ReportsPage({ locale, reports, copy, filters }: { locale
                   <div className="mt-2 flex flex-wrap gap-2">
                     {selected.assets.map((asset) => <Badge key={asset}>{asset}</Badge>)}
                     <Badge tone="neutral">{t(locale, "common.shared.source")}: {selected.source_intelligence_id || "shared-intel"}</Badge>
-                    <Badge tone="neutral"><StatusDot tone={reportFreshness(selected, locale).stale ? "amber" : "emerald"} /> {reportFreshness(selected, locale).label} · {reportFreshness(selected, locale).age}</Badge>
+                    <Badge tone="neutral"><StatusDot tone={selectedFreshness?.stale ? "amber" : "emerald"} /> {selectedFreshness?.label} · {selectedFreshness?.age}</Badge>
                     <Badge tone="neutral">{copy.detail.language}: {(selected.language || locale).toUpperCase()}</Badge>
                   </div>
                 </div>
-                <div className="flex flex-wrap gap-2">{["telegram", "imessage"].map((channel) => <SendReportButton key={channel} channel={channel} reportId={selected.id} />)}</div>
+                {!selectedFreshness?.stale ? <div className="flex flex-wrap gap-2">{["telegram", "imessage"].map((channel) => <SendReportButton key={channel} channel={channel} reportId={selected.id} />)}</div> : null}
               </div>
+              {selectedFreshness?.stale ? <div className="mb-4 border border-status-warning/50 bg-status-warning/10 px-3 py-2 text-sm leading-5 text-status-warning rounded-lg">{zh ? "此报告已过期，仅供归档查看，不能作为今日判断或再次推送。请生成新的实时简报。" : "This report is stale and is available only for archive review. It cannot be used as today’s view or sent again; generate a new live brief."}</div> : null}
               <Markdown content={selected.content_markdown} />
             </>
           ) : (

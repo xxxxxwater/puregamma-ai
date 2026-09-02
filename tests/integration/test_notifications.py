@@ -1,9 +1,11 @@
 from __future__ import annotations
 
+from datetime import timedelta
+
 from apps.api.services.billing_service import mock_upgrade
 from apps.api.services.notification_service import send_notification
 from apps.api.config import Settings
-from packages.database.models import NotificationDelivery, User, utcnow
+from packages.database.models import NotificationDelivery, Report, User, utcnow
 from packages.notifications.dispatcher import NotificationDispatcher
 from tests.conftest import auth_headers
 
@@ -18,6 +20,52 @@ def test_notification_send_api_email(api_client, demo_user: User):
     assert response.status_code == 200
     # No SMTP credentials in tests: mock provider records a skipped delivery.
     assert response.json()["delivery"]["status"] == "skipped"
+
+
+def test_report_send_uses_selected_content_and_rejects_stale_report(api_client, db, demo_user: User):
+    fresh = Report(
+        user_id=demo_user.id,
+        title="Fresh report",
+        report_type="crypto_daily",
+        language="en",
+        content_markdown="fresh live market content",
+        assets=["BTC"],
+        report_date=utcnow().date(),
+        status="completed",
+        idempotency_key="report-send:fresh",
+    )
+    stale = Report(
+        user_id=demo_user.id,
+        title="Stale report",
+        report_type="crypto_daily",
+        language="en",
+        content_markdown="old market content",
+        assets=["BTC"],
+        report_date=(utcnow() - timedelta(days=2)).date(),
+        status="completed",
+        idempotency_key="report-send:stale",
+        created_at=utcnow() - timedelta(days=2),
+    )
+    db.add_all([fresh, stale])
+    db.commit()
+
+    sent = api_client.post(
+        "/notifications/send",
+        json={"channel": "email", "report_id": fresh.id},
+        headers=auth_headers(demo_user),
+    )
+    assert sent.status_code == 200
+    delivery = db.query(NotificationDelivery).filter_by(idempotency_key=f"manual-report:{fresh.id}:email").one()
+    assert delivery.payload["message"] == "fresh live market content"
+    assert delivery.payload["report_id"] == fresh.id
+
+    rejected = api_client.post(
+        "/notifications/send",
+        json={"channel": "email", "report_id": stale.id},
+        headers=auth_headers(demo_user),
+    )
+    assert rejected.status_code == 409
+    assert rejected.json()["detail"]["code"] == "REPORT_STALE"
 
 
 def test_duplicate_idempotency_key_does_not_double_send_or_charge(db, demo_user):

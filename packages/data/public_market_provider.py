@@ -146,4 +146,8 @@ class PublicMarketDataProvider(MarketDataProvider):
             return [CoinbaseProvider()]
         if mode == "mock":
             return []
-        return [BinanceProvider(), CoinbaseProvider()]
+        # Hyperliquid is the final live fallback for the headline crypto set.
+        # This is essential for HYPE, which may not have a spot listing on a
+        # centralized venue at all times but trades natively as a Hyperliquid
+        # perpetual.
+        return [BinanceProvider(), CoinbaseProvider(), HyperliquidProvider()]

@@ -5,7 +5,7 @@
   },
   "eyebrow": "每日研究推送",
   "title": "每日研究推送",
-  "subtitle": "配置每日 iMessage 简报，并保留权限、Credits、幂等与投递账本控制",
+  "subtitle": "配置精简的每日重点推送：市场判断、两条证据与一条风险线",
   "entitlement": "每日 iMessage 推送仅适用于 Max 和 Enterprise 套餐",
   "modules": {
     "deliverySettings": "推送设置",
@@ -25,6 +25,6 @@
   ],
   "preview": {
     "label": "iMessage 每日简报",
-    "message": "PureGamma AI 每日简报\n\n市场：\n风险偏好动能\n\n组合：\nNAV：$1.28M\n日内盈亏：+1.42%\n\n风险：\n高 Beta 山寨资产资金拥挤，关注 MSTR 溢价压缩。\n\nKOL 情绪仅作为输入信号，并非已核实事实"
+    "message": "## 今日判断\n风险偏好尚稳，关注高 Beta 杠杆。\n\n## 关注\n- Top20：14涨/6跌，资金 16正/4负。\n- BTC 保持主导，HYPE 资金费率需确认。\n\n## 风险线\n- 广度转弱且资金扩张时，警惕回撤放大。"
   }
 }

@@ -64,7 +64,7 @@ def test_due_daily_push_reuses_report_and_is_idempotent(monkeypatch, db, pro_use
     # No SMTP credentials in tests: mock provider records a skipped delivery.
     assert email_rows[0].status == "skipped"
     combined = email_rows[0].payload.get("message", "")
-    assert "US Daily" in combined
+    assert "US Earnings Focus" in combined
     assert "Week Ahead" in combined
     assert "Portfolio Daily" in combined
     assert db.query(NotificationDelivery).filter_by(user_id=user_id, channel="web").count() == 4

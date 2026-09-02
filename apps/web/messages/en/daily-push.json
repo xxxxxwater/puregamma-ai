@@ -5,7 +5,7 @@
   },
   "eyebrow": "DAILY RESEARCH DELIVERY",
   "title": "Daily Research Delivery",
-  "subtitle": "Configure the daily iMessage brief with entitlement, credit, idempotency, and delivery ledger controls.",
+  "subtitle": "Configure a concise daily focus: market view, two evidence points, and one risk line.",
   "entitlement": "Daily iMessage delivery is available on Max and Enterprise plans.",
   "modules": {
     "deliverySettings": "Delivery Settings",
@@ -25,6 +25,6 @@
   ],
   "preview": {
     "label": "iMessage Daily Brief",
-    "message": "PureGamma AI Daily Brief\n\nMarket:\nRisk-on momentum\n\nPortfolio:\nNAV: $1.28M\nDaily PnL: +1.42%\n\nRisk:\nFunding crowding in high beta alts. MSTR premium compression watch.\n\nKOL sentiment is an input, not a verified fact."
+    "message": "## Today's view\nRisk appetite is constructive; watch high-beta leverage.\n\n## Focus\n- Top 20: 14 up / 6 down; funding 16 positive / 4 negative.\n- BTC leads; confirm HYPE with funding.\n\n## Risk line\n- Weakening breadth plus expanding funding can amplify a reversal."
   }
 }

@@ -5,7 +5,7 @@
   },
   "eyebrow": "RESEARCH DESK",
   "title": "Research Desk",
-  "subtitle": "A concise daily brief under 200 words, combining real-time market data, sources, and your agent conversation memory. Pushed to your channels.",
+  "subtitle": "A concise daily brief under 120 words, combining BTC, ETH, HYPE, Hyperliquid top-20 breadth, sources, and your agent conversation memory.",
   "filters": [
     "Daily Brief",
     "Portfolio Review",
@@ -30,6 +30,6 @@
   },
   "mock": {
     "title": "PureGamma Daily Brief",
-    "content": "Risk-on momentum persists with contained leverage. BTC at $62,340 leads the rally; ETH follows at $3,410. SOL and HYPE show high-beta momentum but funding rates are elevated, suggesting caution. Key watch: ETF inflows remain positive for the fifth consecutive day. On-chain activity shows accumulation at support levels. Moderate overall risk; favor liquid assets with clear invalidation."
+    "content": "## Today's view\nRisk appetite remains constructive, but high-beta leverage needs monitoring.\n\n## Focus\n- Top-20 breadth is positive while funding remains mostly positive.\n- BTC leads; confirm HYPE with both OI and funding.\n\n## Risk line\n- Weakening breadth plus expanding funding can amplify a reversal."
   }
 }
