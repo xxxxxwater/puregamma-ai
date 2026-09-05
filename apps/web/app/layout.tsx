@@ -4,6 +4,7 @@ import Script from "next/script";
 import "./globals.css";
 import "./apple-fluid.css";
 import "./apple-workspaces.css";
+import "./agent-fluid-runtime.css";
 
 export const metadata: Metadata = {
   title: "PureGamma AI — Cross-Asset Research & Portfolio Intelligence",
