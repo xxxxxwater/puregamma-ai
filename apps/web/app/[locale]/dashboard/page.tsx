@@ -55,7 +55,7 @@ export default async function DashboardPage({ params }: { params: { locale: Loca
   const liveLabel = status === "live" && liveAssets !== null && liveAssets > 0 ? (zh ? `${liveAssets} 个实时资产` : `${liveAssets} live assets`) : null;
 
   return (
-    <ChronoSlices className="dashboard-briefing">
+    <ChronoSlices className="dashboard-briefing apple-dashboard-page">
       <ChronoEntrance>
         <IntelligenceHero
           locale={locale}
