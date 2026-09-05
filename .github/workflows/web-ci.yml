@@ -104,7 +104,7 @@ jobs:
           pnpm exec next dev --hostname 127.0.0.1 --port "$PLAYWRIGHT_FLUID_PORT" > /tmp/agent-fluid-next.log 2>&1 &
           echo $! > /tmp/agent-fluid-next.pid
           for attempt in $(seq 1 60); do
-            if curl --fail --silent --show-error "http://127.0.0.1:${PLAYWRIGHT_FLUID_PORT}/api/__qa/health" >/dev/null; then
+            if curl --fail --silent --show-error "http://127.0.0.1:${PLAYWRIGHT_FLUID_PORT}/api/qa/health" >/dev/null; then
               echo "Agent Fluid QA server is ready"
               exit 0
             fi
