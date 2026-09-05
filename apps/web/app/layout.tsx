@@ -7,6 +7,7 @@ import "./apple-fluid.css";
 import "./apple-workspaces.css";
 import "./agent-fluid-runtime.css";
 import "./apple-continuity.css";
+import "./apple-charts.css";
 
 export const metadata: Metadata = {
   title: "PureGamma AI — Cross-Asset Research & Portfolio Intelligence",
