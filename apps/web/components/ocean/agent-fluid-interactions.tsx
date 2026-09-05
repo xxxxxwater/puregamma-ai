@@ -127,6 +127,8 @@ export function useSpringCssVariable<T extends HTMLElement>(
     apply(initial);
     return () => {
       if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+      lastTimeRef.current = 0;
     };
   }, [apply, initial]);
 
@@ -214,6 +216,8 @@ export function useSwipeSheet({ open, onOpenChange, width = 320 }: SwipeSheetOpt
     apply(open ? 0 : -width);
     return () => {
       if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+      frameRef.current = null;
+      lastFrameRef.current = 0;
     };
   }, [apply, width]);
 
@@ -355,6 +359,8 @@ export function FluidPressButton({ children, className = "", disabled, pressScal
 
   useEffect(() => () => {
     if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
+    frameRef.current = null;
+    lastFrameRef.current = 0;
   }, []);
 
   return (
