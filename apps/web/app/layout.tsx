@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Script from "next/script";
+import { AppleContinuity } from "@/components/apple-continuity";
 import "./globals.css";
 import "./apple-fluid.css";
 import "./apple-workspaces.css";
 import "./agent-fluid-runtime.css";
+import "./apple-continuity.css";
 
 export const metadata: Metadata = {
   title: "PureGamma AI — Cross-Asset Research & Portfolio Intelligence",
@@ -44,6 +46,7 @@ export default function RootLayout({ children }: { children: ReactNode }) {
         <Script id="gtag-init" dangerouslySetInnerHTML={{ __html: `window.dataLayer = window.dataLayer || []; function gtag(){dataLayer.push(arguments);} gtag('js', new Date()); gtag('config', 'AW-18313089953');` }} />
       </head>
       <body>
+        <AppleContinuity />
         {children}
       </body>
     </html>
