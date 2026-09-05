@@ -1,0 +1,108 @@
+name: Web CI
+
+on:
+  push:
+    branches:
+      - main
+      - "design/**"
+    paths:
+      - "apps/web/**"
+      - "tests/e2e/playwright/agent-fluid.spec.ts"
+      - ".github/workflows/web-ci.yml"
+  pull_request:
+    branches:
+      - main
+    paths:
+      - "apps/web/**"
+      - "tests/e2e/playwright/agent-fluid.spec.ts"
+      - ".github/workflows/web-ci.yml"
+
+concurrency:
+  group: web-ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  typecheck-build:
+    name: Typecheck + Next build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      NEXT_PUBLIC_API_URL: http://127.0.0.1:8000
+      NEXT_PUBLIC_INITIAL_LAUNCH_MODE: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Typecheck
+        run: pnpm typecheck
+
+      - name: Build
+        run: pnpm build
+
+  agent-fluid-qa:
+    name: Agent Fluid · Chrome + iPhone WebKit
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      ENABLE_QA_SURFACES: "true"
+      NEXT_PUBLIC_INITIAL_LAUNCH_MODE: "false"
+      REQUIRE_AUTH: "false"
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 9
+          run_install: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: apps/web/pnpm-lock.yaml
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps chromium webkit
+
+      - name: Run Agent Fluid interaction QA
+        run: pnpm test:fluid
+
+      - name: Upload Fluid QA report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-fluid-playwright-report
+          path: playwright-fluid-report
+          if-no-files-found: ignore
+          retention-days: 7
