@@ -1,0 +1,563 @@
+/*
+ * Apple Fluid page-level workspaces for PureGamma.
+ *
+ * This layer is intentionally scoped to the three primary product surfaces:
+ * Dashboard, Agent Chat, and Portfolio. It assumes apple-fluid.css is loaded
+ * first and leaves API/data behavior untouched.
+ */
+
+/* ════════════════════════════════════════════════════════════════════════
+   Dashboard — decision hierarchy, not a wall of cards
+   ════════════════════════════════════════════════════════════════════════ */
+
+.apple-dashboard-page {
+  --af-dashboard-rule: color-mix(in oklab, var(--foreground) 7%, transparent);
+}
+
+.apple-dashboard-page .hub-hero {
+  position: relative;
+  isolation: isolate;
+  padding-bottom: clamp(26px, 3.4vw, 42px);
+}
+
+.apple-dashboard-page .hub-hero::after {
+  content: "";
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, var(--af-dashboard-rule) 12%, var(--af-dashboard-rule) 88%, transparent);
+  pointer-events: none;
+}
+
+.apple-dashboard-page .hub-hero .command-surface {
+  border-radius: 22px;
+  transform-origin: center;
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    border-color var(--af-motion-ui) ease-out,
+    box-shadow var(--af-motion-surface) var(--af-ease-soft);
+}
+
+.apple-dashboard-page .hub-hero .command-surface:focus-within {
+  border-color: color-mix(in oklab, var(--accent) 42%, transparent);
+  box-shadow: var(--lens-shadow), 0 0 0 4px color-mix(in oklab, var(--accent-ring) 58%, transparent);
+}
+
+.apple-dashboard-page .hub-grid > .hub-col:first-child > .chrono-slice:first-of-type .terminal-panel {
+  padding: clamp(24px, 3.2vw, 36px);
+  background: color-mix(in oklab, var(--panel) 97%, transparent);
+}
+
+.apple-dashboard-page .hub-grid > .hub-col:first-child > .chrono-slice:first-of-type .terminal-panel p {
+  line-height: 1.75;
+}
+
+.apple-dashboard-page .hub-grid > .hub-col:first-child > .chrono-slice:nth-of-type(2) .terminal-panel {
+  padding-block: 10px;
+}
+
+.apple-dashboard-page .hub-grid > .hub-col:first-child > .chrono-slice:nth-of-type(2) li {
+  margin-inline: -8px;
+  padding-inline: 8px;
+  border-radius: 10px;
+  transition:
+    background-color var(--af-motion-fast) ease-out,
+    transform var(--af-motion-fast) var(--af-ease-out);
+}
+
+.apple-dashboard-page .hub-grid > .hub-col:first-child > .chrono-slice:nth-of-type(2) li:hover {
+  background: color-mix(in oklab, var(--panel-muted) 64%, transparent);
+  transform: translateX(2px);
+}
+
+.apple-dashboard-page .section-row {
+  padding-inline: 2px;
+}
+
+.apple-dashboard-page .section-row > :last-child {
+  opacity: 0.82;
+}
+
+.apple-dashboard-page > section.chrono-slice,
+.apple-dashboard-page > .chrono-slice {
+  scroll-margin-top: 112px;
+}
+
+.apple-dashboard-page a.terminal-panel svg {
+  transition: transform var(--af-motion-ui) var(--af-ease-out), opacity var(--af-motion-fast) ease-out;
+}
+
+.apple-dashboard-page a.terminal-panel:hover svg {
+  transform: translate(2px, -2px);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Agent Chat — one continuous, interruptible intelligence workspace
+   ════════════════════════════════════════════════════════════════════════ */
+
+.apple-agent-workspace {
+  --af-agent-rail: color-mix(in oklab, var(--panel) 88%, transparent);
+  --af-agent-composer: color-mix(in oklab, var(--panel) 82%, transparent);
+  --af-agent-user: color-mix(in oklab, var(--accent) 11%, var(--panel-muted));
+  --af-agent-line: color-mix(in oklab, var(--foreground) 8%, transparent);
+}
+
+.apple-agent-workspace > .relative,
+.apple-agent-workspace .relative.overflow-hidden {
+  border-radius: 28px !important;
+}
+
+.apple-agent-workspace .grid.h-full {
+  border-color: var(--af-hairline) !important;
+  border-radius: 24px;
+  background: color-mix(in oklab, var(--panel) 96%, transparent) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.055) inset, 0 24px 70px -46px rgba(0,0,0,0.72);
+  transition: grid-template-columns 320ms var(--af-ease-soft);
+}
+
+[data-visual-style="glass"] .apple-agent-workspace .grid.h-full {
+  background: color-mix(in oklab, var(--panel) 89%, transparent) !important;
+  backdrop-filter: blur(22px) saturate(1.28);
+  -webkit-backdrop-filter: blur(22px) saturate(1.28);
+}
+
+.apple-agent-workspace aside {
+  background: var(--af-agent-rail) !important;
+  border-color: var(--af-agent-line) !important;
+}
+
+[data-visual-style="glass"] .apple-agent-workspace aside {
+  backdrop-filter: blur(24px) saturate(1.26);
+  -webkit-backdrop-filter: blur(24px) saturate(1.26);
+}
+
+.apple-agent-workspace aside > div:first-child {
+  border-color: var(--af-agent-line) !important;
+}
+
+.apple-agent-workspace aside button,
+.apple-agent-workspace aside a {
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    color var(--af-motion-fast) ease-out,
+    background-color var(--af-motion-fast) ease-out,
+    border-color var(--af-motion-fast) ease-out,
+    opacity var(--af-motion-fast) ease-out;
+}
+
+.apple-agent-workspace aside button:active,
+.apple-agent-workspace aside a:active {
+  transform: translateY(var(--af-press-y)) scale(var(--af-press-scale));
+}
+
+.apple-agent-workspace aside .group > button:first-child {
+  border-radius: 12px;
+  border-color: transparent;
+}
+
+.apple-agent-workspace aside .group > button:first-child:hover {
+  background: color-mix(in oklab, var(--panel-muted) 76%, transparent);
+}
+
+.apple-agent-workspace aside .group > button:first-child.border-border-pg-strong {
+  border-color: color-mix(in oklab, var(--accent) 18%, transparent) !important;
+  background: color-mix(in oklab, var(--accent) 9%, var(--panel-muted)) !important;
+  color: var(--foreground);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.05) inset;
+}
+
+.apple-agent-workspace section.flex.min-h-0 {
+  background: transparent;
+}
+
+.apple-agent-workspace section.flex.min-h-0 > div:first-child {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+  overscroll-behavior: contain;
+}
+
+.apple-agent-workspace section.flex.min-h-0 > div:first-child:hover {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.apple-agent-workspace section.flex.min-h-0 > div:first-child::-webkit-scrollbar {
+  width: 7px;
+}
+
+.apple-agent-workspace section.flex.min-h-0 > div:first-child::-webkit-scrollbar-thumb {
+  background: transparent;
+  border-radius: 999px;
+}
+
+.apple-agent-workspace section.flex.min-h-0 > div:first-child:hover::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+}
+
+/* Empty-state goal cards: direct, tactile, and quieter than primary actions. */
+.apple-agent-workspace .sm\:grid-cols-2 > button {
+  border-radius: 16px !important;
+  background: color-mix(in oklab, var(--panel) 92%, transparent) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.045) inset;
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    background-color var(--af-motion-fast) ease-out,
+    border-color var(--af-motion-fast) ease-out,
+    box-shadow var(--af-motion-ui) var(--af-ease-soft);
+}
+
+.apple-agent-workspace .sm\:grid-cols-2 > button:hover {
+  border-color: color-mix(in oklab, var(--accent) 24%, transparent) !important;
+  background: color-mix(in oklab, var(--accent) 5%, var(--panel)) !important;
+  box-shadow: var(--af-panel-shadow);
+}
+
+.apple-agent-workspace .sm\:grid-cols-2 > button:active {
+  transform: translateY(1px) scale(0.988);
+}
+
+/* Message rhythm: user is a compact material bubble; assistant stays open. */
+.apple-agent-workspace .mx-auto.max-w-3xl.space-y-5 > .ml-auto {
+  border-radius: 18px 18px 5px 18px;
+  border-color: color-mix(in oklab, var(--accent) 16%, transparent) !important;
+  background: var(--af-agent-user) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.045) inset;
+}
+
+.apple-agent-workspace .mx-auto.max-w-3xl.space-y-5 > div:not(.ml-auto) {
+  border-left-color: color-mix(in oklab, var(--accent) 22%, var(--af-agent-line));
+}
+
+.apple-agent-workspace .mx-auto.max-w-3xl.space-y-5 a,
+.apple-agent-workspace .mx-auto.max-w-3xl.space-y-5 button {
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    border-color var(--af-motion-fast) ease-out,
+    background-color var(--af-motion-fast) ease-out,
+    color var(--af-motion-fast) ease-out;
+}
+
+.apple-agent-workspace .mx-auto.max-w-3xl.space-y-5 a:active,
+.apple-agent-workspace .mx-auto.max-w-3xl.space-y-5 button:active {
+  transform: translateY(var(--af-press-y)) scale(var(--af-press-scale));
+}
+
+/* Runtime/evidence/tool chips read as transient system state, not cards. */
+.apple-agent-workspace .mx-auto.max-w-3xl.space-y-5 > .flex.flex-wrap.items-center {
+  border-radius: 14px !important;
+}
+
+/* Composer dock: one material object with controls embedded inside it. */
+.apple-agent-workspace section.flex.min-h-0 > .shrink-0 {
+  position: relative;
+  border-top-color: var(--af-agent-line) !important;
+  background: linear-gradient(180deg, color-mix(in oklab, var(--panel) 70%, transparent), var(--af-agent-composer)) !important;
+}
+
+[data-visual-style="glass"] .apple-agent-workspace section.flex.min-h-0 > .shrink-0 {
+  backdrop-filter: blur(26px) saturate(1.34);
+  -webkit-backdrop-filter: blur(26px) saturate(1.34);
+}
+
+.apple-agent-workspace section.flex.min-h-0 > .shrink-0::before {
+  content: "";
+  position: absolute;
+  inset: 0 0 auto;
+  height: 1px;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.10), transparent);
+  pointer-events: none;
+}
+
+.apple-agent-workspace form.max-w-3xl {
+  gap: 8px;
+  padding: 7px;
+  border: 1px solid var(--af-hairline-strong);
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--panel) 94%, transparent);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.055) inset, 0 18px 50px -40px rgba(0,0,0,0.62);
+  transition:
+    border-color var(--af-motion-fast) ease-out,
+    box-shadow var(--af-motion-ui) var(--af-ease-soft),
+    background-color var(--af-motion-fast) ease-out;
+}
+
+.apple-agent-workspace form.max-w-3xl:focus-within {
+  border-color: color-mix(in oklab, var(--accent) 46%, transparent);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.055) inset, 0 0 0 4px color-mix(in oklab, var(--accent-ring) 60%, transparent);
+}
+
+.apple-agent-workspace form.max-w-3xl textarea {
+  field-sizing: content;
+  min-height: 48px !important;
+  max-height: 180px;
+  border: 0 !important;
+  border-radius: 14px !important;
+  background: transparent !important;
+  padding: 12px 10px !important;
+  box-shadow: none !important;
+  line-height: 1.5;
+}
+
+.apple-agent-workspace form.max-w-3xl textarea:focus {
+  box-shadow: none !important;
+}
+
+.apple-agent-workspace form.max-w-3xl > button,
+.apple-agent-workspace form.max-w-3xl > [role="button"] {
+  height: 46px !important;
+  min-width: 46px;
+  width: 46px !important;
+  border-radius: 15px !important;
+  align-self: flex-end;
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    opacity var(--af-motion-fast) ease-out,
+    background-color var(--af-motion-fast) ease-out,
+    border-color var(--af-motion-fast) ease-out;
+}
+
+.apple-agent-workspace form.max-w-3xl > button:active,
+.apple-agent-workspace form.max-w-3xl > [role="button"]:active {
+  transform: translateY(1px) scale(0.94);
+}
+
+.apple-agent-workspace form.max-w-3xl > button:first-of-type {
+  border-color: transparent !important;
+  background: transparent;
+}
+
+.apple-agent-workspace form.max-w-3xl > button:first-of-type:hover {
+  background: var(--panel-muted);
+}
+
+/* Research mode + model + advanced settings become a compact control shelf. */
+.apple-agent-workspace section.flex.min-h-0 > .shrink-0 > .max-w-3xl:not(form) {
+  transition: opacity var(--af-motion-fast) ease-out;
+}
+
+.apple-agent-workspace section.flex.min-h-0 > .shrink-0 > .max-w-3xl.border {
+  border-radius: 16px !important;
+  border-color: var(--af-hairline) !important;
+  background: color-mix(in oklab, var(--panel) 92%, transparent) !important;
+  overflow: hidden;
+}
+
+.apple-agent-workspace section.flex.min-h-0 > .shrink-0 > .max-w-3xl.border > div {
+  animation: af-sheet-reveal var(--af-motion-ui) var(--af-ease-out) both;
+  transform-origin: top center;
+}
+
+@keyframes af-sheet-reveal {
+  from { opacity: 0; transform: translateY(-5px) scaleY(0.985); }
+  to { opacity: 1; transform: translateY(0) scaleY(1); }
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Portfolio — NAV first, everything else recedes into a precision workbench
+   ════════════════════════════════════════════════════════════════════════ */
+
+.apple-portfolio-page {
+  --af-portfolio-panel: color-mix(in oklab, var(--panel) 97%, transparent);
+}
+
+.apple-portfolio-page > div:first-child {
+  margin-bottom: clamp(24px, 3vw, 36px);
+}
+
+.apple-portfolio-page > .space-y-5 {
+  display: flex;
+  flex-direction: column;
+  gap: clamp(18px, 2.4vw, 28px);
+}
+
+/* Hero NAV card. */
+.apple-portfolio-page > .space-y-5 > section:first-child {
+  border-radius: 24px;
+  border-color: var(--af-hairline-strong);
+  background: var(--af-portfolio-panel) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 24px 64px -50px rgba(0,0,0,0.65);
+}
+
+.apple-portfolio-page > .space-y-5 > section:first-child > div:first-child {
+  padding: clamp(22px, 3vw, 34px);
+}
+
+.apple-portfolio-page > .space-y-5 > section:first-child .text-4xl {
+  font-size: clamp(2.8rem, 7vw, 5rem);
+  line-height: 0.95;
+  letter-spacing: -0.055em;
+  font-variant-numeric: tabular-nums;
+}
+
+.apple-portfolio-page > .space-y-5 > section:first-child .mt-5.flex.gap-1 {
+  display: inline-flex;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--af-hairline);
+  border-radius: 12px;
+  background: color-mix(in oklab, var(--panel-muted) 60%, transparent);
+}
+
+.apple-portfolio-page > .space-y-5 > section:first-child .mt-5.flex.gap-1 button {
+  border-radius: 9px;
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    color var(--af-motion-fast) ease-out,
+    background-color var(--af-motion-fast) ease-out,
+    box-shadow var(--af-motion-fast) ease-out;
+}
+
+.apple-portfolio-page > .space-y-5 > section:first-child .mt-5.flex.gap-1 button:active {
+  transform: scale(0.94);
+}
+
+/* Secondary portfolio cards are dense and still. */
+.apple-portfolio-page > .space-y-5 > section:not(:first-child) {
+  border-color: var(--af-hairline);
+  border-radius: 20px;
+  background: color-mix(in oklab, var(--panel) 98%, transparent) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.035) inset;
+}
+
+.apple-portfolio-page table {
+  font-variant-numeric: tabular-nums;
+}
+
+.apple-portfolio-page tbody tr {
+  transition: background-color var(--af-motion-fast) ease-out;
+}
+
+.apple-portfolio-page tbody tr:hover {
+  background: color-mix(in oklab, var(--panel-muted) 58%, transparent);
+}
+
+.apple-portfolio-page button,
+.apple-portfolio-page a,
+.apple-portfolio-page label.cursor-pointer {
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    border-color var(--af-motion-fast) ease-out,
+    background-color var(--af-motion-fast) ease-out,
+    color var(--af-motion-fast) ease-out,
+    opacity var(--af-motion-fast) ease-out;
+}
+
+.apple-portfolio-page button:active:not(:disabled),
+.apple-portfolio-page a:active,
+.apple-portfolio-page label.cursor-pointer:active {
+  transform: translateY(var(--af-press-y)) scale(var(--af-press-scale));
+}
+
+.apple-portfolio-page input,
+.apple-portfolio-page select {
+  transition:
+    border-color var(--af-motion-fast) ease-out,
+    box-shadow var(--af-motion-ui) var(--af-ease-soft),
+    background-color var(--af-motion-fast) ease-out;
+}
+
+.apple-portfolio-page input:focus,
+.apple-portfolio-page select:focus {
+  border-color: var(--accent) !important;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+  outline: none;
+}
+
+/* Connected-provider section reads like a row of devices/accounts, not CTA cards. */
+.apple-portfolio-page > .space-y-5 > section:not([class]) > div:last-child {
+  gap: 12px;
+}
+
+/* Autopilot: compact system panel, with toggle motion that feels physical. */
+.apple-portfolio-page > .space-y-5 > section:last-child {
+  border-radius: 22px;
+}
+
+.apple-portfolio-page > .space-y-5 > section:last-child button[aria-label="Autopilot"] {
+  border-radius: 999px !important;
+  padding: 3px;
+  background: color-mix(in oklab, var(--panel-muted) 75%, transparent);
+  transition:
+    border-color var(--af-motion-fast) ease-out,
+    background-color var(--af-motion-fast) ease-out,
+    box-shadow var(--af-motion-ui) var(--af-ease-soft);
+}
+
+.apple-portfolio-page > .space-y-5 > section:last-child button[aria-label="Autopilot"] > span {
+  border-radius: 999px;
+  transition: transform 280ms cubic-bezier(0.2, 0.9, 0.25, 1.18);
+  box-shadow: 0 1px 4px rgba(0,0,0,0.26);
+}
+
+/* ════════════════════════════════════════════════════════════════════════
+   Accessibility + small screens
+   ════════════════════════════════════════════════════════════════════════ */
+
+@media (prefers-reduced-motion: reduce) {
+  .apple-dashboard-page *,
+  .apple-agent-workspace *,
+  .apple-portfolio-page * {
+    scroll-behavior: auto !important;
+  }
+
+  .apple-agent-workspace .grid.h-full,
+  .apple-agent-workspace section.flex.min-h-0 > .shrink-0 > .max-w-3xl.border > div,
+  .apple-portfolio-page > .space-y-5 > section:last-child button[aria-label="Autopilot"] > span {
+    animation: none !important;
+    transition-duration: 1ms !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  [data-visual-style="glass"] .apple-agent-workspace .grid.h-full,
+  [data-visual-style="glass"] .apple-agent-workspace aside,
+  [data-visual-style="glass"] .apple-agent-workspace section.flex.min-h-0 > .shrink-0 {
+    background: var(--panel) !important;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (max-width: 767px) {
+  .apple-dashboard-page .hub-hero {
+    padding-bottom: 22px;
+  }
+
+  .apple-agent-workspace > .relative,
+  .apple-agent-workspace .relative.overflow-hidden,
+  .apple-agent-workspace .grid.h-full {
+    border-radius: 20px !important;
+  }
+
+  .apple-agent-workspace section.flex.min-h-0 > div:first-child {
+    padding-inline: 14px !important;
+  }
+
+  .apple-agent-workspace .mx-auto.max-w-3xl.space-y-5 > .ml-auto {
+    max-width: 92% !important;
+  }
+
+  .apple-agent-workspace section.flex.min-h-0 > .shrink-0 {
+    padding: 10px !important;
+  }
+
+  .apple-agent-workspace form.max-w-3xl {
+    border-radius: 18px;
+    padding: 5px;
+  }
+
+  .apple-agent-workspace form.max-w-3xl > button,
+  .apple-agent-workspace form.max-w-3xl > [role="button"] {
+    min-width: 42px;
+    width: 42px !important;
+    height: 42px !important;
+    border-radius: 13px !important;
+  }
+
+  .apple-portfolio-page > .space-y-5 > section:first-child .text-4xl {
+    font-size: clamp(2.5rem, 13vw, 4rem);
+  }
+
+  .apple-portfolio-page > .space-y-5 {
+    gap: 16px;
+  }
+}
