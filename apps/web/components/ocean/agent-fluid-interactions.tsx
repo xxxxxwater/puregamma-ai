@@ -26,6 +26,39 @@ type SpringOptions = {
   precision?: number;
 };
 
+type SpringState = { position: number; velocity: number };
+
+/**
+ * Stable spring integration that tracks wall-clock time without handing a huge
+ * delta directly to Euler integration. When the main thread misses frames we
+ * catch up using small fixed substeps, so motion does not enter slow motion
+ * after jank while remaining numerically stable.
+ */
+function integrateSpring(
+  position: number,
+  velocity: number,
+  target: number,
+  stiffness: number,
+  damping: number,
+  mass: number,
+  elapsedSeconds: number,
+): SpringState {
+  let x = position;
+  let v = velocity;
+  let remaining = Math.min(Math.max(elapsedSeconds, 1 / 240), 0.25);
+  const maxStep = 1 / 120;
+
+  while (remaining > 0.000001) {
+    const dt = Math.min(maxStep, remaining);
+    const acceleration = (-stiffness * (x - target) - damping * v) / mass;
+    v += acceleration * dt;
+    x += v * dt;
+    remaining -= dt;
+  }
+
+  return { position: x, velocity: v };
+}
+
 /**
  * Drives a CSS custom property with a real second-order spring.
  * The current presentation value and velocity survive target changes, so an
@@ -61,21 +94,24 @@ export function useSpringCssVariable<T extends HTMLElement>(
       return;
     }
     const previous = lastTimeRef.current || time;
-    const dt = Math.min(Math.max((time - previous) / 1000, 1 / 240), 1 / 30);
+    const elapsed = (time - previous) / 1000;
     lastTimeRef.current = time;
 
-    const x = positionRef.current;
-    const v = velocityRef.current;
-    const displacement = x - targetRef.current;
-    const acceleration = (-stiffness * displacement - damping * v) / mass;
-    const nextVelocity = v + acceleration * dt;
-    const nextPosition = x + nextVelocity * dt;
+    const next = integrateSpring(
+      positionRef.current,
+      velocityRef.current,
+      targetRef.current,
+      stiffness,
+      damping,
+      mass,
+      elapsed,
+    );
 
-    positionRef.current = nextPosition;
-    velocityRef.current = nextVelocity;
-    apply(nextPosition);
+    positionRef.current = next.position;
+    velocityRef.current = next.velocity;
+    apply(next.position);
 
-    if (Math.abs(nextVelocity) <= precision && Math.abs(nextPosition - targetRef.current) <= precision) {
+    if (Math.abs(next.velocity) <= precision && Math.abs(next.position - targetRef.current) <= precision) {
       positionRef.current = targetRef.current;
       velocityRef.current = 0;
       apply(targetRef.current);
@@ -146,16 +182,12 @@ export function useSwipeSheet({ open, onOpenChange, width = 320 }: SwipeSheetOpt
 
   const springStep = useCallback((time: number) => {
     const previous = lastFrameRef.current || time;
-    const dt = Math.min(Math.max((time - previous) / 1000, 1 / 240), 1 / 30);
+    const elapsed = (time - previous) / 1000;
     lastFrameRef.current = time;
-    const x = positionRef.current;
-    const v = velocityRef.current;
-    const acceleration = -560 * (x - targetRef.current) - 46 * v;
-    const nextVelocity = v + acceleration * dt;
-    const nextPosition = x + nextVelocity * dt;
-    velocityRef.current = nextVelocity;
-    apply(nextPosition);
-    if (Math.abs(nextVelocity) < 1.2 && Math.abs(nextPosition - targetRef.current) < 0.35) {
+    const next = integrateSpring(positionRef.current, velocityRef.current, targetRef.current, 560, 46, 1, elapsed);
+    velocityRef.current = next.velocity;
+    apply(next.position);
+    if (Math.abs(next.velocity) < 1.2 && Math.abs(next.position - targetRef.current) < 0.35) {
       velocityRef.current = 0;
       apply(targetRef.current);
       frameRef.current = null;
@@ -280,17 +312,15 @@ export function FluidPressButton({ children, className = "", disabled, pressScal
 
   const springStep = useCallback((time: number) => {
     const previous = lastFrameRef.current || time;
-    const dt = Math.min(Math.max((time - previous) / 1000, 1 / 240), 1 / 30);
+    const elapsed = (time - previous) / 1000;
     lastFrameRef.current = time;
-    const ax = -620 * xRef.current - 44 * vxRef.current;
-    const ay = -620 * yRef.current - 44 * vyRef.current;
-    vxRef.current += ax * dt;
-    vyRef.current += ay * dt;
-    const x = xRef.current + vxRef.current * dt;
-    const y = yRef.current + vyRef.current * dt;
-    const distance = Math.hypot(x, y);
+    const xSpring = integrateSpring(xRef.current, vxRef.current, 0, 620, 44, 1, elapsed);
+    const ySpring = integrateSpring(yRef.current, vyRef.current, 0, 620, 44, 1, elapsed);
+    vxRef.current = xSpring.velocity;
+    vyRef.current = ySpring.velocity;
+    const distance = Math.hypot(xSpring.position, ySpring.position);
     const scale = 1 - Math.min(distance / 90, 0.018);
-    apply(x, y, scale);
+    apply(xSpring.position, ySpring.position, scale);
     if (Math.abs(vxRef.current) < 0.35 && Math.abs(vyRef.current) < 0.35 && distance < 0.08) {
       vxRef.current = 0;
       vyRef.current = 0;
