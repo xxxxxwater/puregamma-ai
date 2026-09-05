@@ -1,5 +1,11 @@
 import { expect, test } from "@playwright/test";
 
+const openHarness = async (page: import("@playwright/test").Page) => {
+  const response = await page.goto("/__qa/agent-fluid");
+  expect(response?.status()).toBe(200);
+  await expect(page.getByRole("heading", { name: "Agent Fluid Interaction Harness" })).toBeVisible();
+};
+
 const readHistoryWidth = async (page: import("@playwright/test").Page) => page.getByTestId("history-grid").evaluate((node) => {
   const value = getComputedStyle(node).getPropertyValue("--agent-history-width");
   return Number.parseFloat(value);
@@ -10,13 +16,9 @@ const readSheetX = async (page: import("@playwright/test").Page) => page.getByTe
   return match ? Number.parseFloat(match[1]) : Number.NaN;
 });
 
-test.beforeEach(async ({ page }) => {
-  await page.goto("/__qa/agent-fluid");
-  await expect(page.getByRole("heading", { name: "Agent Fluid Interaction Harness" })).toBeVisible();
-});
-
 test("desktop sidebar spring is interruptible and preserves presentation state", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome");
+  await openHarness(page);
   const toggle = page.getByTestId("toggle-history");
 
   expect(await readHistoryWidth(page)).toBeGreaterThan(240);
@@ -37,6 +39,7 @@ test("desktop sidebar spring is interruptible and preserves presentation state",
 
 test("anchored settings materializes above its trigger without layout reflow", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome");
+  await openHarness(page);
   const trigger = page.getByTestId("settings-trigger");
   await trigger.click();
   const sheet = page.getByTestId("settings-sheet");
@@ -51,6 +54,7 @@ test("anchored settings materializes above its trigger without layout reflow", a
 
 test("composer press follows pointer, applies hysteresis, and springs home", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome");
+  await openHarness(page);
   const button = page.getByTestId("fluid-press");
   const box = await button.boundingBox();
   expect(box).not.toBeNull();
@@ -79,7 +83,7 @@ test("composer press follows pointer, applies hysteresis, and springs home", asy
 test("reduced motion snaps the sidebar instead of animating it", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome");
   await page.emulateMedia({ reducedMotion: "reduce" });
-  await page.reload();
+  await openHarness(page);
   await page.getByTestId("toggle-history").click();
   await page.waitForTimeout(30);
   expect(await readHistoryWidth(page)).toBeLessThanOrEqual(52.5);
@@ -87,6 +91,7 @@ test("reduced motion snaps the sidebar instead of animating it", async ({ page }
 
 test("iPhone WebKit history sheet accepts a fast close flick with momentum projection", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "iphone-safari");
+  await openHarness(page);
   await page.getByTestId("open-mobile-history").click();
   await page.waitForTimeout(600);
   expect(Math.abs(await readSheetX(page))).toBeLessThan(1);
@@ -108,6 +113,7 @@ test("iPhone WebKit history sheet accepts a fast close flick with momentum proje
 });
 
 test("streaming state remains visible but subtle in both rendering engines", async ({ page }) => {
+  await openHarness(page);
   const message = page.getByTestId("streaming-message");
   await expect(message).toBeVisible();
   await expect(message.getByText("Live")).toBeVisible();
