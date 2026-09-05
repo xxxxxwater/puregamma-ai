@@ -1,6 +1,7 @@
 name: Web CI
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -42,7 +43,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9.15.9
           run_install: false
 
       - name: Setup Node
@@ -79,7 +80,7 @@ jobs:
       - name: Setup pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9.15.9
           run_install: false
 
       - name: Setup Node
