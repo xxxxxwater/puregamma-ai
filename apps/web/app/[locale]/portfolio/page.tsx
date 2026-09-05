@@ -14,7 +14,7 @@ export default async function PortfolioPage({ params }: { params: { locale: Loca
   const locale = params.locale;
   const copy = getMessageNamespace(locale, "portfolio");
   return (
-    <div className="space-y-5">
+    <div className="apple-portfolio-page space-y-5">
       <PageHeader eyebrow={copy.eyebrow} title={copy.title} description={locale === "zh" ? "连接真实投资账户，统一复盘净值、可用资金与历史曲线。" : "Connect real investment accounts to review NAV, available capital, and history."} sectionNumber="02" />
       <PortfolioConsole locale={locale} />
     </div>
