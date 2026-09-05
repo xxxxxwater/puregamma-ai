@@ -1,0 +1,110 @@
+/* Apple Fluid financial chart layer
+ * Charts are data instruments, not decorative motion surfaces.
+ */
+
+.apple-financial-chart {
+  position: relative;
+  isolation: isolate;
+  -webkit-tap-highlight-color: transparent;
+  touch-action: pan-y;
+}
+
+.apple-financial-chart .recharts-wrapper,
+.apple-financial-chart svg {
+  overflow: visible;
+}
+
+.apple-financial-chart :where(.recharts-cartesian-grid-horizontal line) {
+  shape-rendering: crispEdges;
+}
+
+.apple-financial-chart :where(.recharts-line-curve, .recharts-area-curve) {
+  vector-effect: non-scaling-stroke;
+}
+
+.apple-financial-chart :where(.recharts-tooltip-cursor) {
+  pointer-events: none;
+  opacity: 0.8;
+}
+
+.apple-chart-tooltip {
+  min-width: 132px;
+  border: 1px solid color-mix(in srgb, var(--border-pg) 84%, var(--foreground) 7%);
+  border-radius: 14px;
+  background: color-mix(in srgb, var(--bg-panel) 94%, transparent);
+  padding: 9px 11px;
+  color: var(--text-pg);
+  box-shadow: 0 14px 42px rgb(0 0 0 / 0.14), inset 0 1px 0 rgb(255 255 255 / 0.045);
+  font-size: 11px;
+  line-height: 1.4;
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+[data-visual-style="glass"] .apple-chart-tooltip {
+  background: color-mix(in srgb, var(--bg-panel) 88%, transparent);
+  backdrop-filter: blur(22px) saturate(1.18);
+  -webkit-backdrop-filter: blur(22px) saturate(1.18);
+}
+
+.apple-chart-tooltip-label {
+  margin-bottom: 5px;
+  color: var(--text-pg-dim);
+  font-size: 10px;
+  letter-spacing: 0.01em;
+}
+
+.apple-chart-tooltip-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  min-height: 18px;
+}
+
+.apple-chart-tooltip-name {
+  overflow: hidden;
+  color: var(--text-pg-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.apple-chart-tooltip-value {
+  color: var(--text-pg);
+  font-weight: 620;
+  letter-spacing: -0.01em;
+}
+
+.apple-financial-chart :where(.recharts-active-dot circle, .recharts-line-dot) {
+  filter: drop-shadow(0 1px 2px rgb(0 0 0 / 0.16));
+}
+
+.apple-financial-chart :where(.recharts-sector, .recharts-bar-rectangle path) {
+  transition: opacity 100ms ease-out;
+}
+
+.apple-financial-chart:hover :where(.recharts-sector, .recharts-bar-rectangle path) {
+  will-change: opacity;
+}
+
+@media (pointer: coarse) {
+  .apple-chart-tooltip {
+    min-width: 144px;
+    padding: 10px 12px;
+    font-size: 12px;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  [data-visual-style="glass"] .apple-chart-tooltip {
+    background: var(--bg-panel);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apple-financial-chart :where(.recharts-sector, .recharts-bar-rectangle path) {
+    transition: none !important;
+  }
+}
