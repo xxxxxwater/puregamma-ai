@@ -9,5 +9,5 @@ export function generateMetadata({ params }: { params: { locale: string; convers
 }
 
 export default function ConversationPage({ params }: { params: { locale: Locale; conversationId: string } }) {
-  return <AgentChat locale={params.locale} initialConversationId={params.conversationId} />;
+  return <div className="apple-agent-workspace"><AgentChat locale={params.locale} initialConversationId={params.conversationId} /></div>;
 }
