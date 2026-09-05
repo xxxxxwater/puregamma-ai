@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
 const openHarness = async (page: import("@playwright/test").Page) => {
-  const response = await page.goto("/__qa/agent-fluid");
+  const response = await page.goto("/qa/agent-fluid");
   expect(response?.status()).toBe(200);
   await expect(page.getByRole("heading", { name: "Agent Fluid Interaction Harness" })).toBeVisible();
 };
