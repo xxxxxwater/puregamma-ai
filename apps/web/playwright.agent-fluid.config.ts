@@ -20,9 +20,7 @@ export default defineConfig({
   },
   webServer: {
     command: devCommand,
-    // Readiness should only prove Next is listening. The QA route itself is
-    // intentionally env-gated and is asserted by the tests after startup.
-    url: `http://127.0.0.1:${port}`,
+    url: `http://127.0.0.1:${port}/api/__qa/health`,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
   },
