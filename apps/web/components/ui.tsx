@@ -2,7 +2,7 @@ import clsx from "clsx";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={clsx("border border-border-pg bg-bg-panel p-4 rounded-xl", className)}>{children}</section>;
+  return <section className={clsx("apple-card border border-border-pg bg-bg-panel p-4 rounded-xl", className)}>{children}</section>;
 }
 
 export function Button({
@@ -14,7 +14,7 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex min-h-10 items-center justify-center gap-2 border px-3 py-2 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-50 rounded-lg",
+        "apple-control inline-flex min-h-10 items-center justify-center gap-2 border px-3 py-2 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 rounded-lg",
         variant === "primary" && "border-border-pg-strong bg-pg-white text-pg-black hover:bg-pg-white-soft",
         variant === "secondary" && "border-border-pg bg-bg-panel-muted text-text-pg hover:border-border-pg-strong",
         variant === "danger" && "border-border-pg-strong bg-bg-panel text-status-negative hover:border-border-pg-strong",
@@ -28,11 +28,11 @@ export function Button({
 }
 
 export function Input({ className = "", ...props }: InputHTMLAttributes<HTMLInputElement>) {
-  return <input className={clsx("w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong rounded-lg", className)} {...props} />;
+  return <input className={clsx("apple-field w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none rounded-lg", className)} {...props} />;
 }
 
 export function Select({ className = "", children, ...props }: SelectHTMLAttributes<HTMLSelectElement>) {
-  return <select className={clsx("w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg outline-none focus:border-border-pg-strong rounded-lg", className)} {...props}>{children}</select>;
+  return <select className={clsx("apple-field w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg outline-none rounded-lg", className)} {...props}>{children}</select>;
 }
 
 export function Field({ label, children, hint }: { label: string; children: ReactNode; hint?: string }) {
@@ -49,7 +49,7 @@ export function Badge({ children, tone = "neutral" }: { children: ReactNode; ton
   return (
     <span
       className={clsx(
-        "inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
+        "apple-badge inline-flex rounded-full border px-2 py-0.5 text-xs font-medium",
         tone === "neutral" && "border-border-pg bg-bg-panel-muted text-text-pg-muted",
         tone === "positive" && "border-border-pg bg-bg-panel text-status-positive",
         tone === "warning" && "border-border-pg bg-bg-panel text-status-warning",
