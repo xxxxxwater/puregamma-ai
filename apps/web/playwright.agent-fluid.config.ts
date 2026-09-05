@@ -1,9 +1,6 @@
 import { defineConfig, devices } from "@playwright/test";
 
 const port = process.env.PLAYWRIGHT_FLUID_PORT || "3011";
-const devCommand = process.platform === "win32"
-  ? `set ENABLE_QA_SURFACES=true&& set NEXT_DIST_DIR=.next-fluid-playwright&& set NEXT_PUBLIC_INITIAL_LAUNCH_MODE=false&& set REQUIRE_AUTH=false&& node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`
-  : `ENABLE_QA_SURFACES=true NEXT_DIST_DIR=.next-fluid-playwright NEXT_PUBLIC_INITIAL_LAUNCH_MODE=false REQUIRE_AUTH=false node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`;
 
 export default defineConfig({
   testDir: "../../tests/e2e/playwright",
@@ -18,12 +15,9 @@ export default defineConfig({
     trace: "retain-on-failure",
     screenshot: "only-on-failure",
   },
-  webServer: {
-    command: devCommand,
-    url: `http://127.0.0.1:${port}/api/__qa/health`,
-    reuseExistingServer: !process.env.CI,
-    timeout: 120_000,
-  },
+  // CI starts Next explicitly before invoking Playwright. Keeping server startup
+  // out of Playwright makes readiness failures observable in the Actions log
+  // instead of surfacing as an opaque webServer timeout.
   projects: [
     { name: "desktop-chrome", use: { ...devices["Desktop Chrome"], browserName: "chromium" } },
     { name: "iphone-safari", use: { ...devices["iPhone 13"], browserName: "webkit" } },
