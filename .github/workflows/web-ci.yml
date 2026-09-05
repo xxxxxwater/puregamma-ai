@@ -73,6 +73,7 @@ jobs:
       ENABLE_QA_SURFACES: "true"
       NEXT_PUBLIC_INITIAL_LAUNCH_MODE: "false"
       REQUIRE_AUTH: "false"
+      PLAYWRIGHT_FLUID_PORT: "3011"
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,8 +97,35 @@ jobs:
       - name: Install Playwright browsers
         run: pnpm exec playwright install --with-deps chromium webkit
 
+      - name: Start Agent Fluid QA server
+        shell: bash
+        run: |
+          export NEXT_DIST_DIR=.next-fluid-playwright
+          pnpm exec next dev --hostname 127.0.0.1 --port "$PLAYWRIGHT_FLUID_PORT" > /tmp/agent-fluid-next.log 2>&1 &
+          echo $! > /tmp/agent-fluid-next.pid
+          for attempt in $(seq 1 60); do
+            if curl --fail --silent --show-error "http://127.0.0.1:${PLAYWRIGHT_FLUID_PORT}/api/__qa/health" >/dev/null; then
+              echo "Agent Fluid QA server is ready"
+              exit 0
+            fi
+            if ! kill -0 "$(cat /tmp/agent-fluid-next.pid)" 2>/dev/null; then
+              echo "Agent Fluid QA server exited before becoming ready"
+              cat /tmp/agent-fluid-next.log
+              exit 1
+            fi
+            sleep 1
+          done
+          echo "Agent Fluid QA server did not become ready"
+          cat /tmp/agent-fluid-next.log
+          exit 1
+
       - name: Run Agent Fluid interaction QA
         run: pnpm test:fluid
+
+      - name: Print QA server log on failure
+        if: failure()
+        shell: bash
+        run: cat /tmp/agent-fluid-next.log || true
 
       - name: Upload Fluid QA report on failure
         if: failure()
