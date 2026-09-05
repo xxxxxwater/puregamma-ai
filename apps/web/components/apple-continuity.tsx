@@ -95,9 +95,15 @@ export function AppleContinuity() {
     if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
     root.dataset.routeMotion = "enter";
     const frame = window.requestAnimationFrame(() => {
-      window.requestAnimationFrame(() => { root.dataset.routeMotion = "settled"; });
+      root.dataset.routeMotion = "enter";
     });
-    return () => window.cancelAnimationFrame(frame);
+    const settle = window.setTimeout(() => {
+      root.dataset.routeMotion = "settled";
+    }, 240);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.clearTimeout(settle);
+    };
   }, [pathname]);
 
   useEffect(() => {
