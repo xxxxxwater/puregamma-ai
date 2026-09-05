@@ -16,6 +16,11 @@ const readSheetX = async (page: import("@playwright/test").Page) => page.getByTe
   return match ? Number.parseFloat(match[1]) : Number.NaN;
 });
 
+const readInlineTransform = async (page: import("@playwright/test").Page) => page.getByTestId("fluid-press").evaluate((node) => {
+  const matrix = new DOMMatrixReadOnly(getComputedStyle(node).transform);
+  return { x: matrix.m41, y: matrix.m42, scaleX: matrix.a, scaleY: matrix.d };
+});
+
 test("desktop sidebar spring is interruptible and preserves presentation state", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chrome");
   await openHarness(page);
@@ -23,17 +28,18 @@ test("desktop sidebar spring is interruptible and preserves presentation state",
 
   expect(await readHistoryWidth(page)).toBeGreaterThan(240);
   await toggle.click();
-  await page.waitForTimeout(80);
+
+  // CI frame scheduling can be noisy. Observe the first real presentation
+  // movement instead of assuming the spring has rendered by an arbitrary 80ms.
+  await expect.poll(() => readHistoryWidth(page), { timeout: 1_500 }).toBeLessThan(240);
   const collapsing = await readHistoryWidth(page);
-  expect(collapsing).toBeLessThan(240);
   expect(collapsing).toBeGreaterThan(54);
 
   // Reverse before the first spring settles. A scripted transition would jump
   // or restart; the rAF spring should reverse from its current presentation value.
   await toggle.click();
-  await page.waitForTimeout(700);
+  await expect.poll(() => readHistoryWidth(page), { timeout: 1_500 }).toBeGreaterThan(243);
   const expanded = await readHistoryWidth(page);
-  expect(expanded).toBeGreaterThan(243);
   expect(expanded).toBeLessThanOrEqual(244.5);
 });
 
@@ -45,11 +51,14 @@ test("anchored settings materializes above its trigger without layout reflow", a
   const sheet = page.getByTestId("settings-sheet");
   await expect(sheet).toBeVisible();
 
+  // Measure after the 180ms materialization transform has settled; during the
+  // scale-in phase the visual bounding box is intentionally ~1px closer.
+  await page.waitForTimeout(220);
   const triggerBox = await trigger.boundingBox();
   const sheetBox = await sheet.boundingBox();
   expect(triggerBox).not.toBeNull();
   expect(sheetBox).not.toBeNull();
-  expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(triggerBox!.y - 6);
+  expect(sheetBox!.y + sheetBox!.height).toBeLessThanOrEqual(triggerBox!.y - 8);
 });
 
 test("composer press follows pointer, applies hysteresis, and springs home", async ({ page }, testInfo) => {
@@ -63,18 +72,19 @@ test("composer press follows pointer, applies hysteresis, and springs home", asy
 
   await page.mouse.move(x, y);
   await page.mouse.down();
-  const downTransform = await button.evaluate((node) => node.style.transform);
-  expect(downTransform).toContain("scale(");
-  expect(downTransform).not.toContain("scale(1.0000)");
+  const pressed = await readInlineTransform(page);
+  expect(pressed.scaleX).toBeLessThan(0.98);
+  expect(pressed.y).toBeGreaterThan(0);
 
   // >10px movement becomes a gesture, so releasing must not activate the button.
   await page.mouse.move(x + 24, y + 3, { steps: 3 });
   await page.mouse.up();
   await expect(page.getByTestId("press-count")).toHaveText("clicks:0");
 
-  await page.waitForTimeout(500);
-  const restingTransform = await button.evaluate((node) => node.style.transform);
-  expect(restingTransform).toContain("translate3d(0.00px,0.00px,0)");
+  await expect.poll(async () => {
+    const resting = await readInlineTransform(page);
+    return Math.max(Math.abs(resting.x), Math.abs(resting.y), Math.abs(resting.scaleX - 1));
+  }, { timeout: 1_500 }).toBeLessThan(0.02);
 
   await button.click();
   await expect(page.getByTestId("press-count")).toHaveText("clicks:1");
@@ -93,8 +103,7 @@ test("iPhone WebKit history sheet accepts a fast close flick with momentum proje
   test.skip(testInfo.project.name !== "iphone-safari");
   await openHarness(page);
   await page.getByTestId("open-mobile-history").click();
-  await page.waitForTimeout(600);
-  expect(Math.abs(await readSheetX(page))).toBeLessThan(1);
+  await expect.poll(async () => Math.abs(await readSheetX(page)), { timeout: 1_500 }).toBeLessThan(1);
 
   const grab = page.getByTestId("mobile-grab");
   const box = await grab.boundingBox();
@@ -107,15 +116,14 @@ test("iPhone WebKit history sheet accepts a fast close flick with momentum proje
   await page.mouse.move(startX - 40, y, { steps: 2 });
   await page.mouse.move(startX - 180, y, { steps: 2 });
   await page.mouse.up();
-  await page.waitForTimeout(700);
 
-  expect(await readSheetX(page)).toBeLessThan(-318);
+  await expect.poll(() => readSheetX(page), { timeout: 1_500 }).toBeLessThan(-318);
 });
 
 test("streaming state remains visible but subtle in both rendering engines", async ({ page }) => {
   await openHarness(page);
   const message = page.getByTestId("streaming-message");
   await expect(message).toBeVisible();
-  await expect(message.getByText("Live")).toBeVisible();
+  await expect(message.getByText("Live", { exact: true })).toBeVisible();
   await expect(message).toHaveAttribute("aria-busy", "true");
 });
