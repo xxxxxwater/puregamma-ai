@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import type { ReactNode } from "react";
 import Script from "next/script";
 import "./globals.css";
+import "./apple-fluid.css";
 
 export const metadata: Metadata = {
   title: "PureGamma AI — Cross-Asset Research & Portfolio Intelligence",
