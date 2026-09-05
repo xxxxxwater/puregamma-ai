@@ -32,8 +32,8 @@ type SpringOptions = {
  * interrupted collapse/expand reverses from exactly where it is instead of
  * restarting a scripted transition.
  */
-export function useSpringCssVariable(
-  ref: RefObject<HTMLElement>,
+export function useSpringCssVariable<T extends HTMLElement>(
+  ref: RefObject<T>,
   variable: `--${string}`,
   target: number,
   initial: number,
@@ -150,7 +150,7 @@ export function useSwipeSheet({ open, onOpenChange, width = 320 }: SwipeSheetOpt
     lastFrameRef.current = time;
     const x = positionRef.current;
     const v = velocityRef.current;
-    const acceleration = (-560 * (x - targetRef.current) - 46 * v);
+    const acceleration = -560 * (x - targetRef.current) - 46 * v;
     const nextVelocity = v + acceleration * dt;
     const nextPosition = x + nextVelocity * dt;
     velocityRef.current = nextVelocity;
@@ -221,6 +221,8 @@ export function useSwipeSheet({ open, onOpenChange, width = 320 }: SwipeSheetOpt
   const bind = {
     onPointerDown: (event: ReactPointerEvent<HTMLDivElement>) => {
       if (!event.isPrimary || event.button !== 0) return;
+      const target = event.target as HTMLElement;
+      if (target.closest("button,a,input,select,textarea,[role='button']")) return;
       if (frameRef.current !== null) window.cancelAnimationFrame(frameRef.current);
       frameRef.current = null;
       event.currentTarget.setPointerCapture(event.pointerId);
