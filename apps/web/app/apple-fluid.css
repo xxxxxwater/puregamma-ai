@@ -1,0 +1,417 @@
+/*
+ * PureGamma Apple Fluid layer
+ *
+ * Inspired by the interaction principles in emilkowalski/skills/apple-design:
+ * immediate response, restrained materials, spatial consistency, optical type,
+ * interruptible-feeling motion, and first-class reduced-motion/transparency.
+ *
+ * This file intentionally overrides the existing PureGamma Liquid Intelligence
+ * system instead of replacing it. Remove this import to roll back the redesign.
+ */
+
+:root {
+  --af-control-radius: 12px;
+  --af-panel-radius: 20px;
+  --af-sheet-radius: 24px;
+  --af-press-scale: 0.985;
+  --af-press-y: 0.5px;
+  --af-motion-fast: 120ms;
+  --af-motion-ui: 220ms;
+  --af-motion-surface: 320ms;
+  --af-ease-out: cubic-bezier(0.22, 0.78, 0.28, 1);
+  --af-ease-soft: cubic-bezier(0.2, 0.72, 0.22, 1);
+  --af-hairline: color-mix(in oklab, var(--foreground) 9%, transparent);
+  --af-hairline-strong: color-mix(in oklab, var(--foreground) 16%, transparent);
+  --af-material-shadow: 0 1px 0 rgba(255,255,255,0.06) inset,
+    0 22px 70px -44px rgba(0,0,0,0.76);
+  --af-panel-shadow: 0 1px 0 rgba(255,255,255,0.045) inset,
+    0 14px 44px -38px rgba(0,0,0,0.64);
+}
+
+:root[data-theme="light"] {
+  --af-hairline: color-mix(in oklab, var(--foreground) 8%, transparent);
+  --af-hairline-strong: color-mix(in oklab, var(--foreground) 14%, transparent);
+  --af-material-shadow: 0 1px 0 rgba(255,255,255,0.92) inset,
+    0 24px 64px -48px rgba(15,23,42,0.28);
+  --af-panel-shadow: 0 1px 0 rgba(255,255,255,0.9) inset,
+    0 16px 38px -34px rgba(15,23,42,0.20);
+}
+
+html {
+  font-optical-sizing: auto;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  letter-spacing: -0.006em;
+}
+
+button,
+a,
+[role="button"] {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+}
+
+button:disabled,
+[aria-disabled="true"] {
+  transform: none !important;
+}
+
+/* Typography: tighter display tracking, calmer body rhythm. */
+.display-xl {
+  letter-spacing: -0.055em;
+  line-height: 0.94;
+  text-wrap: balance;
+}
+
+.display-lg {
+  letter-spacing: -0.048em;
+  line-height: 0.97;
+  text-wrap: balance;
+}
+
+.display-md {
+  letter-spacing: -0.038em;
+}
+
+.section-eyebrow,
+.section-label {
+  letter-spacing: 0.12em;
+}
+
+.hub-hero p,
+.terminal-panel p {
+  text-wrap: pretty;
+}
+
+/* App chrome is the strongest material layer; content remains calmer/denser. */
+.shell-rail {
+  inset: 14px auto 14px 14px;
+  width: 264px;
+  border-radius: var(--af-sheet-radius);
+  border-color: var(--af-hairline);
+  box-shadow: var(--af-material-shadow);
+}
+
+[data-visual-style="glass"] .shell-rail {
+  background: color-mix(in oklab, var(--panel) 82%, transparent);
+  backdrop-filter: blur(28px) saturate(1.48);
+  -webkit-backdrop-filter: blur(28px) saturate(1.48);
+  box-shadow: var(--af-material-shadow);
+}
+
+.shell-chrome {
+  top: 14px;
+  margin: 14px 16px 0;
+  border-radius: 18px;
+  border-color: var(--af-hairline);
+  box-shadow: var(--af-material-shadow);
+}
+
+[data-visual-style="glass"] .shell-chrome {
+  background: color-mix(in oklab, var(--panel) 74%, transparent);
+  backdrop-filter: blur(24px) saturate(1.45);
+  -webkit-backdrop-filter: blur(24px) saturate(1.45);
+  box-shadow: var(--af-material-shadow);
+}
+
+:root[data-theme="light"] .shell-chrome,
+:root[data-theme="light"] [data-visual-style="glass"] .shell-rail {
+  box-shadow: var(--af-material-shadow);
+}
+
+/* Navigation behaves like one spatially stable control surface. */
+.nav-item {
+  min-height: 38px;
+  border-radius: 12px;
+  padding: 0.5rem 0.72rem;
+  transition:
+    color var(--af-motion-fast) ease-out,
+    background-color var(--af-motion-fast) ease-out,
+    border-color var(--af-motion-fast) ease-out,
+    transform var(--af-motion-fast) var(--af-ease-out);
+  transform-origin: left center;
+}
+
+.nav-item:hover {
+  background: color-mix(in oklab, var(--panel-muted) 82%, transparent);
+}
+
+.nav-item:active {
+  transform: translateY(var(--af-press-y)) scale(var(--af-press-scale));
+}
+
+.nav-active {
+  background: color-mix(in oklab, var(--accent) 10%, var(--panel-muted));
+  box-shadow: 0 1px 0 rgba(255,255,255,0.045) inset;
+}
+
+.nav-active::before {
+  left: 2px;
+  top: 11px;
+  bottom: 11px;
+  width: 2px;
+  background: var(--accent);
+  opacity: 0.9;
+}
+
+.nav-item .nav-icon {
+  transition: transform var(--af-motion-ui) var(--af-ease-out), opacity var(--af-motion-fast) ease-out;
+}
+
+.nav-item:hover .nav-icon {
+  transform: translateX(1px);
+}
+
+/* Dashboard: more breathing room at the decision boundary, tighter inside data. */
+.dashboard-briefing {
+  gap: clamp(34px, 5.4vw, 76px);
+}
+
+.hub-hero {
+  padding: clamp(20px, 3vw, 36px) clamp(2px, 0.8vw, 10px) clamp(10px, 1.5vw, 18px);
+}
+
+.hub-grid {
+  gap: clamp(26px, 4.4vw, 60px);
+  align-items: start;
+}
+
+.hub-col {
+  gap: clamp(22px, 2.4vw, 32px);
+}
+
+.section-row {
+  margin-bottom: 12px;
+}
+
+/* Data surfaces: thicker than chrome, crisp enough for financial reading. */
+.terminal-panel,
+.apple-card,
+section.rounded-xl.border.border-border-pg.bg-bg-panel {
+  border-color: var(--af-hairline);
+  border-radius: var(--af-panel-radius);
+  box-shadow: var(--af-panel-shadow);
+}
+
+[data-visual-style="glass"] .terminal-panel,
+[data-visual-style="glass"] .apple-card,
+[data-visual-style="glass"] section.rounded-xl.border.border-border-pg.bg-bg-panel {
+  background: color-mix(in oklab, var(--panel) 95%, transparent);
+}
+
+/* Shared controls: instant down-state, continuous visual feedback, no bounce theatre. */
+.apple-control,
+.command-submit,
+.command-chip,
+.shell-chrome button,
+.shell-rail button,
+.shell-rail a,
+[role="dialog"][aria-modal="true"] button,
+[role="dialog"][aria-modal="true"] a {
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    background-color var(--af-motion-fast) ease-out,
+    border-color var(--af-motion-fast) ease-out,
+    color var(--af-motion-fast) ease-out,
+    box-shadow var(--af-motion-ui) var(--af-ease-soft),
+    opacity var(--af-motion-fast) ease-out;
+}
+
+.apple-control {
+  border-radius: var(--af-control-radius);
+  box-shadow: 0 1px 0 rgba(255,255,255,0.055) inset;
+}
+
+.apple-control:active,
+.command-submit:active,
+.command-chip:active,
+.shell-chrome button:active,
+.shell-rail button:active,
+.shell-rail a:active,
+[role="dialog"][aria-modal="true"] button:active,
+[role="dialog"][aria-modal="true"] a:active {
+  transform: translateY(var(--af-press-y)) scale(var(--af-press-scale));
+}
+
+.apple-control:focus-visible,
+.apple-field:focus-visible,
+.nav-item:focus-visible,
+.command-submit:focus-visible,
+.command-chip:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.apple-field {
+  min-height: 42px;
+  border-radius: var(--af-control-radius);
+  border-color: var(--af-hairline-strong);
+  transition:
+    border-color var(--af-motion-fast) ease-out,
+    background-color var(--af-motion-fast) ease-out,
+    box-shadow var(--af-motion-ui) var(--af-ease-soft);
+}
+
+.apple-field:hover {
+  border-color: color-mix(in oklab, var(--foreground) 22%, transparent);
+}
+
+.apple-field:focus {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+.apple-badge {
+  border-radius: 999px;
+  min-height: 24px;
+  align-items: center;
+  backdrop-filter: blur(10px) saturate(1.15);
+  -webkit-backdrop-filter: blur(10px) saturate(1.15);
+}
+
+/* Liquid lens should materialize as one object, not look like stacked glass. */
+.liquid,
+.lens-surface {
+  border-radius: var(--af-panel-radius);
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    border-color var(--af-motion-ui) ease-out,
+    box-shadow var(--af-motion-surface) var(--af-ease-soft),
+    background-color var(--af-motion-ui) ease-out;
+}
+
+[data-visual-style="glass"] .liquid,
+[data-visual-style="glass"] .lens-surface {
+  backdrop-filter: blur(30px) saturate(1.48);
+  -webkit-backdrop-filter: blur(30px) saturate(1.48);
+}
+
+/* Modal/sheet hierarchy: heavier material and a clear anchored surface. */
+[role="dialog"][aria-modal="true"] {
+  border-radius: var(--af-sheet-radius);
+  border-color: var(--af-hairline-strong) !important;
+  box-shadow: 0 32px 90px -34px rgba(0,0,0,0.78), 0 1px 0 rgba(255,255,255,0.08) inset;
+}
+
+[data-visual-style="glass"] [role="dialog"][aria-modal="true"] {
+  backdrop-filter: blur(30px) saturate(1.48);
+  -webkit-backdrop-filter: blur(30px) saturate(1.48);
+}
+
+/* Tables remain still. Only the row under the pointer responds. */
+.workbench tbody td {
+  transition: background-color var(--af-motion-fast) ease-out;
+}
+
+/* Links that are visually presented as cards should feel pressable on pointer-down. */
+a.terminal-panel {
+  transform-origin: center;
+  transition:
+    transform var(--af-motion-fast) var(--af-ease-out),
+    border-color var(--af-motion-fast) ease-out,
+    box-shadow var(--af-motion-ui) var(--af-ease-soft);
+}
+
+a.terminal-panel:active {
+  transform: translateY(var(--af-press-y)) scale(0.994);
+}
+
+/* Scrollbars recede until needed, similar to overlay scroll indicators. */
+.shell-nav {
+  scrollbar-width: thin;
+  scrollbar-color: transparent transparent;
+}
+
+.shell-nav:hover {
+  scrollbar-color: var(--border-strong) transparent;
+}
+
+.shell-nav::-webkit-scrollbar-thumb {
+  background: transparent;
+}
+
+.shell-nav:hover::-webkit-scrollbar-thumb {
+  background: var(--border-strong);
+}
+
+/* High-contrast and transparency preferences are structural, not cosmetic. */
+@media (prefers-reduced-transparency: reduce) {
+  [data-visual-style="glass"] .shell-rail,
+  [data-visual-style="glass"] .shell-chrome,
+  [data-visual-style="glass"] .liquid,
+  [data-visual-style="glass"] .lens-surface,
+  [data-visual-style="glass"] [role="dialog"][aria-modal="true"],
+  .apple-badge {
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    background: var(--panel);
+  }
+}
+
+@media (prefers-contrast: more) {
+  .shell-rail,
+  .shell-chrome,
+  .terminal-panel,
+  .apple-card,
+  .apple-field,
+  .apple-control,
+  [role="dialog"][aria-modal="true"] {
+    border-color: color-mix(in oklab, var(--foreground) 42%, transparent) !important;
+  }
+
+  [data-visual-style="glass"] .shell-rail,
+  [data-visual-style="glass"] .shell-chrome,
+  [data-visual-style="glass"] .terminal-panel {
+    background: var(--panel);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-item,
+  .nav-item .nav-icon,
+  .apple-control,
+  .apple-field,
+  .command-submit,
+  .command-chip,
+  .liquid,
+  .lens-surface,
+  a.terminal-panel,
+  [role="dialog"][aria-modal="true"] {
+    transition-duration: 1ms !important;
+    animation-duration: 1ms !important;
+    animation-iteration-count: 1 !important;
+    transform: none !important;
+  }
+}
+
+@media (max-width: 767px) {
+  .display-xl {
+    letter-spacing: -0.045em;
+    line-height: 0.97;
+  }
+
+  .hub-hero {
+    padding-top: 14px;
+  }
+
+  .shell-chrome {
+    top: 8px;
+    margin: 8px 8px 0;
+    border-radius: 16px;
+  }
+
+  [data-visual-style="glass"] .shell-chrome {
+    backdrop-filter: blur(18px) saturate(1.32);
+    -webkit-backdrop-filter: blur(18px) saturate(1.32);
+  }
+
+  [role="dialog"][aria-modal="true"] {
+    border-radius: 22px;
+  }
+}
