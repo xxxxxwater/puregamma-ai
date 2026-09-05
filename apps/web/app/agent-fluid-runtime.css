@@ -1,0 +1,375 @@
+/*
+ * Agent Chat physical interaction layer.
+ *
+ * No scripted duration owns the important motion here. Sidebar width and the
+ * mobile history sheet are driven by requestAnimationFrame springs in
+ * agent-fluid-interactions.tsx. This stylesheet only defines materials,
+ * geometry and state appearance around those presentation values.
+ */
+
+.apple-agent-workspace .agent-shell-grid {
+  --agent-history-width: 244px;
+  grid-template-columns: var(--agent-history-width) minmax(0, 1fr);
+  transition: none !important;
+  contain: paint;
+}
+
+.apple-agent-workspace .agent-desktop-history {
+  min-width: 0;
+  will-change: width;
+}
+
+/* Direct-manipulation buttons must never have CSS transform interpolation;
+   their inline transform is updated 1:1 with pointer movement. */
+.apple-agent-workspace .agent-fluid-press {
+  -webkit-tap-highlight-color: transparent;
+  touch-action: manipulation;
+  transform-origin: center;
+  will-change: transform;
+  transition-property: background-color, border-color, color, opacity, box-shadow !important;
+  transition-duration: var(--af-motion-fast) !important;
+}
+
+.apple-agent-workspace .agent-fluid-press:focus-visible {
+  outline: none;
+  box-shadow: 0 0 0 3px var(--accent-ring);
+}
+
+/* ── Streaming: alive, never theatrical ─────────────────────────────── */
+.apple-agent-workspace .agent-message-assistant {
+  position: relative;
+  transition: border-color var(--af-motion-ui) ease-out;
+}
+
+.apple-agent-workspace .agent-message-assistant.is-streaming {
+  border-left-color: color-mix(in oklab, var(--accent) 68%, var(--border-strong)) !important;
+}
+
+.apple-agent-workspace .agent-message-assistant.is-streaming::before {
+  content: "";
+  position: absolute;
+  left: -1px;
+  top: 0;
+  width: 1px;
+  height: 42px;
+  border-radius: 999px;
+  background: linear-gradient(180deg, transparent, var(--accent), transparent);
+  opacity: 0.72;
+  animation: agent-live-rail 1.7s ease-in-out infinite;
+  pointer-events: none;
+}
+
+.agent-stream-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  min-height: 20px;
+  padding: 0 7px;
+  border: 1px solid color-mix(in oklab, var(--accent) 22%, transparent);
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--accent) 7%, transparent);
+  color: color-mix(in oklab, var(--accent) 76%, var(--foreground));
+  font-size: 9px;
+  font-weight: 650;
+  letter-spacing: 0.08em;
+}
+
+.agent-stream-live > span {
+  width: 5px;
+  height: 5px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 30%, transparent);
+  animation: agent-live-dot 1.35s var(--af-ease-soft) infinite;
+}
+
+@keyframes agent-live-rail {
+  0%, 100% { opacity: 0.24; transform: translateY(0); }
+  50% { opacity: 0.9; transform: translateY(11px); }
+}
+
+@keyframes agent-live-dot {
+  0%, 100% { opacity: 0.52; box-shadow: 0 0 0 0 color-mix(in oklab, var(--accent) 28%, transparent); }
+  50% { opacity: 1; box-shadow: 0 0 0 4px transparent; }
+}
+
+/* ── Mobile history: drag sheet ─────────────────────────────────────── */
+.agent-mobile-toolbar {
+  position: relative;
+  z-index: 4;
+  align-items: center;
+  gap: 9px;
+  min-height: 54px;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--af-agent-line);
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+}
+
+[data-visual-style="glass"] .agent-mobile-toolbar {
+  backdrop-filter: blur(22px) saturate(1.3);
+  -webkit-backdrop-filter: blur(22px) saturate(1.3);
+}
+
+.agent-mobile-history-backdrop {
+  position: absolute;
+  inset: 0;
+  z-index: 70;
+  border: 0;
+  background: color-mix(in oklab, #000 58%, transparent);
+  opacity: 0;
+  pointer-events: none;
+  touch-action: none;
+}
+
+.agent-mobile-history-backdrop.is-open {
+  pointer-events: auto;
+}
+
+.agent-mobile-history-sheet {
+  --agent-sheet-progress: 0;
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: 80;
+  display: flex;
+  width: min(320px, 100%);
+  flex-direction: column;
+  border-right: 1px solid var(--af-hairline-strong);
+  background: color-mix(in oklab, var(--panel) 97%, transparent);
+  box-shadow: 22px 0 70px -34px rgba(0,0,0,calc(0.55 * var(--agent-sheet-progress)));
+  transform: translate3d(-320px,0,0);
+  will-change: transform;
+  pointer-events: none;
+}
+
+[data-visual-style="glass"] .agent-mobile-history-sheet {
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  backdrop-filter: blur(30px) saturate(1.42);
+  -webkit-backdrop-filter: blur(30px) saturate(1.42);
+}
+
+.agent-mobile-history-sheet.is-open {
+  pointer-events: auto;
+}
+
+.agent-mobile-history-grab {
+  position: relative;
+  display: flex;
+  min-height: 72px;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 12px 10px;
+  border-bottom: 1px solid var(--af-agent-line);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+}
+
+.agent-mobile-history-grab:active {
+  cursor: grabbing;
+}
+
+.agent-mobile-history-grab > span:first-child {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  width: 34px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklab, var(--foreground) 16%, transparent);
+  transform: translateX(-50%);
+}
+
+.agent-mobile-history-sheet .group > button:first-child {
+  border-radius: 14px;
+}
+
+/* ── Anchored research settings ─────────────────────────────────────── */
+.agent-settings-anchor {
+  position: relative;
+  z-index: 12;
+}
+
+.agent-settings-trigger {
+  position: relative;
+  z-index: 2;
+  border-radius: 16px !important;
+  border-color: var(--af-hairline) !important;
+  background: color-mix(in oklab, var(--panel) 92%, transparent) !important;
+  box-shadow: 0 1px 0 rgba(255,255,255,0.045) inset;
+}
+
+.agent-settings-trigger svg:last-child {
+  transition: transform var(--af-motion-ui) var(--af-ease-out);
+}
+
+.agent-settings-dismiss {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  border: 0;
+  background: transparent;
+  cursor: default;
+}
+
+.agent-settings-sheet {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 10px);
+  left: 0;
+  z-index: 70;
+  overflow: hidden;
+  max-height: min(62dvh, 620px);
+  border: 1px solid var(--af-hairline-strong);
+  border-radius: 22px;
+  background: color-mix(in oklab, var(--panel) 98%, transparent);
+  box-shadow: 0 28px 88px -34px rgba(0,0,0,0.78), 0 1px 0 rgba(255,255,255,0.07) inset;
+  transform-origin: 50% 100%;
+  animation: agent-settings-materialize 180ms var(--af-ease-out) both;
+}
+
+[data-visual-style="glass"] .agent-settings-sheet {
+  background: color-mix(in oklab, var(--panel) 88%, transparent);
+  backdrop-filter: blur(30px) saturate(1.38);
+  -webkit-backdrop-filter: blur(30px) saturate(1.38);
+}
+
+.agent-settings-sheet-head,
+.agent-settings-sheet-foot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 11px 13px;
+  border-color: var(--af-agent-line);
+  font-size: 11px;
+}
+
+.agent-settings-sheet-head {
+  border-bottom: 1px solid var(--af-agent-line);
+  font-weight: 650;
+}
+
+.agent-settings-sheet-body {
+  max-height: min(48dvh, 490px);
+  overflow-y: auto;
+  padding: 13px;
+  overscroll-behavior: contain;
+}
+
+.agent-settings-sheet-foot {
+  border-top: 1px solid var(--af-agent-line);
+  color: var(--muted-2);
+}
+
+@keyframes agent-settings-materialize {
+  from { opacity: 0; transform: translateY(8px) scale(0.982); filter: blur(4px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+
+/* ── Composer: one lens, physical embedded controls ─────────────────── */
+.apple-agent-workspace .agent-composer {
+  position: relative;
+  isolation: isolate;
+  overflow: visible;
+}
+
+.apple-agent-workspace .agent-composer::before {
+  content: "";
+  position: absolute;
+  z-index: -1;
+  inset: -1px;
+  border-radius: 21px;
+  background: radial-gradient(180px 72px at 82% 100%, color-mix(in oklab, var(--accent) 9%, transparent), transparent 72%);
+  opacity: 0;
+  transition: opacity var(--af-motion-ui) ease-out;
+  pointer-events: none;
+}
+
+.apple-agent-workspace .agent-composer:focus-within::before {
+  opacity: 1;
+}
+
+.apple-agent-workspace .agent-composer-action {
+  flex: 0 0 auto;
+  user-select: none;
+}
+
+.apple-agent-workspace .agent-composer-send {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.42) inset, 0 8px 22px -14px rgba(0,0,0,0.74);
+}
+
+.apple-agent-workspace .agent-composer-send:not(:disabled):hover {
+  box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 10px 28px -14px rgba(0,0,0,0.82);
+}
+
+.apple-agent-workspace .agent-composer-stop {
+  background: color-mix(in oklab, var(--negative) 5%, transparent);
+}
+
+.apple-agent-workspace .agent-composer-input {
+  transition: color var(--af-motion-fast) ease-out;
+}
+
+@media (max-width: 1023px) {
+  .apple-agent-workspace .agent-shell-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .apple-agent-workspace .agent-composer-dock {
+    padding-bottom: max(12px, env(safe-area-inset-bottom));
+  }
+}
+
+@media (max-width: 639px) {
+  .apple-agent-workspace .agent-settings-sheet {
+    right: -2px;
+    left: -2px;
+    max-height: min(68dvh, 620px);
+    border-radius: 20px;
+  }
+
+  .agent-settings-sheet-body {
+    max-height: min(54dvh, 500px);
+  }
+
+  .apple-agent-workspace .agent-composer {
+    gap: 5px;
+    padding: 5px;
+    border-radius: 18px;
+  }
+
+  .apple-agent-workspace .agent-composer > button {
+    min-width: 42px !important;
+    width: 42px !important;
+    height: 44px !important;
+    border-radius: 13px !important;
+  }
+
+  .apple-agent-workspace .agent-composer textarea {
+    min-height: 44px !important;
+    padding: 10px 6px !important;
+  }
+}
+
+@media (prefers-reduced-transparency: reduce) {
+  [data-visual-style="glass"] .agent-mobile-toolbar,
+  [data-visual-style="glass"] .agent-mobile-history-sheet,
+  [data-visual-style="glass"] .agent-settings-sheet {
+    background: var(--panel);
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .apple-agent-workspace .agent-message-assistant.is-streaming::before,
+  .agent-stream-live > span,
+  .agent-settings-sheet {
+    animation: none !important;
+  }
+
+  .apple-agent-workspace .agent-message-assistant.is-streaming::before {
+    opacity: 0.72;
+    transform: none;
+  }
+}
