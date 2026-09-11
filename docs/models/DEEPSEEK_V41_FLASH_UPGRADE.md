@@ -126,29 +126,84 @@ Historical request logs and ledger rows are never rewritten.
 
 ## 7. Rollback
 
-1. **Environment** — set `DEEPSEEK_MODEL=deepseek-v4-flash` and restart the API
-   and worker containers. Both names are accepted upstream, but be aware that
-   this does **not** restore the old V4 Flash model: DeepSeek retired it and
-   serves V4.1 Flash for either name. Rolling the string back cannot bring the
-   old model back.
-2. **Code** — redeploy the previous commit SHA recorded in the deployment log.
-3. **Gateway catalog** — the previous catalog file reruns bootstrap and creates
-   a new pending revision for the old prices; it must be approved before the
-   old price applies. Previously approved revisions are marked `superseded`,
-   not deleted.
-4. **Database** — migration `0031_deepseek_v41_flash_defaults` only changes a
+Roll back in this order; each step is independent.
+
+1. **Routing only (no rebuild).** Set `KIMI_AUTO_ROUTE=true` and/or
+   `OPENAI_LUNA_AUTO_ROUTE=true` in the production `.env` and restart the
+   `api`, `worker` and `scheduler` containers. This restores the previous
+   automatic routing without a code change.
+2. **Images.** The previous images are tagged before every build, for example
+   `puregamma-ai-api:rollback-pre-v41-<timestamp>`. Point the compose override
+   back at them and recreate the services:
+   `docker compose -f docker-compose.production.yml -f docker-compose.v41-override.yml up -d --force-recreate api worker scheduler web`.
+   Removing `docker-compose.v41-override.yml` entirely returns every service to
+   its `build:` definition.
+3. **Environment.** A timestamped copy of the pre-upgrade `.env` is written to
+   `/var/backups/puregamma/.env.pre-v41-*`. Restore it and restart the API,
+   worker and scheduler.
+4. **Model name.** Setting `DEEPSEEK_MODEL=deepseek-v4-flash` is accepted
+   upstream, but be aware that this does **not** restore the old V4 Flash
+   model: DeepSeek retired it and serves V4.1 Flash for either name. Rolling
+   the string back cannot bring the old model back.
+5. **Database.** Migration `0031_deepseek_v41_flash_defaults` only changes a
    server default and is reversible with `alembic downgrade -1`. No historical
-   row was modified, so downgrading does not corrupt any record.
-5. **Routing lanes** — set `KIMI_AUTO_ROUTE=true` and/or
-   `OPENAI_LUNA_AUTO_ROUTE=true` to restore the previous automatic routing
-   without a code change.
+   row was modified, so downgrading corrupts nothing. The data backup taken
+   before the upgrade is `/var/backups/puregamma/postgres-<timestamp>.dump`.
+6. **Gateway catalog.** Restoring the previous `config/gateway/providers.yaml`
+   and re-running the activation script creates a new *pending* revision for
+   the old prices; it must be approved before the old price applies.
+   Previously approved revisions are marked `superseded`, never deleted, so
+   historical billing records keep their original tariff.
 
 ## 8. Verification
 
 ```bash
-# real upstream contract
+# offline contract tests
 python -m pytest tests/unit/test_model_router.py tests/unit/test_llm_provider.py
-python -m pytest tests/security/test_harness_contract.py tests/gateway
+python -m pytest tests/unit/test_deepseek_v41_flash_provider.py
+python -m pytest tests/gateway tests/security/test_harness_contract.py
 ```
 
-See `docs/DEPLOYMENT_CHECKLIST.md` for the production acceptance sequence.
+Production acceptance must exercise the real upstream, not a mock:
+
+```bash
+# 1. the model the deployment actually resolves
+docker exec -e PYTHONPATH=/app -w /app puregamma-ai-api-1 python -c \
+  "from apps.api.config import get_settings as g; s=g(); print(s.deepseek_effective_model, s.deepseek_thinking_enabled)"
+
+# 2. the Gateway catalog and an external call
+curl -s https://api.puregamma.ai/gateway/catalog | head -c 400
+curl -s https://api.puregamma.ai/v1/models -H "Authorization: Bearer sk-pg-..."
+
+# 3. confirm the log rows name the model that really ran
+docker exec puregamma-ai-postgres-1 psql -U puregamma -d puregamma -c \
+  "select created_at, provider, model, task_type, status from llm_call_logs order by created_at desc limit 5;"
+docker exec puregamma-ai-postgres-1 psql -U puregamma -d puregamma -c \
+  "select public_model, status, input_tokens, output_tokens, reasoning_tokens, retail_cost_usd from gateway_request_logs order by created_at desc limit 5;"
+```
+
+`routing.prompt_tokens`/`completion_tokens` come from the provider's `usage`
+object, and `reasoning_tokens` is carried separately because DeepSeek includes
+it inside `completion_tokens`.
+
+## 9. Known limitations at the time of this upgrade
+
+* **Homepage product preview.** `apps/web/app/[locale]/page.tsx`,
+  `apps/web/components/model-upgrade.tsx` and the `model-upgrade` message
+  namespace are present in the working tree as unfinished work from another
+  change. The preview component does not compile against the current
+  `getMessageNamespace` typing (`Property 'stateLive' does not exist`), so it
+  is **not** part of this release and is not deployed. The homepage advertises
+  the upgrade through `landing.footerSlides`, and the API docs page
+  (`/zh/api`, `/en/api`) shows the full model card, availability state and
+  compatibility alias from the live catalog.
+* **Kimi lane.** `kimi-k3-max` remains `pending` with no approved price
+  revision, exactly as before this upgrade. `KIMI_AUTO_ROUTE=true` therefore
+  degrades to DeepSeek until an operator approves the Moonshot price.
+* **Peak/off-peak pricing.** The catalog stores off-peak USD prices. DeepSeek
+  charges 2x during peak hours; the extra cost currently lands on the margin
+  rather than on the customer.
+* **Specialised models were not migrated.** Speech synthesis/recognition,
+  embeddings and reranking do not run on DeepSeek; their providers and model
+  ids are unchanged (see the audit table in the deployment report).
+
