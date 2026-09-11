@@ -43,7 +43,8 @@ from packages.database.models import (  # noqa: E402
     GatewayPriceRevision,
     GatewayProvider,
 )
-from packages.database.session import SessionLocal  # noqa: E402from packages.gateway.catalog import provider_catalog  # noqa: E402
+from packages.database.session import SessionLocal  # noqa: E402
+from packages.gateway.catalog import provider_catalog  # noqa: E402
 from packages.gateway.metadata import (  # noqa: E402
     approve_price_revision,
     bootstrap_gateway_catalog,
