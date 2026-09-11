@@ -34,7 +34,7 @@ for m in models.data:
 
 # 对话
 response = client.chat.completions.create(
-    model="deepseek-v4-pro",
+    model="deepseek-flash",
     messages=[
         {"role": "system", "content": "You are a helpful assistant."},
         {"role": "user", "content": "Hello, how are you?"},
@@ -44,7 +44,7 @@ print(response.choices[0].message.content)
 
 # 流式输出
 stream = client.chat.completions.create(
-    model="deepseek-v4-flash",
+    model="deepseek-flash",
     messages=[{"role": "user", "content": "Write a short poem."}],
     stream=True,
 )
@@ -68,7 +68,7 @@ const client = new OpenAI({
 });
 
 const completion = await client.chat.completions.create({
-  model: "deepseek-v4-pro",
+  model: "deepseek-flash",
   messages: [{ role: "user", content: "Hello" }],
 });
 console.log(completion.choices[0].message.content);
@@ -104,7 +104,7 @@ curl -s https://api.puregamma.ai/v1/chat/completions \
   -H "Authorization: Bearer sk-pg-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx" \
   -H "Content-Type: application/json" \
   -d '{
-    "model": "deepseek-v4-flash",
+    "model": "deepseek-flash",
     "messages": [{"role": "user", "content": "你好，介绍一下自己"}]
   }' | python3 -m json.tool
 
@@ -141,7 +141,7 @@ func main() {
 	resp, err := client.CreateChatCompletion(
 		context.Background(),
 		openai.ChatCompletionRequest{
-			Model: "deepseek-v4-pro",
+			Model: "deepseek-flash",
 			Messages: []openai.ChatCompletionMessage{
 				{Role: "user", Content: "Hello!"},
 			},
@@ -174,7 +174,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let client = Client::with_config(config);
 
     let request = async_openai::types::CreateChatCompletionRequestArgs::default()
-        .model("deepseek-v4-flash")
+        .model("deepseek-flash")
         .messages(vec![async_openai::types::ChatCompletionRequestMessage::User(
             async_openai::types::ChatCompletionRequestUserMessageArgs::default()
                 .content("Hello from Rust!")
@@ -194,7 +194,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 from langchain_openai import ChatOpenAI
 
 llm = ChatOpenAI(
-    model="deepseek-v4-pro",
+    model="deepseek-flash",
     openai_api_key="sk-pg-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
     openai_api_base="https://api.puregamma.ai/v1",
 )
@@ -211,9 +211,9 @@ print(response.content)
 {
   "models": [
     {
-      "title": "DeepSeek V4 Pro (PureGamma)",
+      "title": "DeepSeek V4.1 Flash (PureGamma)",
       "provider": "openai",
-      "model": "deepseek-v4-pro",
+      "model": "deepseek-flash",
       "apiKey": "sk-pg-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
       "apiBase": "https://api.puregamma.ai/v1"
     },
@@ -241,7 +241,7 @@ Settings → Models → Add Model:
 
 | 字段 | 值 |
 |------|-----|
-| Model Name | `deepseek-v4-pro` / `kimi-k3-max` / `glm-5.2` |
+| Model Name | `deepseek-flash` / `kimi-k3-max` / `glm-5.2` |
 | API Key | `sk-pg-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx` |
 | Base URL | `https://api.puregamma.ai/v1` |
 
@@ -267,20 +267,24 @@ OPENAI_PROXY_URL=https://api.puregamma.ai/v1
 
 ## 可用模型
 
-| 模型 ID | 名称 | 能力 |
-|---------|------|------|
-| `deepseek-v4-pro` | DeepSeek V4 Pro | Chat, Streaming, Tools, JSON |
-| `deepseek-v4-flash` | DeepSeek V4 Flash | Chat, Streaming, Tools, JSON |
-| `kimi-k3-max` | Kimi K3 Max (Moonshot) | Chat, Streaming, Tools, JSON |
-| `glm-5.2` | GLM 5.2 (智谱) | Chat, Streaming, Tools, JSON |
+| 模型 ID | 名称 | 上游模型 ID | 能力 |
+|---------|------|-------------|------|
+| `deepseek-flash` | DeepSeek V4.1 Flash（默认推荐） | `deepseek-flash` | Chat, Streaming, Tools, JSON, 思考模式, 图像理解 |
+| `deepseek-flash` | DeepSeek V4.1 Flash（旧 ID 兼容别名） | `deepseek-flash` | 同上；DeepSeek 已下线旧模型并将该 ID 路由到 V4.1 Flash |
+| `deepseek-v4-pro` | DeepSeek V4 Pro | `deepseek-v4-pro` | Chat, Streaming, Tools, JSON；DeepSeek 公告自 2026-09-14 12:00（北京时间）起路由至 V4.1 Flash |
+| `kimi-k3-max` | Kimi K3 Max (Moonshot) | `kimi-k3` | Chat, Streaming, Tools, JSON |
+| `glm-5.2` | GLM 5.2 (智谱) | `glm-5.2` | Chat, Streaming, Tools, JSON |
 
-模型可用性取决于管理员是否已批准定价并启用对应 Provider。
+模型可用性取决于管理员是否已批准定价并启用对应 Provider。各行由各自官方上游提供服务；指定其他厂商模型不会被静默改派到 DeepSeek。
+
+调用后可通过响应体 `model` 字段核对实际提供服务的模型。
 
 ---
 
 ## 费用
 
 - 按实际 token 消耗计费，定价为官方价格 + 30% markup
+- DeepSeek 官方对 V4.1 Flash 采用峰谷定价：**上表金额为闲时价格，高峰时段（北京时间周一至周五 09:00-12:00、14:00-18:00）为闲时的 2 倍**。价格同步自官方定价页并需管理员审批后生效。
 - 在 [app.puregamma.ai/gateway](https://app.puregamma.ai/gateway) 查看实时消耗仪表盘
 - 每月消费上限在用户设置中配置
 

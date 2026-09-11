@@ -214,7 +214,25 @@ def public_model_catalog(db: Session, *, markup_bps: int) -> list[dict[str, Any]
                     "metadata": {
                         key: value
                         for key, value in metadata.items()
-                        if key in {"billing_region", "pricing_status", "official_currency", "reasoning_priced_as"}
+                        if key
+                        in {
+                            "billing_region",
+                            "pricing_status",
+                            "official_currency",
+                            "reasoning_priced_as",
+                            # Surfaced so API customers can see that the
+                            # published DeepSeek tariff is off-peak and that
+                            # peak hours cost a multiple of it.
+                            "pricing_period",
+                            "peak_multiplier",
+                            "official_prices_cny",
+                            # Alias provenance: which canonical id a
+                            # compatibility id maps to upstream.
+                            "canonical_model_id",
+                            "compatibility_alias",
+                            "retirement_scheduled",
+                            "retirement_note",
+                        }
                     },
                     "availability": availability,
                     "pricing": snapshot,

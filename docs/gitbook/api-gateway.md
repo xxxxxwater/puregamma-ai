@@ -30,7 +30,7 @@ client = OpenAI(
 for model in client.models.list().data:
     print(model.id)
 response = client.chat.completions.create(
-    model="deepseek-v4-flash",
+    model="deepseek-flash",
     messages=[{"role": "user", "content": "用一句话解释复利。"}],
 )
 print(response.choices[0].message.content)
@@ -46,7 +46,7 @@ const client = new OpenAI({
   baseURL: "https://api.puregamma.ai/v1",
 });
 const result = await client.chat.completions.create({
-  model: "deepseek-v4-flash",
+  model: "deepseek-flash",
   messages: [{ role: "user", content: "Hello." }],
 });
 console.log(result.choices[0].message.content);
@@ -65,7 +65,7 @@ Content-Type: application/json
 ```
 ```json
 {
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "messages": [
     {"role": "system", "content": "You are concise."},
     {"role": "user", "content": "Explain an ETF."}
@@ -78,7 +78,7 @@ Content-Type: application/json
 ### 流式响应
 ```python
 stream = client.chat.completions.create(
-    model="deepseek-v4-flash",
+    model="deepseek-flash",
     messages=[{"role": "user", "content": "写一首四行短诗。"}],
     stream=True,
 )
@@ -91,7 +91,7 @@ for chunk in stream:
 ### JSON 与工具调用
 ```python
 response = client.chat.completions.create(
-    model="deepseek-v4-pro",
+    model="deepseek-flash",
     messages=[{"role": "user", "content": "给出一个 JSON 格式的待办事项。"}],
     response_format={"type": "json_object"},
 )

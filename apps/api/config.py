@@ -17,6 +17,52 @@ def _csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
 
+# ---------------------------------------------------------------------------
+# DeepSeek model identity
+# ---------------------------------------------------------------------------
+# DeepSeek V4.1 Flash shipped on 2026-09-10. The official API model name is
+# ``deepseek-flash``; the display name is "DeepSeek V4.1 Flash".
+# https://api-docs.deepseek.com/news/news260910
+#
+# ``DEEPSEEK_DISPLAY_NAME`` is what users see. ``DEEPSEEK_MODEL`` is what we
+# send upstream. They are deliberately separate: never build a model id from
+# the display name (``deepseek-v4.1-flash`` does not exist and must never be
+# used in production).
+DEEPSEEK_MODEL_FLASH = "deepseek-flash"
+DEEPSEEK_DISPLAY_NAME = "DeepSeek V4.1 Flash"
+
+# Retired upstream model names that DeepSeek still accepts for compatibility.
+# Per the official release note, ``deepseek-v4-flash`` and
+# ``deepseek-v4-flash-vision-exp`` are routed to V4.1 Flash while the older
+# models are offline. We normalise these to ``deepseek-flash`` so every log,
+# ledger row, and metric records the model that actually served the request.
+DEEPSEEK_LEGACY_MODEL_ALIASES: dict[str, str] = {
+    "deepseek-v4-flash": DEEPSEEK_MODEL_FLASH,
+    "deepseek-v4-flash-0731": DEEPSEEK_MODEL_FLASH,
+    "deepseek-v4-flash-vision-exp": DEEPSEEK_MODEL_FLASH,
+}
+
+# ``deepseek-v4-pro`` is a *different* model until 2026-09-14 12:00 Beijing
+# time, and afterwards DeepSeek routes it to V4.1 Flash at Flash prices. It is
+# intentionally NOT in the alias map: silently rewriting it would misreport
+# which model served a request before that cut-over. The gateway catalog keeps
+# it as its own upstream id.
+DEEPSEEK_UNCHANGED_MODELS: frozenset[str] = frozenset({"deepseek-v4-pro"})
+
+
+def normalize_deepseek_model(model: str | None, *, fallback: str | None = None) -> str:
+    """Return the upstream-effective DeepSeek model id for a configured value.
+
+    A retired-but-accepted name is mapped to the model that actually serves it.
+    An unknown name is returned unchanged: we never rewrite a model the caller
+    explicitly asked for into a different one.
+    """
+    candidate = (model or "").strip()
+    if not candidate:
+        return fallback or DEEPSEEK_MODEL_FLASH
+    return DEEPSEEK_LEGACY_MODEL_ALIASES.get(candidate.lower(), candidate)
+
+
 @dataclass(frozen=True)
 class Settings:
     database_url: str = os.getenv("DATABASE_URL", "sqlite:///./puregamma.db")
@@ -109,8 +155,9 @@ class Settings:
     llm_model: str = os.getenv("LLM_MODEL", os.getenv("OPENAI_MODEL", ""))
     deepseek_api_key: str = os.getenv("DEEPSEEK_API_KEY", "")
     deepseek_base_url: str = os.getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
-    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", "deepseek-v4-flash")
+    deepseek_model: str = os.getenv("DEEPSEEK_MODEL", DEEPSEEK_MODEL_FLASH)
     deepseek_thinking_mode: str = os.getenv("DEEPSEEK_THINKING_MODE", "disabled")
+    deepseek_reasoning_effort: str = os.getenv("DEEPSEEK_REASONING_EFFORT", "high")
     deepseek_timeout_seconds: int = int(
         os.getenv("DEEPSEEK_TIMEOUT_SECONDS", "60") or 60
     )
@@ -123,6 +170,25 @@ class Settings:
         os.getenv("KIMI_TIMEOUT_SECONDS", "60") or 60
     )
     kimi_enabled: bool = os.getenv("KIMI_ENABLED", "false").lower() == "true"
+    # ---- Automatic (non-user-selected) routing policy ---------------------
+    # DeepSeek V4.1 Flash is now the platform default for every automatically
+    # routed task: chat, agents, summaries, classification, deep research and
+    # background jobs. These two flags decide whether the older secondary
+    # models may still be chosen AUTOMATICALLY for their historical task types.
+    #
+    # They default to false because V4.1 Flash supersedes V4 Pro on quality per
+    # DeepSeek's own benchmarks and undercuts both alternatives on price, so
+    # paying for a second model on an unselected request is no longer justified.
+    #
+    # Neither flag affects an EXPLICIT request. A user who picks GPT-5.6 Luna in
+    # the agent model selector, and a gateway customer who names a model in
+    # ``POST /v1/chat/completions``, are always honoured, never silently
+    # rewritten to DeepSeek. Setting either flag back to true restores that
+    # model as an automatic route for its task types.
+    openai_luna_auto_route: bool = (
+        os.getenv("OPENAI_LUNA_AUTO_ROUTE", "false").lower() == "true"
+    )
+    kimi_auto_route: bool = os.getenv("KIMI_AUTO_ROUTE", "false").lower() == "true"
     # The public AI gateway is opt-in so existing PureGamma deployments do not
     # begin serving third-party API traffic before provider credentials and a
     # dedicated key pepper have been provisioned.
@@ -484,6 +550,11 @@ class Settings:
     harness_run_max_budget_credits: int = int(
         os.getenv("HARNESS_RUN_MAX_BUDGET_CREDITS", "150") or 150
     )
+    # The Gateway *public* model id used by Harness research runs. It is a
+    # separate namespace from DEEPSEEK_MODEL (an upstream provider model id)
+    # because Gateway routing resolves its own catalog records. Empty means
+    # "follow the platform DeepSeek default".
+    harness_research_model: str = os.getenv("HARNESS_RESEARCH_MODEL", "")
 
     # ---- Automated trading foundation (additive, default OFF) ----
     auto_trading_mandates_enabled: bool = (
@@ -569,6 +640,49 @@ class Settings:
     )
 
     @property
+    def deepseek_effective_model(self) -> str:
+        """The upstream model id that actually serves platform requests.
+
+        ``DEEPSEEK_MODEL`` may still hold a retired name (for example a
+        deployment that has not rolled its env yet). The value returned here is
+        the model that upstream really runs, so logs, ledgers and metrics stay
+        truthful instead of recording an alias.
+        """
+        return normalize_deepseek_model(self.deepseek_model)
+
+    @property
+    def deepseek_display_name(self) -> str:
+        """The user-facing name for the DeepSeek model in use."""
+        if self.deepseek_effective_model == DEEPSEEK_MODEL_FLASH:
+            return DEEPSEEK_DISPLAY_NAME
+        return self.deepseek_effective_model
+
+    @property
+    def deepseek_thinking_enabled(self) -> bool:
+        """Whether DeepSeek chain-of-thought reasoning is requested.
+
+        DeepSeek V4.1 Flash enables thinking by default with effort ``high``.
+        That default is wrong for this platform's latency-sensitive paths
+        (agent chat, streaming, daily reports): every answer pays extra
+        reasoning tokens and a longer time-to-first-token. Production therefore
+        disables it explicitly. Setting ``DEEPSEEK_THINKING_MODE`` to
+        ``enabled`` opts back in for callers that want deeper reasoning.
+        """
+        return str(self.deepseek_thinking_mode or "").strip().lower() in {
+            "enabled",
+            "on",
+            "true",
+            "yes",
+            "auto",
+            "default",
+        }
+
+    @property
+    def deepseek_effective_reasoning_effort(self) -> str:
+        effort = str(self.deepseek_reasoning_effort or "").strip().lower()
+        return effort if effort in {"low", "high", "max"} else "high"
+
+    @property
     def auto_trading_live_effective(self) -> bool:
         """Phase 1: ALWAYS False.
 
@@ -585,6 +699,18 @@ class Settings:
     def harness_research_available(self) -> bool:
         """True only when the feature flag is enabled at all."""
         return self.harness_research_enabled
+
+    @property
+    def harness_effective_model(self) -> str:
+        """Gateway public model id used for Harness research runs.
+
+        Falls back to the platform DeepSeek default, which after the V4.1 Flash
+        upgrade is the ``deepseek-flash`` catalog entry. The Gateway resolves
+        this as a *public* id, so it must exist in ``gateway_models`` with an
+        approved price revision before a run can execute; the activation script
+        in ``scripts/activate-deepseek-v41-flash.py`` performs that step.
+        """
+        return (self.harness_research_model or "").strip() or self.deepseek_effective_model
 
     @property
     def rpc_urls(self) -> dict[str, str]:

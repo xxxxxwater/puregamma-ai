@@ -25,7 +25,7 @@ client = OpenAI(
 for model in client.models.list().data:
     print(model.id)
 completion = client.chat.completions.create(
-    model="deepseek-v4-flash",
+    model="deepseek-flash",
     messages=[{"role": "user", "content": "Explain compound interest in one sentence."}],
 )
 print(completion.choices[0].message.content)
@@ -37,7 +37,7 @@ const client = new OpenAI({
   baseURL: "https://api.puregamma.ai/v1",
 });
 const completion = await client.chat.completions.create({
-  model: "deepseek-v4-flash",
+  model: "deepseek-flash",
   messages: [{ role: "user", content: "Hello." }],
 });
 console.log(completion.choices[0].message.content);
@@ -54,7 +54,7 @@ Content-Type: application/json
 ```
 ```json
 {
-  "model": "deepseek-v4-flash",
+  "model": "deepseek-flash",
   "messages": [{"role": "user", "content": "Explain an ETF."}],
   "temperature": 0.2,
   "max_tokens": 300
@@ -63,7 +63,7 @@ Content-Type: application/json
 Enabled chat models support ordinary responses, Server-Sent Event streaming, JSON mode, Tool Calling / Function Calling, and usage fields. Check each model's `capabilities` in `/v1/models` before relying on a feature.
 ```python
 stream = client.chat.completions.create(
-    model="deepseek-v4-flash",
+    model="deepseek-flash",
     messages=[{"role": "user", "content": "Write a four-line poem."}],
     stream=True,
 )

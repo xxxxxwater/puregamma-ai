@@ -24,9 +24,18 @@ class ModelRouterUnavailable(RuntimeError):
 
 @dataclass(frozen=True)
 class ModelRoute:
+    """Where an automatic task will actually run, and why.
+
+    ``provider_name`` is the provider that will execute the request. When a
+    secondary lane was *preferred* but could not be used, ``preferred_provider``
+    records it so the degradation is visible instead of silently losing the
+    fact that an intended model was unreachable.
+    """
+
     provider_name: str
     model: str
     reason: str
+    preferred_provider: str | None = None
 
 
 # Fast chat / classification / summaries -> deepseek.
@@ -83,14 +92,50 @@ class ModelRouter:
     # Routing
     # ------------------------------------------------------------------
     def route_for_task(self, task_type: str, *, plan: str | None = None) -> ModelRoute:
+        """Choose the provider for an AUTOMATICALLY routed task.
+
+        Since the DeepSeek V4.1 Flash release the platform default is one
+        model for every automatic task. The historical Kimi/Luna lanes are kept
+        as opt-in routes (``KIMI_AUTO_ROUTE`` / ``OPENAI_LUNA_AUTO_ROUTE``) and
+        are only selected when the operator re-enables them AND the provider is
+        actually usable. An unavailable secondary provider must never take the
+        request down with it: it falls back to DeepSeek and the reason is
+        recorded on the route so logs show why.
+        """
         settings = self.settings
+        default_model = settings.deepseek_effective_model
         if task_type in KIMI_TASK_TYPES:
-            return ModelRoute("kimi", settings.kimi_model or "kimi-k3", "long_context_synthesis")
+            if settings.kimi_auto_route and self._kimi_usable():
+                return ModelRoute("kimi", settings.kimi_model or "kimi-k3", "long_context_synthesis")
+            if settings.kimi_auto_route:
+                return ModelRoute(
+                    "deepseek",
+                    default_model,
+                    "kimi_unavailable",
+                    preferred_provider="kimi",
+                )
+            return ModelRoute("deepseek", default_model, "kimi_lane_consolidated_on_deepseek")
         if task_type in LUNA_TASK_TYPES:
-            return ModelRoute("openai", settings.openai_luna_model, "deep_analysis")
+            if settings.openai_luna_auto_route and self._luna_usable(plan):
+                return ModelRoute("openai", settings.openai_luna_model, "deep_analysis")
+            if settings.openai_luna_auto_route:
+                return ModelRoute(
+                    "deepseek",
+                    default_model,
+                    "luna_unavailable",
+                    preferred_provider="openai",
+                )
+            return ModelRoute("deepseek", default_model, "luna_lane_consolidated_on_deepseek")
         if task_type in DEEPSEEK_TASK_TYPES:
-            return ModelRoute("deepseek", settings.deepseek_model or "deepseek-v4-flash", "fast_task")
-        return ModelRoute("deepseek", settings.deepseek_model or "deepseek-v4-flash", "default")
+            return ModelRoute("deepseek", default_model, "fast_task")
+        return ModelRoute("deepseek", default_model, "default")
+
+    def _kimi_usable(self) -> bool:
+        provider = KimiProvider(self.settings)
+        return bool(provider.configured)
+
+    def _luna_usable(self, plan: str | None) -> bool:
+        return bool(self._luna_provider(plan).configured)
 
     # ------------------------------------------------------------------
     # Provider builders
@@ -177,11 +222,14 @@ class ModelRouter:
     ) -> LLMResponse:
         route = self.route_for_task(task_type, plan=plan)
         failures: list[str] = []
+        # A provider that is merely not configured for use as a *fallback* is not
+        # a degradation: nothing failed and the routed provider served the call.
+        unavailable_fallbacks: list[str] = []
         configured_chain: list[tuple[str, LLMProvider]] = []
         for label, builder in self._fallback_chain(route, plan):
             provider = builder()
             if not provider.configured:
-                failures.append(f"{label} not configured: {provider.last_error}")
+                unavailable_fallbacks.append(f"{label} not configured: {provider.last_error}")
                 continue
             configured_chain.append((label, provider))
         if not configured_chain:
@@ -196,8 +244,19 @@ class ModelRouter:
             if response is None:
                 failures.append(f"{label} call failed: {error}")
                 continue
+            if route.preferred_provider and route.preferred_provider != label:
+                failures.append(
+                    f"{route.preferred_provider} preferred but unavailable: {route.reason}"
+                )
             if failures or label != route.provider_name:
-                response.metadata.update({"degraded": True, "requested_provider": route.provider_name, "reason": "; ".join(failures)})
+                response.metadata.update({
+                    "degraded": True,
+                    "requested_provider": route.preferred_provider or route.provider_name,
+                    "reason": "; ".join(failures),
+                })
+            response.metadata["route_reason"] = route.reason
+            if unavailable_fallbacks:
+                response.metadata["unavailable_fallbacks"] = unavailable_fallbacks
             return response
         raise ModelRouterUnavailable("ALL_PROVIDERS_FAILED: " + "; ".join(failures))
 
@@ -227,11 +286,17 @@ class ModelRouter:
             return response.content
 
         # Step 1: Kimi synthesizes the evidence pack and extracts agreements/contradictions.
+        # Since V4.1 Flash became the platform default this stage only runs
+        # when the operator explicitly re-enables Kimi auto-routing. The task
+        # is still recorded as skipped (with the reason) so the artifact shows
+        # which lanes were not exercised.
         kimi_task = "deep_research_kimi_synthesis"
         kimi = self._kimi_provider()
         kimi_synthesis: str | None = None
         contradictions: list[str] = []
-        if not kimi.configured:
+        if not self.settings.kimi_auto_route:
+            _skip("kimi", kimi.model, kimi_task, "kimi_lane_consolidated_on_deepseek")
+        elif not kimi.configured:
             _skip("kimi", kimi.model, kimi_task, kimi.last_error)
         else:
             kimi_prompt = (
@@ -250,7 +315,9 @@ class ModelRouter:
         luna_task = "deep_research_luna_review"
         luna = self._luna_provider(plan)
         luna_review: str | None = None
-        if not luna.configured:
+        if not self.settings.openai_luna_auto_route:
+            _skip("openai", luna.model, luna_task, "luna_lane_consolidated_on_deepseek")
+        elif not luna.configured:
             _skip("openai", luna.model, luna_task, luna.last_error)
         else:
             luna_prompt = (
@@ -284,7 +351,7 @@ class ModelRouter:
                 conclusion = result
                 break
         if not synthesizer_ran and not any(item["task_type"] == final_task for item in skipped):
-            _skip("deepseek", self.settings.deepseek_model or "deepseek-v4-flash", final_task, "unavailable")
+            _skip("deepseek", self.settings.deepseek_effective_model, final_task, "unavailable")
 
         return {
             "conclusion": conclusion,
@@ -326,10 +393,16 @@ class ModelRouter:
                 },
             },
             "routing": {
-                "deepseek": sorted(DEEPSEEK_TASK_TYPES),
-                "openai": sorted(LUNA_TASK_TYPES),
-                "kimi": sorted(KIMI_TASK_TYPES),
+                "deepseek": sorted(DEEPSEEK_TASK_TYPES | KIMI_TASK_TYPES | LUNA_TASK_TYPES),
+                "openai": sorted(LUNA_TASK_TYPES) if settings.openai_luna_auto_route else [],
+                "kimi": sorted(KIMI_TASK_TYPES) if settings.kimi_auto_route else [],
                 "default": "deepseek",
+                "note": (
+                    "Automatic routing targets DeepSeek V4.1 Flash. Kimi and Luna "
+                    "remain available for explicit user selection and can be "
+                    "re-enabled for automatic routing with KIMI_AUTO_ROUTE / "
+                    "OPENAI_LUNA_AUTO_ROUTE."
+                ),
             },
             "fallback_chain": ["routed", "deepseek", "openai"],
         }

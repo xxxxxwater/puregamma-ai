@@ -71,16 +71,29 @@ def final_prices(official_prices: dict[str, Any], markup_bps: int) -> dict[str, 
 
 
 def usage_cost(prices: dict[str, Any], usage: GatewayUsage) -> Decimal:
+    """Cost one request from a normalized price map and its provider usage.
+
+    Two subset rules matter for DeepSeek V4.1 Flash and are enforced here so a
+    catalog with a `reasoning` or `long_context` rate can never double-bill:
+
+    * ``reasoning_tokens`` is a subset of ``completion_tokens`` (verified
+      against the live API: completion_tokens=35 with reasoning_tokens=33).
+    * ``cache_tokens`` is a subset of the prompt, billed at the cache tariff
+      instead of the input tariff, never in addition to it.
+    """
     total = Decimal("0")
     normalized = normalize_official_prices(prices)
+    # Reasoning tokens are only carved out of the output tariff when the catalog
+    # defines a separate reasoning rate. Without one they stay part of the
+    # completion and must be billed at the output tariff, never dropped.
+    bill_reasoning_separately = normalized.get("reasoning") is not None
     for key, field in {**TOKEN_PRICE_KEYS, **UNIT_PRICE_KEYS}.items():
         item = normalized.get(key)
         amount = int(getattr(usage, field))
-        # OpenAI-compatible providers normally report prompt_tokens as the
-        # complete prompt and cached_tokens as a subset. Bill cache misses at
-        # the input tariff and hits at the cache tariff, never both.
         if key == "input":
             amount = max(0, amount - max(0, int(usage.cache_tokens)))
+        elif key == "output" and bill_reasoning_separately:
+            amount = max(0, amount - max(0, int(usage.reasoning_tokens)))
         if not item or amount <= 0:
             continue
         price = decimal_value(item["usd"])

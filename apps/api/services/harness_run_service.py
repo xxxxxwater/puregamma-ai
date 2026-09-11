@@ -23,7 +23,7 @@ from typing import Any
 from sqlalchemy.orm import Session
 from sqlalchemy.orm.attributes import flag_modified
 
-from apps.api.config import get_settings
+from apps.api.config import get_settings, normalize_deepseek_model
 from packages.database.models import (
     EvidenceSnapshot,
     HarnessResearchRun,
@@ -185,10 +185,21 @@ def create_harness_run(
 
     from apps.api.services.credit_service import quote_task, reserve_task
 
+    # The harness research model is the platform default from configuration,
+    # never a literal. `run.model` is used as the Gateway *public* model id and
+    # `run.provider` names the owning provider, so both come from the same
+    # resolved setting the rest of the platform uses.
+    # HARNESS_RESEARCH_MODEL (empty by default) follows the platform DeepSeek
+    # default; a retired name resolves to the model that actually serves it.
+    research_provider = settings.agent_provider or settings.llm_provider or "deepseek"
+    research_model = normalize_deepseek_model(
+        settings.harness_research_model or settings.deepseek_model
+    )
+
     quote = quote_task(
         task_type="research_run",
-        requested_model="deepseek-v4-flash",
-        resolved_model="deepseek-v4-flash",
+        requested_model=research_model,
+        resolved_model=research_model,
         input_tokens=max(1, len(prompt) // 4),
         output_tokens=MAX_ARTIFACT_TOKENS,
         tool_calls=["get_market_series", "get_options_context"],
@@ -206,8 +217,8 @@ def create_harness_run(
         runtime_version=PINNED_HARNESS_VERSIONS.runtime_bin_version,
         cordis_config_hash=MINIMAL_CORDIS_COMPOSITION.config_hash(),
         plugin_lock_hash=PINNED_HARNESS_VERSIONS.plugin_lock_hash,
-        provider="deepseek",
-        model="deepseek-v4-flash",
+        provider=research_provider,
+        model=research_model,
         max_budget_credits=settings.harness_run_max_budget_credits,
         credits_reserved=int(quote.credits),
         timeout_at=utcnow() + timedelta(seconds=settings.harness_run_timeout_seconds),
@@ -614,7 +625,7 @@ def _execute_run(db: Session, run: HarnessResearchRun) -> dict[str, Any]:
 
     actual_quote = quote_task(
         task_type="research_run",
-        requested_model="deepseek-v4-flash",
+        requested_model=run.model,
         resolved_model=run.model,
         input_tokens=max(1, input_tokens),
         output_tokens=max(1, output_tokens),

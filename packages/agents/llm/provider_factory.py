@@ -51,11 +51,24 @@ def llm_status(settings: Settings | None = None) -> dict:
     provider = get_llm_provider(settings)
     requested = (settings.llm_provider or "mock").lower()
     status = "healthy" if provider.provider_name == requested and provider.configured else "mock" if provider.provider_name == "mock" else "degraded"
-    model = settings.deepseek_model if requested == "deepseek" else settings.openai_model if requested == "openai" else provider.model
+    # Report the model that actually runs upstream, not a possibly-retired
+    # configured name. `deepseek_effective_model` resolves legacy ids such as
+    # deepseek-v4-flash to DeepSeek V4.1 Flash (deepseek-flash).
+    model = (
+        settings.deepseek_effective_model
+        if requested == "deepseek"
+        else settings.openai_model
+        if requested == "openai"
+        else provider.model
+    )
     return {
         "provider": requested,
         "active_provider": provider.provider_name,
         "model": model or provider.model,
+        # The raw configured value, kept for operators so a legacy name in the
+        # environment is visible rather than silently rewritten.
+        "configured_model": settings.deepseek_model if requested == "deepseek" else settings.openai_model or None,
+        "display_name": settings.deepseek_display_name if requested == "deepseek" else None,
         "configured": provider.provider_name == requested and provider.configured,
         "status": status,
         "last_error": provider.last_error,

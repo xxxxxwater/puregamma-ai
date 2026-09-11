@@ -2008,7 +2008,10 @@ class HarnessResearchRun(Base, TimestampMixin):
     cordis_config_hash = Column(String, nullable=False)
     plugin_lock_hash = Column(String, nullable=False)
     provider = Column(String, nullable=False, default="deepseek")
-    model = Column(String, nullable=False, default="deepseek-v4-flash")
+    # Official DeepSeek API model name for V4.1 Flash. DEEPSEEK_MODEL resolves
+    # through Settings.deepseek_effective_model; this ORM default only applies
+    # when an insert path omits the column entirely.
+    model = Column(String, nullable=False, default="deepseek-flash")
     session_id = Column(String, nullable=True, index=True)
     queue_task_id = Column(String, nullable=True, index=True)
     queue_priority = Column(Integer, nullable=False, default=0)

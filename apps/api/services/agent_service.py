@@ -314,7 +314,13 @@ def _resolve_agent_model(db: Session, user: User, selected_model: str | None) ->
     settings = get_settings()
     selection = selected_model or "default"
     if selection == "default":
-        model = settings.agent_model or settings.llm_model or settings.deepseek_model or "not-configured"
+        # The automatic Agent default is the platform DeepSeek model, resolved
+        # exactly as the router would resolve an agent_chat task so that the
+        # quoted, reserved and settled model always match what is executed.
+        from packages.agents.llm.model_router import ModelRouter
+
+        route = ModelRouter(settings).route_for_task("agent_chat")
+        model = settings.agent_model or route.model or settings.deepseek_effective_model
         return selection, model
     if selection != settings.openai_luna_model:
         raise AgentModelInvalidError("AGENT_MODEL_INVALID")

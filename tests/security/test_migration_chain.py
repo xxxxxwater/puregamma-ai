@@ -56,14 +56,14 @@ def test_single_alembic_head():
     heads = revisions - parents
     assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
     head = next(iter(heads))
-    assert head == "0029_photon_inbound_tasks"
+    assert head == "0031_deepseek_v41_flash_defaults"
 
 
 def test_chain_is_connected_and_acyclic():
     graph = _load_graph()
     # Walk the chain from the head back to the root; detect missing parents
     # and cycles by visited-count (a cycle would require re-visiting a node).
-    stack = ["0029_photon_inbound_tasks"]
+    stack = ["0031_deepseek_v41_flash_defaults"]
     visited: set[str] = set()
     while stack:
         revision = stack.pop()
@@ -101,6 +101,33 @@ def test_memory_consent_migration_revises_membership_tier():
 def test_photon_inbound_tasks_migration_revises_memory_consent():
     graph = _load_graph()
     assert graph["0029_photon_inbound_tasks"] == "0028_user_memory_consent"
+
+
+def test_x_inbound_tasks_migration_revises_photon_inbound_tasks():
+    graph = _load_graph()
+    assert graph["0030_x_inbound_tasks"] == "0029_photon_inbound_tasks"
+
+
+def test_deepseek_v41_flash_defaults_migration_revises_x_inbound_tasks():
+    graph = _load_graph()
+    assert graph["0031_deepseek_v41_flash_defaults"] == "0030_x_inbound_tasks"
+
+
+def test_deepseek_v41_flash_migration_only_changes_a_default():
+    """The upgrade must not rewrite history.
+
+    The migration is allowed to change the harness research model *default*.
+    Any UPDATE/ALTER of existing model values would falsify the record of which
+    model actually served a historical run.
+    """
+    path = os.path.join(VERSIONS_DIR, "0031_deepseek_v41_flash_defaults.py")
+    with open(path, encoding="utf-8") as fh:
+        source = fh.read()
+
+    assert "UPDATE" not in source.upper().replace("OP.EXECUTE", "")
+    assert "op.execute" not in source
+    assert "bulk_update" not in source
+    assert "deepseek-flash" in source
 
 
 def test_migration_files_have_matching_revision_headers():

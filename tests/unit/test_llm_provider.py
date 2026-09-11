@@ -22,7 +22,11 @@ def test_deepseek_missing_key_falls_back_to_mock_and_logs_redacted_prompt(db, de
 
     assert status["provider"] == "deepseek"
     assert status["active_provider"] == "mock"
-    assert status["model"] == "deepseek-v4-flash"
+    # The status reports the model that would actually run upstream, plus the
+    # raw configured value, so a retired name in the environment stays visible.
+    assert status["model"] == "deepseek-flash"
+    assert status["configured_model"] == "deepseek-v4-flash"
+    assert status["display_name"] == "DeepSeek V4.1 Flash"
     assert status["configured"] is False
     assert log.status == "fallback_mock"
     assert "[REDACTED]" in log.prompt_summary
@@ -37,4 +41,12 @@ def test_deepseek_status_reports_configured_provider_without_calling_network():
     assert status["provider"] == "deepseek"
     assert status["active_provider"] == "deepseek"
     assert status["configured"] is True
-    assert status["model"] == "deepseek-v4-flash"
+    assert status["model"] == "deepseek-flash"
+
+
+def test_status_model_is_already_canonical_for_new_deployments():
+    settings = Settings(llm_provider="deepseek", deepseek_api_key="test-only", deepseek_model="deepseek-flash")
+    status = llm_status(settings)
+
+    assert status["model"] == "deepseek-flash"
+    assert status["configured_model"] == "deepseek-flash"

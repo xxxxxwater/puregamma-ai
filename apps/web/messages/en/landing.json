@@ -113,6 +113,7 @@
     }
   ],
   "footerSlides": [
-    "Now live: Kimi K3, GPT-5.6 Luna, DeepSeek V4 Flash 0731, open routing API and Agent."
+    "DeepSeek V4.1 Flash is now available: it is the default model for our chat, agent, report and research workloads.",
+    "Now live: Kimi K3, GPT-5.6 Luna and DeepSeek V4.1 Flash in the open routing API."
   ]
 }

@@ -45,6 +45,91 @@ providers:
     display_name: DeepSeek
     health_path: models
     models:
+      # DeepSeek V4.1 Flash (released 2026-09-10). Official API model name is
+      # `deepseek-flash`; the previous `deepseek-v4-flash` name still resolves
+      # to this same model. Pricing below is the OFF-PEAK official tariff
+      # converted at the operator-approved 6.6 CNY/USD rate. DeepSeek also
+      # charges a peak tariff (Mon-Fri 09:00-12:00 and 14:00-18:00 Beijing
+      # time) exactly 2x these amounts; review the peak/off-peak spread against
+      # the markup policy before treating this as a margin-safe rate.
+      # https://api-docs.deepseek.com/quick_start/pricing/
+      - public_id: deepseek-flash
+        provider_model_id: deepseek-flash
+        display_name: DeepSeek V4.1 Flash
+        capabilities:
+          chat: true
+          stream: true
+          tool_calling: true
+          json_mode: true
+          reasoning: true
+          context_cache: true
+          vision: true
+          max_context_tokens: 1048576
+          max_output_tokens: 393216
+        metadata:
+          reasoning_priced_as: output
+          pricing_period: off_peak
+          official_currency: CNY
+          official_prices_cny:
+            input: "1"
+            output: "4"
+            cache: "0.02"
+          peak_multiplier: "2"
+          source_published_at: "2026-09-10"
+        official_prices:
+          input:
+            usd: "0.15151515"
+            unit: per_million_tokens
+            description: cache-miss input (off-peak)
+          output:
+            usd: "0.60606061"
+            unit: per_million_tokens
+            description: output (off-peak)
+          cache:
+            usd: "0.00303030"
+            unit: per_million_tokens
+            description: cache-hit input (off-peak)
+        source_reference: https://api-docs.deepseek.com/quick_start/pricing/
+      # Compatibility alias. The name is still accepted by DeepSeek and routed
+      # to V4.1 Flash, so it is kept as a first-class catalog entry with the
+      # same upstream id and the same reviewed price rather than being dropped.
+      - public_id: deepseek-v4-flash
+        provider_model_id: deepseek-flash
+        display_name: DeepSeek V4.1 Flash (legacy id alias)
+        capabilities:
+          chat: true
+          stream: true
+          tool_calling: true
+          json_mode: true
+          reasoning: true
+          context_cache: true
+          vision: true
+          max_context_tokens: 1048576
+          max_output_tokens: 393216
+        metadata:
+          reasoning_priced_as: output
+          pricing_period: off_peak
+          official_currency: CNY
+          canonical_model_id: deepseek-flash
+          compatibility_alias: "true"
+        official_prices:
+          input:
+            usd: "0.15151515"
+            unit: per_million_tokens
+            description: cache-miss input (off-peak)
+          output:
+            usd: "0.60606061"
+            unit: per_million_tokens
+            description: output (off-peak)
+          cache:
+            usd: "0.00303030"
+            unit: per_million_tokens
+            description: cache-hit input (off-peak)
+        source_reference: https://api-docs.deepseek.com/quick_start/pricing/
+      # DeepSeek V4 Pro. Announced for orderly retirement: from 2026-09-14
+      # 12:00 Beijing time requests to this id are routed to V4.1 Flash and
+      # billed at V4.1 Flash prices. It stays a distinct catalog entry until
+      # that cut-over so historical attribution remains correct.
       - public_id: deepseek-v4-pro
         provider_model_id: deepseek-v4-pro
         display_name: DeepSeek V4 Pro
@@ -59,45 +144,23 @@ providers:
           max_output_tokens: 393216
         metadata:
           reasoning_priced_as: output
+          pricing_period: off_peak
+          official_currency: CNY
+          retirement_scheduled: "2026-09-14T12:00+08:00"
+          retirement_note: requests route to DeepSeek V4.1 Flash after the scheduled cut-over
         official_prices:
           input:
-            usd: "0.435"
+            usd: "0.68181818"
             unit: per_million_tokens
-            description: cache-miss input
+            description: cache-miss input (off-peak)
           output:
-            usd: "0.87"
+            usd: "2.04545455"
             unit: per_million_tokens
+            description: output (off-peak)
           cache:
-            usd: "0.003625"
+            usd: "0.02272727"
             unit: per_million_tokens
-            description: cache-hit input
-        source_reference: https://api-docs.deepseek.com/quick_start/pricing/
-      - public_id: deepseek-v4-flash
-        provider_model_id: deepseek-v4-flash
-        display_name: DeepSeek V4 Flash
-        capabilities:
-          chat: true
-          stream: true
-          tool_calling: true
-          json_mode: true
-          reasoning: true
-          context_cache: true
-          max_context_tokens: 1048576
-          max_output_tokens: 393216
-        metadata:
-          reasoning_priced_as: output
-        official_prices:
-          input:
-            usd: "0.14"
-            unit: per_million_tokens
-            description: cache-miss input
-          output:
-            usd: "0.28"
-            unit: per_million_tokens
-          cache:
-            usd: "0.0028"
-            unit: per_million_tokens
-            description: cache-hit input
+            description: cache-hit input (off-peak)
         source_reference: https://api-docs.deepseek.com/quick_start/pricing/
   glm:
     display_name: Zhipu AI

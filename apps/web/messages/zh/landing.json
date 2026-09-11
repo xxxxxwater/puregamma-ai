@@ -113,6 +113,7 @@
     }
   ],
   "footerSlides": [
-    "已上线 Kimi K3、GPT5.6 Luna、DeepSeek v4 flash 0731 等 Model，开放路由 API 和 DeepSeek Harness 均已上线"
+    "现已支持 DeepSeek V4.1 Flash：作为对话、Agent、报告与研究任务的默认模型。",
+    "已上线 Kimi K3、GPT5.6 Luna 与 DeepSeek V4.1 Flash，开放路由 API 可用。"
   ]
 }

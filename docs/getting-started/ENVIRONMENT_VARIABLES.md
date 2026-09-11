@@ -40,9 +40,13 @@ Sensitivity levels:
 | `LLM_MODEL` | No | empty | `gpt-4.1-mini` | Pin model per environment before production. | Internal |
 | `DEEPSEEK_API_KEY` | Required when `LLM_PROVIDER=deepseek` | empty | `...` | Keep blank in examples and store real values only in secret manager or local `.env`. | Secret |
 | `DEEPSEEK_BASE_URL` | No | `https://api.deepseek.com` | `https://api.deepseek.com` | OpenAI-compatible base URL. | Internal |
-| `DEEPSEEK_MODEL` | No | `deepseek-v4-flash` | `deepseek-v4-flash` | Default DeepSeek model for research generation. | Internal |
-| `DEEPSEEK_THINKING_MODE` | No | `disabled` | `disabled` | Reserved for provider-specific reasoning controls. | Internal |
-| `DEEPSEEK_TIMEOUT_SECONDS` | No | `60` | `60` | Keep finite to protect worker latency. | Internal |
+| `DEEPSEEK_MODEL` | No | `deepseek-flash` | `deepseek-flash` | Official API model name for DeepSeek V4.1 Flash (display name "DeepSeek V4.1 Flash"). The retired `deepseek-v4-flash` name still resolves to the same model but must not be used as a new default. Never set `deepseek-v4.1-flash`; it does not exist. | Internal |
+| `DEEPSEEK_THINKING_MODE` | No | `disabled` | `disabled` | DeepSeek V4.1 Flash enables thinking (effort=high) by default, which spends output tokens before any visible answer. Set to `enabled` to opt in on reasoning-heavy paths. | Internal |
+| `DEEPSEEK_REASONING_EFFORT` | No | `high` | `high` | Only used when `DEEPSEEK_THINKING_MODE=enabled`. DeepSeek accepts `low`, `high`, `max`. | Internal |
+| `DEEPSEEK_TIMEOUT_SECONDS` | No | `60` | `60` | Keep finite to protect worker latency. Thinking mode increases time-to-first-token, so raise it if reasoning is enabled. | Internal |
+| `OPENAI_LUNA_AUTO_ROUTE` | No | `false` | `false` | When false, automatically routed tasks that historically targeted the Luna/OpenAI lane run on DeepSeek V4.1 Flash instead. An explicit user-selected Luna model is always honoured. | Internal |
+| `KIMI_AUTO_ROUTE` | No | `false` | `false` | When false, automatically routed long-context tasks run on DeepSeek V4.1 Flash instead of Kimi. An explicit Kimi request through the Gateway is unaffected. | Internal |
+| `HARNESS_RESEARCH_MODEL` | No | empty | `deepseek-flash` | Gateway public model id for Harness research runs. Empty follows `DEEPSEEK_MODEL`. Must exist in `gateway_models` with an approved price revision. | Internal |
 ## Stripe
 | Variable | Required | Default | Example | Production notes | Sensitivity |
 | --- | --- | --- | --- | --- | --- |

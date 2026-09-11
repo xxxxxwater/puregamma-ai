@@ -4,6 +4,9 @@
 !.env.example
 *.pem
 *.key
+*.jks
+.secrets/
+stripekey.md
 
 # Python
 .venv/

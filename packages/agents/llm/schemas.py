@@ -19,6 +19,10 @@ class LLMResponse:
     prompt_tokens: int = 0
     completion_tokens: int = 0
     total_tokens: int = 0
+    # Chain-of-thought tokens reported by the provider. These are already
+    # included in ``completion_tokens``; they are carried separately for
+    # observability and must never be added to it when costing a request.
+    reasoning_tokens: int = 0
     estimated_cost_usd: float = 0.0
     cache_hit: bool = False
     error_message: str | None = None

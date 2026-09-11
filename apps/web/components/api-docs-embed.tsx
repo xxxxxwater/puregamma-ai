@@ -28,36 +28,52 @@ const baseUrl = "https://api.puregamma.ai/v1";
 const docsBaseUrl = (process.env.NEXT_PUBLIC_DOCS_URL || "https://puregamma-ai.gitbook.io/puregamma-ai").replace(/\/+$/, "");
 
 const modelNarratives = {
-  "deepseek-v4-flash": {
+  "deepseek-flash": {
     en: {
-      title: "DeepSeek V4 Flash",
+      title: "DeepSeek V4.1 Flash",
       badge: "Default",
       summary: "Low-latency chat, batch workloads, and value-oriented production paths.",
-      detail: "A fast OpenAI-compatible choice for assistant features, automation, classification, and workloads where response time and cost control matter.",
+      detail: "DeepSeek's current Flash generation, released 10 September 2026. It supersedes the previous V4 Flash build on quality while costing less, and it is the default route for PureGamma chat, agent, report and research workloads. Thinking mode is available but disabled by default on these paths.",
       bestFor: "Fast chat · batch jobs · cost-sensitive workloads",
     },
     zh: {
-      title: "DeepSeek V4 Flash",
+      title: "DeepSeek V4.1 Flash",
       badge: "默认",
       summary: "低延迟对话、批量任务和性价比优先场景。",
-      detail: "适合助手对话、自动化、分类与批量处理；在响应速度和成本控制都重要的生产路径中作为默认选择。",
+      detail: "DeepSeek 于 2026 年 9 月 10 日发布的当前 Flash 代模型，能力超过上一代 V4 Flash 且价格更低，是 PureGamma 对话、Agent、报告与研究任务的默认路由。支持思考模式，但上述路径默认关闭。",
       bestFor: "快速对话 · 批量任务 · 成本敏感工作负载",
+    },
+  },
+  "deepseek-v4-flash": {
+    en: {
+      title: "DeepSeek V4.1 Flash (legacy id)",
+      badge: "Compatibility alias",
+      summary: "Retained so existing integrations keep working without a code change.",
+      detail: "DeepSeek retired the deepseek-v4-flash model and routes this id to DeepSeek V4.1 Flash. Requests and billing are identical to deepseek-flash; new integrations should use deepseek-flash.",
+      bestFor: "Existing integrations · migration window",
+    },
+    zh: {
+      title: "DeepSeek V4.1 Flash（旧 ID）",
+      badge: "兼容别名",
+      summary: "保留旧 ID，已有集成无需改代码即可继续调用。",
+      detail: "DeepSeek 已下线 deepseek-v4-flash 模型，该 ID 会被路由到 DeepSeek V4.1 Flash。请求行为与计费同 deepseek-flash 完全一致；新接入请直接使用 deepseek-flash。",
+      bestFor: "已有集成 · 迁移过渡期",
     },
   },
   "deepseek-v4-pro": {
     en: {
       title: "DeepSeek V4 Pro",
-      badge: "Complex tasks",
-      summary: "More demanding reasoning, code, and longer answer generation.",
-      detail: "Use this path when a request needs deeper reasoning, more involved coding, or a long, structured response rather than the lowest-latency route.",
-      bestFor: "Complex reasoning · code · long-form answers",
+      badge: "Being retired",
+      summary: "Scheduled to route to V4.1 Flash from 14 September 2026, 12:00 Beijing time.",
+      detail: "DeepSeek announced the orderly retirement of V4 Pro because V4.1 Flash outperforms it on their published benchmarks. After the announced cut-over this id is served by V4.1 Flash and billed at Flash prices. Use deepseek-flash directly for new work.",
+      bestFor: "Migration reference only",
     },
     zh: {
       title: "DeepSeek V4 Pro",
-      badge: "复杂任务",
-      summary: "更复杂的推理、代码与长回答。",
-      detail: "当请求需要更深推理、更复杂的代码工作或较长、结构化的回答时使用；不以最低延迟为目标。",
-      bestFor: "复杂推理 · 代码 · 长回答",
+      badge: "即将下线",
+      summary: "自北京时间 2026 年 9 月 14 日 12:00 起路由至 V4.1 Flash。",
+      detail: "DeepSeek 因 V4.1 Flash 在官方基准上全面超越 V4 Pro，已公告有序下线 V4 Pro。切换后该 ID 由 V4.1 Flash 提供服务并按 Flash 价格计费。新任务请直接使用 deepseek-flash。",
+      bestFor: "仅作迁移参考",
     },
   },
   "kimi-k3-max": {
@@ -97,6 +113,7 @@ const modelNarratives = {
 type ModelId = keyof typeof modelNarratives;
 
 const modelOrder: ModelId[] = [
+  "deepseek-flash",
   "deepseek-v4-flash",
   "deepseek-v4-pro",
   "kimi-k3-max",
@@ -232,7 +249,7 @@ export function ApiDocsEmbed() {
   const zh = locale === "zh";
   const docsUrl = zh ? `${docsBaseUrl}/api-gateway` : `${docsBaseUrl}/api-gateway-en`;
   const [catalog, setCatalog] = useState<GatewayCatalog | null>(null);
-  const [selectedId, setSelectedId] = useState<ModelId>("deepseek-v4-flash");
+  const [selectedId, setSelectedId] = useState<ModelId>("deepseek-flash");
   const [language, setLanguage] = useState<CodeLanguage>("curl");
 
   useEffect(() => {
@@ -255,6 +272,17 @@ export function ApiDocsEmbed() {
   const official = selectedCatalog?.pricing?.official || {};
   const final = selectedCatalog?.pricing?.final || {};
   const selectedName = narrative.title;
+  // Availability is read from the live catalog, never asserted in copy: the
+  // "live" wording only appears once the Gateway really serves the model.
+  const availabilityLabel = selectedCatalog
+    ? {
+        available: zh ? "已上线" : "Live",
+        pending_approval: zh ? "预览中 · 待价格审批" : "Preview · price pending approval",
+        provider_disabled: zh ? "暂不可用 · 渠道已停用" : "Unavailable · provider disabled",
+        setup_required: zh ? "配置中" : "Setup required",
+      }[selectedCatalog.availability]
+    : null;
+  const availabilityIsLive = selectedCatalog?.availability === "available";
 
   const snippets = {
     env: `# Server only — never expose this value to a browser or mobile app
@@ -486,7 +514,7 @@ PUREGAMMA_MODEL=${selectedId}
         <main className="order-2 min-w-0 space-y-5 xl:order-1">
           <section className="border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
-              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span></div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
+              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span>{availabilityLabel ? <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] rounded-lg ${availabilityIsLive ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{availabilityIsLive ? <Check className="h-3 w-3" /> : null}{availabilityLabel}</span> : null}</div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
               <div className="w-full border border-border-pg bg-bg-panel-muted p-3 text-left sm:w-auto sm:text-right rounded-lg"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.modelId}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg">{selectedId}</code><div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.upstream}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg-muted">{selectedCatalog?.provider_model_id || "—"}</code></div>
             </div>
             <div className="mt-5 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3 rounded-xl overflow-hidden">

@@ -70,13 +70,16 @@ SDK with a different base URL:
 from openai import OpenAI
 client = OpenAI(api_key="sk-pg-…", base_url="https://api.puregamma.ai/v1")
 response = client.chat.completions.create(
-    model="deepseek-v4-pro",
+    model="deepseek-flash",
     messages=[{"role": "user", "content": "Hello"}],
 )
 print(response.choices[0].message.content)
 ```
-Supported phase-1 model IDs are `kimi-k3-max`, `deepseek-v4-pro`,
-`deepseek-v4-flash`, and `glm-5.2`. `POST /v1/chat/completions` supports
+Supported model IDs are `deepseek-flash` (DeepSeek V4.1 Flash, the default),
+`deepseek-v4-flash` (compatibility alias for the retired V4 Flash id; DeepSeek
+routes it to V4.1 Flash), `deepseek-v4-pro`, `kimi-k3-max`, and `glm-5.2`. Each
+id is served by its own official upstream and is never silently swapped for a
+different model. `POST /v1/chat/completions` supports
 non-streaming and SSE streaming, JSON mode, tools/function calling, and usage
 fields. `GET /v1/models` returns only approved, active models.
 ## Operational boundaries

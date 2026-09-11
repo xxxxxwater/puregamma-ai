@@ -263,12 +263,12 @@ PureGamma exposes a first-party OpenAI-compatible API for paid users:
 from openai import OpenAI
 client = OpenAI(api_key="sk-pg-…", base_url="https://api.puregamma.ai/v1")
 response = client.chat.completions.create(
-    model="deepseek-v4-pro",
+    model="deepseek-flash",
     messages=[{"role": "user", "content": "Hello"}],
 )
 ```
 - Create a `sk-pg-…` key at `/gateway` (shown once; raw key material is never stored).
-- Phase-1 model IDs: `kimi-k3-max`, `deepseek-v4-pro`, `deepseek-v4-flash`, `glm-5.2`.
+- Model IDs: `deepseek-flash` (DeepSeek V4.1 Flash, the default), `deepseek-v4-flash` (compatibility alias for the retired V4 Flash id, served by V4.1 Flash), `deepseek-v4-pro`, `kimi-k3-max`, `glm-5.2`. Third-party models are served by their own official upstreams and are never silently swapped for DeepSeek.
 - `POST /v1/chat/completions` supports streaming, JSON mode, and tools; `GET /v1/models` lists only approved models.
 - Activation requires the database migration, `GATEWAY_ENABLED=true`, an allow-listed provider set, admin bootstrap/sync, and price-revision approval.
 - Usage can be prepaid through the gateway wallet (Stripe top-up) or metered against the subscription.
@@ -305,7 +305,9 @@ DeepSeek is available through the shared OpenAI-compatible LLM provider abstract
 LLM_PROVIDER=deepseek
 DEEPSEEK_API_KEY=
 DEEPSEEK_BASE_URL=https://api.deepseek.com
-DEEPSEEK_MODEL=deepseek-v4-flash
+# Official DeepSeek API model name for V4.1 Flash. Not the display name
+# "DeepSeek V4.1 Flash" and not "deepseek-v4.1-flash" (which does not exist).
+DEEPSEEK_MODEL=deepseek-flash
 ```
 Keep real API keys only in local `.env` or a secret manager. Missing keys fall back to mock mode locally and report `NOT_CONFIGURED` in production. Details: [DeepSeek](./docs/integrations/DEEPSEEK.md).
 ## iMessage Relay Setup
