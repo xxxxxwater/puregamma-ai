@@ -57,7 +57,9 @@ function DataRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1 border-t border-border-pg pt-2 first:border-t-0 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
       <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{label}</dt>
-      <dd className="min-w-0 break-all font-mono text-xs text-text-pg">{value}</dd>
+      {/* Muted, not `text-text-pg`: the primary token is tuned for headings and
+          loses contrast against the muted panel in the light theme. */}
+      <dd className="min-w-0 break-all font-mono text-xs text-text-pg-muted">{value}</dd>
     </div>
   );
 }
