@@ -114,6 +114,6 @@
   ],
   "footerSlides": [
     "DeepSeek V4.1 Flash is now available: it is the default model for our chat, agent, report and research workloads.",
-    "Now live: Kimi K3, GPT-5.6 Luna and DeepSeek V4.1 Flash in the open routing API."
+    "The Agent default route and the OpenAI-compatible API Gateway both serve DeepSeek V4.1 Flash (request id deepseek-flash)."
   ]
 }

@@ -1,0 +1,321 @@
+{
+  "gateway_enabled": true,
+  "markup_bps": 3000,
+  "updated_at": "2026-07-30T06:57:14.774380+00:00",
+  "models": [
+    {
+      "id": "kimi-k3-max",
+      "display_name": "Kimi K3",
+      "provider": "moonshot",
+      "provider_display_name": "Moonshot AI",
+      "provider_model_id": "kimi-k3",
+      "capabilities": {
+        "chat": true,
+        "stream": true,
+        "tool_calling": true,
+        "json_mode": true,
+        "reasoning": true,
+        "context_cache": true,
+        "max_context_tokens": 1048576
+      },
+      "metadata": {
+        "billing_region": "global",
+        "reasoning_priced_as": "output"
+      },
+      "availability": "pending_approval",
+      "pricing": {
+        "currency": "USD",
+        "official": {
+          "input": {
+            "amount": "3.0303",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input"
+          },
+          "output": {
+            "amount": "15.1515",
+            "unit": "per_million_tokens"
+          },
+          "cache": {
+            "amount": "0.303",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input"
+          }
+        },
+        "final": {
+          "input": {
+            "amount": "3.93939",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input"
+          },
+          "output": {
+            "amount": "19.69695",
+            "unit": "per_million_tokens"
+          },
+          "cache": {
+            "amount": "0.3939",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input"
+          }
+        },
+        "status": "catalog_unapproved"
+      },
+      "source_reference": "https://platform.kimi.ai/docs/pricing/chat-k3"
+    },
+    {
+      "id": "deepseek-flash",
+      "display_name": "DeepSeek V4.1 Flash",
+      "provider": "deepseek",
+      "provider_display_name": "DeepSeek",
+      "provider_model_id": "deepseek-flash",
+      "capabilities": {
+        "chat": true,
+        "stream": true,
+        "tool_calling": true,
+        "json_mode": true,
+        "reasoning": true,
+        "context_cache": true,
+        "vision": true,
+        "max_context_tokens": 1048576,
+        "max_output_tokens": 393216
+      },
+      "metadata": {
+        "reasoning_priced_as": "output",
+        "pricing_period": "off_peak",
+        "official_currency": "CNY",
+        "official_prices_cny": {
+          "input": "1",
+          "output": "4",
+          "cache": "0.02"
+        },
+        "peak_multiplier": "2"
+      },
+      "availability": "available",
+      "pricing": {
+        "currency": "USD",
+        "official": {
+          "input": {
+            "amount": "0.15151515",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input (off-peak)"
+          },
+          "output": {
+            "amount": "0.60606061",
+            "unit": "per_million_tokens",
+            "description": "output (off-peak)"
+          },
+          "cache": {
+            "amount": "0.0030303",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input (off-peak)"
+          }
+        },
+        "final": {
+          "input": {
+            "amount": "0.1969697",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input (off-peak)"
+          },
+          "output": {
+            "amount": "0.78787879",
+            "unit": "per_million_tokens",
+            "description": "output (off-peak)"
+          },
+          "cache": {
+            "amount": "0.00393939",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input (off-peak)"
+          }
+        },
+        "status": "active"
+      },
+      "source_reference": "https://api-docs.deepseek.com/quick_start/pricing/"
+    },
+    {
+      "id": "deepseek-v4-flash",
+      "display_name": "DeepSeek V4.1 Flash (legacy id alias)",
+      "provider": "deepseek",
+      "provider_display_name": "DeepSeek",
+      "provider_model_id": "deepseek-flash",
+      "capabilities": {
+        "chat": true,
+        "stream": true,
+        "tool_calling": true,
+        "json_mode": true,
+        "reasoning": true,
+        "context_cache": true,
+        "vision": true,
+        "max_context_tokens": 1048576,
+        "max_output_tokens": 393216
+      },
+      "metadata": {
+        "reasoning_priced_as": "output",
+        "pricing_period": "off_peak",
+        "official_currency": "CNY",
+        "canonical_model_id": "deepseek-flash",
+        "compatibility_alias": "true"
+      },
+      "availability": "available",
+      "pricing": {
+        "currency": "USD",
+        "official": {
+          "input": {
+            "amount": "0.15151515",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input (off-peak)"
+          },
+          "output": {
+            "amount": "0.60606061",
+            "unit": "per_million_tokens",
+            "description": "output (off-peak)"
+          },
+          "cache": {
+            "amount": "0.0030303",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input (off-peak)"
+          }
+        },
+        "final": {
+          "input": {
+            "amount": "0.1969697",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input (off-peak)"
+          },
+          "output": {
+            "amount": "0.78787879",
+            "unit": "per_million_tokens",
+            "description": "output (off-peak)"
+          },
+          "cache": {
+            "amount": "0.00393939",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input (off-peak)"
+          }
+        },
+        "status": "active"
+      },
+      "source_reference": "https://api-docs.deepseek.com/quick_start/pricing/"
+    },
+    {
+      "id": "deepseek-v4-pro",
+      "display_name": "DeepSeek V4 Pro",
+      "provider": "deepseek",
+      "provider_display_name": "DeepSeek",
+      "provider_model_id": "deepseek-v4-pro",
+      "capabilities": {
+        "chat": true,
+        "stream": true,
+        "tool_calling": true,
+        "json_mode": true,
+        "reasoning": true,
+        "context_cache": true,
+        "max_context_tokens": 1048576,
+        "max_output_tokens": 393216
+      },
+      "metadata": {
+        "reasoning_priced_as": "output",
+        "pricing_period": "off_peak",
+        "official_currency": "CNY",
+        "retirement_scheduled": "2026-09-14T12:00+08:00",
+        "retirement_note": "requests route to DeepSeek V4.1 Flash after the scheduled cut-over"
+      },
+      "availability": "available",
+      "pricing": {
+        "currency": "USD",
+        "official": {
+          "input": {
+            "amount": "0.68181818",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input (off-peak)"
+          },
+          "output": {
+            "amount": "2.04545455",
+            "unit": "per_million_tokens",
+            "description": "output (off-peak)"
+          },
+          "cache": {
+            "amount": "0.02272727",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input (off-peak)"
+          }
+        },
+        "final": {
+          "input": {
+            "amount": "0.88636363",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input (off-peak)"
+          },
+          "output": {
+            "amount": "2.65909092",
+            "unit": "per_million_tokens",
+            "description": "output (off-peak)"
+          },
+          "cache": {
+            "amount": "0.02954545",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input (off-peak)"
+          }
+        },
+        "status": "active"
+      },
+      "source_reference": "https://api-docs.deepseek.com/quick_start/pricing/"
+    },
+    {
+      "id": "glm-5.2",
+      "display_name": "GLM 5.2",
+      "provider": "glm",
+      "provider_display_name": "Zhipu AI",
+      "provider_model_id": "glm-5.2",
+      "capabilities": {
+        "chat": true,
+        "stream": true,
+        "tool_calling": true,
+        "json_mode": true,
+        "context_cache": true,
+        "max_context_tokens": 1048576,
+        "max_output_tokens": 131072
+      },
+      "metadata": {
+        "official_currency": "CNY",
+        "pricing_status": "requires_usd_conversion_approval"
+      },
+      "availability": "setup_required",
+      "pricing": {
+        "currency": "CNY",
+        "official": {
+          "input": {
+            "amount": "8",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input"
+          },
+          "output": {
+            "amount": "28",
+            "unit": "per_million_tokens"
+          },
+          "cache": {
+            "amount": "2",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input"
+          }
+        },
+        "final": {
+          "input": {
+            "amount": "10.4",
+            "unit": "per_million_tokens",
+            "description": "cache-miss input"
+          },
+          "output": {
+            "amount": "36.4",
+            "unit": "per_million_tokens"
+          },
+          "cache": {
+            "amount": "2.6",
+            "unit": "per_million_tokens",
+            "description": "cache-hit input"
+          }
+        },
+        "status": "requires_currency_policy"
+      },
+      "source_reference": "https://bigmodel.cn/pricing"
+    }
+  ]
+}

@@ -11,6 +11,7 @@ import integrationsEn from "@/messages/en/integrations.json";
 import landingEn from "@/messages/en/landing.json";
 import liveTradingEn from "@/messages/en/live-trading.json";
 import mobileAccessEn from "@/messages/en/mobile-access.json";
+import modelUpgradeEn from "@/messages/en/model-upgrade.json";
 import nautilusEn from "@/messages/en/nautilus.json";
 import newsEn from "@/messages/en/news.json";
 import onboardingEn from "@/messages/en/onboarding.json";
@@ -33,6 +34,7 @@ import integrationsZh from "@/messages/zh/integrations.json";
 import landingZh from "@/messages/zh/landing.json";
 import liveTradingZh from "@/messages/zh/live-trading.json";
 import mobileAccessZh from "@/messages/zh/mobile-access.json";
+import modelUpgradeZh from "@/messages/zh/model-upgrade.json";
 import nautilusZh from "@/messages/zh/nautilus.json";
 import newsZh from "@/messages/zh/news.json";
 import onboardingZh from "@/messages/zh/onboarding.json";
@@ -58,6 +60,7 @@ const en = {
   landing: landingEn,
   "live-trading": liveTradingEn,
   "mobile-access": mobileAccessEn,
+  "model-upgrade": modelUpgradeEn,
   nautilus: nautilusEn,
   news: newsEn,
   onboarding: onboardingEn,
@@ -83,6 +86,7 @@ const zh = {
   landing: landingZh,
   "live-trading": liveTradingZh,
   "mobile-access": mobileAccessZh,
+  "model-upgrade": modelUpgradeZh,
   nautilus: nautilusZh,
   news: newsZh,
   onboarding: onboardingZh,

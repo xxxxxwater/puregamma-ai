@@ -22,6 +22,8 @@ import { useEffect, useState } from "react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { PageHeader } from "@/components/puregamma";
 import { getGatewayCatalog, type GatewayCatalog, type GatewayCatalogModel, type GatewayCatalogPrice } from "@/lib/api";
+import { catalogAvailabilityLabel, catalogProviderLabel } from "@/lib/model-catalog";
+import { getMessageNamespace } from "@/lib/translations";
 import { withLocale } from "@/i18n/routing";
 
 const baseUrl = "https://api.puregamma.ai/v1";
@@ -120,6 +122,44 @@ const modelOrder: ModelId[] = [
   "glm-5.2",
 ];
 
+type Narrative = { title: string; badge: string; summary: string; detail: string; bestFor: string };
+
+/**
+ * Resolve display copy for a catalog model.
+ *
+ * The curated narratives above are editorial and can lag the catalog. Any model
+ * the deployment starts serving must still be selectable and correctly labelled,
+ * so a missing narrative falls back to the catalog's own `display_name` plus an
+ * explicit "no reviewed summary" note instead of rendering blank fields.
+ */
+function narrativeFor(
+  id: string,
+  catalogModel: GatewayCatalogModel | undefined,
+  zh: boolean,
+  copy: ReturnType<typeof getMessageNamespace<"model-upgrade">>,
+): Narrative {
+  const curated = (modelNarratives as Record<string, { en: Narrative; zh: Narrative } | undefined>)[id];
+  if (curated) return curated[zh ? "zh" : "en"];
+  return {
+    title: catalogModel?.display_name || id,
+    badge: catalogModel?.provider_display_name || catalogModel?.provider || "",
+    summary: copy.preview.catalogNoSummary,
+    detail: copy.preview.catalogNoSummary,
+    bestFor: "",
+  };
+}
+
+function providerLabel(model: GatewayCatalogModel | undefined, id: string) {
+  return catalogProviderLabel(model, id);
+}
+
+function availabilityLabel(
+  model: GatewayCatalogModel,
+  catalog: GatewayCatalog | null,
+  zh: boolean,
+) {
+  return catalogAvailabilityLabel(model, catalog, zh);
+}
 type CodeLanguage = "curl" | "python" | "node";
 
 function CopyButton({ value, label, copiedLabel }: { value: string; label: string; copiedLabel: string }) {
@@ -247,9 +287,10 @@ function PriceCompare({
 export function ApiDocsEmbed() {
   const locale = useLocale();
   const zh = locale === "zh";
+  const modelCopy = getMessageNamespace(locale, "model-upgrade");
   const docsUrl = zh ? `${docsBaseUrl}/api-gateway` : `${docsBaseUrl}/api-gateway-en`;
   const [catalog, setCatalog] = useState<GatewayCatalog | null>(null);
-  const [selectedId, setSelectedId] = useState<ModelId>("deepseek-flash");
+  const [selectedId, setSelectedId] = useState<string>("deepseek-flash");
   const [language, setLanguage] = useState<CodeLanguage>("curl");
 
   useEffect(() => {
@@ -260,10 +301,11 @@ export function ApiDocsEmbed() {
     return () => { active = false; };
   }, [locale]);
 
-  const selectedCatalog = catalog?.models.find((model) => model.id === selectedId);
-  const narrative = modelNarratives[selectedId][zh ? "zh" : "en"];
-  const currency = selectedCatalog?.pricing?.currency || "USD";
-  const pricingHeading = zh ? "价格明细" : "Pricing details";
+  const catalogModels = catalog?.models ?? [];
+  const selectedCatalog = catalogModels.find((model) => model.id === selectedId);
+  const narrative = narrativeFor(selectedId, selectedCatalog, zh, modelCopy);
+  const selectedName = narrative.title;
+  const currency = selectedCatalog?.pricing?.currency || "USD";  const pricingHeading = zh ? "价格明细" : "Pricing details";
   const priceComparisonDescription = zh
     ? "目录报价仅供参考，不能替代可计费价格。"
     : "Catalog quotes are for reference and do not replace billable prices.";
@@ -271,10 +313,9 @@ export function ApiDocsEmbed() {
   const finalPriceLabel = zh ? "PureGamma 价格" : "PureGamma price";
   const official = selectedCatalog?.pricing?.official || {};
   const final = selectedCatalog?.pricing?.final || {};
-  const selectedName = narrative.title;
   // Availability is read from the live catalog, never asserted in copy: the
   // "live" wording only appears once the Gateway really serves the model.
-  const availabilityLabel = selectedCatalog
+  const selectedAvailabilityLabel = selectedCatalog
     ? {
         available: zh ? "已上线" : "Live",
         pending_approval: zh ? "预览中 · 待价格审批" : "Preview · price pending approval",
@@ -282,7 +323,7 @@ export function ApiDocsEmbed() {
         setup_required: zh ? "配置中" : "Setup required",
       }[selectedCatalog.availability]
     : null;
-  const availabilityIsLive = selectedCatalog?.availability === "available";
+  const availabilityIsLive = selectedCatalog?.availability === "available" && Boolean(catalog?.gateway_enabled);
 
   const snippets = {
     env: `# Server only — never expose this value to a browser or mobile app
@@ -471,14 +512,15 @@ PUREGAMMA_MODEL=${selectedId}
         </div>
         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
           {modelOrder.map((id) => {
-            const info = modelNarratives[id][zh ? "zh" : "en"];
-            const model = catalog?.models.find((candidate) => candidate.id === id);
+            const model = catalogModels.find((candidate) => candidate.id === id);
+            const info = narrativeFor(id, model, zh, modelCopy);
             const cardPricing = model?.pricing;
             const input = cardPricing?.official.input;
             const output = cardPricing?.official.output;
             const finalInput = cardPricing?.final.input;
             const finalOutput = cardPricing?.final.output;
             const isSelected = id === selectedId;
+            const cardAvailability = model ? availabilityLabel(model, catalog, zh) : null;
             return (
               <button
                 key={id}
@@ -487,8 +529,9 @@ PUREGAMMA_MODEL=${selectedId}
                 aria-pressed={isSelected}
                 className={`min-w-0 border p-4 text-left transition  rounded-xl ${isSelected ? "border-text-pg bg-bg-panel shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"}`}
               >
-                <div className="flex items-start justify-between gap-3"><div><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{info.badge}</div><h3 className="mt-2 text-sm font-semibold text-text-pg">{info.title}</h3></div><ChevronMark active={isSelected} /></div>
-                <code className="mt-3 block text-[11px] text-text-pg-muted">{id}</code>
+                <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{info.badge}</div><h3 className="mt-2 break-words text-sm font-semibold text-text-pg">{info.title}</h3></div><ChevronMark active={isSelected} /></div>
+                <code className="mt-3 block break-all text-[11px] text-text-pg-muted">{id}</code>
+                {cardAvailability ? <div className={`mt-2 inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] rounded-lg ${model?.availability === "available" && catalog?.gateway_enabled ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{cardAvailability}</div> : null}
                 <p className="mt-3 min-h-10 text-xs leading-5 text-text-pg-muted">{info.summary}</p>
                 <div className="mt-4 border-t border-border-pg pt-3">
                   {input && output && finalInput && finalOutput ? <div className="mt-2 grid grid-cols-2 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2">
@@ -508,13 +551,64 @@ PUREGAMMA_MODEL=${selectedId}
             );
           })}
         </div>
+
+        {/* The curated cards above are curated; this table is the catalog itself.
+            A model this deployment starts serving is listed here even before
+            anyone writes copy for it. */}
+        <div className="mt-5 border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl" data-testid="catalog-model-table">
+          <div className="flex flex-wrap items-end justify-between gap-3">
+            <div>
+              <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim">01b / {modelCopy.preview.catalogTitle}</div>
+              <h2 className="mt-2 text-lg font-semibold text-text-pg">{modelCopy.preview.catalogTitle}</h2>
+            </div>
+            <p className="max-w-xl text-xs leading-5 text-text-pg-muted">{modelCopy.preview.catalogLead}</p>
+          </div>
+          {catalogModels.length ? (
+            <div className="mt-4 touch-pan-x overflow-x-auto overscroll-x-contain border border-border-pg rounded-xl">
+              <table className="w-full min-w-[720px] text-left text-xs">
+                <thead className="bg-bg-panel-muted text-[10px] uppercase tracking-[0.14em] text-text-pg-dim">
+                  <tr>
+                    <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogName}</th>
+                    <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogId}</th>
+                    <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogProvider}</th>
+                    <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogUpstream}</th>
+                    <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogAvailability}</th>
+                    <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogPrice}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {catalogModels.map((model) => {
+                    const live = model.availability === "available" && Boolean(catalog?.gateway_enabled);
+                    const input = model.pricing?.official.input;
+                    const output = model.pricing?.official.output;
+                    const symbol = model.pricing?.currency === "USD" ? "$" : model.pricing?.currency === "CNY" ? "¥" : `${model.pricing?.currency || ""} `;
+                    return (
+                      <tr key={model.id} className="border-t border-border-pg align-top">
+                        <td className="px-3 py-3 font-medium text-text-pg">{model.display_name}</td>
+                        <td className="px-3 py-3 font-mono text-text-pg-muted">
+                          <button type="button" onClick={() => setSelectedId(model.id)} className="underline decoration-dotted underline-offset-2 hover:text-text-pg">{model.id}</button>
+                        </td>
+                        <td className="px-3 py-3 text-text-pg-muted">{providerLabel(model, model.id)}</td>
+                        <td className="px-3 py-3 font-mono text-text-pg-muted">{model.provider_model_id}</td>
+                        <td className="px-3 py-3"><span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 rounded-lg ${live ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{availabilityLabel(model, catalog, zh)}</span></td>
+                        <td className="px-3 py-3 font-mono text-text-pg-muted">{input && output ? `${symbol}${input.amount} / ${symbol}${output.amount}` : "—"}</td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          ) : (
+            <p className="mt-4 text-xs leading-5 text-text-pg-muted">{catalog?.unavailable ? modelCopy.preview.catalogUnavailable : modelCopy.preview.catalogEmpty}</p>
+          )}
+        </div>
       </section>
 
       <div className="mt-5 grid gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(390px,0.84fr)] xl:items-start">
         <main className="order-2 min-w-0 space-y-5 xl:order-1">
           <section className="border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
-              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span>{availabilityLabel ? <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] rounded-lg ${availabilityIsLive ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{availabilityIsLive ? <Check className="h-3 w-3" /> : null}{availabilityLabel}</span> : null}</div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
+              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span>{selectedAvailabilityLabel ? <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] rounded-lg ${availabilityIsLive ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{availabilityIsLive ? <Check className="h-3 w-3" /> : null}{selectedAvailabilityLabel}</span> : null}</div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
               <div className="w-full border border-border-pg bg-bg-panel-muted p-3 text-left sm:w-auto sm:text-right rounded-lg"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.modelId}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg">{selectedId}</code><div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.upstream}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg-muted">{selectedCatalog?.provider_model_id || "—"}</code></div>
             </div>
             <div className="mt-5 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3 rounded-xl overflow-hidden">

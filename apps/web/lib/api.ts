@@ -1734,7 +1734,20 @@ export async function streamAgentMessage(
       const parsed = JSON.parse(raw) as { detail?: { message?: string } | string };
       message = typeof parsed.detail === "string" ? parsed.detail : parsed.detail?.message || message;
     } catch { /* Keep the server response when it is not JSON. */ }
-    throw new Error(message);
+    // Carry the HTTP status and a safe request id so the chat UI can localize
+    // the failure and still offer a reference without echoing the raw body.
+    const error = new Error(message) as Error & { status?: number; requestId?: string };
+    error.status = response.status;
+    let requestId: string | undefined;
+    for (const header of ["x-request-id", "x-correlation-id", "request-id"]) {
+      const value = response.headers.get(header)?.trim();
+      if (value && /^[A-Za-z0-9._:-]{6,80}$/.test(value) && !value.includes("//") && !value.includes("..")) {
+        requestId = value;
+        break;
+      }
+    }
+    error.requestId = requestId;
+    throw error;
   }
   const reader = response.body.getReader();
   const decoder = new TextDecoder();

@@ -188,15 +188,14 @@ it inside `completion_tokens`.
 
 ## 9. Known limitations at the time of this upgrade
 
-* **Homepage product preview.** `apps/web/app/[locale]/page.tsx`,
-  `apps/web/components/model-upgrade.tsx` and the `model-upgrade` message
-  namespace are present in the working tree as unfinished work from another
-  change. The preview component does not compile against the current
-  `getMessageNamespace` typing (`Property 'stateLive' does not exist`), so it
-  is **not** part of this release and is not deployed. The homepage advertises
-  the upgrade through `landing.footerSlides`, and the API docs page
-  (`/zh/api`, `/en/api`) shows the full model card, availability state and
-  compatibility alias from the live catalog.
+* **Homepage product preview.** Completed after the backend rollout; see
+  section 10. `apps/web/app/[locale]/page.tsx` renders the announcement plus
+  `apps/web/components/model-upgrade.tsx`, which reads availability, ids,
+  context window and reviewed price from the same catalog the deployment serves
+  (`lib/model-catalog.ts` holds the framework-neutral reader so a Server
+  Component can call it without a client-reference proxy). The API docs page
+  (`/zh/api`, `/en/api`) additionally lists **every** catalog model, so a model
+  the deployment starts serving appears before anyone writes copy for it.
 * **Kimi lane.** `kimi-k3-max` remains `pending` with no approved price
   revision, exactly as before this upgrade. `KIMI_AUTO_ROUTE=true` therefore
   degrades to DeepSeek until an operator approves the Moonshot price.
@@ -206,4 +205,56 @@ it inside `completion_tokens`.
 * **Specialised models were not migrated.** Speech synthesis/recognition,
   embeddings and reranking do not run on DeepSeek; their providers and model
   ids are unchanged (see the audit table in the deployment report).
+* **Pre-existing e2e failures are unrelated to this upgrade.** 15 Playwright
+  specs fail on a clean checkout of `main` for the same reason as on this
+  branch (verified by stashing this change and re-running): stale expectations
+  against copy that changed in earlier commits (`i18n` landing/dashboard/daily
+  push, `mobile-nav`, `mstr-btc`, `nautilus`, `integrations`, `daily-push`,
+  `dashboard`, `portfolio`). They are listed here so the next person does not
+  attribute them to the V4.1 Flash work. The new
+  `tests/e2e/playwright/model-upgrade.spec.ts` passes 12/12.
+
+## 10. Frontend surface (what the user actually sees)
+
+The backend upgrade is invisible until the frontend admits it. This is the
+frontend half, delivered separately from the model rollout:
+
+| Surface | File | Reads from |
+| --- | --- | --- |
+| Homepage announcement + product preview | `apps/web/app/[locale]/page.tsx`, `apps/web/components/model-upgrade.tsx` | `GET /gateway/catalog`, server-rendered |
+| Agent Chat model label and status | `apps/web/components/agent-chat.tsx` | `GET /api/agent/capabilities` for the selector, catalog for the status |
+| API docs model cards + full catalog table | `apps/web/components/api-docs-embed.tsx` | `GET /gateway/catalog`, browser-fetched |
+| Chat failure copy and request reference | `apps/web/lib/chat-errors.ts` | HTTP status, error code, `x-request-id` |
+| Catalog reading helpers (no React) | `apps/web/lib/model-catalog.ts` | pure functions over `GatewayCatalog` |
+
+Rules this frontend work follows, so it cannot drift from the deployment:
+
+1. **Availability is never asserted in copy.** `flashAvailability()` returns
+   `live` only when the catalog reports `availability: "available"`,
+   `gateway_enabled` is true and a reviewed price exists. A missing catalog, a
+   pending revision or a disabled provider all render a non-live state. The
+   homepage banner only takes the green tone when that state is `live`.
+2. **Display name and request id are separate.** Users read "DeepSeek V4.1
+   Flash"; code samples and the catalog table use `deepseek-flash`. The Agent
+   selector keeps sending the `default` routing sentinel while *labelling* it
+   with the resolved platform model.
+3. **An explicit model choice is never rewritten.** `agentModelLabel()` only
+   maps the `default` sentinel and the ids that really resolve to the upgraded
+   model; `gpt-5.6-luna` and historical messages keep their recorded model.
+4. **The catalog list is generated, not curated.** The docs page renders every
+   model the catalog returns, with a "no reviewed summary" note for models
+   without editorial copy, so a newly enabled model cannot be invisible.
+5. **Unverified capabilities are not advertised.** Context length, max output
+   and price come from the catalog; when a field is absent the UI shows an
+   explicit empty state rather than a number.
+6. **Errors stay user-readable.** `describeChatFailure()` maps status codes and
+   API error codes onto short localized sentences and keeps only a
+   pattern-validated request id, so a stack trace, upstream host or key can
+   never reach the browser.
+
+Browser verification (`apps/web`, Next 14 dev server, screenshots captured):
+Chinese and English homepages, the preview card and both entry links, the
+catalog table and detail panel on `/zh/api` and `/en/api`, the Chat model badge
+and error surface, mobile at 393px with no page-level horizontal overflow, and
+keyboard focus plus accessible names on the new controls.
 

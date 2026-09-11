@@ -87,7 +87,8 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
     agent: zh ? "Agent + 私密秘书" : "Agent + Secretary",
     agentDetail: zh ? "会话 · 工具 · SSE" : "Chat · tools · SSE",
     gateway: "AI Gateway",
-    gatewayDetail: "DeepSeek · Kimi · GLM · Luna",
+    // Kept short: this label sits in a fixed-width SVG node and must not clip.
+    gatewayDetail: "V4.1 Flash · Kimi · GLM · Luna",
     options: zh ? "期权研究" : "Options",
     optionsDetail: "Deribit · Polygon · Long Gamma",
     backtest: zh ? "回测实验室" : "Backtest Lab",
