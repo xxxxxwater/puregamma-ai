@@ -39,20 +39,39 @@ const ADMIN_USER = {
  * on an authenticated route as an expired session: the watchdog then replaces
  * the page with `/login?returnTo=...`. A missed stub therefore looks like a
  * redirect rather than a missing fixture.
+ *
+ * Registration order matters: Playwright consults routes most-recently-added
+ * first, so the broad `/admin/**` fallback goes FIRST and the specific routes
+ * below it win. Registering the fallback last silently shadows every one of
+ * them.
  */
 async function stubShell(page: Page, role: "admin" | "user" = "admin") {
+  await page.route(`${API}/admin/**`, (route) => {
+    const url = route.request().url();
+    if (/\/admin\/billing\/accounts\/[^/?]+$/.test(url)) {
+      return route.fulfill({ status: 404, contentType: "application/json", body: JSON.stringify({ detail: "not found" }) });
+    }
+    return route.fulfill({ contentType: "application/json", body: JSON.stringify({}) });
+  });
   await page.route(`${API}/me`, (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ user: { ...ADMIN_USER.user, role } }) }),
   );
   await page.route(`${API}/api/frontend/plugins*`, (route) =>
-    route.fulfill({ contentType: "application/json", body: JSON.stringify({ plugins: [] }) }),
+    route.fulfill({
+      contentType: "application/json",
+      body: JSON.stringify({ plugins: [], capabilities: { plan: "Pro", allowed_data_sources: ["all"], allowed_skills: ["all"], max_attachments: 5 } }),
+    }),
   );
   await page.route(`${API}/auth/x/config`, (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ x_login_enabled: false }) }),
   );
-  // The credit console reads client-side, so this one IS stubbable.
+  // The credit console and the user table read client-side, so these are
+  // stubbable and must answer 200 — an unstubbed 401 would trip the watchdog.
   await page.route(`${API}/admin/billing/accounts**`, (route) =>
     route.fulfill({ contentType: "application/json", body: JSON.stringify({ accounts: [], total: 0, limit: 50, offset: 0 }) }),
+  );
+  await page.route(`${API}/admin/users**`, (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ users: [], total: 0, limit: 25, offset: 0, has_more: false }) }),
   );
 }
 
@@ -91,6 +110,7 @@ test.describe("admin section", () => {
     // takes, which is what makes it worth pinning.
     await stubShell(page);
     await page.goto("/zh/admin");
+    await expect(page).toHaveURL(/\/zh\/admin$/);
 
     // The top-level state names the cause instead of showing the console as if
     // it were fine.
@@ -100,9 +120,53 @@ test.describe("admin section", () => {
     // Each panel reports its own failure rather than an empty-but-normal view.
     await expect(page.getByText("运行状态读取失败。")).toBeVisible();
     await expect(page.getByText("任务队列读取失败。")).toBeVisible();
-    await expect(page.getByText("用户列表读取失败，未显示占位数据。")).toBeVisible();
+    // The user table owns its own read (it is the client-side pager), so it does
+    // not inherit the server's failure: it shows the answer it actually got,
+    // which here is a successful empty page.
+    await expect(page.getByTestId("admin-users-count")).toHaveText("0");
+    await expect(page.getByTestId("admin-users-error")).toHaveCount(0);
     // And it must not offer stale "mock state" language.
     await expect(page.getByText("Mock 运营状态")).toHaveCount(0);
+  });
+
+  test("the user table queries the server for filters and pages", async ({ page }) => {
+    // The list is paginated server-side, so filtering must reach the API. A
+    // client-side filter over the current page would answer a search with a
+    // slice of a larger result set while looking like a full answer.
+    //
+    // Registered AFTER `stubShell`: Playwright consults routes in reverse
+    // registration order, so this one must come last to win.
+    const calls: string[] = [];
+    await stubShell(page);
+    await page.route(`${API}/admin/users**`, (route) => {
+      const url = new URL(route.request().url());
+      const q = url.searchParams.get("q") || "";
+      const offset = Number(url.searchParams.get("offset") || 0);
+      calls.push(`q=${q} offset=${offset}`);
+      // Two pages of one row each.
+      const rows = offset === 0
+        ? [{ id: "u1", email: "alice@example.com", plan: "Pro", role: "user", membership_tier: "gold" }]
+        : [{ id: "u2", email: "bob@example.com", plan: "Free", role: "user", membership_tier: "bronze" }];
+      return route.fulfill({
+        contentType: "application/json",
+        body: JSON.stringify({ users: rows, total: 40, limit: 25, offset, page: offset / 25 + 1, has_more: offset === 0 }),
+      });
+    });
+    await page.goto("/zh/admin");
+    await expect(page).toHaveURL(/\/zh\/admin$/);
+
+    // The server total is what the header reports, not the page length.
+    await expect(page.getByTestId("admin-users-count")).toHaveText("40");
+    await expect(page.getByText("第 1 / 2 页")).toBeVisible();
+
+    // Next page issues a new server query.
+    await page.getByRole("button", { name: /下一页/ }).click();
+    await expect(page.getByText("第 2 / 2 页")).toBeVisible();
+    expect(calls.some((call) => call.includes("offset=25"))).toBe(true);
+
+    // A filter is a server query too.
+    await page.getByPlaceholder("例如 alice@example.com").fill("alice");
+    await expect.poll(() => calls.some((call) => call.includes("q=alice")), { timeout: 5000 }).toBe(true);
   });
 
   test("the Gateway console keeps its page and shares the section nav", async ({ page }) => {

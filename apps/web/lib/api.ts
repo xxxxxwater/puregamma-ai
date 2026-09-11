@@ -1412,11 +1412,31 @@ export type AdminUserRow = {
   membership_tier: string;
 };
 
-export function getAdminUsers(locale: Locale = defaultLocale) {
-  return api<{ users: AdminUserRow[]; total?: number; unavailable?: boolean; unauthorized?: boolean }>("/admin/users", {
-    fallback: { users: [] },
-    locale,
-  });
+/**
+ * Paginated admin reads.
+ *
+ * `apps/api/services/pagination.py` caps `limit` at 100 and counts `total` from
+ * the same filtered query the page came from, so a summary and its list always
+ * agree. The console must pass the filters through to the server: filtering only
+ * the rows already on screen would show a page of a larger result set while
+ * reading like a full answer.
+ */
+export type AdminPageMeta = { total?: number; limit?: number; offset?: number; page?: number; has_more?: boolean };
+
+export type AdminUserQuery = { q?: string; role?: string; plan?: string; limit?: number; offset?: number };
+
+export function getAdminUsers(locale: Locale = defaultLocale, query: AdminUserQuery = {}) {
+  const params = new URLSearchParams();
+  if (query.q) params.set("q", query.q);
+  if (query.role) params.set("role", query.role);
+  if (query.plan) params.set("plan", query.plan);
+  if (query.limit != null) params.set("limit", String(query.limit));
+  if (query.offset != null) params.set("offset", String(query.offset));
+  const suffix = params.toString();
+  return api<{ users: AdminUserRow[]; unavailable?: boolean; unauthorized?: boolean } & AdminPageMeta>(
+    `/admin/users${suffix ? `?${suffix}` : ""}`,
+    { fallback: { users: [] }, locale },
+  );
 }
 
 export type AdminLlmStatus = { provider: string; active_provider: string; model: string; configured: boolean; status: string; last_error?: string | null; unavailable?: boolean; unauthorized?: boolean };

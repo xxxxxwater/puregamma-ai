@@ -1,19 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AdminCreditConsole } from "@/components/admin-credit-console";
-import { Badge, ErrorState, MetricCard, PageHeader, ResearchCard, StatusDot } from "@/components/puregamma";
+import { AdminUsersTable } from "@/components/admin-users-table";
+import { ErrorState, MetricCard, PageHeader, ResearchCard, StatusDot } from "@/components/puregamma";
 import { getAdminLlmStatus, getAdminOverview, getAdminSystemStatus, getAdminUsers, getAdminWorkers } from "@/lib/api";
 import { localizedMetadata } from "@/lib/metadata";
 import { getMessageNamespace } from "@/lib/translations";
 import { isLocale, type Locale, withLocale } from "@/i18n/routing";
-
-function maskEmail(email: string) {
-  const [local, domain = "masked"] = email.split("@");
-  const maskedLocal = local.length <= 2 ? `${local[0] || "*"}***` : `${local.slice(0, 2)}***`;
-  const domainParts = domain.split(".");
-  const maskedDomain = domainParts.length > 1 ? `****.${domainParts.slice(1).join(".")}` : "****";
-  return `${maskedLocal}@${maskedDomain}`;
-}
 
 export function generateMetadata({ params }: { params: { locale: string } }): Metadata {
   const locale = isLocale(params.locale) ? params.locale : "en";
@@ -159,42 +152,15 @@ export default async function AdminPage({ params }: { params: { locale: Locale }
         </ResearchCard>
       </div>
 
-      <ResearchCard>
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          <h2 className="font-semibold">{copy.modules.users}</h2>
-          <span className="text-xs text-text-pg-dim">
-            {users.unavailable ? (zh ? "读取失败" : "unavailable") : `${users.users.length}${typeof users.total === "number" ? ` / ${users.total}` : ""}`}
-          </span>
-        </div>
-        {users.users.length ? (
-          <div className="mt-3 overflow-x-auto">
-            <table className="w-full min-w-[560px] text-left text-sm">
-              <thead className="text-xs uppercase tracking-[0.1em] text-text-pg-muted">
-                <tr>
-                  <th className="pb-2 font-medium">{zh ? "账号" : "Account"}</th>
-                  <th className="pb-2 font-medium">{zh ? "角色" : "Role"}</th>
-                  <th className="pb-2 font-medium">{zh ? "套餐" : "Plan"}</th>
-                  <th className="pb-2 font-medium">{zh ? "等级" : "Tier"}</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.users.slice(0, 25).map((user) => (
-                  <tr key={user.id} className="border-t border-border-pg">
-                    <td className="py-2 font-mono text-xs">{maskEmail(user.email)}</td>
-                    <td className="py-2"><Badge tone={user.role === "admin" ? "amber" : "neutral"}>{user.role}</Badge></td>
-                    <td className="py-2 text-text-pg-muted">{user.plan || "—"}</td>
-                    <td className="py-2 text-text-pg-muted">{user.membership_tier || "—"}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <p className="mt-3 text-sm text-text-pg-muted">
-            {users.unavailable ? (zh ? "用户列表读取失败，未显示占位数据。" : "The user list could not be read; no placeholder data is shown.") : (zh ? "暂无用户。" : "No users yet.")}
-          </p>
-        )}
-      </ResearchCard>
+      <AdminUsersTable
+        locale={locale}
+        initial={{
+          rows: Array.isArray(users.users) ? users.users : [],
+          total: typeof users.total === "number" ? users.total : null,
+          hasMore: Boolean(users.has_more),
+          failed: readState(users) !== "ok",
+        }}
+      />
 
       <AdminCreditConsole locale={locale} />
 
