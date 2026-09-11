@@ -91,7 +91,9 @@ const STREAM_BODY = [
   "",
 ].join("\n");
 
-async function stubApi(page: Page) {
+async function stubApi(page: Page, options: { assistantContent?: string; creditsRefunded?: boolean } = {}) {
+  const assistantContent = options.assistantContent ?? "BTC is trading in its current range.";
+  const creditsRefunded = options.creditsRefunded ?? false;
   await page.route("**/me", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(USER) }));
   await page.route("**/api/agent/capabilities", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(CAPABILITIES) }));
   await page.route("**/api/agent/quota", (route) =>
@@ -125,12 +127,14 @@ async function stubApi(page: Page) {
             id: "m-assistant",
             conversation_id: CONVERSATION.id,
             role: "assistant",
-            content: "BTC is trading in its current range.",
+            content: assistantContent,
             status: "completed",
             model: FLASH,
             input_tokens: 120,
             output_tokens: 9,
             credits_used: 10,
+            // Mirrors `serialize_message`: the stored settlement for this run.
+            credits_refunded: creditsRefunded,
             created_at: "2026-09-11T08:00:05+00:00",
             sources: [],
           },
@@ -156,14 +160,40 @@ test.describe("homepage DeepSeek V4.1 Flash announcement", () => {
     const preview = page.getByTestId("model-upgrade-preview");
     await expect(preview).toBeVisible();
     await expect(preview.getByRole("heading", { name: FLASH_DISPLAY })).toBeVisible();
-    // Live state comes from the catalog, never from static copy.
-    await expect(preview).toHaveAttribute("data-model-availability", "live");
+    // Published state comes from the catalog, never from static copy.
+    await expect(preview).toHaveAttribute("data-model-availability", "available");
     await expect(preview.getByRole("link", { name: /进入 Agent 对话/ })).toHaveAttribute("href", "/zh/chat");
     await expect(preview.getByRole("link", { name: /进入 API 中转站/ })).toHaveAttribute("href", "/zh/gateway");
-    await expect(preview).toContainText(FLASH);
-    await expect(preview).toContainText("deepseek-v4-flash");
+    // The card links to the API reference rather than leading with the raw sample.
+    await expect(preview.getByRole("link", { name: /查看 API 接入文档/ })).toHaveAttribute("href", "/zh/api");
+    await expect(preview).toContainText("对话、报告与研究");
+  });
+
+  test("the homepage leads with plain-language facts and collapses technical fields", async ({ page }) => {
+    await page.goto("/zh");
+    const preview = page.getByTestId("model-upgrade-preview");
+    // Technical detail (request id, upstream id, pricing, raw curl) lives inside
+    // a closed <details>, so it does not take over the primary展示 area.
+    const technical = preview.getByTestId("model-upgrade-technical");
+    await expect(technical).toBeVisible();
+    expect(await technical.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(false);
+    expect(await technical.locator("dl").isVisible()).toBe(false);
+    // The user-facing statements are visible without expanding anything.
+    await expect(preview).toContainText("现已支持 DeepSeek V4.1 Flash");
+    await expect(preview).toContainText("已上线");
+    // Catalog status and runtime health are stated as different things.
+    await expect(preview).toContainText("运行健康状态由中转站单独监控");
+  });
+
+  test("expanding the technical section reveals the request id and alias", async ({ page }) => {
+    await page.goto("/zh");
+    const technical = page.getByTestId("model-upgrade-preview").getByTestId("model-upgrade-technical");
+    await technical.locator("summary").click();
+    expect(await technical.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(true);
+    await expect(technical).toContainText(FLASH);
+    await expect(technical).toContainText("deepseek-v4-flash");
     // The request example is explicitly labelled as an example.
-    await expect(preview).toContainText("仅为示例");
+    await expect(technical).toContainText("仅为示例");
   });
 
   test("English homepage announces the model and links to Chat and the Gateway", async ({ page }) => {
@@ -172,10 +202,11 @@ test.describe("homepage DeepSeek V4.1 Flash announcement", () => {
     await expect(announcement).toContainText("DeepSeek V4.1 Flash is now available");
 
     const preview = page.getByTestId("model-upgrade-preview");
-    await expect(preview).toHaveAttribute("data-model-availability", "live");
+    await expect(preview).toHaveAttribute("data-model-availability", "available");
     await expect(preview.getByRole("link", { name: /Open Agent Chat/ })).toHaveAttribute("href", "/en/chat");
     await expect(preview.getByRole("link", { name: /Open API Gateway/ })).toHaveAttribute("href", "/en/gateway");
-    await expect(preview).toContainText("Example only");
+    await expect(preview).toContainText("chat, reports and research");
+    await expect(preview).toContainText("Runtime health is monitored separately");
   });
 
   test("a pending catalog renders a non-live state instead of a green badge", async ({ page }) => {
@@ -333,6 +364,116 @@ test.describe("Agent Chat model label", () => {
     await page.locator("textarea").fill("BTC market now");
     await page.keyboard.press("Enter");
     await expect(page.getByText("BTC is trading in its current range.")).toBeVisible({ timeout: 15000 });
+  });
+});
+
+/**
+ * Billing copy must follow the backend's settlement record, not the error type.
+ * `apps/api/services/agent_service.py` refunds a failed run but *settles* the
+ * tokens already produced when the client disconnects, so the UI may only state
+ * an outcome the backend actually reported (`AgentMessage.credits_refunded`).
+ */
+test.describe("Agent Chat billing copy follows the settlement record", () => {
+  test.beforeEach(async ({ page }) => {
+    await stubApi(page);
+  });
+
+  test("a failed run reports the refund the backend issued", async ({ page }) => {
+    await page.route("**/api/agent/conversations/*/messages", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: [
+          "event: run.started",
+          'data: {"runId":"r2","messageId":"m-failed","model":"deepseek-flash","creditBalance":1180}',
+          "",
+          "event: run.failed",
+          'data: {"runId":"r2","messageId":"m-failed","code":"AGENT_MODEL_TIMEOUT","message":"The answer took too long to generate. Credits were refunded.","creditBalance":1190}',
+          "",
+          "",
+        ].join("\n"),
+      }),
+    );
+    await page.goto("/zh/chat");
+    await page.locator("textarea").fill("trigger a refunded failure");
+    await page.keyboard.press("Enter");
+    const billing = page.getByTestId("chat-error-billing");
+    await expect(billing).toBeVisible({ timeout: 15000 });
+    await expect(billing).toHaveAttribute("data-billing", "refunded");
+    await expect(billing).toContainText("本次运行未扣除 Credits");
+  });
+
+  test("an interrupted stream does not promise a refund", async ({ page }) => {
+    // A stream that dies after a delta and never completes: the client cannot
+    // know the settlement, so the copy must stay neutral.
+    await page.route("**/api/agent/conversations/*/messages", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: [
+          "event: run.started",
+          'data: {"runId":"r3","messageId":"m-cut","model":"deepseek-flash","creditBalance":1180}',
+          "",
+          "event: message.delta",
+          'data: {"messageId":"m-cut","delta":"partial answer"}',
+          "",
+          "",
+        ].join("\n"),
+      }),
+    );
+    await page.goto("/zh/chat");
+    await page.locator("textarea").fill("interrupt me");
+    await page.keyboard.press("Enter");
+    const billing = page.getByTestId("chat-error-billing");
+    await expect(billing).toBeVisible({ timeout: 15000 });
+    await expect(billing).toHaveAttribute("data-billing", "unknown");
+    await expect(billing).toContainText("费用状态请查看用量记录");
+    await expect(billing).not.toContainText("未扣除");
+  });
+
+  test("a stream cut without an error event is still reported", async ({ page }) => {
+    // A proxy can close the body cleanly mid-answer. The stream loop exits
+    // normally, so the UI must detect the missing `message.completed` itself.
+    await page.route("**/api/agent/conversations/*/messages", (route) =>
+      route.fulfill({ status: 200, contentType: "text/event-stream", body: "event: run.started\ndata: {\"runId\":\"r5\",\"messageId\":\"m-silent\",\"model\":\"deepseek-flash\"}\n\n" }),
+    );
+    await page.goto("/zh/chat");
+    await page.locator("textarea").fill("cut me silently");
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("chat-error")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("chat-error")).toContainText("中断");
+    await expect(page.getByTestId("chat-error-billing")).toHaveAttribute("data-billing", "unknown");
+  });
+
+  test("an empty answer reports the recorded settlement instead of assuming it was free", async ({ page }) => {
+    // The persisted message comes back empty with a settled (not refunded) run.
+    await page.unroute("**/api/agent/conversations/**");
+    await stubApi(page, { assistantContent: "", creditsRefunded: false });
+    await page.route("**/api/agent/conversations/*/messages", (route) =>
+      route.fulfill({
+        status: 200,
+        contentType: "text/event-stream",
+        body: [
+          "event: run.started",
+          'data: {"runId":"r4","messageId":"m-empty","model":"deepseek-flash","creditBalance":1195}',
+          "",
+          "event: message.completed",
+          'data: {"messageId":"m-empty","model":"deepseek-flash","inputTokens":120,"outputTokens":0,"creditsUsed":5,"creditBalance":1195}',
+          "",
+          "",
+        ].join("\n"),
+      }),
+    );
+    await page.goto("/zh/chat");
+    await page.locator("textarea").fill("return nothing");
+    await page.keyboard.press("Enter");
+    const billing = page.getByTestId("chat-error-billing");
+    await expect(billing).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("chat-error")).toContainText("空回答");
+    // The persisted message carries credits_refunded: false, so the copy states
+    // the settled outcome rather than implying the run was free.
+    await expect(billing).toHaveAttribute("data-billing", "settled");
+    await expect(billing).toContainText("已记入用量记录");
   });
 });
 

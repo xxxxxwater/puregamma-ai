@@ -214,7 +214,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   const activePathname = stripLocale(pathname);
   return (
     <aside className="shell-rail hidden flex-col p-4 lg:flex">
-      <Link href={withLocale(locale, "/")} className="flex items-center gap-2.5"><Image src="/logo.png" alt="PureGamma" width={22} height={22} /><span className="text-[0.95rem] font-semibold tracking-tight text-text-pg">PureGamma</span><span className="mt-0.5 text-[0.6rem] font-medium uppercase tracking-[0.3em] text-text-pg-dim">Intelligence</span>
+      <Link href={withLocale(locale, "/")} className="flex items-center gap-2.5"><Image src="/logo.png" alt="PureGamma" width={22} height={22} /><span className="text-[0.95rem] font-semibold tracking-tight text-text-pg">PureGamma</span><span className="mt-0.5 text-[0.6rem] font-medium uppercase tracking-[0.3em] text-text-pg-dim">AI</span>
       </Link>
       <div className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
       <div className="mt-4">

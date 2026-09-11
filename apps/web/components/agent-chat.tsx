@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Bot, CheckCircle2, ChevronDown, CircleStop, Compass, Database, FilePlus2, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip, RefreshCw, SearchCheck, Send, Settings2, ShieldCheck, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
+import { Bot, CheckCircle2, ChevronDown, CircleAlert, CircleStop, Compass, Database, FilePlus2, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip, RefreshCw, SearchCheck, Send, Settings2, ShieldCheck, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
 import { ReportMarkdown } from "@/components/puregamma";
 import { ResearchModeSwitch } from "@/components/research-mode-switch";
 import { ContextControls, nextActionLabel, nextActionPrompt, StrategyToolResult } from "@/components/chat-panels";
@@ -12,8 +12,8 @@ import { OceanShell } from "@/components/ocean/ocean-shell";
 import { RippleEffect } from "@/components/ocean/ripple-effect";
 import { type Locale, withLocale } from "@/i18n/routing";
 import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentSource, SkillContextRef, SkillSummary, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getGatewayCatalog, getMe, streamAgentMessage } from "@/lib/api";
-import { describeChatFailure, type ChatFailure } from "@/lib/chat-errors";
-import { FLASH_ALIAS_ID, FLASH_MODEL_ID, flashAvailability } from "@/lib/model-catalog";
+import { billingNotice, describeChatFailure, type ChatFailure } from "@/lib/chat-errors";
+import { FLASH_ALIAS_ID, FLASH_MODEL_ID, flashAvailability, platformDefaultModelName } from "@/lib/model-catalog";
 import { getMessageNamespace } from "@/lib/translations";
 import { publishCreditBalance } from "@/lib/user-state";
 
@@ -21,12 +21,15 @@ const DATA_SOURCES = ["market", "rss", "fintwit", "x-twitter", "bloomberg", "por
 
 /**
  * The Agent's `default` selection is a routing sentinel, not a model id: the
- * backend resolves it to the platform model (DeepSeek V4.1 Flash). The request
- * body must keep sending `default`, but the user should read the model that
- * will actually answer rather than the internal word "Default model".
+ * backend resolves it to the platform model. The request body must keep sending
+ * `default`, but the user should read the model that will actually answer.
+ *
+ * `catalogName` is the catalog's own `display_name` for the platform default
+ * model, so the label follows the deployment instead of a literal in this file.
+ * The i18n string is only a fallback for when the catalog is unreachable.
  */
-function agentModelLabel(model: AgentModelOption, copy: ModelUpgradeCopy) {
-  if (model.id === "default") return copy.chat.badgeLive;
+function agentModelLabel(model: AgentModelOption, copy: ModelUpgradeCopy, catalogName: string | null) {
+  if (model.id === "default") return catalogName || copy.chat.badgeLive;
   return model.display_name;
 }
 
@@ -43,12 +46,13 @@ type ModelUpgradeCopy = ReturnType<typeof getMessageNamespace<"model-upgrade">>;
  * Turn the model id recorded on a message into the name a user recognises.
  *
  * Historical messages keep their real recorded model: a conversation answered
- * by another provider must never be relabelled as DeepSeek V4.1 Flash, so only
- * the ids that actually resolve to the upgraded platform model are mapped.
+ * by another provider must never be relabelled as the platform default, so only
+ * the ids that really resolve to the upgraded model are mapped.
  */
-function bylineModelLabel(model: string | null | undefined, copy: ModelUpgradeCopy) {
+function bylineModelLabel(model: string | null | undefined, copy: ModelUpgradeCopy, catalogName: string | null) {
   const id = (model || "").trim();
-  if (!id || id === "default" || id === FLASH_MODEL_ID || id === FLASH_ALIAS_ID) return copy.chat.badgeLive;
+  const platformName = catalogName || copy.chat.badgeLive;
+  if (!id || id === "default" || id === FLASH_MODEL_ID || id === FLASH_ALIAS_ID) return platformName;
   if (id === "deepseek-v4-pro") return "DeepSeek V4 Pro";
   if (id === "gpt-5.6-luna") return "GPT-5.6 Luna · OpenAI";
   return id;
@@ -82,7 +86,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [evidenceStatus, setEvidenceStatus] = useState<AgentEvidenceSummary | null>(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
-  const [availability, setAvailability] = useState<"checking" | "live" | "pending" | "unavailable" | "unknown">("checking");
+  const [availability, setAvailability] = useState<"checking" | "published" | "pending" | "unavailable" | "unverified">("checking");
+  /** Catalog display name for the platform default model; null until known. */
+  const [defaultModelName, setDefaultModelName] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
@@ -107,11 +113,15 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
 
   useEffect(() => {
     let active = true;
-    // Availability of the upgraded default model is read from the catalog this
-    // deployment serves, never asserted from copy.
+    // The default model's name AND its catalog state are read from the catalog
+    // this deployment serves, never asserted from copy.
     void getGatewayCatalog(locale)
-      .then((catalog) => { if (active) setAvailability(flashAvailability(catalog).state); })
-      .catch(() => { if (active) setAvailability("unknown"); });
+      .then((catalog) => {
+        if (!active) return;
+        setAvailability(flashAvailability(catalog).uiState);
+        setDefaultModelName(platformDefaultModelName(catalog));
+      })
+      .catch(() => { if (active) setAvailability("unverified"); });
     Promise.all([getMe(), loadConversations(), getAgentCapabilities()])
       .then(async ([, rows, access]) => {
         if (!active) return;
@@ -254,20 +264,42 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         } else if (eventName === "run.failed") {
           setStage(null);
           setMessages((current) => current.map((message) => message.id === String(data.messageId) ? { ...message, status: "failed", error_code: String(data.code), error_message: String(data.message) } : message));
-          setFailure(describeChatFailure(locale, null, { kind: "generic" }));
+          // `stream_run` refunds before emitting run.failed, so this run's
+          // billing status is known here — but it is asserted from that refund,
+          // not inferred from the error type.
+          setFailure(describeChatFailure(locale, null, { kind: "generic", refunded: true }));
           if (typeof data.creditBalance === "number") publishCreditBalance(data.creditBalance);
         } else if (eventName === "run.canceled") {
           if (typeof data.creditBalance === "number") publishCreditBalance(data.creditBalance);
         }
       }, context);
       setAttachments([]);
+      // Re-read the persisted messages: the reload carries `credits_refunded`,
+      // the only authoritative settlement result for this run.
       const refreshed = await getAgentConversation(id);
       setMessages(refreshed.messages);
+      const settled = refreshed.messages.find((message) => message.id === assistantId);
       // A run can finish without producing any text. Say so instead of leaving
-      // a blank bubble that looks like a rendering bug.
+      // a blank bubble that looks like a rendering bug, and report the recorded
+      // billing state rather than assuming the empty answer was free.
       if (completed && !assistantContent.trim() && assistantId) {
-        const emptyFailure = describeChatFailure(locale, null, { kind: "empty_answer" });
+        const emptyFailure = describeChatFailure(locale, null, {
+          kind: "empty_answer",
+          refunded: settled?.credits_refunded === true,
+          settled: settled?.credits_refunded === false,
+        });
         setFailure(emptyFailure);
+      } else if (assistantId && !completed) {
+        // The stream ended cleanly but never emitted `message.completed`: a
+        // proxy cut the body without an error. The backend settles what was
+        // produced in that case, so state nothing about billing and point at
+        // the usage record.
+        setMessages((current) => current.map((message) => message.id === assistantId && message.status === "streaming" ? { ...message, status: "failed" } : message));
+        setFailure(describeChatFailure(locale, null, {
+          kind: "stream_interrupted",
+          refunded: settled?.credits_refunded === true,
+          settled: settled?.credits_refunded === false,
+        }));
       }
       await loadConversations();
       const refreshedQuota = await getAgentQuota();
@@ -277,7 +309,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       if ((reason as Error).name === "AbortError") {
         // The user stopped the run; that is a normal outcome, not an error.
       } else if (assistantId && !completed) {
-        // The response body died mid-stream: the answer is incomplete.
+        // The response body died mid-stream. The backend *settles* the tokens
+        // already produced on a client disconnect, so this states no billing
+        // outcome and points at the usage record instead.
         setMessages((current) => current.map((message) => message.id === assistantId && message.status === "streaming" ? { ...message, status: "failed" } : message));
         setFailure(describeChatFailure(locale, reason, { kind: "stream_interrupted" }));
       } else {
@@ -370,7 +404,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       ) : (
       <aside className="hidden border-b border-border-pg bg-bg-app lg:flex lg:flex-col lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between border-b border-border-pg p-3">
-          <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"} · ${quota.credit_balance} Credits` : "-"}</div><div className="mt-1 truncate text-[10px] text-text-pg-dim" title={modelCopy.chat.badgeDetail}>{modelCopy.chat.badgeLive} · {modelCopy.chat.badgeDetail}</div></div>
+          <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"} · ${quota.credit_balance} Credits` : "-"}</div><div className="mt-1 truncate text-[10px] text-text-pg-dim" title={modelCopy.chat.badgeDetail}>{defaultModelName || modelCopy.chat.badgeLive} · {modelCopy.chat.badgeDetail}</div></div>
           <div className="flex items-center gap-1">
             <button type="button" onClick={() => setHistoryCollapsed(true)} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "收起历史对话" : "Collapse conversation history"}><PanelLeftClose className="h-4 w-4" /></button>
             <button type="button" onClick={createNew} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
@@ -408,7 +442,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div> : null}
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[85%] border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "max-w-full border-l border-border-pg pl-4"}>
-              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{file.name}</span>)}</div> : null}</>}
+              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{file.name}</span>)}</div> : null}</>}
               {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
               {message.role === "assistant" && message.credits_refunded ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "Credits 已退款" : "Credits refunded"}</div> : null}
@@ -442,17 +476,17 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-3">
             <label htmlFor="agent-model" className="text-[11px] text-text-pg-muted"><span className="block">{zh ? "本轮模型" : "Model for this turn"}</span>{selectedModelOption?.id !== "default" ? <span className="mt-0.5 block text-[10px] text-text-pg-dim">{zh ? "高质量、较轻度使用的深度市场研究模型" : selectedModelOption?.description}</span> : null}</label>
             <select id="agent-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={busy} className="max-w-[60%] border border-border-pg bg-bg-panel px-2 py-1 text-xs outline-none focus:border-border-pg-strong disabled:opacity-50 rounded-lg">
-              {models.map((model) => <option key={model.id} value={model.id} disabled={!model.available}>{agentModelLabel(model, modelCopy)}{agentModelSuffix(model, zh)}</option>)}
+              {models.map((model) => <option key={model.id} value={model.id} disabled={!model.available}>{agentModelLabel(model, modelCopy, defaultModelName)}{agentModelSuffix(model, zh)}</option>)}
             </select>
           </div>
           <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-[10px] text-text-pg-dim" data-testid="chat-model-badge">
             <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 rounded-lg">
               <Sparkles className="h-3 w-3" aria-hidden />
-              <span className="font-semibold text-text-pg-muted">{modelCopy.chat.badgeLive}</span>
+              <span className="font-semibold text-text-pg-muted">{defaultModelName || modelCopy.chat.badgeLive}</span>
             </span>
-            <span className="inline-flex items-center gap-1 border border-status-positive px-1.5 py-0.5 text-status-positive rounded-lg">
-              <CheckCircle2 className="h-3 w-3" aria-hidden />
-              {availability === "live" ? modelCopy.chat.badgeDetail : modelCopy.chat.badgeChecking}
+            <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 rounded-lg ${availability === "published" ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>
+              {availability === "published" ? <CheckCircle2 className="h-3 w-3" aria-hidden /> : <CircleAlert className="h-3 w-3" aria-hidden />}
+              {availability === "published" ? modelCopy.chat.badgeDetail : modelCopy.chat.badgeChecking}
             </span>
             <span className="text-text-pg-dim">
               {zh
@@ -496,10 +530,18 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </form>
           <div className="mx-auto mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 text-[11px] text-text-pg-dim"><span>{!researchMode ? (zh ? "联网模式：直接联网检索" : "Online mode: direct web search") : (creditQuote?.plan?.intent ? `${zh ? "自动识别" : "Detected"}: ${creditQuote.plan.intent.replaceAll("_", " ")}` : (zh ? "留空高级设置时，Agent 会自动选择 Skills 与证据。" : "Leave advanced settings blank for automatic Skills and evidence selection."))}</span><span>{creditQuote?.unavailable ? (zh ? "计费报价暂不可用" : "Credit quote unavailable") : `${zh ? "预计消耗" : "Estimated cost"}: ${estimatedCredits} Credits`}</span></div>
           {failure ? (
-            <div className="mx-auto mt-2 flex max-w-3xl flex-wrap items-center gap-2 border border-status-negative px-3 py-2 text-xs text-status-negative rounded-lg" role="alert" data-testid="chat-error">
-              <span className="min-w-0 flex-1">{failure.message}</span>
-              {failure.reference ? <span className="font-mono text-[10px] text-text-pg-dim" data-testid="chat-error-reference">{modelCopy.errors.reference}: {failure.reference}</span> : null}
-              <button type="button" onClick={() => setFailure(null)} className="border border-border-pg px-2 py-1 text-[10px] text-text-pg-muted rounded-lg">{zh ? "关闭" : "Dismiss"}</button>
+            <div className="mx-auto mt-2 max-w-3xl border border-status-negative px-3 py-2 text-xs text-status-negative rounded-lg" role="alert" data-testid="chat-error">
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="min-w-0 flex-1">{failure.message}</span>
+                {failure.reference ? <span className="font-mono text-[10px] text-text-pg-dim" data-testid="chat-error-reference">{modelCopy.errors.reference}: {failure.reference}</span> : null}
+                <button type="button" onClick={() => setFailure(null)} className="border border-border-pg px-2 py-1 text-[10px] text-text-pg-muted rounded-lg">{zh ? "关闭" : "Dismiss"}</button>
+              </div>
+              {/* Billing line states only what the backend settled: a refund is
+                  asserted from `credits_refunded`, never from the error type. */}
+              <p className="mt-1.5 text-[10px] text-text-pg-muted" data-testid="chat-error-billing" data-billing={failure.billing}>
+                {billingNotice(locale, failure.billing)}
+                {failure.billing === "unknown" ? <> · <Link href={withLocale(locale, "/gateway")} className="underline decoration-dotted underline-offset-2">{modelCopy.errors.usageLink}</Link></> : null}
+              </p>
             </div>
           ) : null}
         </div>

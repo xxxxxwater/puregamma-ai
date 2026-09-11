@@ -27,13 +27,17 @@ test.describe("localized routes", () => {
 
   test("/en/dashboard renders English labels", async ({ page }) => {
     await page.goto("/en/dashboard");
-    await expect(page.getByRole("heading", { name: "PureGamma Intelligence Console" })).toBeVisible();
+    // The visible heading is the hero title; the brand string lives in the page
+    // <title> ("PureGamma AI Console"), which the metadata test covers.
+    await expect(page.getByRole("heading", { name: "Market intelligence, in motion." })).toBeVisible();
+    await expect(page).toHaveTitle("PureGamma AI Console");
     await expect(page.getByText("Credit Balance")).toBeVisible();
   });
 
   test("/zh/dashboard renders Chinese labels", async ({ page }) => {
     await page.goto("/zh/dashboard");
-    await expect(page.getByRole("heading", { name: "PureGamma 投研控制台" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "市场智能，正在演化。" })).toBeVisible();
+    await expect(page).toHaveTitle("PureGamma AI 投研控制台");
     await expect(page.getByText("Credits 余额")).toBeVisible();
   });
 

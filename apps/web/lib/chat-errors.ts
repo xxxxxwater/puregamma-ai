@@ -30,6 +30,22 @@ export type ChatFailure = {
   message: string;
   /** Redacted request id worth quoting in a support ticket, when supplied. */
   reference?: string;
+  /**
+   * Billing status for THIS run, taken only from the backend's settlement
+   * record. `undefined` means the backend did not report one, and the UI must
+   * not imply either outcome.
+   *
+   * `apps/api/services/agent_service.py` settles a run in three different ways,
+   * and they are not interchangeable:
+   *   - an error inside `stream_run` refunds (`run.failed` after
+   *     `_refund_agent_run`);
+   *   - a client disconnect *settles* the tokens already produced
+   *     (`_finalize_disconnected_run`);
+   *   - stale-run recovery refunds after a 10-minute grace period
+   *     (`recover_stale_runs`).
+   * So "the stream broke" never justifies a refund promise on its own.
+   */
+  billing?: "refunded" | "settled" | "unknown";
 };
 
 /**
@@ -114,11 +130,15 @@ function genericCodeFromMessage(message: string): string | undefined {
 /**
  * Turn any Agent failure into localized, user-safe copy plus an optional
  * redacted reference. Never returns raw server text, addresses or stack traces.
+ *
+ * `override.refunded` is the backend's settlement result for the run
+ * (`AgentMessage.credits_refunded`). Pass it whenever it is known so the billing
+ * line states a fact instead of a guess; leave it undefined when it is not.
  */
 export function describeChatFailure(
   locale: Locale,
   error: unknown,
-  override?: { kind: ChatErrorKind; status?: number; reference?: string },
+  override?: { kind: ChatErrorKind; status?: number; reference?: string; refunded?: boolean; settled?: boolean },
 ): ChatFailure {
   const copy = getMessageNamespace(locale, "model-upgrade").errors;
   const status = override?.status ?? (error as { status?: number } | null)?.status;
@@ -152,5 +172,21 @@ export function describeChatFailure(
     generic: copy.generic,
   };
 
-  return { kind, message: messages[kind], reference };
+  // Only a reported settlement result may be stated. A refund is only ever
+  // asserted when the backend says so; otherwise stay neutral and point at the
+  // usage record, which is the surface that actually knows.
+  const billing: ChatFailure["billing"] =
+    override?.refunded === true ? "refunded" : override?.settled === true ? "settled" : "unknown";
+  const billingMessage =
+    billing === "refunded" ? copy.billingRefunded : billing === "settled" ? copy.billingSettled : copy.billingUnknown;
+
+  return { kind, message: messages[kind], reference, billing };
+}
+
+/** Localized billing sentence for a reported settlement state. */
+export function billingNotice(locale: Locale, billing: ChatFailure["billing"]): string {
+  const copy = getMessageNamespace(locale, "model-upgrade").errors;
+  if (billing === "refunded") return copy.billingRefunded;
+  if (billing === "settled") return copy.billingSettled;
+  return copy.billingUnknown;
 }

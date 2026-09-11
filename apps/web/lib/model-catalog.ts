@@ -16,31 +16,78 @@ export const FLASH_MODEL_ID = "deepseek-flash";
 /** Compatibility id DeepSeek still serves from the same upstream model. */
 export const FLASH_ALIAS_ID = "deepseek-v4-flash";
 
-export type ModelAvailability = "live" | "pending" | "unavailable" | "unknown";
+/**
+ * Catalog state, kept deliberately distinct from runtime health.
+ *
+ * These four states answer "what does the published catalog say?" — the only
+ * question the public endpoint can answer. They are NOT a health check:
+ *
+ *   - `available`    the catalog serves it with an approved, active price and
+ *                    an enabled provider. This is a *published and priced*
+ *                    fact, not proof that the upstream is healthy right now.
+ *   - `pending`      the catalog has the model but pricing review or provider
+ *                    enablement has not completed. Not billable yet.
+ *   - `unavailable`  the provider is disabled: do not offer it.
+ *   - `unknown`      the catalog could not be read, so nothing is claimed.
+ *
+ * Runtime health is a separate concern with a separate owner: the provider
+ * health check and request outcome live behind the authenticated Gateway
+ * dashboard (`GET /gateway/dashboard`, `POST /admin/gateway/providers/
+ * healthcheck`) and the agent capability endpoint. A page that only reads the
+ * public catalog must not present its state as a health guarantee, which is why
+ * the UI labels this "published with an approved price".
+ */
+export type ModelCatalogState = "available" | "pending" | "unavailable" | "unknown";
 
 export type FlashAvailability = {
-  state: ModelAvailability;
+  state: ModelCatalogState;
+  /** UI-facing state: `available` here means published and priced, not healthy. */
+  uiState: "published" | "pending" | "unavailable" | "unverified";
   model: GatewayCatalogModel | null;
-  /** True only when the catalog itself reported the model as callable. */
+  /** True only when the catalog itself reported the model as published+priced. */
   verified: boolean;
 };
 
 /**
- * Read availability straight off the catalog this deployment serves.
+ * Read catalog state straight off the catalog this deployment serves.
  *
- * Nothing here infers "live" from the model existing in the copy: a missing
+ * Nothing here infers availability from the model existing in copy: a missing
  * catalog, a disabled Gateway, a pending price revision or a disabled provider
- * all resolve to a non-live state so the UI can never paint a green badge for a
- * model that cannot actually be called.
+ * all resolve to a non-available state so the UI can never paint a green badge
+ * for a model that cannot actually be called.
  */
 export function flashAvailability(catalog: GatewayCatalog | null): FlashAvailability {
-  if (!catalog || catalog.unavailable) return { state: "unknown", model: null, verified: false };
+  const none: FlashAvailability = { state: "unknown", uiState: "unverified", model: null, verified: false };
+  if (!catalog || catalog.unavailable) return none;
   const model = catalog.models.find((item) => item.id === FLASH_MODEL_ID) ?? null;
-  if (!model) return { state: "unknown", model: null, verified: false };
-  if (!catalog.gateway_enabled) return { state: "pending", model, verified: false };
-  if (model.availability === "available") return { state: "live", model, verified: true };
-  if (model.availability === "provider_disabled") return { state: "unavailable", model, verified: false };
-  return { state: "pending", model, verified: false };
+  if (!model) return none;
+  if (!catalog.gateway_enabled) return { state: "pending", uiState: "pending", model, verified: false };
+  if (model.availability === "available") return { state: "available", uiState: "published", model, verified: true };
+  if (model.availability === "provider_disabled") return { state: "unavailable", uiState: "unavailable", model, verified: false };
+  return { state: "pending", uiState: "pending", model, verified: false };
+}
+
+/**
+ * The platform's default model as the deployment declares it.
+ *
+ * The request sent to the Agent API keeps the `default` sentinel — that is the
+ * routing contract and this function never changes it. This resolves the
+ * *label* for that sentinel from the catalog, so the UI does not hardcode a
+ * model name that the backend could change.
+ *
+ * `metadata.platform_default: "true"` is the authoritative declaration. Until
+ * the backend publishes it, `FLASH_MODEL_ID` is the documented fallback.
+ */
+export function platformDefaultModel(catalog: GatewayCatalog | null): GatewayCatalogModel | null {
+  const models = catalog?.models ?? [];
+  const declared = models.find((model) => String(model.metadata?.platform_default ?? "").toLowerCase() === "true");
+  if (declared) return declared;
+  return models.find((model) => model.id === FLASH_MODEL_ID) ?? null;
+}
+
+/** Display name for the resolved default model, or null when nothing is known. */
+export function platformDefaultModelName(catalog: GatewayCatalog | null): string | null {
+  return platformDefaultModel(catalog)?.display_name ?? null;
 }
 
 /** Compact a token count for display, returning null when the catalog omits it. */
