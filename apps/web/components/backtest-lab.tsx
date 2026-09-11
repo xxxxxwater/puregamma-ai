@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { Download, FlaskConical, Loader2, Play, RefreshCw, Sparkles } from "lucide-react";
 import { BacktestTerminal } from "@/components/backtest-terminal";
 import { type Locale, withLocale } from "@/i18n/routing";
-import { API_URL, BacktestLabRun, BacktestLabSpec, BacktestLabStatus, exportBacktestLabRun, generateBacktestLabSpec, getBacktestLabRuns, getBacktestLabStatus, refreshBacktestLabData, runBacktestLab } from "@/lib/api";
+import { apiBaseUrl, BacktestLabRun, BacktestLabSpec, BacktestLabStatus, exportBacktestLabRun, generateBacktestLabSpec, getBacktestLabRuns, getBacktestLabStatus, refreshBacktestLabData, runBacktestLab } from "@/lib/api";
 import { PlotlyChart } from "@/components/plotly-chart";
 import { getMessageNamespace } from "@/lib/translations";
 
@@ -133,7 +133,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
     setError("");
     try {
       const result = await exportBacktestLabRun(selected.id, format);
-      if (typeof window !== "undefined") window.open(`${API_URL}/backtest-lab/artifacts/${result.artifact.id}`, "_blank", "noopener,noreferrer");
+      if (typeof window !== "undefined") window.open(`${apiBaseUrl()}/backtest-lab/artifacts/${result.artifact.id}`, "_blank", "noopener,noreferrer");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Export failed");
     } finally {

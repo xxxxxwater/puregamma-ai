@@ -7,7 +7,7 @@ import { EvidenceGraph, type EvidenceNode } from "@/components/ocean/evidence-gr
 import { OceanShell } from "@/components/ocean/ocean-shell";
 import { ResearchTimeline, stagesForStatus } from "@/components/ocean/research-timeline";
 import { StatusBadgeWithPulse } from "@/components/ocean/status-badge";
-import { getResearchRun, getResearchRunArtifacts, getResearchRunEvidence, type HarnessResearchRun } from "@/lib/api";
+import { apiBaseUrl, getResearchRun, getResearchRunArtifacts, getResearchRunEvidence, type HarnessResearchRun } from "@/lib/api";
 import { OCEAN_POLL_INTERVAL_ACTIVE_MS, OCEAN_POLL_INTERVAL_IDLE_MS } from "@/lib/ocean";
 import { type Locale, withLocale } from "@/i18n/routing";
 
@@ -90,7 +90,7 @@ export function ResearchRunDetail({ locale, runId }: { locale: Locale; runId: st
     const idleTimeout = window.setTimeout(finish, 20_000);
     (async () => {
       try {
-        const response = await fetch(`${process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000"}/api/research/runs/${encodeURIComponent(runId)}/events`, {
+        const response = await fetch(`${apiBaseUrl()}/api/research/runs/${encodeURIComponent(runId)}/events`, {
           credentials: "include",
           headers: { Accept: "text/event-stream" },
           signal: controller.signal,

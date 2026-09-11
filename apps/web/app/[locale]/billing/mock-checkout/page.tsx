@@ -5,7 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import Link from "next/link";
 import { CheckCircle2, Loader2, XCircle } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
-import { API_URL } from "@/lib/api";
+import { apiBaseUrl } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 
 function MockCheckoutInner() {
@@ -26,7 +26,7 @@ function MockCheckoutInner() {
 
     let cancelled = false;
 
-    fetch(`${API_URL}/billing/mock-upgrade`, {
+    fetch(`${apiBaseUrl()}/billing/mock-upgrade`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       credentials: "include",

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Terminal } from "lucide-react";
-import { API_URL } from "@/lib/api";
+import { apiBaseUrl } from "@/lib/api";
 
 const MAX_TERMINAL_LINES = 2_000;
 
@@ -81,7 +81,7 @@ export function BacktestTerminal({ run, localeStr }: Props) {
     setConnected(false);
     setStreamEnded(false);
 
-    const evt = new EventSource(`${API_URL}/backtest-lab/runs/${runId}/stream`, {
+    const evt = new EventSource(`${apiBaseUrl()}/backtest-lab/runs/${runId}/stream`, {
       withCredentials: true,
     });
     eventSourceRef.current = evt;

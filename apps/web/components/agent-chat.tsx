@@ -212,6 +212,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     let assistantId = "";
     let assistantContent = "";
     let completed = false;
+    /** True once an SSE event reported the run's own failure and its billing. */
+    let failureReported = false;
     try {
       const id = await ensureConversation();
       setInput("");
@@ -268,6 +270,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           // billing status is known here — but it is asserted from that refund,
           // not inferred from the error type.
           setFailure(describeChatFailure(locale, null, { kind: "generic", refunded: true }));
+          failureReported = true;
           if (typeof data.creditBalance === "number") publishCreditBalance(data.creditBalance);
         } else if (eventName === "run.canceled") {
           if (typeof data.creditBalance === "number") publishCreditBalance(data.creditBalance);
@@ -282,14 +285,18 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       // A run can finish without producing any text. Say so instead of leaving
       // a blank bubble that looks like a rendering bug, and report the recorded
       // billing state rather than assuming the empty answer was free.
-      if (completed && !assistantContent.trim() && assistantId) {
+      //
+      // `failureReported` matters: when `run.failed` already stated this run's
+      // billing from the refund it issued, an inferred failure must not replace
+      // it with a weaker "unknown".
+      if (!failureReported && completed && !assistantContent.trim() && assistantId) {
         const emptyFailure = describeChatFailure(locale, null, {
           kind: "empty_answer",
           refunded: settled?.credits_refunded === true,
           settled: settled?.credits_refunded === false,
         });
         setFailure(emptyFailure);
-      } else if (assistantId && !completed) {
+      } else if (!failureReported && assistantId && !completed) {
         // The stream ended cleanly but never emitted `message.completed`: a
         // proxy cut the body without an error. The backend settles what was
         // produced in that case, so state nothing about billing and point at

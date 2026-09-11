@@ -6,6 +6,65 @@ import { syncUserStateFromPayload } from "@/lib/user-state";
 
 export const API_URL = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
+const ABSOLUTE_URL = /^https?:\/\//i;
+
+/**
+ * Browser-safe API base. Use this from Client Components.
+ *
+ * `API_URL` may be a same-origin path (`/__dev-api`) when the development proxy
+ * is in use. A path is resolved against the page origin here, so callers can
+ * build a fetch/EventSource/window.open URL without thinking about it. Server
+ * code must await `resolveApiUrl()` instead, because a Server Component has no
+ * page origin to resolve against.
+ */
+export function apiBaseUrl(): string {
+  if (typeof window === "undefined" || ABSOLUTE_URL.test(API_URL)) return API_URL;
+  return `${window.location.origin}${API_URL.startsWith("/") ? "" : "/"}${API_URL}`;
+}
+
+/**
+ * WebSocket base derived from the API base, for the streaming surfaces.
+ *
+ * `apiBaseUrl()` already collapses the development proxy path onto the page
+ * origin, so this only has to swap the scheme.
+ */
+export function apiWebSocketBaseUrl(): string {
+  const base = apiBaseUrl();
+  if (base.startsWith("https://")) return `wss://${base.slice("https://".length)}`;
+  if (base.startsWith("http://")) return `ws://${base.slice("http://".length)}`;
+  if (typeof window !== "undefined") {
+    const protocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+    return `${protocol}//${window.location.host}${base.startsWith("/") ? "" : "/"}${base}`;
+  }
+  return base;
+}
+
+/**
+ * Resolve the API base for the current runtime.
+ *
+ * `NEXT_PUBLIC_API_URL` is normally absolute (`https://api.puregamma.ai`). The
+ * development proxy uses a same-origin path (`/__dev-api`) so the browser never
+ * issues a cross-origin request, and the browser resolves that path against the
+ * page origin for free. Server Components have no such base: `fetch("/x")`
+ * throws "Failed to parse URL", which silently blanked the server-rendered
+ * model preview. Rebuild the origin from the incoming request there.
+ */
+async function resolveApiUrl(): Promise<string> {
+  if (typeof window !== "undefined" || ABSOLUTE_URL.test(API_URL)) return API_URL;
+  try {
+    const { headers } = await import("next/headers");
+    const incoming = headers();
+    const host = incoming.get("x-forwarded-host") || incoming.get("host");
+    if (!host) return API_URL;
+    const protocol = incoming.get("x-forwarded-proto") || "http";
+    return `${protocol}://${host}${API_URL.startsWith("/") ? "" : "/"}${API_URL}`;
+  } catch {
+    // Outside a request scope (build-time prerender) there is no origin to
+    // borrow; the caller's fallback path handles the unavailable API.
+    return API_URL;
+  }
+}
+
 export const AUTH_EXPIRED_EVENT = "pg:auth-expired";
 
 function notifyAuthExpired() {
@@ -82,7 +141,7 @@ export async function api<T>(path: string, options: FetchOptions<T>): Promise<T>
   };
   try {
     const sessionHeaders = await forwardedSessionHeaders();
-    const response = await fetch(`${API_URL}${path}`, {
+    const response = await fetch(`${await resolveApiUrl()}${path}`, {
       ...options,
       headers: {
         "Content-Type": "application/json",
@@ -115,7 +174,7 @@ async function post<T>(path: string, body: object, fallback: T, locale: Locale =
 // ── Auth ────────────────────────────────────────────
 
 export type AuthResponse = {
-  user: { id: string; email: string; name: string; role: string; plan: string; credit_balance: number; stripe_customer_id?: string; avatar_url?: string | null; auth_provider?: string; has_password?: boolean; email_verified?: boolean; email_verified_at?: string | null; last_login_at?: string | null; login_methods?: string[] };
+  user: { id: string; email: string; is_placeholder_email?: boolean; name: string; role: string; plan: string; credit_balance: number; stripe_customer_id?: string; avatar_url?: string | null; auth_provider?: string; has_password?: boolean; email_verified?: boolean; email_verified_at?: string | null; last_login_at?: string | null; login_methods?: string[] };
   auth_header: { "X-User-Id"?: string; Authorization?: string };
   access_token?: string;
   token_type?: string;
@@ -139,7 +198,7 @@ export async function internalAdminLogin(username: string, password: string) {
 export async function googleLogin(locale: Locale = defaultLocale) {
   const requested = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("returnTo");
   const returnTo = requested?.startsWith("/") && !requested.startsWith("//") ? requested : `/${locale}/chat`;
-  const response = await fetch(`${API_URL}/auth/google/authorize?return_to=${encodeURIComponent(returnTo)}`, {
+  const response = await fetch(`${await resolveApiUrl()}/auth/google/authorize?return_to=${encodeURIComponent(returnTo)}`, {
     headers: { "Content-Type": "application/json", "X-PG-Locale": locale },
     credentials: "include",
     cache: "no-store"
@@ -166,13 +225,50 @@ export function verifyWallet(address: string, signature: string, wallet: "metama
 
 export async function googleCallback(code: string, state: string, locale: Locale = defaultLocale) {
   const query = new URLSearchParams({ code, state });
-  const response = await fetch(`${API_URL}/auth/google/callback?${query.toString()}`, {
+  const response = await fetch(`${await resolveApiUrl()}/auth/google/callback?${query.toString()}`, {
     headers: { "Content-Type": "application/json", "X-PG-Locale": locale },
     credentials: "include",
     cache: "no-store"
   });
   if (!response.ok) throw new Error(await response.text());
   return response.json() as Promise<AuthResponse>;
+}
+
+// ── X (Twitter) sign-in ───────────────────────────────────────────────
+
+export async function xLogin(locale: Locale = defaultLocale) {
+  const requested = typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("returnTo");
+  const returnTo = requested?.startsWith("/") && !requested.startsWith("//") ? requested : `/${locale}/chat`;
+  const response = await fetch(`${await resolveApiUrl()}/auth/x/authorize?return_to=${encodeURIComponent(returnTo)}`, {
+    headers: { "Content-Type": "application/json", "X-PG-Locale": locale },
+    credentials: "include",
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json() as Promise<{ auth_url: string; state: string }>;
+}
+
+export async function xCallback(code: string, state: string, locale: Locale = defaultLocale) {
+  const query = new URLSearchParams({ code, state });
+  const response = await fetch(`${await resolveApiUrl()}/auth/x/callback?${query.toString()}`, {
+    headers: { "Content-Type": "application/json", "X-PG-Locale": locale },
+    credentials: "include",
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error(await response.text());
+  return response.json() as Promise<AuthResponse>;
+}
+
+export type XConfig = { x_login_enabled: boolean; x_bot_enabled: boolean; x_bound: boolean };
+
+export type XPublicConfig = { x_login_enabled: boolean };
+
+export function getXPublicConfig(locale: Locale = defaultLocale) {
+  return api<XPublicConfig>("/auth/x/config", { fallback: { x_login_enabled: false }, locale });
+}
+
+export function getXConfig(locale: Locale = defaultLocale) {
+  return api<XConfig>("/auth/x/status", { fallback: { x_login_enabled: false, x_bot_enabled: false, x_bound: false }, locale });
 }
 
 export async function getMe() {
@@ -268,7 +364,7 @@ export async function changePassword(currentPassword: string, newPassword: strin
 export async function setPassword(newPassword: string) {
   return requestStrict<AuthResponse & { message?: string }>("/auth/email/set-password", {
     method: "POST",
-    body: JSON.stringify({ current_password: "", new_password: newPassword })
+    body: JSON.stringify({ new_password: newPassword })
   });
 }
 
@@ -952,7 +1048,7 @@ export function setMobileAccessPin(which: "public" | "lan", pin: string) {
 export async function getMobileAccessQr(kind: "lan" | "public", host?: string): Promise<string> {
   const query = `kind=${kind}${host ? `&host=${encodeURIComponent(host)}` : ""}`;
   const sessionHeaders = await forwardedSessionHeaders();
-  const response = await fetch(`${API_URL}/api/mobile-access/qr?${query}`, {
+  const response = await fetch(`${await resolveApiUrl()}/api/mobile-access/qr?${query}`, {
     headers: { ...sessionHeaders },
     credentials: "include",
     cache: "no-store"
@@ -1115,7 +1211,7 @@ export type EarningsGammaCandidate = { symbol: string; name: string; earnings_da
 
 async function requestStrict<T>(path: string, init: RequestInit = {}): Promise<T> {
   const sessionHeaders = await forwardedSessionHeaders();
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${await resolveApiUrl()}${path}`, {
     ...init,
     credentials: "include",
     cache: "no-store",
@@ -1246,7 +1342,7 @@ export function clearSecretaryMemory() {
 }
 
 export async function synthesizeSecretaryVoice(text: string, locale: Locale, signal?: AbortSignal) {
-  const response = await fetch(`${API_URL}/api/secretary/voice`, {
+  const response = await fetch(`${await resolveApiUrl()}/api/secretary/voice`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json" },
@@ -1262,7 +1358,7 @@ export async function synthesizeSecretaryVoice(text: string, locale: Locale, sig
 }
 
 export async function transcribeSecretaryAudio(audio: Blob, locale: Locale, signal?: AbortSignal) {
-  const response = await fetch(`${API_URL}/api/secretary/transcribe?locale=${encodeURIComponent(locale)}`, {
+  const response = await fetch(`${await resolveApiUrl()}/api/secretary/transcribe?locale=${encodeURIComponent(locale)}`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": audio.type || "audio/webm" },
@@ -1595,7 +1691,7 @@ export async function previewLiveOrder(payload: {
   limit_price?: string | null;
 }): Promise<LiveOrderPreviewResult> {
   const sessionHeaders = await forwardedSessionHeaders();
-  const response = await fetch(`${API_URL}/api/trading/orders/preview`, {
+  const response = await fetch(`${await resolveApiUrl()}/api/trading/orders/preview`, {
     method: "POST",
     credentials: "include",
     cache: "no-store",
@@ -1716,7 +1812,7 @@ export async function streamAgentMessage(
   onEvent: (event: AgentStreamEvent) => void,
   context?: Partial<AgentContext>
 ) {
-  const response = await fetch(`${API_URL}/api/agent/conversations/${encodeURIComponent(conversationId)}/messages`, {
+  const response = await fetch(`${await resolveApiUrl()}/api/agent/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",
     credentials: "include",
     headers: { "Content-Type": "application/json", Accept: "text/event-stream" },

@@ -3,7 +3,7 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { Languages, LoaderCircle } from "lucide-react";
-import { API_URL } from "@/lib/api";
+import { apiBaseUrl } from "@/lib/api";
 import { Button } from "@/components/ui";
 
 export function DailyBriefControls({ locale }: { locale: "en" | "zh" }) {
@@ -15,7 +15,7 @@ export function DailyBriefControls({ locale }: { locale: "en" | "zh" }) {
     setBusy(language);
     setFailed(false);
     try {
-      const response = await fetch(`${API_URL}/reports/daily?locale=${language}`, { method: "POST", credentials: "include", headers: { "X-PG-Locale": language } });
+      const response = await fetch(`${apiBaseUrl()}/reports/daily?locale=${language}`, { method: "POST", credentials: "include", headers: { "X-PG-Locale": language } });
       if (!response.ok) throw new Error("Daily brief generation failed");
       router.refresh();
     } catch {

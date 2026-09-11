@@ -2,6 +2,7 @@
 
 import { ChevronDown, ChevronUp, Radio } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
+import { apiWebSocketBaseUrl } from "@/lib/api";
 
 type Locale = "en" | "zh";
 
@@ -29,7 +30,9 @@ type AssetContext = {
 
 type MarketState = Record<string, { candle?: Candle; context?: AssetContext }>;
 
-const WS_URL = `${(process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000").replace(/^http/, "ws")}/market/hyperliquid/stream`;
+// Derived at module scope from the resolved API base so the development proxy
+// (a same-origin path) also works for the WebSocket upgrade.
+const WS_URL = `${apiWebSocketBaseUrl()}/market/hyperliquid/stream`;
 
 const INSTRUMENTS: Instrument[] = [
   { id: "xyz:CL", symbol: "WTIOIL-USDC", venue: "xyz", leverage: 20 },

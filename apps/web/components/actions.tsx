@@ -3,14 +3,14 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { CreditCard, ExternalLink, Play, Send } from "lucide-react";
-import { API_URL, cancelSubscription, createBillingCheckout, createPortalSession, reactivateSubscription, sendReport } from "@/lib/api";
+import { apiBaseUrl, cancelSubscription, createBillingCheckout, createPortalSession, reactivateSubscription, sendReport } from "@/lib/api";
 import { Button } from "@/components/ui";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { t } from "@/lib/translations";
 import { withLocale } from "@/i18n/routing";
 
 async function post(path: string, body: unknown) {
-  const response = await fetch(`${API_URL}${path}`, {
+  const response = await fetch(`${apiBaseUrl()}${path}`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify(body)

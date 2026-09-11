@@ -2,7 +2,7 @@
 
 import clsx from "clsx";
 import { usePathname, useRouter } from "next/navigation";
-import { API_URL } from "@/lib/api";
+import { apiBaseUrl } from "@/lib/api";
 import { localeCookieName, switchLocalePath, type Locale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 import { useLocale } from "./LocaleProvider";
@@ -19,7 +19,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
 
   function switchTo(nextLocale: Locale) {
     document.cookie = `${localeCookieName}=${nextLocale}; Path=/; Max-Age=31536000; SameSite=Lax`;
-    void fetch(`${API_URL}/auth/preferences/locale`, {
+    void fetch(`${apiBaseUrl()}/auth/preferences/locale`, {
       method: "POST",
       headers: { "Content-Type": "application/json", "X-PG-Locale": nextLocale },
       // Cross-subdomain call: without credentials the session cookie is never

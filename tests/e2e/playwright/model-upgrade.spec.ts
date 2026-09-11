@@ -91,7 +91,8 @@ const STREAM_BODY = [
   "",
 ].join("\n");
 
-async function stubApi(page: Page, options: { assistantContent?: string; creditsRefunded?: boolean } = {}) {
+async function stubApi(page: Page, options: { assistantId?: string; assistantContent?: string; creditsRefunded?: boolean } = {}) {
+  const assistantId = options.assistantId ?? "m-assistant";
   const assistantContent = options.assistantContent ?? "BTC is trading in its current range.";
   const creditsRefunded = options.creditsRefunded ?? false;
   await page.route("**/me", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(USER) }));
@@ -124,7 +125,7 @@ async function stubApi(page: Page, options: { assistantContent?: string; credits
             sources: [],
           },
           {
-            id: "m-assistant",
+            id: assistantId,
             conversation_id: CONVERSATION.id,
             role: "assistant",
             content: assistantContent,
@@ -335,6 +336,10 @@ test.describe("Agent Chat model label", () => {
 
   test("the default selection is shown as DeepSeek V4.1 Flash, not 'Default model'", async ({ page }) => {
     await page.goto("/zh/chat");
+    // The Chat surface bounces a visitor it believes is signed out. Without
+    // this guard a stub regression would silently turn every assertion below
+    // into an assertion about the login page.
+    await expect(page).toHaveURL(/\/zh\/chat$/);
     const select = page.locator("#agent-model");
     await expect(select).toBeVisible();
     // The hidden value stays the routing sentinel so the backend still routes.
@@ -349,18 +354,21 @@ test.describe("Agent Chat model label", () => {
 
   test("English chat label is localized", async ({ page }) => {
     await page.goto("/en/chat");
+    await expect(page).toHaveURL(/\/en\/chat$/);
     await expect(page.locator("#agent-model option[value='default']")).toHaveText(/DeepSeek V4\.1 Flash/);
     await expect(page.locator("#agent-model option[value='default']")).toHaveText(/platform default route/);
   });
 
   test("a stored answer from another model is not relabelled as Flash", async ({ page }) => {
     await page.goto("/zh/chat/c-model-upgrade");
+    await expect(page).toHaveURL(/\/zh\/chat\/c-model-upgrade$/);
     // The fixture's assistant message is recorded as deepseek-flash.
     await expect(page.getByText(FLASH_DISPLAY, { exact: false }).first()).toBeVisible();
   });
 
   test("streaming a turn keeps the assistant answer renderable", async ({ page }) => {
     await page.goto("/zh/chat");
+    await expect(page).toHaveURL(/\/zh\/chat$/);
     await page.locator("textarea").fill("BTC market now");
     await page.keyboard.press("Enter");
     await expect(page.getByText("BTC is trading in its current range.")).toBeVisible({ timeout: 15000 });
@@ -372,6 +380,11 @@ test.describe("Agent Chat model label", () => {
  * `apps/api/services/agent_service.py` refunds a failed run but *settles* the
  * tokens already produced when the client disconnects, so the UI may only state
  * an outcome the backend actually reported (`AgentMessage.credits_refunded`).
+ *
+ * These tests register their own stubs instead of layering them over
+ * `stubApi`: `page.unroute` removes every handler matching the pattern
+ * (including the conversation-detail stub the reload depends on), which would
+ * otherwise change what the test is actually exercising.
  */
 test.describe("Agent Chat billing copy follows the settlement record", () => {
   test.beforeEach(async ({ page }) => {
@@ -395,6 +408,8 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
       }),
     );
     await page.goto("/zh/chat");
+    // Guard: a signed-out redirect would make these assertions meaningless.
+    await expect(page).toHaveURL(/\/zh\/chat$/);
     await page.locator("textarea").fill("trigger a refunded failure");
     await page.keyboard.press("Enter");
     const billing = page.getByTestId("chat-error-billing");
@@ -422,6 +437,8 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
       }),
     );
     await page.goto("/zh/chat");
+    // Guard: a signed-out redirect would make these assertions meaningless.
+    await expect(page).toHaveURL(/\/zh\/chat$/);
     await page.locator("textarea").fill("interrupt me");
     await page.keyboard.press("Enter");
     const billing = page.getByTestId("chat-error-billing");
@@ -438,6 +455,8 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
       route.fulfill({ status: 200, contentType: "text/event-stream", body: "event: run.started\ndata: {\"runId\":\"r5\",\"messageId\":\"m-silent\",\"model\":\"deepseek-flash\"}\n\n" }),
     );
     await page.goto("/zh/chat");
+    // Guard: a signed-out redirect would make these assertions meaningless.
+    await expect(page).toHaveURL(/\/zh\/chat$/);
     await page.locator("textarea").fill("cut me silently");
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("chat-error")).toBeVisible({ timeout: 15000 });
@@ -446,9 +465,12 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
   });
 
   test("an empty answer reports the recorded settlement instead of assuming it was free", async ({ page }) => {
-    // The persisted message comes back empty with a settled (not refunded) run.
-    await page.unroute("**/api/agent/conversations/**");
-    await stubApi(page, { assistantContent: "", creditsRefunded: false });
+    // This run completes with no text and the persisted message comes back with
+    // a settled (not refunded) run, so `credits_refunded: false` is the record
+    // the copy must follow.
+    // The reload must see the same message the stream reported, with the
+    // backend's settlement flag on it.
+    await stubApi(page, { assistantId: "m-empty", assistantContent: "", creditsRefunded: false });
     await page.route("**/api/agent/conversations/*/messages", (route) =>
       route.fulfill({
         status: 200,
@@ -465,6 +487,8 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
       }),
     );
     await page.goto("/zh/chat");
+    // Guard: a signed-out redirect would make these assertions meaningless.
+    await expect(page).toHaveURL(/\/zh\/chat$/);
     await page.locator("textarea").fill("return nothing");
     await page.keyboard.press("Enter");
     const billing = page.getByTestId("chat-error-billing");
