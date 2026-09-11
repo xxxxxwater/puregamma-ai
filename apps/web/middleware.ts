@@ -1,10 +1,10 @@
 import { NextResponse, type NextRequest } from "next/server";
 import { defaultLocale, isLocale, legacyLocaleRoutes, localeCookieName, localeFromAcceptLanguage, localePrefixPattern } from "@/i18n/routing";
+import { requiresAuthentication } from "@/lib/route-access";
 import { isChinaIP } from "@/lib/geoip";
 
 const PUBLIC_FILE = /\.(.*)$/;
 const INITIAL_LAUNCH_HIDDEN = ["/signals", "/playbooks", "/strategies", "/trading", "/nautilus", "/data-sources", "/integrations", "/daily-push", "/billing/mock-checkout"];
-const AUTHENTICATED_ROUTES = ["/account", "/admin", "/billing", "/chat", "/dashboard", "/gateway", "/memory", "/mobile-access", "/news", "/options", "/portfolio", "/reports", "/research"];
 
 async function resolveLocale(request: NextRequest, useGeo: boolean): Promise<string> {
   const cookieLocale = request.cookies.get(localeCookieName)?.value;
@@ -36,9 +36,8 @@ export async function middleware(request: NextRequest) {
       return NextResponse.redirect(url);
     }
     const sessionCookieName = process.env.SESSION_COOKIE_NAME || "pg_session";
-    const requiresAuthentication = AUTHENTICATED_ROUTES.some((route) => localPath === route || localPath.startsWith(`${route}/`));
     const authenticationRequired = process.env.REQUIRE_AUTH === "true";
-    if (authenticationRequired && requiresAuthentication && !request.cookies.get(sessionCookieName)) {
+    if (authenticationRequired && requiresAuthentication(localPath) && !request.cookies.get(sessionCookieName)) {
       const url = request.nextUrl.clone();
       const returnTo = `${pathname}${search}`;
       url.pathname = `/${pathnameLocale}/login`;

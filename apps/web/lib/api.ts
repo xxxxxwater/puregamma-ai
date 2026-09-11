@@ -1,5 +1,6 @@
 import type { IntegrationRow, PositionRow, SignalRow, StrategyRow } from "@/components/puregamma";
-import { defaultLocale, type Locale } from "@/i18n/routing";
+import { defaultLocale, stripLocale, type Locale } from "@/i18n/routing";
+import { requiresAuthentication } from "@/lib/route-access";
 import { t } from "@/lib/translations";
 import { syncUserStateFromPayload } from "@/lib/user-state";
 
@@ -12,6 +13,12 @@ function notifyAuthExpired() {
   const path = window.location.pathname;
   // Avoid redirect loops on pages that are already part of the auth flow.
   if (/^\/(en|zh)\/(login|signup|auth|verify-email|reset-password|forgot-password)(\/|$)/.test(path)) return;
+  // Only bounce a visitor to the login page from a surface that actually needs
+  // a session. A public page still issues authenticated reads (the identity
+  // probe and the plugin catalog both answer 401 when logged out), and treating
+  // those as an expired session sent every logged-out visitor of the landing
+  // page straight to /login, hiding a page that never required a session.
+  if (!requiresAuthentication(stripLocale(path))) return;
   window.dispatchEvent(new CustomEvent(AUTH_EXPIRED_EVENT));
 }
 
