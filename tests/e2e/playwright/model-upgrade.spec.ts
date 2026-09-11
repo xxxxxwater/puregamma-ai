@@ -152,7 +152,7 @@ async function stubApi(page: Page, options: { assistantId?: string; assistantCon
 }
 
 test.describe("homepage DeepSeek V4.1 Flash announcement", () => {
-  test("Chinese homepage announces the model and links to Chat and the Gateway", async ({ page }) => {
+  test("Chinese homepage announces the model with one primary action", async ({ page }) => {
     await page.goto("/zh");
     const announcement = page.getByTestId("model-announcement");
     await expect(announcement).toBeVisible();
@@ -160,44 +160,56 @@ test.describe("homepage DeepSeek V4.1 Flash announcement", () => {
 
     const preview = page.getByTestId("model-upgrade-preview");
     await expect(preview).toBeVisible();
-    await expect(preview.getByRole("heading", { name: FLASH_DISPLAY })).toBeVisible();
+    await expect(preview.getByRole("heading", { name: FLASH_DISPLAY, exact: true })).toBeVisible();
     // Published state comes from the catalog, never from static copy.
     await expect(preview).toHaveAttribute("data-model-availability", "available");
+    // One prominent action; the other surfaces are quiet secondary links.
     await expect(preview.getByRole("link", { name: /进入 Agent 对话/ })).toHaveAttribute("href", "/zh/chat");
-    await expect(preview.getByRole("link", { name: /进入 API 中转站/ })).toHaveAttribute("href", "/zh/gateway");
-    // The card links to the API reference rather than leading with the raw sample.
+    await expect(preview.getByRole("link", { name: /^API 中转站$/ })).toHaveAttribute("href", "/zh/gateway");
     await expect(preview.getByRole("link", { name: /查看 API 接入文档/ })).toHaveAttribute("href", "/zh/api");
     await expect(preview).toContainText("对话、报告与研究");
   });
 
-  test("the homepage leads with plain-language facts and collapses technical fields", async ({ page }) => {
+  test("the homepage states the model once and collapses every technical field", async ({ page }) => {
     await page.goto("/zh");
     const preview = page.getByTestId("model-upgrade-preview");
     // Technical detail (request id, upstream id, pricing, raw curl) lives inside
-    // a closed <details>, so it does not take over the primary展示 area.
+    // a closed <details>, so it does not take over the primary display area.
     const technical = preview.getByTestId("model-upgrade-technical");
     await expect(technical).toBeVisible();
-    expect(await technical.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(false);
+    await expect(technical).not.toHaveAttribute("open", "");
     expect(await technical.locator("dl").isVisible()).toBe(false);
-    // The user-facing statements are visible without expanding anything.
-    await expect(preview).toContainText("现已支持 DeepSeek V4.1 Flash");
-    await expect(preview).toContainText("已上线");
-    // Catalog status and runtime health are stated as different things.
-    await expect(preview).toContainText("运行健康状态由中转站单独监控");
+    // The status label is accurate without a paragraph defending it.
+    await expect(preview).toContainText("已接入");
+    await expect(preview).not.toContainText("运行健康状态由中转站单独监控");
+    // The model name appears exactly once outside the collapsed region.
+    const visibleName = await preview.getByRole("heading", { name: FLASH_DISPLAY, exact: true }).count();
+    expect(visibleName).toBe(1);
+    // A collapsed <details> still keeps its content in the DOM, so assert on
+    // the summary's own subtree rather than on the whole card's text.
+    const summary = technical.locator("summary");
+    await expect(summary).not.toContainText("运行健康状态由中转站单独监控");
+    await expect(summary).not.toContainText("deepseek-flash");
+    await expect(summary).not.toContainText("请求示例");
   });
 
   test("expanding the technical section reveals the request id and alias", async ({ page }) => {
     await page.goto("/zh");
     const technical = page.getByTestId("model-upgrade-preview").getByTestId("model-upgrade-technical");
     await technical.locator("summary").click();
-    expect(await technical.evaluate((el) => (el as HTMLDetailsElement).open)).toBe(true);
+    // Assert on the rendered attribute rather than reading `.open` immediately:
+    // a click that lands before hydration would otherwise race the toggle.
+    await expect(technical).toHaveAttribute("open", "");
+    // Assertions are retried, so a toggle that lands a beat later still passes.
     await expect(technical).toContainText(FLASH);
     await expect(technical).toContainText("deepseek-v4-flash");
     // The request example is explicitly labelled as an example.
     await expect(technical).toContainText("仅为示例");
+    // The health caveat belongs with the technical detail, not in the summary.
+    await expect(technical).toContainText("目录状态不等于健康检查");
   });
 
-  test("English homepage announces the model and links to Chat and the Gateway", async ({ page }) => {
+  test("English homepage announces the model with one primary action", async ({ page }) => {
     await page.goto("/en");
     const announcement = page.getByTestId("model-announcement");
     await expect(announcement).toContainText("DeepSeek V4.1 Flash is now available");
@@ -205,9 +217,18 @@ test.describe("homepage DeepSeek V4.1 Flash announcement", () => {
     const preview = page.getByTestId("model-upgrade-preview");
     await expect(preview).toHaveAttribute("data-model-availability", "available");
     await expect(preview.getByRole("link", { name: /Open Agent Chat/ })).toHaveAttribute("href", "/en/chat");
-    await expect(preview.getByRole("link", { name: /Open API Gateway/ })).toHaveAttribute("href", "/en/gateway");
+    await expect(preview.getByRole("link", { name: /^API Gateway$/ })).toHaveAttribute("href", "/en/gateway");
     await expect(preview).toContainText("chat, reports and research");
-    await expect(preview).toContainText("Runtime health is monitored separately");
+    await expect(preview).toContainText("Available");
+    // The health caveat is disclosed with the technical detail, not in the
+    // card's summary: a collapsed <details> keeps its content in the DOM, so
+    // this checks the summary subtree rather than the card's text.
+    const technical = preview.getByTestId("model-upgrade-technical");
+    const summary = technical.locator("summary");
+    await expect(summary).not.toContainText("Catalog status is not a health check");
+    await technical.locator("summary").click();
+    await expect(technical).toHaveAttribute("open", "");
+    await expect(technical).toContainText("Catalog status is not a health check");
   });
 
   test("a pending catalog renders a non-live state instead of a green badge", async ({ page }) => {
@@ -348,8 +369,9 @@ test.describe("Agent Chat model label", () => {
     await expect(select.locator("option[value='default']")).toHaveText(/平台默认路由/);
     // Other vendors keep their own name and are not rewritten.
     await expect(select.locator("option[value='gpt-5.6-luna']")).toHaveText(/GPT-5\.6 Luna/);
-    const badge = page.getByTestId("chat-model-badge");
-    await expect(badge).toContainText("DeepSeek V4.1 Flash");
+    // The current model is stated exactly once. A normal state stays quiet, so
+    // the abnormal-state notice must not be on the page.
+    await expect(page.getByTestId("chat-model-badge")).toHaveCount(0);
   });
 
   test("English chat label is localized", async ({ page }) => {

@@ -36,30 +36,33 @@ function providerTone(status: string): "emerald" | "red" | "amber" {
   return status === "healthy" ? "emerald" : status === "unhealthy" ? "red" : "amber";
 }
 
-// DeepSeek console design tokens (--dsw-*) — deepseek blue primary, bluish
-// neutral greys, clean cards. Component-scoped, does not touch global themes.
+// Admin console palette, resolved through the shared theme tokens.
+//
+// This surface previously used a fixed light-only palette (white cards,
+// near-black ink), so it rendered as a white block in the dark theme. The
+// semantic tokens below flip with `data-theme`, which is what makes the console
+// legible in both. The brand blue is a deliberate accent defined per theme in
+// globals.css so it keeps AA contrast on either surface.
 const dsw = {
-  deepseek500: "#3964fe",
-  deepseek450: "#5686fe",
-  deepseek400: "#679efe",
-  deepseek300: "#b7c8fe",
-  deepseek100: "#e4edfd",
-  deepseek50: "#edf3fe",
-  green500: "#22c55e",
-  red500: "#f24242",
-  amber500: "#f59e0b",
-  ink: "#0f1115",
-  inkMuted: "#7f8287",
-  inkDim: "#a2a4a6",
-  line: "rgba(15, 17, 21, 0.08)",
-  cardBg: "#ffffff",
-  panelBg: "#fafafa",
+  deepseek500: "var(--admin-accent)",
+  deepseek450: "var(--admin-accent)",
+  deepseek400: "var(--admin-accent-soft)",
+  deepseek300: "var(--admin-accent-soft)",
+  green500: "var(--positive)",
+  red500: "var(--negative)",
+  amber500: "var(--warning)",
+  ink: "var(--foreground)",
+  inkMuted: "var(--muted)",
+  inkDim: "var(--muted-2)",
+  line: "var(--border)",
+  cardBg: "var(--panel)",
+  panelBg: "var(--panel-muted)",
 };
 
 function UsageTooltip({ active, payload, label, prefix }: { active?: boolean; payload?: { value: number; name: string }[]; label?: string; prefix?: string }) {
   if (!active || !payload?.length) return null;
   return (
-    <div style={{ border: `1px solid ${dsw.line}`, background: dsw.cardBg, borderRadius: 10, padding: "8px 12px", fontSize: 12, boxShadow: "0 4px 12px rgba(0,0,0,0.06)" }}>
+    <div style={{ border: `1px solid ${dsw.line}`, background: dsw.cardBg, borderRadius: 10, padding: "8px 12px", fontSize: 12, boxShadow: "var(--admin-shadow)" }}>
       <div style={{ color: dsw.inkMuted, marginBottom: 4 }}>{label}</div>
       {payload.map((item) => <div key={item.name} style={{ color: dsw.ink }}>{item.name}: {prefix || ""}{num(Number(item.value))}</div>)}
     </div>
@@ -161,7 +164,7 @@ function AdminUsageCharts({ locale }: { locale: Locale }) {
   }));
 
   const axis = { stroke: dsw.inkMuted, fontSize: 11 };
-  const gridLine = "rgba(15, 17, 21, 0.06)";
+  const gridLine = "var(--border)";
   const totalTokens = totals.input_tokens + totals.output_tokens + totals.cache_tokens;
 
   return (
@@ -177,7 +180,7 @@ function AdminUsageCharts({ locale }: { locale: Locale }) {
               style={{
                 border: `1px solid ${preset === item.id ? dsw.deepseek500 : dsw.line}`,
                 background: preset === item.id ? dsw.deepseek500 : dsw.cardBg,
-                color: preset === item.id ? "#fff" : dsw.ink,
+                color: preset === item.id ? "var(--admin-accent-ink)" : dsw.ink,
                 padding: "6px 14px", fontSize: 13, borderRadius: 8, cursor: "pointer", fontWeight: preset === item.id ? 600 : 400,
               }}>
               {item.label}
@@ -227,9 +230,9 @@ function AdminUsageCharts({ locale }: { locale: Locale }) {
                 <XAxis dataKey="date" stroke={axis.stroke} fontSize={axis.fontSize} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} />
                 <YAxis stroke={axis.stroke} fontSize={axis.fontSize} tickLine={false} axisLine={false} width={44} />
                 <Tooltip content={<ChartTooltip />} />
-                <Area type="monotone" dataKey="input" name={zh ? "输入" : "Input"} stackId="1" stroke={dsw.deepseek500} fill="rgba(57, 100, 254, 0.16)" strokeWidth={2} />
-                <Area type="monotone" dataKey="output" name={zh ? "输出" : "Output"} stackId="1" stroke={dsw.deepseek400} fill="rgba(103, 158, 254, 0.14)" strokeWidth={2} />
-                <Area type="monotone" dataKey="cache" name={zh ? "缓存" : "Cache"} stackId="1" stroke={dsw.deepseek300} fill="rgba(183, 200, 254, 0.18)" strokeWidth={2} />
+                <Area type="monotone" dataKey="input" name={zh ? "输入" : "Input"} stackId="1" stroke={dsw.deepseek500} fill="var(--admin-accent-fill)" strokeWidth={2} />
+                <Area type="monotone" dataKey="output" name={zh ? "输出" : "Output"} stackId="1" stroke={dsw.deepseek400} fill="var(--admin-accent-fill-soft)" strokeWidth={2} />
+                <Area type="monotone" dataKey="cache" name={zh ? "缓存" : "Cache"} stackId="1" stroke={dsw.deepseek300} fill="var(--admin-accent-fill-faint)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer></div>
           </DswCard>
@@ -252,7 +255,7 @@ function AdminUsageCharts({ locale }: { locale: Locale }) {
                 <XAxis dataKey="date" stroke={axis.stroke} fontSize={axis.fontSize} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} />
                 <YAxis stroke={axis.stroke} fontSize={axis.fontSize} tickLine={false} axisLine={false} width={44} />
                 <Tooltip content={<UsageTooltip prefix="$" />} />
-                <Area type="monotone" dataKey="cost" name="USD" stroke={dsw.deepseek500} fill="rgba(57, 100, 254, 0.16)" strokeWidth={2} />
+                <Area type="monotone" dataKey="cost" name="USD" stroke={dsw.deepseek500} fill="var(--admin-accent-fill)" strokeWidth={2} />
               </AreaChart>
             </ResponsiveContainer></div>
           </DswCard>
@@ -367,7 +370,7 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
             <button type="button" disabled={busy} onClick={() => void healthcheck()} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "8px 14px", fontSize: 13, borderRadius: 8, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Activity className="h-4 w-4" />{zh ? "健康检查" : "Health check"}</button>
-            <button type="button" disabled={busy} onClick={() => void sync()} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "none", background: dsw.deepseek500, color: "#fff", padding: "8px 14px", fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />{zh ? "立即同步" : "Sync now"}</button>
+            <button type="button" disabled={busy} onClick={() => void sync()} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: "none", background: dsw.deepseek500, color: "var(--admin-accent-ink)", padding: "8px 14px", fontSize: 13, fontWeight: 600, borderRadius: 8, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />{zh ? "立即同步" : "Sync now"}</button>
           </div>
         </div>
         {error ? <p style={{ margin: "12px 0 0", fontSize: 13, color: dsw.red500 }}>{error}</p> : null}

@@ -13,9 +13,21 @@ const port = process.env.PLAYWRIGHT_PORT || "3000";
 // like Caddy in production, and leaves production CORS untouched.
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "/__dev-api";
 const apiProxyTarget = process.env.DEV_API_PROXY_TARGET || "https://api.puregamma.ai";
+
+// `set "KEY=VALUE" && ...` rather than `set KEY=VALUE&& ...`: without the space
+// the value keeps the trailing whitespace, so `REQUIRE_AUTH` reads as "false "
+// and the middleware's `=== "true"` check silently never matches — the suite
+// then only ever saw `/login?returnTo=...` for authenticated routes.
+const devEnv: Record<string, string> = {
+  NEXT_DIST_DIR: ".next-playwright",
+  NEXT_PUBLIC_INITIAL_LAUNCH_MODE: "false",
+  NEXT_PUBLIC_API_URL: apiUrl,
+  DEV_API_PROXY_TARGET: apiProxyTarget,
+  REQUIRE_AUTH: "false",
+};
 const devCommand = process.platform === "win32"
-  ? `set NEXT_DIST_DIR=.next-playwright&& set NEXT_PUBLIC_INITIAL_LAUNCH_MODE=false&& set NEXT_PUBLIC_API_URL=${apiUrl}&& set DEV_API_PROXY_TARGET=${apiProxyTarget}&& set REQUIRE_AUTH=false&& node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`
-  : `NEXT_DIST_DIR=.next-playwright NEXT_PUBLIC_INITIAL_LAUNCH_MODE=false NEXT_PUBLIC_API_URL=${apiUrl} DEV_API_PROXY_TARGET=${apiProxyTarget} REQUIRE_AUTH=false node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`;
+  ? `${Object.entries(devEnv).map(([key, value]) => `set "${key}=${value}"`).join(" && ")} && node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`
+  : `${Object.entries(devEnv).map(([key, value]) => `${key}=${value}`).join(" ")} node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`;
 
 export default defineConfig({
   testDir: "../../tests/e2e/playwright",

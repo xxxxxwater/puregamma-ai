@@ -110,100 +110,56 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
       data-testid="model-upgrade-preview"
       data-model-availability={state}
     >
-      <div className="flex flex-wrap items-center gap-3">
-        <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-dim">{copy.preview.eyebrow}</div>
-        <Badge tone={availability.tone}>
-          <span className="inline-flex items-center gap-1.5">{availability.icon}{availability.label}</span>
-        </Badge>
-      </div>
-
-      <div className="mt-4 flex flex-wrap items-start justify-between gap-4">
+      {/* A product page states what it is and what you can do next. The catalog
+          vocabulary lives in the catalog, so the label is simply "已接入" /
+          "Available" rather than a paragraph explaining what "live" excludes. */}
+      <div className="flex flex-wrap items-start justify-between gap-5">
         <div className="min-w-0">
-          <h2 id="model-upgrade-title" className="text-xl font-semibold text-text-pg md:text-2xl">
-            {copy.modelName}
-          </h2>
-          <p className="mt-2 max-w-3xl text-base font-medium text-text-pg">{copy.announcement}</p>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{copy.preview.lead}</p>
+          <div className="flex flex-wrap items-center gap-3">
+            <h2 id="model-upgrade-title" className="text-xl font-semibold text-text-pg md:text-2xl">
+              {copy.modelName}
+            </h2>
+            <Badge tone={availability.tone}>
+              <span className="inline-flex items-center gap-1.5">{availability.icon}{availability.label}</span>
+            </Badge>
+          </div>
+          <p className="mt-2 max-w-2xl text-sm leading-6 text-text-pg-muted">{copy.preview.lead}</p>
         </div>
         <Link
-          href={withLocale(locale, "/api")}
-          className="inline-flex min-h-10 shrink-0 items-center gap-2 border border-border-pg px-3 py-2 text-xs font-semibold text-text-pg transition hover:border-border-pg-strong rounded-lg"
+          href={withLocale(locale, "/chat")}
+          className="inline-flex min-h-11 shrink-0 items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-2 text-sm font-semibold text-pg-black rounded-lg"
         >
-          {copy.preview.docsCta} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
+          {copy.preview.chatCta} <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
       </div>
 
-      {/* Secondary, small-print block: what the catalog state does and does not
-          mean. Keeps the "published + priced" claim separate from runtime
-          health, which this page cannot see. */}
-      <div className="mt-5 border border-border-pg bg-bg-panel-muted p-3 rounded-xl">
-        <div className="flex flex-wrap items-center gap-2">
-          <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.preview.availability}</span>
-          <Badge tone={availability.tone}>
-            <span className="inline-flex items-center gap-1.5">{availability.icon}{availability.label}</span>
-          </Badge>
-        </div>
-        <p className="mt-2 text-xs leading-5 text-text-pg-muted">{availability.detail}</p>
-        <p className="mt-1 text-[11px] leading-5 text-text-pg-dim">{copy.preview.runtimeNote}</p>
-      </div>
+      {/* Secondary entry points stay quiet: one line, low emphasis. */}
+      <p className="mt-4 flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-text-pg-dim">
+        <Link href={withLocale(locale, "/gateway")} className="border-b border-border-pg pb-0.5 transition hover:border-border-pg-strong hover:text-text-pg-muted">
+          {copy.preview.gatewayTitle}
+        </Link>
+        <span aria-hidden>·</span>
+        <Link href={withLocale(locale, "/api")} className="border-b border-border-pg pb-0.5 transition hover:border-border-pg-strong hover:text-text-pg-muted">
+          {copy.preview.docsCta}
+        </Link>
+      </p>
 
-      <h3 className="mt-7 text-sm font-semibold text-text-pg">{copy.preview.whereTitle}</h3>
-      <div className="mt-3 grid gap-3 lg:grid-cols-[1.35fr_1fr]">
-        <div className="flex min-w-0 flex-col border border-border-pg bg-bg-panel p-4 rounded-xl">
-          <h4 className="text-sm font-semibold text-text-pg">{copy.preview.chatTitle}</h4>
-          <p className="mt-2 flex-1 text-xs leading-5 text-text-pg-muted">{copy.preview.chatBody}</p>
-          <p className="mt-2 text-[10px] uppercase tracking-[0.1em] text-text-pg-dim">{copy.preview.chatDetail}</p>
-          <Link
-            href={withLocale(locale, "/chat")}
-            className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black rounded-lg"
-          >
-            {copy.preview.chatCta} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </div>
-        <div className="flex min-w-0 flex-col border border-border-pg bg-bg-panel p-4 rounded-xl">
-          <h4 className="text-sm font-semibold text-text-pg">{copy.preview.gatewayTitle}</h4>
-          <p className="mt-2 flex-1 text-xs leading-5 text-text-pg-muted">{copy.preview.gatewayBody}</p>
-          <p className="mt-2 text-[10px] uppercase tracking-[0.1em] text-text-pg-dim">{copy.preview.gatewayDetail}</p>
-          <Link
-            href={withLocale(locale, "/gateway")}
-            className="mt-3 inline-flex min-h-10 items-center justify-center gap-2 border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black rounded-lg"
-          >
-            {copy.preview.gatewayCta} <ArrowRight className="h-3.5 w-3.5" aria-hidden />
-          </Link>
-        </div>
-      </div>
+      {state !== "available" ? <p className="mt-4 text-xs leading-5 text-status-warning">{availability.detail}</p> : null}
 
-      <div className="mt-6 grid gap-6 lg:grid-cols-2">
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-text-pg">{copy.preview.routesTitle}</h3>
-          <ul className="mt-3 space-y-1.5">
-            {copy.preview.routes.map((route) => <FactRow key={route}>{route}</FactRow>)}
-          </ul>
-          <p className="mt-3 text-xs leading-5 text-text-pg-dim">{copy.preview.routesNote}</p>
-        </div>
-        <div className="min-w-0">
-          <h3 className="text-sm font-semibold text-text-pg">{copy.preview.factsTitle}</h3>
-          <ul className="mt-3 space-y-1.5">
-            <FactRow>{copy.preview.factStreaming}</FactRow>
-            <FactRow>{copy.preview.factTools}</FactRow>
-            <FactRow>{copy.preview.factThinking}</FactRow>
-          </ul>
-          <p className="mt-3 text-xs leading-5 text-text-pg-dim">{copy.preview.factUnverified}</p>
-          <p className="mt-3 text-[10px] uppercase tracking-[0.1em] text-text-pg-dim">{copy.preview.clientsTitle}</p>
-          <p className="mt-1 text-xs leading-5 text-text-pg-muted">{copy.preview.clients}</p>
-        </div>
-      </div>
-
-      {/* Technical fields (ids, catalog limits, pricing, raw request example) are
-          secondary for a product page: collapsed by default, and the API
-          reference and Gateway console remain the authoritative surfaces. */}
-      <details className="mt-6 border border-border-pg bg-bg-panel-muted rounded-xl" data-testid="model-upgrade-technical">
-        <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 p-3 text-sm font-medium text-text-pg">
+      {/* Everything a developer or an auditor needs — request id, upstream id,
+          catalog limits, pricing, alias mapping, capability list and a raw
+          request — is secondary for a product page, and the API reference is
+          its authoritative home. */}
+      <details className="mt-5 border border-border-pg bg-bg-panel-muted rounded-xl" data-testid="model-upgrade-technical">
+        <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 p-3 text-xs font-medium text-text-pg-muted">
           <span>{copy.preview.technicalTitle}</span>
           <span className="text-[10px] font-normal uppercase tracking-[0.1em] text-text-pg-dim">{copy.preview.technicalHint}</span>
         </summary>
         <div className="border-t border-border-pg p-4">
-          <dl className="space-y-3">
+          <p className="text-xs leading-5 text-text-pg-muted">{copy.preview.lead}</p>
+          <p className="mt-1 text-[11px] leading-5 text-text-pg-dim">{copy.preview.runtimeNote}</p>
+
+          <dl className="mt-4 space-y-3">
             <DataRow label={copy.preview.modelIdLabel} value={FLASH_MODEL_ID} />
             <DataRow label={copy.preview.upstreamLabel} value={model?.provider_model_id || FLASH_MODEL_ID} />
             <DataRow label={copy.preview.contextLabel} value={contextWindow ?? copy.preview.contextUnavailable} />
@@ -218,6 +174,16 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
               {copy.preview.aliasBody.replace("{alias}", FLASH_ALIAS_ID).replace("{canonical}", FLASH_MODEL_ID)}
             </p>
           ) : null}
+
+          <ul className="mt-4 space-y-1.5 border-t border-border-pg pt-4">
+            <FactRow>{copy.preview.factStreaming}</FactRow>
+            <FactRow>{copy.preview.factTools}</FactRow>
+            <FactRow>{copy.preview.factThinking}</FactRow>
+            {copy.preview.routes.map((route) => <FactRow key={route}>{route}</FactRow>)}
+          </ul>
+          <p className="mt-3 text-[11px] leading-5 text-text-pg-dim">{copy.preview.routesNote}</p>
+          <p className="mt-3 text-[11px] leading-5 text-text-pg-dim">{copy.preview.clients}</p>
+
           <div className="mt-4 border border-border-pg bg-bg-app rounded-xl">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-pg px-3 py-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.preview.demoTitle}</span>

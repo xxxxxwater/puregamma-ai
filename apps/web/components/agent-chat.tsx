@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Bot, CheckCircle2, ChevronDown, CircleAlert, CircleStop, Compass, Database, FilePlus2, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip, RefreshCw, SearchCheck, Send, Settings2, ShieldCheck, Sparkles, Target, Trash2, Wrench, X } from "lucide-react";
+import { Bot, CheckCircle2, ChevronDown, CircleAlert, CircleStop, Compass, Database, FilePlus2, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip, RefreshCw, SearchCheck, Send, Settings2, ShieldCheck, Target, Trash2, Wrench, X } from "lucide-react";
 import { ReportMarkdown } from "@/components/puregamma";
 import { ResearchModeSwitch } from "@/components/research-mode-switch";
 import { ContextControls, nextActionLabel, nextActionPrompt, StrategyToolResult } from "@/components/chat-panels";
@@ -100,8 +100,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
 
   const loadConversations = async () => {
     const result = await getAgentConversations();
-    setConversations(result.conversations);
-    return result.conversations;
+    // A payload without `conversations` must yield an empty history rather than
+    // an undefined list that later `.map()` calls throw on.
+    const rows = Array.isArray(result.conversations) ? result.conversations : [];
+    setConversations(rows);
+    return rows;
   };
 
   const openConversation = async (id: string) => {
@@ -125,10 +128,13 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     Promise.all([getMe(), loadConversations(), getAgentCapabilities()])
       .then(async ([, rows, access]) => {
         if (!active) return;
+        // `Array.isArray` rather than trusting the field: a capabilities payload
+        // that omits `models` or `skills` must degrade to an empty selector, not
+        // throw during render and take the whole chat surface down with it.
         setQuota(access.quota);
         setCapabilities(access.capabilities);
-        setModels(access.models);
-        setSkillCatalog(access.skills);
+        setModels(Array.isArray(access.models) ? access.models : []);
+        setSkillCatalog(Array.isArray(access.skills) ? access.skills : []);
         const target = initialConversationId || rows[0]?.id;
         if (target) await openConversation(target);
       })
@@ -411,7 +417,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       ) : (
       <aside className="hidden border-b border-border-pg bg-bg-app lg:flex lg:flex-col lg:border-b-0 lg:border-r">
         <div className="flex items-center justify-between border-b border-border-pg p-3">
-          <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"} · ${quota.credit_balance} Credits` : "-"}</div><div className="mt-1 truncate text-[10px] text-text-pg-dim" title={modelCopy.chat.badgeDetail}>{defaultModelName || modelCopy.chat.badgeLive} · {modelCopy.chat.badgeDetail}</div></div>
+          <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"} · ${quota.credit_balance} Credits` : "-"}</div></div>
           <div className="flex items-center gap-1">
             <button type="button" onClick={() => setHistoryCollapsed(true)} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "收起历史对话" : "Collapse conversation history"}><PanelLeftClose className="h-4 w-4" /></button>
             <button type="button" onClick={createNew} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
@@ -481,26 +487,19 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             </div>
           </div>
           <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-3">
-            <label htmlFor="agent-model" className="text-[11px] text-text-pg-muted"><span className="block">{zh ? "本轮模型" : "Model for this turn"}</span>{selectedModelOption?.id !== "default" ? <span className="mt-0.5 block text-[10px] text-text-pg-dim">{zh ? "高质量、较轻度使用的深度市场研究模型" : selectedModelOption?.description}</span> : null}</label>
+            <label htmlFor="agent-model" className="text-[11px] text-text-pg-muted"><span className="block">{zh ? "本轮模型" : "Model for this turn"}</span>{selectedModelOption?.id !== "default" ? <span className="mt-0.5 block text-[10px] text-text-pg-dim">{selectedModelOption?.description}</span> : null}</label>
             <select id="agent-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={busy} className="max-w-[60%] border border-border-pg bg-bg-panel px-2 py-1 text-xs outline-none focus:border-border-pg-strong disabled:opacity-50 rounded-lg">
               {models.map((model) => <option key={model.id} value={model.id} disabled={!model.available}>{agentModelLabel(model, modelCopy, defaultModelName)}{agentModelSuffix(model, zh)}</option>)}
             </select>
           </div>
-          <div className="mx-auto mb-2 flex max-w-3xl flex-wrap items-center gap-2 text-[10px] text-text-pg-dim" data-testid="chat-model-badge">
-            <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 rounded-lg">
-              <Sparkles className="h-3 w-3" aria-hidden />
-              <span className="font-semibold text-text-pg-muted">{defaultModelName || modelCopy.chat.badgeLive}</span>
-            </span>
-            <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 rounded-lg ${availability === "published" ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>
-              {availability === "published" ? <CheckCircle2 className="h-3 w-3" aria-hidden /> : <CircleAlert className="h-3 w-3" aria-hidden />}
-              {availability === "published" ? modelCopy.chat.badgeDetail : modelCopy.chat.badgeChecking}
-            </span>
-            <span className="text-text-pg-dim">
-              {zh
-                ? "平台自动路由任务（对话、报告、研究）均使用该模型；选择其他模型时不会被改回。"
-                : "Automatically routed work (chat, reports, research) uses this model; an explicit choice is never rewritten."}
-            </span>
-          </div>
+          {/* The current model is stated once, in the selector above. Only an
+              abnormal state earns a second mention, and it names the fix. */}
+          {availability !== "published" ? (
+            <p className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 text-[10px] text-status-warning" data-testid="chat-model-badge">
+              <CircleAlert className="h-3 w-3 shrink-0" aria-hidden />
+              <span>{modelCopy.chat.badgeChecking}</span>
+            </p>
+          ) : null}
           <div className="mx-auto mb-3 max-w-3xl border border-border-pg bg-bg-panel rounded-lg">
             {researchMode ? (
               <>

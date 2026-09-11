@@ -45,7 +45,11 @@
   --border: rgba(150, 172, 214, 0.10);
   --border-strong: rgba(150, 172, 214, 0.18);
   --muted: #98a2b3;
-  --muted-2: #6b7484;
+  /* `--muted-2` is the small meta text (timestamps, field labels, 11px hints).
+     At #6b7484 it measured 3.39:1 on `--panel-muted` — below WCAG AA for body
+     text. #8f97a6 clears 4.5:1 on all three surfaces (worst 5.43:1) while still
+     reading as secondary. */
+  --muted-2: #8f97a6;
   --positive: #34d399;
   --negative: #f87171;
   --warning: #f5b453;
@@ -60,6 +64,15 @@
   --accent-emerald: var(--positive);
   --accent-amber: var(--warning);
   --accent-red: var(--negative);
+  /* Admin console accent (charts, active filters). Dark surface needs a lighter
+     blue than the light theme to hold AA against `--panel`. */
+  --admin-accent: #6f9bff;
+  --admin-accent-soft: #a8c2ff;
+  --admin-accent-ink: #0b0e14;
+  --admin-accent-fill: rgba(111, 155, 255, 0.18);
+  --admin-accent-fill-soft: rgba(168, 194, 255, 0.14);
+  --admin-accent-fill-faint: rgba(168, 194, 255, 0.10);
+  --admin-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
 :root[data-theme="light"] {
@@ -77,11 +90,21 @@
   --border: rgba(15, 23, 42, 0.10);
   --border-strong: rgba(15, 23, 42, 0.18);
   --muted: #5b606b;
-  --muted-2: #7c8089;
-  --positive: #0e8f61;
+  /* Same reasoning as the dark set: #7c8089 measured 3.50:1 as small text, and
+     #0e8f61 only 3.63:1 (fine for a chart line, short of AA for a status word).
+     Both are darkened to clear 4.5:1 on every surface. */
+  --muted-2: #666a73;
+  --positive: #0a784f;
   --negative: #c2413c;
-  --warning: #a16207;
+  --warning: #96600a;
   --info: #2f5fc4;
+  --admin-accent: #2f5fc4;
+  --admin-accent-soft: #6f93e0;
+  --admin-accent-ink: #ffffff;
+  --admin-accent-fill: rgba(47, 95, 196, 0.14);
+  --admin-accent-fill-soft: rgba(111, 147, 224, 0.12);
+  --admin-accent-fill-faint: rgba(47, 95, 196, 0.08);
+  --admin-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 :root[data-font-scale="compact"] { font-size: 14px; }

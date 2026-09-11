@@ -1322,6 +1322,111 @@ export function setAdminUserTier(userId: string, tier: "bronze" | "silver" | "go
   });
 }
 
+// ── Admin console reads ───────────────────────────────────────────────
+// These describe the real `/admin/*` payloads. Every consumer must render the
+// `unavailable` / `unauthorized` outcome instead of substituting a value, so a
+// failed read can never be displayed as a healthy zero.
+
+export type AdminOverview = {
+  generated_at: string;
+  counts: {
+    users: number;
+    reports: number;
+    events: number;
+    alerts: number;
+    deliveries_failed_24h: number;
+    llm_calls_24h: number;
+    active_strategies: number;
+    custody_accounts: number;
+  };
+  snapshot: Record<string, unknown> | null;
+  source_health: Array<{ source: string; status: string; [key: string]: unknown }>;
+  unavailable?: boolean;
+  unauthorized?: boolean;
+};
+
+const emptyAdminOverview: AdminOverview = {
+  generated_at: "",
+  counts: { users: 0, reports: 0, events: 0, alerts: 0, deliveries_failed_24h: 0, llm_calls_24h: 0, active_strategies: 0, custody_accounts: 0 },
+  snapshot: null,
+  source_health: [],
+};
+
+export function getAdminOverview(locale: Locale = defaultLocale) {
+  return api<AdminOverview>("/admin/overview", { fallback: emptyAdminOverview, locale });
+}
+
+export type AdminSystemStatus = {
+  database: string;
+  redis: string;
+  stripe_configured: boolean;
+  stripe_webhook_secret_configured: boolean;
+  billing_mode: string;
+  billing_checkout_mode: string;
+  deepseek_configured: boolean;
+  llm_provider: string;
+  llm_model: string;
+  imessage_status: string;
+  mock_mode: boolean;
+  unavailable?: boolean;
+  unauthorized?: boolean;
+};
+
+const emptyAdminSystemStatus: AdminSystemStatus = {
+  database: "",
+  redis: "",
+  stripe_configured: false,
+  stripe_webhook_secret_configured: false,
+  billing_mode: "",
+  billing_checkout_mode: "",
+  deepseek_configured: false,
+  llm_provider: "",
+  llm_model: "",
+  imessage_status: "",
+  mock_mode: false,
+};
+
+export function getAdminSystemStatus(locale: Locale = defaultLocale) {
+  return api<AdminSystemStatus>("/admin/system-status", { fallback: emptyAdminSystemStatus, locale });
+}
+
+export type AdminWorkers = {
+  celery: { status?: string; workers?: Array<{ name: string; status: string }>; [key: string]: unknown };
+  queues: Record<string, number>;
+  recent_sync_failures: Array<{ id: string; provider_id?: string; status: string; started_at?: string; error_message?: string | null }>;
+  unavailable?: boolean;
+  unauthorized?: boolean;
+};
+
+const emptyAdminWorkers: AdminWorkers = { celery: {}, queues: {}, recent_sync_failures: [] };
+
+export function getAdminWorkers(locale: Locale = defaultLocale) {
+  return api<AdminWorkers>("/admin/workers", { fallback: emptyAdminWorkers, locale });
+}
+
+export type AdminUserRow = {
+  id: string;
+  email: string;
+  plan: string;
+  role: string;
+  membership_tier: string;
+};
+
+export function getAdminUsers(locale: Locale = defaultLocale) {
+  return api<{ users: AdminUserRow[]; total?: number; unavailable?: boolean; unauthorized?: boolean }>("/admin/users", {
+    fallback: { users: [] },
+    locale,
+  });
+}
+
+export type AdminLlmStatus = { provider: string; active_provider: string; model: string; configured: boolean; status: string; last_error?: string | null; unavailable?: boolean; unauthorized?: boolean };
+
+const emptyAdminLlmStatus: AdminLlmStatus = { provider: "", active_provider: "", model: "", configured: false, status: "" };
+
+export function getAdminLlmStatus(locale: Locale = defaultLocale) {
+  return api<AdminLlmStatus>("/admin/llm-status", { fallback: emptyAdminLlmStatus, locale });
+}
+
 export function getAgentConversations() {
   return requestStrict<{ conversations: AgentConversation[] }>("/api/agent/conversations");
 }
