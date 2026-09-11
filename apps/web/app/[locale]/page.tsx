@@ -22,7 +22,7 @@ export default async function LandingPage({ params }: { params: { locale: Locale
   const copy = getMessageNamespace(locale, "landing");
   const modelCopy = getMessageNamespace(locale, "model-upgrade");
   // Server-rendered from the catalog this deployment actually serves, so the
-  // "live" wording on the homepage can never outrun the Gateway itself.
+  // green "published" tone can never outrun the Gateway itself.
   const catalog = await getGatewayCatalog(locale);
   const availability = flashAvailability(catalog);
 
@@ -33,7 +33,7 @@ export default async function LandingPage({ params }: { params: { locale: Locale
           <div className="flex items-center gap-2 font-semibold"><Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI</div>
         </div>
         <div className="flex flex-wrap items-center gap-3 pt-5 text-sm" data-testid="model-announcement">
-          <Badge tone={availability.state === "live" ? "emerald" : "neutral"}>
+          <Badge tone={availability.state === "available" ? "emerald" : "neutral"}>
             <span className="inline-flex items-center gap-1.5">{modelCopy.announcement}</span>
           </Badge>
           <span className="text-text-pg-muted">{modelCopy.announcementDetail}</span>
