@@ -342,8 +342,14 @@ def agent_model_options(db: Session, user: User) -> list[dict]:
         reason = "plan_required"
     elif not configured:
         reason = "unavailable"
+    # The default option keeps the id "default" because that is the request
+    # semantic older clients send, but it now advertises the model the platform
+    # actually resolves to instead of the opaque label "Default model". Clients
+    # that ignore display_name are unaffected; clients that show it no longer
+    # have to guess which model answers.
+    default_label = settings.agent_model or settings.deepseek_display_name or "Default model"
     return [
-        {"id": "default", "display_name": "Default model", "description": "Uses the existing Agent default configuration.", "provider": "default", "available": True, "reason": None, "credit_cost": None},
+        {"id": "default", "display_name": default_label, "description": "Uses the existing Agent default configuration.", "provider": "default", "available": True, "reason": None, "credit_cost": None},
         {"id": settings.openai_luna_model, "display_name": "GPT-5.6 Luna", "description": "High-quality deep market research for selective use.", "provider": "openai", "available": plan_allowed and configured, "reason": reason, "credit_cost": None},
     ]
 
