@@ -11,6 +11,7 @@ from apps.api.dependencies import get_current_user, get_db, require_admin
 from apps.api.routers.auth import serialize_user
 from apps.api.services.billing_service import resolve_checkout_intent, serialize_checkout_intent, stripe_products_status, sync_stripe_products
 from apps.api.services.notification_service import serialize_delivery
+from apps.api.services.pagination import PageParams, page_meta, page_params, paginate
 from apps.api.services.data_source_service import provider_registry, redact_error, serialize_run, serialize_source, sync_all_providers, sync_provider
 from apps.api.services.report_service import serialize_report
 from apps.api.config import get_settings
@@ -169,8 +170,37 @@ def _serialize_admin_reservation(row: CreditReservationRecord) -> dict:
 
 
 @router.get("/users")
-def users(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    return {"users": [serialize_user(row) for row in db.query(User).order_by(User.created_at.desc()).all()]}
+def users(
+    page: PageParams = Depends(page_params),
+    q: str = Query(default="", max_length=120),
+    role: str | None = Query(default=None, max_length=32),
+    plan: str | None = Query(default=None, max_length=40),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Paginated user directory.
+
+    Was previously unbounded (`db.query(User).all()`), which cannot stay the
+    default as the tenant count grows. `limit`/`offset` are additive: a caller
+    that sends neither gets the same first page the console used to render, and
+    the `users` key keeps its exact shape.
+
+    `q` matches email or display name; `role` and `plan` are exact filters so the
+    UI can offer them without inventing a query language.
+    """
+    query = db.query(User)
+    if q.strip():
+        needle = f"%{q.strip().lower()}%"
+        query = query.filter(
+            or_(func.lower(User.email).like(needle), func.lower(User.name).like(needle))
+        )
+    if role:
+        query = query.filter(User.role == role)
+    if plan:
+        query = query.filter(User.plan == plan)
+    query = query.order_by(User.created_at.desc())
+    rows, total = paginate(query, page)
+    return {"users": [serialize_user(row) for row in rows], **page_meta(page, total)}
 
 
 @router.get("/billing/accounts")
@@ -758,12 +788,26 @@ def sync_data_source(provider_id: str, db: Session = Depends(get_db), user: User
 
 
 @router.get("/data-sources/{provider_id}/runs")
-def data_source_runs(provider_id: str, db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    if provider_id in {"rss", "chaincatcher", "fintwit", "x-twitter", "bloomberg"}:
-        rows = db.query(ProviderSyncLog).filter(ProviderSyncLog.provider_id == provider_id).order_by(ProviderSyncLog.started_at.desc()).limit(100).all()
-    else:
-        rows = db.query(DataSourceSyncRun).filter(DataSourceSyncRun.provider_id == provider_id).order_by(DataSourceSyncRun.started_at.desc()).limit(100).all()
-    return {"runs": [serialize_run(row) for row in rows]}
+def data_source_runs(
+    provider_id: str,
+    page: PageParams = Depends(page_params),
+    status: str | None = Query(default=None, max_length=40),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Paginated sync-run history for one provider.
+
+    Previously hardcoded to the latest 100 rows, which left most history
+    unreachable: production holds 71,160 `binance` runs and 2,395–4,879 runs for
+    each wire provider. `offset` is what makes the older rows reachable at all.
+    """
+    model = ProviderSyncLog if provider_id in {"rss", "chaincatcher", "fintwit", "x-twitter", "bloomberg"} else DataSourceSyncRun
+    query = db.query(model).filter(model.provider_id == provider_id)
+    if status:
+        query = query.filter(model.status == status)
+    query = query.order_by(model.started_at.desc())
+    rows, total = paginate(query, page)
+    return {"runs": [serialize_run(row) for row in rows], **page_meta(page, total)}
 
 
 @router.get("/system-status")
@@ -791,8 +835,27 @@ def admin_llm_status(user: User = Depends(admin_user)) -> dict:
 
 
 @router.get("/stripe-events")
-def stripe_events(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    rows = db.query(StripeWebhookEvent).order_by(StripeWebhookEvent.created_at.desc()).limit(100).all()
+def stripe_events(
+    page: PageParams = Depends(page_params),
+    processed: bool | None = Query(default=None),
+    manual_review: bool | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Paginated Stripe webhook history (previously capped at the latest 100).
+
+    Both filter flags are tri-state: absent means "no filter", so an old client
+    that sends neither still receives every event type as before. The query
+    parameter is named ``manual_review`` so it cannot be confused with the
+    response field ``requires_manual_review``.
+    """
+    query = db.query(StripeWebhookEvent)
+    if isinstance(processed, bool):
+        query = query.filter(StripeWebhookEvent.processed.is_(processed))
+    if isinstance(manual_review, bool):
+        query = query.filter(StripeWebhookEvent.requires_manual_review.is_(manual_review))
+    query = query.order_by(StripeWebhookEvent.created_at.desc())
+    rows, total = paginate(query, page)
     return {
         "stripe_events": [
             {
@@ -807,7 +870,8 @@ def stripe_events(db: Session = Depends(get_db), user: User = Depends(admin_user
                 "created_at": row.created_at.isoformat(),
             }
             for row in rows
-        ]
+        ],
+        **page_meta(page, total),
     }
 
 
@@ -828,9 +892,19 @@ def stripe_product_catalog_status(db: Session = Depends(get_db), user: User = De
 
 
 @router.get("/billing-intents")
-def billing_intents(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    rows = db.query(BillingCheckoutIntent).order_by(BillingCheckoutIntent.created_at.desc()).limit(200).all()
-    return {"billing_intents": [serialize_checkout_intent(row) for row in rows]}
+def billing_intents(
+    page: PageParams = Depends(page_params),
+    status: str | None = Query(default=None, max_length=40),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Paginated checkout intents (previously capped at the latest 200)."""
+    query = db.query(BillingCheckoutIntent)
+    if status:
+        query = query.filter(BillingCheckoutIntent.status == status)
+    query = query.order_by(BillingCheckoutIntent.created_at.desc())
+    rows, total = paginate(query, page)
+    return {"billing_intents": [serialize_checkout_intent(row) for row in rows], **page_meta(page, total)}
 
 
 @router.post("/billing-intents/{intent_id}/resolve")
@@ -842,14 +916,45 @@ def resolve_billing_intent(intent_id: str, payload: ResolveIntentRequest, db: Se
 
 
 @router.get("/notifications")
-def notifications(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    rows = db.query(NotificationDelivery).order_by(NotificationDelivery.created_at.desc()).limit(200).all()
-    return {"notifications": [serialize_delivery(row) for row in rows]}
+def notifications(
+    page: PageParams = Depends(page_params),
+    status: str | None = Query(default=None, max_length=40),
+    channel: str | None = Query(default=None, max_length=40),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Paginated delivery log.
+
+    The previous hardcoded cap of 200 left 2,504 production rows unreachable
+    from the console; `offset` is what makes older deliveries inspectable after
+    a failure.
+    """
+    query = db.query(NotificationDelivery)
+    if status:
+        query = query.filter(NotificationDelivery.status == status)
+    if channel:
+        query = query.filter(NotificationDelivery.channel == channel)
+    query = query.order_by(NotificationDelivery.created_at.desc())
+    rows, total = paginate(query, page)
+    return {"notifications": [serialize_delivery(row) for row in rows], **page_meta(page, total)}
 
 
 @router.get("/subscriptions")
-def subscriptions(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    rows = db.query(Subscription).order_by(Subscription.created_at.desc()).all()
+def subscriptions(
+    page: PageParams = Depends(page_params),
+    status: str | None = Query(default=None, max_length=40),
+    plan_name: str | None = Query(default=None, max_length=60),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Paginated subscription list (was unbounded)."""
+    query = db.query(Subscription)
+    if status:
+        query = query.filter(Subscription.status == status)
+    if plan_name:
+        query = query.filter(Subscription.plan_name == plan_name)
+    query = query.order_by(Subscription.created_at.desc())
+    rows, total = paginate(query, page)
     return {
         "subscriptions": [
             {
@@ -861,7 +966,8 @@ def subscriptions(db: Session = Depends(get_db), user: User = Depends(admin_user
                 "stripe_subscription_id": row.stripe_subscription_id,
             }
             for row in rows
-        ]
+        ],
+        **page_meta(page, total),
     }
 
 
@@ -990,9 +1096,22 @@ def _serialize_agent_run(db: Session, row: AgentRun) -> dict:
 
 
 @router.get("/agent/runs")
-def agent_runs(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    rows = db.query(AgentRun).order_by(AgentRun.started_at.desc()).limit(200).all()
-    return {"runs": [_serialize_agent_run(db, row) for row in rows]}
+def agent_runs(
+    page: PageParams = Depends(page_params),
+    status: str | None = Query(default=None, max_length=40),
+    user_id: str | None = Query(default=None, max_length=64),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Paginated Agent run history (previously capped at the latest 200)."""
+    query = db.query(AgentRun)
+    if status:
+        query = query.filter(AgentRun.status == status)
+    if user_id:
+        query = query.filter(AgentRun.user_id == user_id)
+    query = query.order_by(AgentRun.started_at.desc())
+    rows, total = paginate(query, page)
+    return {"runs": [_serialize_agent_run(db, row) for row in rows], **page_meta(page, total)}
 
 
 @router.get("/agent/runs/{run_id}")
@@ -1543,8 +1662,19 @@ def admin_skill_runs(
 
 
 @router.get("/stripe/events")
-def stripe_events_slash(db: Session = Depends(get_db), user: User = Depends(admin_user)) -> dict:
-    return stripe_events(db=db, user=user)
+def stripe_events_slash(
+    page: PageParams = Depends(page_params),
+    processed: bool | None = Query(default=None),
+    manual_review: bool | None = Query(default=None),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Alias of `/stripe-events` kept for the existing console URL.
+
+    It must accept the same query parameters: calling the handler directly with
+    only `db`/`user` left `page` as an unresolved `Depends(...)` default.
+    """
+    return stripe_events(page=page, processed=processed, manual_review=manual_review, db=db, user=user)
 
 
 @router.get("/stripe/summary")
