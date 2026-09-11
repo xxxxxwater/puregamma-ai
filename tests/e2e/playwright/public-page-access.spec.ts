@@ -49,8 +49,11 @@ test.describe("logged-out visitors are not redirected off public pages", () => {
     const card = page.getByTestId("model-upgrade-preview");
     await expect(card).toBeVisible({ timeout: 20000 });
 
-    // The badge must reflect the catalog the deployment serves, not the copy.
-    await expect(card).toHaveAttribute("data-model-availability", /live|pending|unknown|unavailable/);
+    // The badge must reflect the catalog state the deployment serves, not the
+    // copy. The four values are the catalog vocabulary `flashAvailability()`
+    // exposes; "available" here means published with an approved price, which
+    // is deliberately distinct from runtime health (see lib/model-catalog.ts).
+    await expect(card).toHaveAttribute("data-model-availability", /^(available|pending|unavailable|unknown)$/);
     await expect(card).toContainText("DeepSeek V4.1 Flash");
     await expect(page.getByTestId("model-announcement")).toContainText("DeepSeek V4.1 Flash");
   });
