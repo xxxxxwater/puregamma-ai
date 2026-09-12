@@ -1,9 +1,9 @@
 import clsx from "clsx";
 import Link from "next/link";
 import type { HTMLAttributes, ReactNode } from "react";
-import ReactMarkdown from "react-markdown";
 import { AlertTriangle, CheckCircle2, Circle, Clock, Radio, ShieldAlert } from "lucide-react";
 import { NavHistoryChart } from "@/components/charts";
+import { MarkdownContent } from "@/components/markdown";
 import { formatCurrency, formatPercent } from "@/lib/formatters";
 import { defaultLocale, type Locale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
@@ -411,12 +411,17 @@ export function ProcessStepper({ steps }: { steps: { label: string; detail: stri
   );
 }
 
-export function ReportMarkdown({ content, locale = defaultLocale }: { content: string; locale?: Locale }) {
-  return (
-    <article className="pg-report prose prose-invert max-w-none text-sm leading-7 prose-headings:text-text-pg prose-p:text-text-pg-muted prose-li:text-text-pg-muted prose-strong:text-text-pg">
-      <ReactMarkdown>{content}</ReactMarkdown>
-    </article>
-  );
+/**
+ * Render an assistant answer.
+ *
+ * Kept as a thin wrapper so the dozen existing call sites (Agent Chat,
+ * reports console, dashboard) reach the one shared renderer. The previous
+ * implementation styled this with `prose prose-invert …` classes that emitted
+ * no CSS at all — the typography plugin is not installed — so answers had no
+ * heading, list, quote, table or code styling. See `components/markdown.tsx`.
+ */
+export function ReportMarkdown({ content }: { content: string; locale?: Locale }) {
+  return <MarkdownContent content={content} />;
 }
 
 export function EmptyState({ title, description }: { title: string; description: string }) {
