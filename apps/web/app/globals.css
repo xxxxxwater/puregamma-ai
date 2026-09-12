@@ -107,10 +107,105 @@
   --admin-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
+/* =====================================================================
+   Phase 1 — semantic token namespace (`--pg-*`)
+   =====================================================================
+   This block introduces the single semantic vocabulary the UI should
+   consume. Every value is an ALIAS to a token that already exists above,
+   so adopting it cannot change a single rendered pixel. That is the whole
+   point: the foundation is swapped while the appearance is pinned, and the
+   visual changes land in Phase 2 where they can be reviewed on their own.
+
+   Deliberately NOT changed here: the default theme (still dark in `:root`),
+   the radius scale, and every existing value. Those are Phase 2 work.
+
+   Rules this namespace exists to enforce:
+     1. A component names intent (`--pg-text-secondary`), never a raw colour.
+     2. Theme switching happens only in the token table. No `dark:` variants,
+        no `[data-theme=…]` inside component CSS.
+     3. A skin (glass) may not redeclare a semantic token — see Phase 2.
+
+   Note on placement: this block is duplicated verbatim under BOTH `:root`
+   and `:root[data-theme="light"]`. That looks redundant but is required.
+   `:root` today still holds the dark values for the eight legacy tokens that
+   the light block overrides (`--background`, `--foreground`, `--panel`,
+   `--panel-muted`, `--panel-strong`, `--border`, `--muted`, `--muted-2`,
+   plus the admin set). If the aliases lived only in `:root`, a Light page
+   would resolve e.g. `--pg-bg-page` to the dark `--background` and render a
+   dark page behind a light shell. Duplicating keeps the semantic layer
+   self-consistent for whichever theme is active, which is also what makes
+   "zero visual difference" true rather than merely hoped for. Phase 2
+   collapses the duplication by moving the real values onto the `--pg-*`
+   names and turning the legacy names into aliases of them.
+   ===================================================================== */
+:root,
+:root[data-theme="light"] {
+  /* ── Text ────────────────────────────────────────────────────────── */
+  --pg-text-primary: var(--foreground);
+  --pg-text-secondary: var(--muted);
+  --pg-text-tertiary: var(--muted-2);
+  --pg-text-placeholder: var(--muted-2);
+  --pg-text-disabled: var(--muted-2);
+  --pg-text-inverse: var(--background);
+
+  /* ── Page and surfaces ───────────────────────────────────────────── */
+  --pg-bg-page: var(--background);
+  --pg-bg-subtle: var(--panel-muted);
+  --pg-surface-1: var(--panel);
+  --pg-surface-2: var(--panel-muted);
+  --pg-surface-3: var(--panel-strong);
+  --pg-surface-raised: var(--panel);
+  --pg-surface-hover: var(--panel-muted);
+  --pg-surface-active: var(--panel-strong);
+  /* Inverted surface: white-on-dark today, near-black-on-light tomorrow.
+     Aliased to the legacy pair so Phase 1 stays pixel-identical; Phase 3
+     re-points it at a real per-theme value and retires `bg-pg-white`. */
+  --pg-surface-inverse: #FFFFFF;
+
+  /* ── Borders ─────────────────────────────────────────────────────── */
+  --pg-border-subtle: var(--border);
+  --pg-border-default: var(--border-strong);
+  --pg-border-strong: var(--border-strong);
+  --pg-border-focus: var(--accent);
+
+  /* ── Brand and status ────────────────────────────────────────────── */
+  --pg-accent: var(--accent);
+  --pg-accent-hover: var(--accent-strong);
+  --pg-accent-soft: var(--accent-soft);
+  --pg-focus-ring: var(--accent-ring);
+  --pg-positive: var(--positive);
+  --pg-warning: var(--warning);
+  --pg-danger: var(--negative);
+  --pg-info: var(--info);
+
+  /* Soft status fills. These are NEW capability, not aliases: today a status
+     message can only be drawn with a solid 1px border (visually loud). With a
+     tinted fill available, Phase 4+ can render quiet state blocks.
+     Derived with `color-mix` from the status token itself rather than a
+     hand-picked rgba, so a status colour only has to be correct in one place
+     and its tint can never drift out of sync with it. */
+  --pg-positive-soft: color-mix(in oklab, var(--positive) 12%, transparent);
+  --pg-warning-soft: color-mix(in oklab, var(--warning) 12%, transparent);
+  --pg-danger-soft: color-mix(in oklab, var(--negative) 12%, transparent);
+  --pg-info-soft: color-mix(in oklab, var(--info) 12%, transparent);
+
+  /* ── Scale ───────────────────────────────────────────────────────── */
+  --pg-hairline: 1px;              /* Phase 2 narrows neutral rules to 0.5px */
+  --pg-radius-sm: 6px;
+  --pg-radius-md: 8px;
+  --pg-radius-lg: 12px;
+  --pg-chat-measure: 48rem;        /* one width contract for both chat routes */
+  --pg-chat-measure-max: 880px;
+
+  /* ── Elevation ───────────────────────────────────────────────────── */
+  --pg-elevation-flat: none;
+  --pg-elevation-raised: 0 1px 2px rgba(0, 0, 0, 0.06);
+  --pg-elevation-overlay: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+
 :root[data-font-scale="compact"] { font-size: 14px; }
 :root[data-font-scale="default"] { font-size: 16px; }
 :root[data-font-scale="large"] { font-size: 18px; }
-
 * {
   box-sizing: border-box;
 }

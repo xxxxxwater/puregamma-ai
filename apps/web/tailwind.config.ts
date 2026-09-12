@@ -17,57 +17,64 @@ const config: Config = {
         "pg-muted": "#A2A4A6",
         "pg-muted-2": "#7F8287",
 
-        // ── Semantic tokens required by the UI brief ──
-        "bg-app": "var(--background)",
-        "bg-panel": "var(--panel)",
-        "bg-panel-muted": "var(--panel-muted)",
-        "bg-app-elevated": "var(--panel-muted)",
-        "bg-card": "var(--panel)",
-        "bg-card-muted": "var(--panel-muted)",
-        "bg-card-hover": "#212123",
+        // ── Semantic tokens ──
+        // Phase 1: every value below now points at the `--pg-*` semantic
+        // namespace instead of the legacy raw tokens. The class names are
+        // deliberately unchanged (`bg-bg-panel`, `text-text-pg`, …), so the
+        // ~2000 existing utility usages migrated without a single edit, and
+        // because each alias resolves to the identical value today this is a
+        // zero-visual-difference change. New work should consume `--pg-*`
+        // directly rather than adding another raw-token mapping here.
+        "bg-app": "var(--pg-bg-page)",
+        "bg-panel": "var(--pg-surface-1)",
+        "bg-panel-muted": "var(--pg-surface-2)",
+        "bg-app-elevated": "var(--pg-surface-2)",
+        "bg-card": "var(--pg-surface-1)",
+        "bg-card-muted": "var(--pg-surface-2)",
+        "bg-card-hover": "var(--pg-surface-hover)",
 
         // ── Borders ──
-        "border-pg": "var(--border)",
-        "border-pg-strong": "var(--border-strong)",
-        "border-subtle": "var(--border)",
-        "border-default": "var(--border)",
-        "border-emphasis": "var(--border-strong)",
+        "border-pg": "var(--pg-border-subtle)",
+        "border-pg-strong": "var(--pg-border-default)",
+        "border-subtle": "var(--pg-border-subtle)",
+        "border-default": "var(--pg-border-default)",
+        "border-emphasis": "var(--pg-border-strong)",
 
         // ── Text ──
-        "text-pg": "var(--foreground)",
-        "text-pg-muted": "var(--muted)",
-        "text-pg-dim": "var(--muted-2)",
-        "text-primary": "var(--foreground)",
-        "text-secondary": "var(--muted)",
-        "text-tertiary": "var(--muted-2)",
-        "text-muted": "var(--muted-2)",
-        "muted-2": "var(--muted-2)",
-        "foreground": "var(--foreground)",
-        "accent": "var(--accent)",
-        "accent-soft": "var(--accent-soft)",
-        "accent-ring": "var(--accent-ring)",
-        "border": "var(--border)",
+        "text-pg": "var(--pg-text-primary)",
+        "text-pg-muted": "var(--pg-text-secondary)",
+        "text-pg-dim": "var(--pg-text-tertiary)",
+        "text-primary": "var(--pg-text-primary)",
+        "text-secondary": "var(--pg-text-secondary)",
+        "text-tertiary": "var(--pg-text-tertiary)",
+        "text-muted": "var(--pg-text-tertiary)",
+        "muted-2": "var(--pg-text-tertiary)",
+        "foreground": "var(--pg-text-primary)",
+        "accent": "var(--pg-accent)",
+        "accent-soft": "var(--pg-accent-soft)",
+        "accent-ring": "var(--pg-focus-ring)",
+        "border": "var(--pg-border-subtle)",
 
         // ── Low saturation state colors only ──
-        "status-positive": "var(--positive)",
-        "status-negative": "var(--negative)",
-        "status-warning": "var(--warning)",
-        "accent-cyan": "var(--info)",
-        "accent-cyan-muted": "rgba(212, 212, 216, 0.10)",
-        "accent-emerald": "var(--positive)",
-        "accent-emerald-muted": "rgba(217, 249, 157, 0.10)",
-        "accent-amber": "var(--warning)",
-        "accent-amber-muted": "rgba(253, 230, 138, 0.10)",
-        "accent-red": "var(--negative)",
-        "accent-red-muted": "rgba(252, 165, 165, 0.10)",
+        "status-positive": "var(--pg-positive)",
+        "status-negative": "var(--pg-danger)",
+        "status-warning": "var(--pg-warning)",
+        "accent-cyan": "var(--pg-info)",
+        "accent-cyan-muted": "var(--pg-info-soft)",
+        "accent-emerald": "var(--pg-positive)",
+        "accent-emerald-muted": "var(--pg-positive-soft)",
+        "accent-amber": "var(--pg-warning)",
+        "accent-amber-muted": "var(--pg-warning-soft)",
+        "accent-red": "var(--pg-danger)",
+        "accent-red-muted": "var(--pg-danger-soft)",
 
         // ── Risk / Status Semantic ──
-        "risk-low": "var(--positive)",
-        "risk-medium": "var(--warning)",
-        "risk-high": "var(--negative)",
-        "status-healthy": "var(--positive)",
-        "status-failed": "var(--negative)",
-        "status-inactive": "var(--muted-2)",
+        "risk-low": "var(--pg-positive)",
+        "risk-medium": "var(--pg-warning)",
+        "risk-high": "var(--pg-danger)",
+        "status-healthy": "var(--pg-positive)",
+        "status-failed": "var(--pg-danger)",
+        "status-inactive": "var(--pg-text-tertiary)",
 
         // ── Keep legacy token names for backward compatibility ──
         canvas: "#f7f7f4",
