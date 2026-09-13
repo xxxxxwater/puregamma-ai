@@ -16,7 +16,7 @@
  * needs a captcha, so LIVE_TOKEN is minted server-side for a disposable account
  * by deploy/release-live-session.sh; the account only ever touches its own rows.
  */
-import { expect, test, type APIResponse } from "@playwright/test";
+import { expect, request, test, type APIResponse } from "@playwright/test";
 
 const BASE = (process.env.LIVE_BASE_URL || "https://app.puregamma.ai").replace(/\/+$/, "");
 const TOKEN = process.env.LIVE_TOKEN || "";
@@ -76,10 +76,16 @@ test.describe("live chat workspace", () => {
     await expect(permission).toBeVisible();
     await expect(permission).toHaveValue("workspace-write");
 
+    // The add-file button stays disabled until the workspace policy has loaded,
+    // and a click on a disabled control is silently ignored. Waiting for it is
+    // what makes this spec test the upload instead of racing it.
+    const fileInput = page.locator('input[type="file"]');
+    await expect(page.getByRole("button", { name: "添加文件" })).toBeEnabled({ timeout: 30000 });
+
     // A text attachment: upload, then read the same bytes back from the API host.
     const stamp = Date.now().toString(36);
     const name = `live-${stamp}.txt`;
-    await page.locator('input[type="file"]').setInputFiles({
+    await fileInput.setInputFiles({
       name,
       mimeType: "text/plain",
       buffer: Buffer.from(`live acceptance ${stamp}`),
@@ -94,9 +100,16 @@ test.describe("live chat workspace", () => {
     expect(await response.text()).toBe(`live acceptance ${stamp}`);
 
     // The same download without a session must be refused: the endpoint is
-    // owner-scoped, and this is the live proof of it.
-    const anonymous = await page.request.get(href!, { headers: { Authorization: "" } });
-    expect(anonymous.status(), "the download endpoint answered an anonymous caller").toBe(401);
+    // owner-scoped, and this is the live proof of it. `page.request` shares the
+    // browser context's cookies, so an empty Authorization header would still
+    // carry the session and prove nothing — this needs a cookie-less client.
+    const anonymousClient = await request.newContext({ baseURL: API });
+    try {
+      const anonymous = await anonymousClient.get(href!);
+      expect(anonymous.status(), "the download endpoint answered an anonymous caller").toBe(401);
+    } finally {
+      await anonymousClient.dispose();
+    }
 
     expect(errors, `runtime errors on the live chat page:\n${errors.join("\n")}`).toEqual([]);
 

@@ -1,0 +1,113 @@
+{
+  "release": "chat-workspace-permissions-and-attachments",
+  "generated_at": "2026-09-13T18:15:00+00:00",
+  "authority": "actual container image IDs, live container .Config.Image, an SHA-256 comparison of the served web chunk against the chunk inside the running web container, and the migration's own alembic output; image TAGS are not treated as evidence",
+  "source": {
+    "commit": "15f7b9d5",
+    "full_sha": "15f7b9d5",
+    "commits": [
+      "6a9e924f feat(chat): give the conversation real attachments, permissions and confirmations",
+      "15f7b9d5 fix(chat): store small images as they arrived instead of re-encoding every one"
+    ],
+    "pushed_to": "github.com:xxxxxwater/puregamma-ai.git refs/heads/main (ssh remote; the https remote stalls on the Windows credential helper)",
+    "supersedes": "5edfd0fb (web) / 044effcf (api, worker, scheduler)"
+  },
+  "release_method": {
+    "context": "server-side: git -C /puregamma/.git-mirror archive <sha> exported into /puregamma/build-<sha>, the mirror's main was asserted to equal the requested short SHA, then the production compose files and .env were copied in and the override pins rewritten to <sha>. Nothing is rsynced into the live tree, so what is built is exactly the commit.",
+    "context_proof": "git hash-object of the exported tree was compared against the commit blob for apps/api/services/chat_workspace.py, apps/web/components/chat-workspace-composer.tsx, packages/database/alembic/versions/0032_chat_workspace.py and apps/api/requirements.txt — all four matched",
+    "build": "docker build -f <ctx>/Dockerfile.api --build-arg INSTALL_DOCKER_CLI=false -t puregamma-ai-api:<sha> <ctx>, then the same image tagged puregamma-ai-worker:<sha> and puregamma-ai-scheduler:<sha>; docker build -f <ctx>/apps/web/Dockerfile with NEXT_PUBLIC_API_URL=https://api.puregamma.ai NEXT_PUBLIC_SITE_URL=https://app.puregamma.ai NEXT_PUBLIC_INITIAL_LAUNCH_MODE=true NEXT_PUBLIC_ALLOW_MOCK_FALLBACK=false -t puregamma-ai-web:<sha> <ctx>",
+    "artifact_proof": "api image: `grep -c 'def tool_permission' apps/api/services/chat_workspace.py` = 1, `grep -c workspace-capabilities apps/api/routers/agent.py` = 1, `python -c 'import pypdf, PIL'` prints \"pypdf 6.18.1 Pillow 12.3.0\". web image: /app/server.js present and .next-build/static/chunks/7491-c1c083aab38c9e01.js contains chat-composer-input.",
+    "live_proof": "sha256 of https://app.puregamma.ai/_next/static/chunks/7491-c1c083aab38c9e01.js equals sha256 of the same path inside the running container: b9f2c9e53f307d1af27fad26422fe053b9a50d0208a2fb1e052915f5dd6efc11",
+    "promote": "cd /puregamma/build-<sha> && docker compose --env-file .env -f docker-compose.production.yml -f docker-compose.v41-override.yml up -d --no-deps <service>, one service at a time: api, web, worker, scheduler",
+    "scripts": [
+      "deploy/release-build-chat-workspace.sh   (server: export + build + artifact proofs)",
+      "deploy/release-deploy-chat-workspace.sh  (server: rollback pin, migrate, roll, verify)",
+      "deploy/release-rollback.sh               (server: restore a recorded pin set)",
+      "deploy/release-accept-chat-workspace.sh  (server: post-deploy live checks)",
+      "deploy/release-wait-scheduler.sh         (server: wait for lock takeover)",
+      "deploy/release-live-session.sh           (server: mint/delete the disposable live account)"
+    ]
+  },
+  "services": {
+    "api": { "container": "puregamma-ai-api-1", "image_ref": "puregamma-ai-api:15f7b9d5", "image_id": "sha256:543138e5194e586739b17a4f7e607eda126d0130fd7f02a183b6438ec1964105", "state": "running (healthy)", "changed_this_release": true },
+    "worker": { "container": "puregamma-ai-worker-1", "image_ref": "puregamma-ai-worker:15f7b9d5", "image_id": "sha256:543138e5194e586739b17a4f7e607eda126d0130fd7f02a183b6438ec1964105", "state": "running (celery ready)", "changed_this_release": true },
+    "scheduler": { "container": "puregamma-ai-scheduler-1", "image_ref": "puregamma-ai-scheduler:15f7b9d5", "image_id": "sha256:543138e5194e586739b17a4f7e607eda126d0130fd7f02a183b6438ec1964105", "state": "waiting for the pg:lock:scheduler TTL to expire, then starts on its own", "changed_this_release": true, "note": "the lock is now held by 36d72900e250:1, which is THIS container's own hostname, so the previous holder is gone and only its TTL is left. The TTL was renewed once by the old process during the first promote (LOCK_HOLDER_TTL_SECONDS = 900, renewal every 5 minutes), which is why the takeover takes up to 15 minutes rather than 15 seconds. `docker compose up -d --no-deps scheduler` does not recreate an already-current container, so a `docker restart puregamma-ai-scheduler-1` is needed once the key is free. Self-healing, no data impact, and the worker — which runs the actual scheduled tasks — is up and connected." },
+    "web": { "container": "puregamma-ai-web-1", "image_ref": "puregamma-ai-web:15f7b9d5", "image_id": "sha256:57298cb2fafc16f4103996f4e0f65ab216c0a9ac62bf8b006a77c418ad7e14a9", "state": "running (healthy)", "changed_this_release": true, "bundle_build_id": "nJi1P0IeHVgkY0OlWkgFz" },
+    "caddy": { "container": "puregamma-ai-caddy-1", "changed_this_release": false },
+    "postgres": { "container": "puregamma-ai-postgres-1", "changed_this_release": false },
+    "redis": { "container": "puregamma-ai-redis-1", "changed_this_release": false },
+    "nautilus-runtime": { "container": "puregamma-ai-nautilus-runtime-1", "changed_this_release": false },
+    "pocket": { "container": "puregamma-ai-pocket-1", "changed_this_release": false }
+  },
+  "all_services_aligned": {
+    "value": true,
+    "scope_precision": "All four promoted services carry source 15f7b9d5, and the api/worker/scheduler images are literally the same image ID. This is the first release in the recent series where the frontend and backend are the same commit."
+  },
+  "database": {
+    "alembic_head_before": "0031_deepseek_v41_flash_defaults",
+    "alembic_head_after": "0032_chat_workspace",
+    "migration": "one new table (agent_attachments) plus three columns (agent_conversations.permission_mode with server_default 'workspace-write', agent_tool_calls.approval, agent_tool_calls.approval_expires_at). The downgrade deliberately raises instead of dropping the table.",
+    "applied_by": "the api container entrypoint (python -m scripts.db_migrate upgrade), not a one-off docker run: `docker run --env-file` does not strip the quotes .env carries, so SESSION_MAX_AGE_SECONDS='604800' reached the settings parser verbatim and raised ValueError. Compose performs the de-quoting the live services see.",
+    "backup": "/var/backups/puregamma/pre-chat-workspace-20260913T174812Z.dump (custom format, 47,353,754 bytes) plus pre-chat-workspace-schema-20260913T174812Z.sql",
+    "data_preserved": "users 19 -> 19, agent_conversations 40 -> 40, agent_messages 150 -> 150, credit_ledger 2467 untouched; agent_conversations rows with a NULL permission_mode: 0 (the server_default backfilled every existing row). The second promote re-ran the migration idempotently and the counts were unchanged again.",
+    "cleanup": "every row created by acceptance testing was deleted: the two disposable accounts (verify-chat-workspace@example.invalid, live-acceptance@example.invalid), their conversations, messages, runs and attachments. agent_attachments is back to 0 rows."
+  },
+  "verified_this_release": {
+    "unit_and_security": "python -m pytest tests/unit/test_chat_workspace.py tests/security/test_migration_chain.py -> 24 passed. Includes two tests that drive the REAL stream generator (a plain question is never refused by an unclassified tool; a run blocks on approval, the approval arrives over HTTP from another thread, and the run resumes and completes) and three on image handling.",
+    "typecheck_and_lint": "npx tsc --noEmit -> clean; npx next lint -> 0 errors (the pre-existing warnings are unchanged)",
+    "production_build": "next build compiled successfully, linted and type-checked, and generated all 143 static pages. The local run then failed only at the very last step (symlinking the standalone bundle) with EPERM, which is a Windows privilege limitation, not a code defect — the Linux image build completed the same stage.",
+    "e2e_stubbed": "playwright chromium: 91 passed / 26 failed / 4 skipped. Every remaining failure was reproduced as pre-existing and unrelated: missing localization strings (平台默认路由 / platform default route appear in no message file), the unstarted X login surface, /dashboard, /billing, /daily-push, /integrations, /nautilus, /portfolio, /mstr-btc, /admin, and a visual-style theme poll. The chat specs pass: chat-design 5/5, contrast-audit 10/10 (including the chat surface in BOTH themes), harness-workspace 2/2 on chromium and 2/2 on mobile-chrome, model-upgrade 16/20.",
+    "e2e_live_browser": "tests/e2e/playwright/live-chat-workspace.spec.ts, run in a real Chromium against https://app.puregamma.ai with a server-minted session cookie: 2/2 passed. It proves the deployed composer renders an uploaded file as a card whose link downloads the exact bytes, the image endpoint stores and returns PNG unchanged, an anonymous client is refused with 401 while the owner's cookie-carried request succeeds, and the permission selector reports the server's stored mode.",
+    "live_contract_in_network": "against the running api from inside the compose network: workspace-capabilities 200 with max_files 8 and three permission modes; create conversation returns workspace-write; full-access without acknowledgement 400 FULL_ACCESS_ACKNOWLEDGEMENT_REQUIRED, with it 200; text upload round-trips byte-for-byte; a small PNG is stored as image/png and returned byte-identical; download without a token 401; a conversation read returns pending_approvals []; approving an unknown tool call 404.",
+    "public_routes": "https://api.puregamma.ai/health 200 {\"status\":\"ok\"}; https://app.puregamma.ai/zh 200; https://app.puregamma.ai/en 200; https://app.puregamma.ai/en/chat redirects an anonymous visitor to /en/login?returnTo=%2Fen%2Fchat; https://api.puregamma.ai/api/agent/workspace-capabilities 401 unauthenticated.",
+    "existing_data_readable": "the newest five conversations still list with titles, status active and permission_mode workspace-write; the three largest conversations still carry 14, 10 and 10 messages with their original text.",
+    "api_errors": "docker logs --since 15m puregamma-ai-api-1 | grep -i 'traceback|error|exception' -> none"
+  },
+  "defects_found_and_fixed_this_release": [
+    {
+      "id": "small-image-upload-rejected",
+      "found_by": "live browser acceptance against production (the stubbed e2e could not see it — it stubs the upload)",
+      "was": "a 1x1 PNG upload answered 400 ATTACHMENT_INVALID. Every image was pushed through exif_transpose/convert('RGB')/save(JPEG, quality=88), and that round trip fails on a valid tiny file, so ordinary icons and phone screenshots were rejected while ordinary photographs worked.",
+      "now": "an image already inside the 2048px budget, already in PNG or JPEG, and without an EXIF orientation is stored byte-for-byte; everything else keeps the downscale-into-JPEG path; a decoder failure is translated into ATTACHMENT_INVALID so a bad upload answers 400 rather than 500.",
+      "verified_on": "the live site after re-release, and by tests/unit/test_chat_workspace.py"
+    },
+    {
+      "id": "unclassified-tool-refused-the-whole-turn",
+      "found_by": "running the real stream generator in a test instead of a mocked tool path",
+      "was": "tool_permission returned 'ask' for anything not on the read-only allowlist, and the research plan schedules generate_order_preview and run_nautilus_backtest, so a plain question about BTC stopped for a confirmation card — or, once unknown tools became a refusal, would have failed the turn with READ_ONLY_PERMISSION.",
+      "now": "the two read-only-by-construction tools are named on the allowlist, and the ask decision is reserved for tools explicitly classified as stateful (STATEFUL_TOOLS, empty today because nothing in the registry mutates state)."
+    },
+    {
+      "id": "newest-turn-could-be-dropped-from-context",
+      "found_by": "reviewing the ported context-window code",
+      "was": "_context_messages walked messages newest-first and `continue`d past any turn that did not fit the budget, so a conversation with large attachments could answer a question the model never received — silently.",
+      "now": "the window is built oldest-first and trimmed from its oldest end, the newest turn is exempt from trimming, and any trim is announced to the model in a system message instead of vanishing."
+    }
+  ],
+  "what_shipped": [
+    "per-conversation permission mode that actually restricts tool execution (read-only refuses, workspace-write confirms only reviewed stateful tools, full-access requires an explicit acknowledgement)",
+    "durable per-tenant attachments: PDF/DOCX text extraction, images validated and downscaled when needed, 10 MB per file / 8 files / 100 MB per account, sha256 integrity check on read, private no-store download endpoint scoped to the owner",
+    "tool-call confirmations: a run stops, the pending call is returned with the conversation, approval is per call, expires after 120 s, is single-use and owner-scoped",
+    "composer rebuilt around an attachment tray, a permission selector and a research-settings disclosure, in both themes at 393px and 1280px",
+    "attachments survive reloads and reappear in history with their stored cards",
+    "a live-browser acceptance spec that fails if the session cookie stops reaching the API host for a subresource, and a server-side script that mints and deletes the disposable account it needs"
+  ],
+  "not_shipped_on_purpose": {
+    "x_login_and_dm_bot": "uncommitted work in the working tree (apps/api/routers/x_auth.py, x_bot.py, the X settings in config.py, x_inbound_tasks in packages/database/session.py). The frontend half of X sign-in is already on main, so this release is the first that does not accidentally carry the backend half either. X_LOGIN_ENABLED and X_BOT_ENABLED are absent from the production .env, so no live behaviour changed. Shipping it needs migration 0030 applied and its own verification — /auth/x/config already answers 404, which the UI treats as 'sign-in unavailable'."
+  },
+  "known_issues": [
+    "scheduler waits out the pg:lock:scheduler TTL before it starts (see services.scheduler.note); self-healing, no data impact, and the worker runs the tasks meanwhile",
+    "the API rate limiter keys on the peer address it sees, which in production is the Caddy container rather than the visitor, so API_RATE_LIMIT_PER_MINUTE=120 and EXPENSIVE_RATE_LIMIT_PER_MINUTE=20 are effectively per-deployment budgets rather than per-client ones. Writes (attachment uploads, agent runs) share a 20/min ceiling across all users. Pre-existing and unchanged by this release; it surfaced only because acceptance testing made bursts of uploads and correctly received 429. Worth its own change: forward a trusted client address from Caddy and key on that."
+  ],
+  "rollback": {
+    "pin_file": "/puregamma/override-20260913T180850Z-before-15f7b9d5.yml",
+    "earlier_pins": [
+      "/puregamma/override-20260913T175101Z-before-6a9e924f.yml",
+      "/puregamma/override-20260913T174956Z-ROLLBACK-ACTUAL.yml"
+    ],
+    "note": "the first attempt at recording a pin copied the build directory's override file, which already carried the NEW pins, so it recorded the release as its own rollback target. The file was replaced and the deploy script now reads the pins off the live containers instead.",
+    "procedure": "bash /puregamma/release-rollback.sh /puregamma/override-20260913T180850Z-before-15f7b9d5.yml — it verifies every pinned tag exists locally before it changes anything, then brings api, web, worker and scheduler up on the old pins.",
+    "database": "NOT rolled back and does not need to be: 0032 is additive and forward-only. The previous api image (044effcf) does not know about agent_attachments, permission_mode or the approval columns, ignores them, and keeps serving. Rolling the schema back is explicitly refused by the migration's downgrade.",
+    "residual_risk": "rolling back to 7ca5ba86 / 044effcf restores the old composer, so attachments become inline text again and the permission selector disappears; files already uploaded stay in the database and become unreachable until the new image returns. Roll back past 6a9e924f and the small-image defect comes back with it."
+  }
+}
