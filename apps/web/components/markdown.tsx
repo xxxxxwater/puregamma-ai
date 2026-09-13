@@ -129,10 +129,13 @@ export function MarkdownContent({ content }: { content: string }) {
           },
 
           // Tables scroll inside their own container; they are never allowed to
-          // widen the page, and the wrapper is what receives the overflow.
+          // widen the page. `w-max` + `min-w-full` matters here: with `w-full`
+          // alone the browser shrinks the columns to fit, so a wide table never
+          // actually overflowed and the wrapper had nothing to scroll — the
+          // content simply became cramped. The wrapper takes the overflow.
           table: ({ children }: MdProps) => (
-            <div className="my-4 touch-pan-x overflow-x-auto overscroll-x-contain border border-border-pg rounded-lg">
-              <table className="w-full border-collapse text-[13px] leading-[20px]">{children}</table>
+            <div className="my-4 touch-pan-x overflow-x-auto overscroll-x-contain border border-border-pg rounded-lg" data-testid="md-table-scroll">
+              <table className="w-max min-w-full border-collapse text-[13px] leading-[20px]">{children}</table>
             </div>
           ),
           thead: ({ children }: MdProps) => <thead className="bg-bg-panel-muted text-text-pg-secondary">{children}</thead>,

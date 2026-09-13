@@ -14,7 +14,7 @@ export default function ChatPage({ params }: { params: { locale: Locale } }) {
   return (
     <ChronoSlices>
       <ChronoSlice>
-        <IntelligenceShell eyebrow={params.locale === "zh" ? "Reason" : "Reason"} title={params.locale === "zh" ? "与 Agent 共同推理。" : "Reason with your Agent."} byline={params.locale === "zh" ? "围绕策略、事件与风险的持续推理对象。" : "A continuously updating counterpart for strategies, events and risk."}>
+        <IntelligenceShell compact eyebrow={params.locale === "zh" ? "Reason" : "Reason"} title={params.locale === "zh" ? "与 Agent 共同推理。" : "Reason with your Agent."} byline={params.locale === "zh" ? "围绕策略、事件与风险的持续推理对象。" : "A continuously updating counterpart for strategies, events and risk."}>
           <AgentChat locale={params.locale} />
         </IntelligenceShell>
       </ChronoSlice>

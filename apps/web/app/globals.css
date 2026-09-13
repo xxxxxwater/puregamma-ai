@@ -64,6 +64,12 @@
   --secretary-assistant-text: #172554;
   --secretary-assistant-border: #9cc3f0;
   --secretary-assistant-muted: #3b5ba9;
+  /* Inverted (primary) surface. In Light the primary action is near-black on
+     white; in Dark it inverts to near-white on black. Previously this was a
+     hardcoded `#FFFFFF` at the call site, which in the Light theme produced a
+     white button with a white border and black text — no visible boundary. */
+  --pg-surface-inverse: #17181c;
+  --pg-text-inverse: #ffffff;
   --border: rgba(15, 23, 42, 0.10);
   --border-strong: rgba(15, 23, 42, 0.18);
   --muted: #5b606b;
@@ -101,6 +107,8 @@
   --secretary-assistant-text: #f0e7e2;
   --secretary-assistant-border: #5d4a44;
   --secretary-assistant-muted: #c9b6ac;
+  --pg-surface-inverse: #fafafa;
+  --pg-text-inverse: #0b0e14;
   --border: rgba(150, 172, 214, 0.10);
   --border-strong: rgba(150, 172, 214, 0.18);
   --muted: #98a2b3;
@@ -160,7 +168,7 @@
   --pg-text-tertiary: var(--muted-2);
   --pg-text-placeholder: var(--muted-2);
   --pg-text-disabled: var(--muted-2);
-  --pg-text-inverse: var(--background);
+  /* `--pg-text-inverse` is declared per theme in the token table above. */
 
   /* ── Page and surfaces ───────────────────────────────────────────── */
   --pg-bg-page: var(--background);
@@ -171,10 +179,8 @@
   --pg-surface-raised: var(--panel);
   --pg-surface-hover: var(--panel-muted);
   --pg-surface-active: var(--panel-strong);
-  /* Inverted surface: white-on-dark today, near-black-on-light tomorrow.
-     Aliased to the legacy pair so Phase 1 stays pixel-identical; Phase 3
-     re-points it at a real per-theme value and retires `bg-pg-white`. */
-  --pg-surface-inverse: #FFFFFF;
+  /* `--pg-surface-inverse` / `--pg-text-inverse` are declared per theme in the
+     token table above; do not re-declare them here or the override wins. */
 
   /* ── Borders ─────────────────────────────────────────────────────── */
   --pg-border-subtle: var(--border);

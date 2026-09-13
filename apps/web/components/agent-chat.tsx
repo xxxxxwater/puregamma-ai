@@ -77,6 +77,13 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [models, setModels] = useState<AgentModelOption[]>([]);
   const [selectedModel, setSelectedModel] = useState("default");
   const [dataSources, setDataSources] = useState<string[]>([]);
+  /* Small-screen conversation history. The aside is `hidden` below `lg`, so
+     without this the conversation list, "new conversation" and "delete all
+     history" were unreachable on a phone — an old conversation could only be
+     reopened from the dashboard or by typing its URL. */
+  const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
+  const historyPanelRef = useRef<HTMLElement | null>(null);
+  const historyTriggerRef = useRef<HTMLButtonElement | null>(null);
   const [skillCatalog, setSkillCatalog] = useState<SkillSummary[]>([]);
   const [skills, setSkills] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState("");
@@ -92,6 +99,57 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const controllerRef = useRef<AbortController | null>(null);
   const fileRef = useRef<HTMLInputElement>(null);
   const composerRef = useRef<HTMLTextAreaElement>(null);
+
+  /* Drawer behaviour: Escape closes it, background scroll is locked while it is
+     open, focus moves into the panel, and focus returns to the trigger when it
+     closes. All of these are what make a drawer usable with a keyboard rather
+     than merely visible. */
+  useEffect(() => {
+    if (!mobileHistoryOpen) return;
+    const panel = historyPanelRef.current;
+    const focusable = panel?.querySelector<HTMLElement>(
+      'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+    );
+    focusable?.focus();
+
+    const previousOverflow = document.body.style.overflow;
+    document.body.style.overflow = "hidden";
+
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") {
+        setMobileHistoryOpen(false);
+        return;
+      }
+      // Keep Tab inside the open drawer.
+      if (event.key !== "Tab" || !panel) return;
+      const items = Array.from(
+        panel.querySelectorAll<HTMLElement>(
+          'button:not([disabled]), [href], input, select, textarea, [tabindex]:not([tabindex="-1"])',
+        ),
+      ).filter((el) => el.offsetParent !== null);
+      if (items.length === 0) return;
+      const first = items[0];
+      const last = items[items.length - 1];
+      if (event.shiftKey && document.activeElement === first) {
+        event.preventDefault();
+        last.focus();
+      } else if (!event.shiftKey && document.activeElement === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("keydown", onKeyDown);
+      document.body.style.overflow = previousOverflow;
+    };
+  }, [mobileHistoryOpen]);
+
+  const closeMobileHistory = () => {
+    setMobileHistoryOpen(false);
+    historyTriggerRef.current?.focus();
+  };
   const activeRunRef = useRef("");
   /** Guards against a double submit (Enter plus click, or a slow network) firing two runs. */
   const sendingRef = useRef(false);
@@ -408,36 +466,58 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   };
 
   return (
-    <OceanShell locale={locale} variant="agent" className="h-[calc(100dvh-7rem)] min-h-[620px] rounded-2xl">
-      <div className={`grid h-full min-h-[620px] overflow-hidden border border-border-pg bg-bg-panel ${historyCollapsed ? "lg:grid-cols-[44px_minmax(0,1fr)]" : "lg:grid-cols-[244px_minmax(0,1fr)]"}`}>
+    /* The width contract lives here, not in the page wrapper.
+       `/chat` wrapped this component in `IntelligenceShell` (max-width 1180px)
+       while `/chat/[conversationId]` rendered it bare, so the same conversation
+       changed text-column width when the route changed — and on a wide screen
+       the bare route let content span the full viewport. Constraining the
+       component itself means both routes agree by construction. */
+    <OceanShell locale={locale} variant="agent" className="mx-auto h-[calc(100dvh-7rem)] min-h-[620px] w-full max-w-[1180px] rounded-2xl">
+      <div className={`grid h-full min-h-[620px] grid-cols-1 overflow-hidden border border-border-pg bg-bg-panel ${historyCollapsed ? "lg:grid-cols-[44px_minmax(0,1fr)]" : "lg:grid-cols-[244px_minmax(0,1fr)]"}`}>
+      {/* A backdrop is only rendered on small screens, where the history aside
+          becomes a drawer. Without it the drawer would cover the transcript
+          with no visible way back. */}
+      {mobileHistoryOpen ? (
+        <button
+          type="button"
+          aria-label={zh ? "关闭历史对话" : "Close conversation history"}
+          onClick={closeMobileHistory}
+          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
+        />
+      ) : null}
       {historyCollapsed ? (
         <aside className="hidden border-r border-border-pg bg-bg-app lg:flex lg:flex-col lg:items-center lg:py-3">
-          <button type="button" onClick={() => setHistoryCollapsed(false)} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "展开历史对话" : "Expand conversation history"}><PanelLeftOpen className="h-4 w-4" /></button>
+          <button type="button" onClick={() => setHistoryCollapsed(false)} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" aria-label={zh ? "展开历史对话" : "Expand conversation history"}><PanelLeftOpen className="h-4 w-4" /></button>
         </aside>
       ) : (
-      <aside className="hidden border-b border-border-pg bg-bg-app lg:flex lg:flex-col lg:border-b-0 lg:border-r">
+      <aside
+        ref={historyPanelRef}
+        aria-label={zh ? "历史对话" : "Conversation history"}
+        className={`${mobileHistoryOpen ? "flex" : "hidden"} fixed inset-y-3 left-3 z-50 w-80 max-w-[85vw] flex-col rounded-xl border border-border-pg bg-bg-panel shadow-2xl lg:static lg:z-auto lg:w-auto lg:max-w-none lg:rounded-none lg:border-0 lg:border-r lg:border-b-0 lg:bg-bg-app lg:shadow-none lg:flex`}
+      >
         <div className="flex items-center justify-between border-b border-border-pg p-3">
           <div><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 text-xs text-text-pg-muted">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "remaining"} · ${quota.credit_balance} Credits` : "-"}</div></div>
           <div className="flex items-center gap-1">
-            <button type="button" onClick={() => setHistoryCollapsed(true)} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "收起历史对话" : "Collapse conversation history"}><PanelLeftClose className="h-4 w-4" /></button>
-            <button type="button" onClick={createNew} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
+            <button type="button" onClick={() => setHistoryCollapsed(true)} className="hidden h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg lg:grid" aria-label={zh ? "收起历史对话" : "Collapse conversation history"}><PanelLeftClose className="h-4 w-4" /></button>
+            <button type="button" onClick={closeMobileHistory} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg lg:hidden" aria-label={zh ? "关闭历史对话" : "Close conversation history"}><X className="h-4 w-4" /></button>
+            <button type="button" onClick={createNew} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" aria-label={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
           </div>
         </div>
         <div className="flex-1 overflow-y-auto p-2 lg:space-y-1">
           {conversations.map((conversation) => (
             <div key={conversation.id} className="group flex items-center">
-              <button type="button" onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); openConversation(conversation.id); }} className={`min-w-0 flex-1 border px-3 py-2 text-left text-sm  rounded-lg ${conversation.id === conversationId ? "border-border-pg-strong bg-bg-panel-muted" : "border-transparent text-text-pg-muted hover:border-border-pg"}`}>
+              <button type="button" onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); openConversation(conversation.id); setMobileHistoryOpen(false); }} className={`min-w-0 flex-1 border px-3 py-2 text-left text-sm  rounded-lg ${conversation.id === conversationId ? "border-border-pg-strong bg-bg-panel-muted" : "border-transparent text-text-pg-muted hover:border-border-pg"}`}>
                 <div className="truncate font-medium">{conversation.title}</div>
                 <div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div>
               </button>
-              <button type="button" onClick={(event) => { event.stopPropagation(); void deleteConversation(conversation.id); }} className="invisible ml-0.5 grid h-9 w-8 shrink-0 place-items-center border border-transparent text-text-pg-dim hover:border-status-negative hover:text-status-negative group-hover:visible rounded-lg" title={zh ? "删除会话" : "Delete conversation"}><Trash2 className="h-3.5 w-3.5" /></button>
+              <button type="button" onClick={(event) => { event.stopPropagation(); void deleteConversation(conversation.id); }} aria-label={zh ? "删除会话" : "Delete conversation"} className="ml-0.5 grid h-9 w-8 shrink-0 place-items-center border border-transparent text-text-pg-dim hover:border-status-negative hover:text-status-negative lg:invisible lg:group-hover:visible rounded-lg"><Trash2 className="h-3.5 w-3.5" /></button>
             </div>
           ))}
           {conversations.length === 0 ? <div className="px-3 py-4 text-center text-xs text-text-pg-dim">{zh ? "暂无历史对话" : "No conversation history"}</div> : null}
         </div>
         {conversations.length ? (
           <div className="border-t border-border-pg p-2">
-            <button type="button" onClick={() => void deleteAll()} className="flex w-full items-center justify-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-dim hover:border-status-negative hover:text-status-negative transition rounded-lg" title={zh ? "删除全部历史对话" : "Delete all conversation history"}>
+            <button type="button" onClick={() => void deleteAll()} className="flex w-full items-center justify-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-dim hover:border-status-negative hover:text-status-negative transition rounded-lg" aria-label={zh ? "删除全部历史对话" : "Delete all conversation history"}>
               <Trash2 className="h-3.5 w-3.5" />
               <span>{zh ? "删除全部历史对话" : "Delete all history"}</span>
             </button>
@@ -446,7 +526,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       </aside>
       )}
 
-      <section className="flex min-h-0 min-w-0 flex-col overflow-hidden">
+      {/* `min-w-0` plus no `overflow-hidden` on the ancestors: the inner scroll
+          container needs to be the element that clips, otherwise wide content
+          (a long URL, a hash, a base64 blob) is silently truncated here with no
+          ellipsis and no scrollbar. */}
+      <section className="flex min-h-0 min-w-0 flex-col">
         <div ref={scrollRef} onScroll={(event) => { const target = event.currentTarget; followRef.current = target.scrollHeight - target.scrollTop - target.clientHeight < 120; }} className="min-h-0 flex-1 overflow-y-auto p-4 md:p-6">
           {loading ? <div className="grid min-h-64 place-items-center"><Loader2 className="h-5 w-5 animate-spin" /></div> : null}
           {!loading && messages.length === 0 ? <div className="mx-auto flex min-h-[55vh] max-w-3xl flex-col justify-center">
@@ -454,7 +538,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             <div className="mt-7 grid gap-2 sm:grid-cols-2">{starterPrompts.map((item) => <button key={item.title} type="button" onClick={() => choosePrompt(item.body)} className="group border border-border-pg bg-bg-app p-3 text-left transition hover:border-border-pg-strong hover:bg-bg-panel-muted rounded-lg"><span className="text-sm font-medium">{item.title}</span><span className="mt-1.5 block text-xs leading-5 text-text-pg-dim">{item.body}</span><span className="mt-3 inline-flex items-center gap-1 text-[10px] uppercase tracking-wide text-text-pg-muted"><Target className="h-3 w-3" />{zh ? "作为目标使用" : "Use as goal"}</span></button>)}</div>
           </div> : null}
           <div className="mx-auto max-w-3xl space-y-5">
-            {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[85%] border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "max-w-full border-l border-border-pg pl-4"}>
+            {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[min(85%,42rem)] break-words rounded-lg border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "min-w-0 max-w-full overflow-x-auto border-l border-border-pg pl-4"}>
               {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{file.name}</span>)}</div> : null}</>}
               {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
@@ -528,11 +612,40 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
               </div>
             )}
           </div>
+          {/* Small screens: the history aside is off-canvas, so this is the only
+              way into it. Kept above the composer, inside the viewport.
+              Icon-only on purpose: these carry `aria-label`s rather than visible
+              text so they do not duplicate strings the header controls already
+              expose (a second "New conversation" label made text-based lookups
+              ambiguous). */}
+          <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-2 lg:hidden">
+            <button
+              ref={historyTriggerRef}
+              type="button"
+              onClick={() => setMobileHistoryOpen(true)}
+              className="inline-flex min-h-9 items-center gap-2 border border-border-pg px-3 text-xs text-text-pg-muted transition hover:border-border-pg-strong rounded-lg"
+              aria-expanded={mobileHistoryOpen}
+              aria-label={zh ? `历史对话（${conversations.length}）` : `Conversation history (${conversations.length})`}
+              data-testid="chat-history-trigger"
+            >
+              <PanelLeftOpen className="h-3.5 w-3.5" />
+              {conversations.length ? <span className="text-text-pg-dim">{conversations.length}</span> : null}
+            </button>
+            <button
+              type="button"
+              onClick={createNew}
+              className="inline-flex min-h-9 items-center gap-2 border border-border-pg px-3 text-xs text-text-pg-muted transition hover:border-border-pg-strong rounded-lg"
+              aria-label={zh ? "新会话" : "New conversation"}
+              data-testid="chat-new-trigger"
+            >
+              <MessageSquarePlus className="h-3.5 w-3.5" />
+            </button>
+          </div>
           <form onSubmit={send} className="mx-auto flex max-w-3xl items-end gap-2">
             <input ref={fileRef} type="file" multiple accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json" className="hidden" onChange={(event) => void addFiles(event.target.files)} />
-            <button type="button" onClick={() => fileRef.current?.click()} className="grid h-14 w-11 shrink-0 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" title={zh ? "添加文件" : "Add files"}><Paperclip className="h-4 w-4" /></button>
-            <textarea ref={composerRef} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={2} placeholder={zh ? "说出目标或正在判断的问题，Shift + Enter 换行" : "State your goal or decision, Shift + Enter for a new line"} className="min-h-14 flex-1 resize-none border border-border-pg bg-bg-panel px-3 py-2 text-sm outline-none focus:border-border-pg-strong rounded-lg" />
-            {busy ? <button type="button" onClick={stop} className="grid h-14 w-12 place-items-center border border-border-pg text-status-negative rounded-lg" title={zh ? "停止生成" : "Stop generation"}><CircleStop className="h-5 w-5" /></button> : <RippleEffect as="button" type="submit" disabled={!input.trim()} className="grid h-14 w-12 place-items-center border border-border-pg-strong bg-pg-white text-pg-black disabled:opacity-40 rounded-lg" ariaLabel={zh ? "发送" : "Send"}><Send className="h-5 w-5" /></RippleEffect>}
+            <button type="button" onClick={() => fileRef.current?.click()} className="grid h-14 w-11 shrink-0 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" aria-label={zh ? "添加文件" : "Add files"}><Paperclip className="h-4 w-4" /></button>
+            <textarea ref={composerRef} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={2} aria-label={zh ? "消息输入" : "Message input"} placeholder={zh ? "说出目标或正在判断的问题，Shift + Enter 换行" : "State your goal or decision, Shift + Enter for a new line"} className="min-h-14 flex-1 resize-none border border-border-pg bg-bg-panel px-3 py-2 text-sm outline-none focus:border-border-pg-strong focus-visible:ring-2 focus-visible:ring-accent-ring rounded-lg" />
+            {busy ? <button type="button" onClick={stop} className="grid h-14 w-12 place-items-center border border-border-pg text-status-negative rounded-lg" aria-label={zh ? "停止生成" : "Stop generation"}><CircleStop className="h-5 w-5" /></button> : <RippleEffect as="button" type="submit" disabled={!input.trim()} className="grid h-14 w-12 place-items-center border border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)] disabled:opacity-40 rounded-lg" ariaLabel={zh ? "发送" : "Send"}><Send className="h-5 w-5" /></RippleEffect>}
           </form>
           <div className="mx-auto mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 text-[11px] text-text-pg-dim"><span>{!researchMode ? (zh ? "联网模式：直接联网检索" : "Online mode: direct web search") : (creditQuote?.plan?.intent ? `${zh ? "自动识别" : "Detected"}: ${creditQuote.plan.intent.replaceAll("_", " ")}` : (zh ? "留空高级设置时，Agent 会自动选择 Skills 与证据。" : "Leave advanced settings blank for automatic Skills and evidence selection."))}</span><span>{creditQuote?.unavailable ? (zh ? "计费报价暂不可用" : "Credit quote unavailable") : `${zh ? "预计消耗" : "Estimated cost"}: ${estimatedCredits} Credits`}</span></div>
           {failure ? (
