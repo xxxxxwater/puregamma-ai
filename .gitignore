@@ -58,5 +58,11 @@ releases/
 docker-compose.*.bak*
 *.bak-migrate
 
-# Playwright MCP artifacts.playwright-mcp/
+# Playwright MCP artifacts
+.playwright-mcp/
+
+# Captured browser sessions are LIVE CREDENTIALS and must never be committed.
+# Obtaining, verifying and cleaning them up: docs/verification/ADMIN_SESSION_HANDOFF.md
+tests/e2e/.auth/
+**/storageState*.json
 
