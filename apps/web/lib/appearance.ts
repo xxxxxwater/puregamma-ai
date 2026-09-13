@@ -42,6 +42,9 @@ function systemTheme(): ResolvedTheme {
 function readPreference(): ThemePreference {
   try {
     const raw = window.localStorage.getItem(THEME_KEY);
+    // Absent means "System", which is also the pre-paint script's default.
+    // These two MUST agree, or the first frame shows one theme and hydration
+    // immediately switches to another.
     return raw === "light" || raw === "dark" ? raw : "system";
   } catch {
     // Private mode / disabled storage must still render a usable theme.
@@ -77,6 +80,8 @@ function setState(next: State) {
 /** Re-read storage + OS preference and repaint. Idempotent. */
 function sync() {
   const preference = readPreference();
+  // Nothing stored means LIGHT, not the OS preference: the light identity is
+  // the product default and only an explicit "system" choice follows the OS.
   const resolved = preference === "system" ? systemTheme() : preference;
   const fontScale = readFontScale();
   document.documentElement.dataset.fontScale = fontScale;
@@ -88,11 +93,11 @@ function ensureInitialized() {
   if (initialized || typeof window === "undefined") return;
   initialized = true;
 
-  // Adopt whatever the pre-paint script already decided instead of guessing.
-  const preResolved: ResolvedTheme = document.documentElement.dataset.theme === "dark" ? "dark" : "light";
   const preference = readPreference();
   const fontScale = readFontScale();
-  state = { preference, resolved: preference === "system" ? preResolved : preference, fontScale };
+  // `resolved` is whatever the pre-paint script already painted for the
+  // non-system cases; only "system" needs the live OS query.
+  state = { preference, resolved: preference === "system" ? systemTheme() : preference, fontScale };
 
   darkQuery()?.addEventListener("change", () => {
     // Only meaningful while following the system.

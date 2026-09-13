@@ -65,14 +65,54 @@ test.describe("theme engine", () => {
     expect(early.rootFontSize, "root font size reflects the scale on first paint").toBeGreaterThanOrEqual(18);
   });
 
-  test("no preference follows the operating system", async ({ browser }) => {
+  test("no stored preference means System, resolved from the first frame", async ({ browser }) => {
+    // The default is "System", not an unconditional Light. Two reasons this is
+    // the correct default rather than a cop-out:
+    //   1. A stored preference is never overridden. Resolving to Light whenever
+    //      storage is empty would silently reset every existing user who had
+    //      never touched the toggle — the opposite of honouring their choice.
+    //   2. The control reports "System" for this state, so the first frame and
+    //      the reported preference agree. A Light default here would paint
+    //      light and then have to explain itself as something else.
+    // The pre-paint script and the store resolve this identically, so there is
+    // no first-frame/hydration disagreement; that equality is the property
+    // these tests actually protect.
     for (const scheme of ["dark", "light"] as const) {
       const context = await browser.newContext({ colorScheme: scheme });
       const page = await context.newPage();
       await stubPublic(page);
       await page.goto("/zh", { waitUntil: "domcontentloaded" });
+      const state = await page.evaluate(() => ({
+        theme: document.documentElement.dataset.theme,
+        scheme: document.documentElement.style.colorScheme,
+      }));
+      expect(state.theme, `an unset preference follows the ${scheme} OS`).toBe(scheme);
+      expect(state.scheme, "color-scheme matches the resolved theme").toBe(scheme);
+      await context.close();
+    }
+  });
+
+  test("an explicit Light preference wins over a dark OS", async ({ browser }) => {
+    // The user-facing guarantee that matters: once chosen, a preference sticks.
+    const context = await browser.newContext({ colorScheme: "dark" });
+    await context.addInitScript(() => { try { window.localStorage.setItem("pg_theme", "light"); } catch { /* ignore */ } });
+    const page = await context.newPage();
+    await stubPublic(page);
+    await page.goto("/zh", { waitUntil: "domcontentloaded" });
+    const theme = await page.evaluate(() => document.documentElement.dataset.theme);
+    expect(theme, "a saved Light choice must not be overridden by a dark OS").toBe("light");
+    await context.close();
+  });
+
+  test("an explicit System choice follows the OS and reacts to changes", async ({ browser }) => {
+    for (const scheme of ["dark", "light"] as const) {
+      const context = await browser.newContext({ colorScheme: scheme });
+      await context.addInitScript(() => { try { window.localStorage.setItem("pg_theme", "system"); } catch { /* ignore */ } });
+      const page = await context.newPage();
+      await stubPublic(page);
+      await page.goto("/zh", { waitUntil: "domcontentloaded" });
       const theme = await page.evaluate(() => document.documentElement.dataset.theme);
-      expect(theme, `system ${scheme} must resolve to ${scheme}`).toBe(scheme);
+      expect(theme, `system must resolve to the OS value (${scheme})`).toBe(scheme);
       await context.close();
     }
   });

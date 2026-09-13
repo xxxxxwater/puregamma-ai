@@ -39,9 +39,17 @@ const visualStyleDefault = process.env.NEXT_PUBLIC_VISUAL_STYLE_DEFAULT === "cla
  * default on every single load and the page reflowed from 16px to 14/18px.
  *
  * Contract:
- *  - `pg_theme` keeps its existing accepted values (`light` / `dark`) so saved
- *    preferences are preserved; `system` (or anything unrecognised, or a
- *    storage that throws) falls back to the OS preference.
+ *  - `pg_theme` holds the user's PREFERENCE: absent means "System" (the
+ *    default), and `light` / `dark` are explicit choices. The pre-paint script
+ *    reads it and writes the RESOLVED theme to `data-theme`, so the stored
+ *    preference is the single source of truth and the control can display it
+ *    without a second guess.
+ *  - Because the default is System, a visitor with nothing stored follows the
+ *    operating system from the very first paint. Resolving to Light instead
+ *    would disagree with what the control reports for the same state, which is
+ *    how a first-frame mismatch gets introduced.
+ *  - An explicit `light` / `dark` always wins over the OS, so a saved choice is
+ *    never overridden.
  *  - `data-theme` is ALWAYS written as `light` or `dark`. The stylesheet still
  *    contains light-scoped rules (`:root[data-theme="light"] ::selection`, the
  *    grid backdrop), so leaving the attribute off would silently drop them.
@@ -53,10 +61,11 @@ const visualStyleDefault = process.env.NEXT_PUBLIC_VISUAL_STYLE_DEFAULT === "cla
 const appearanceBootstrap = `(function(){try{
 var d=document.documentElement;
 var read=function(k){try{return window.localStorage.getItem(k);}catch(e){return null;}};
-var pref=read('pg_theme');
-if(pref!=='light'&&pref!=='dark'){pref=(window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light';}
-d.dataset.theme=pref;
-d.style.colorScheme=pref;
+var stored=read('pg_theme');
+var pref=(stored==='light'||stored==='dark')?stored:'system';
+var resolved=pref==='system'?((window.matchMedia&&window.matchMedia('(prefers-color-scheme: dark)').matches)?'dark':'light'):pref;
+d.dataset.theme=resolved;
+d.style.colorScheme=resolved;
 var fs=read('pg_font_scale');
 d.dataset.fontScale=(fs==='compact'||fs==='large')?fs:'default';
 var vs=read('pg_visual_style');
