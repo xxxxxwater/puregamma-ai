@@ -26,11 +26,20 @@ from packages.workers import redis_lock
 
 
 class FakeRedis:
-    """Minimal stand-in for the subset of the Redis API the lock uses."""
+    """Minimal stand-in for the subset of the Redis API the lock uses.
+
+    `eval` interprets the module's own RENEW_SCRIPT / RELEASE_SCRIPT rather than
+    reimplementing their logic, so these tests cannot pass against a script that
+    the real server would execute differently.
+    """
 
     def __init__(self) -> None:
         self.store: dict[str, str] = {}
         self.ttls: dict[str, int] = {}
+        #: Set by a test to make another client take the key between the compare
+        #: and the write, which is exactly the interleaving the script removes.
+        self.steal_to: str | None = None
+        self.eval_calls: list[tuple[str, tuple]] = []
 
     def set(self, key, value, nx=False, ex=None):
         if nx and key in self.store:
@@ -56,6 +65,33 @@ class FakeRedis:
 
     def ttl(self, key):
         return self.ttls.get(key, -2) if key in self.store else -2
+
+    def eval(self, script, numkeys, *args):
+        self.eval_calls.append((script, args))
+        key = args[0]
+        token = args[1] if len(args) > 1 else None
+        if self.steal_to is not None:
+            # Simulate a successor acquiring the key in the window that a
+            # GET-then-EXPIRE implementation would leave open.
+            self.store[key] = self.steal_to
+            self.ttls[key] = 900
+        current = self.store.get(key)
+        if script == redis_lock.RENEW_SCRIPT:
+            if current is None:
+                return 0
+            if current != token:
+                return 1
+            self.ttls[key] = int(args[2]) // 1000
+            return 2
+        if script == redis_lock.RELEASE_SCRIPT:
+            if current is None:
+                return 0
+            if current != token:
+                return 1
+            self.store.pop(key, None)
+            self.ttls.pop(key, None)
+            return 2
+        raise AssertionError("unexpected script passed to eval")
 
 
 @pytest.fixture()
@@ -136,6 +172,64 @@ def test_tokenless_release_keeps_legacy_behaviour(fake_redis):
 
     assert redis_lock.release_redis_lock("scheduler") is True
     assert KEY not in fake_redis.store
+
+
+def test_renew_is_atomic_and_never_extends_a_successors_lock(fake_redis):
+    """A renewal that loses the race must not extend the new owner's lock.
+
+    With `GET` then `EXPIRE` as two round trips, a lock that expired between them
+    could be acquired by a successor and then extended by the old owner's
+    `EXPIRE` — the successor's lock would inherit the previous owner's TTL and
+    the old owner would be told nothing. The server-side script removes the
+    window entirely.
+    """
+    acquired, token = redis_lock.acquire_redis_lock("scheduler", ttl_seconds=900)
+    assert acquired
+    fake_redis.ttls[KEY] = 5
+
+    # Another scheduler takes the key in the middle of our renewal.
+    fake_redis.steal_to = "successor:7"
+
+    assert redis_lock.renew_redis_lock("scheduler", token, ttl_seconds=900) is False
+    # The successor keeps ITS ttl; our renewal must not have touched it.
+    assert fake_redis.ttls[KEY] == 900
+    assert fake_redis.store[KEY] == "successor:7"
+
+
+def test_release_is_atomic_and_never_deletes_a_successors_lock(fake_redis):
+    acquired, token = redis_lock.acquire_redis_lock("scheduler", ttl_seconds=900)
+    assert acquired
+
+    fake_redis.steal_to = "successor:7"
+
+    assert redis_lock.release_redis_lock("scheduler", token) is False
+    assert fake_redis.store[KEY] == "successor:7"
+
+    # ...and our own lock still releases normally.
+    fake_redis.steal_to = None
+    fake_redis.store[KEY] = token
+    assert redis_lock.release_redis_lock("scheduler", token) is True
+    assert KEY not in fake_redis.store
+
+
+def test_renew_and_release_go_through_the_scripts(fake_redis):
+    """Pin the mechanism, not just the outcome.
+
+    A GET/EXPIRE pair and an EVAL can produce identical results in a fake, so the
+    atomicity claim is only real if the implementation actually uses the scripts.
+    """
+    acquired, token = redis_lock.acquire_redis_lock("scheduler", ttl_seconds=900)
+    assert acquired
+
+    redis_lock.renew_redis_lock("scheduler", token, ttl_seconds=900)
+    redis_lock.release_redis_lock("scheduler", token)
+
+    scripts = [script for script, _ in fake_redis.eval_calls]
+    assert redis_lock.RENEW_SCRIPT in scripts
+    assert redis_lock.RELEASE_SCRIPT in scripts
+    # No unlocked read-modify-write may remain alongside the scripts.
+    assert "PEXPIRE" in redis_lock.RENEW_SCRIPT
+    assert "DEL" in redis_lock.RELEASE_SCRIPT
 
 
 def test_status_reports_the_holder_for_operators(fake_redis):

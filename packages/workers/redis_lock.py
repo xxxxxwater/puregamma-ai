@@ -11,6 +11,28 @@ logger = logging.getLogger("puregamma.workers.lock")
 #: every 5 minutes), so a missed renewal never drops a still-live lock.
 LOCK_HOLDER_TTL_SECONDS = 900
 
+#: Compare-and-extend. `GET` then `EXPIRE` as two round trips is not atomic: the
+#: lock can expire between them and a successor can take it, after which the old
+#: owner's `EXPIRE` would extend the SUCCESSOR's lock on its behalf. Redis runs a
+#: script atomically, so the comparison and the extension cannot be split.
+#: Returns 2 when we still own it, 1 when someone else does, 0 when it is gone.
+RENEW_SCRIPT = """
+local current = redis.call('GET', KEYS[1])
+if current == false then return 0 end
+if current ~= ARGV[1] then return 1 end
+redis.call('PEXPIRE', KEYS[1], ARGV[2])
+return 2
+"""
+
+#: Compare-and-delete, for the same reason as RENEW_SCRIPT.
+RELEASE_SCRIPT = """
+local current = redis.call('GET', KEYS[1])
+if current == false then return 0 end
+if current ~= ARGV[1] then return 1 end
+redis.call('DEL', KEYS[1])
+return 2
+"""
+
 
 def instance_identity() -> str:
     """Identify this process as a lock owner.
@@ -58,22 +80,19 @@ def renew_redis_lock(name: str, token: str, ttl_seconds: int = 600) -> bool:
     ``acquire_redis_lock`` uses ``SET NX``, so calling it again to "renew" is a
     no-op that returns False and leaves the TTL untouched — a previous version
     of this module did exactly that from the scheduler's renewal job, so the
-    lock was never actually kept alive. This compares the stored owner instead
-    of blindly overwriting, so a lock that has legitimately moved on is never
-    revived.
+    lock was never actually kept alive.
+
+    The comparison and the extension happen in one server-side script
+    (``RENEW_SCRIPT``), so a lock that legitimately moved on is never revived by
+    a late renewal from its previous owner.
     """
     try:
         from apps.api.redis_client import get_redis
 
-        current = get_redis().get(lock_key(name))
-        if current is None:
-            return False
-        if isinstance(current, bytes):
-            current = current.decode("utf-8", "replace")
-        if current != token:
-            return False
-        get_redis().expire(lock_key(name), ttl_seconds)
-        return True
+        result = get_redis().eval(
+            RENEW_SCRIPT, 1, lock_key(name), token, int(ttl_seconds * 1000)
+        )
+        return int(result) == 2
     except Exception:
         logger.warning("redis_lock_renew_failed name=%s", name)
         return False
@@ -82,9 +101,12 @@ def renew_redis_lock(name: str, token: str, ttl_seconds: int = 600) -> bool:
 def release_redis_lock(name: str, token: str | None = None) -> bool:
     """Release a lock, but only the one we hold.
 
-    A token-less call keeps the historical unconditional behaviour; callers that
-    hold a token get ownership checking, so shutting down one instance cannot
-    delete a successor's lock.
+    ``token=None`` keeps the historical unconditional delete for callers that
+    never obtained a token. No production caller does: every holder in this
+    repository unpacks the token from ``acquire_redis_lock`` and passes it back,
+    so in practice release is ownership-checked. The token-less branch is
+    unreachable from the running system and exists only so an out-of-tree caller
+    written against the old signature keeps working.
     """
     try:
         from apps.api.redis_client import get_redis
@@ -93,13 +115,8 @@ def release_redis_lock(name: str, token: str | None = None) -> bool:
         if token is None:
             client.delete(lock_key(name))
             return True
-        current = client.get(lock_key(name))
-        if isinstance(current, bytes):
-            current = current.decode("utf-8", "replace")
-        if current != token:
-            return False
-        client.delete(lock_key(name))
-        return True
+        result = client.eval(RELEASE_SCRIPT, 1, lock_key(name), token)
+        return int(result) == 2
     except Exception:
         return False
 
