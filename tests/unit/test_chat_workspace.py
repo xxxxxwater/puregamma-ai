@@ -46,6 +46,41 @@ def test_file_validation_and_image_normalization():
     assert Image.open(io.BytesIO(payload)).width == 2048
 
 
+def test_small_images_are_stored_as_they_arrived():
+    """A 1x1 PNG is a legitimate upload.
+
+    It used to be rejected with ATTACHMENT_INVALID: every PNG was pushed through
+    an EXIF-transpose/convert/JPEG re-encode, and that round trip failed on a
+    valid tiny file. The bytes must come back as PNG, unchanged.
+    """
+    for size, fmt, mime in (((1, 1), "PNG", "image/png"),
+                            ((64, 48), "PNG", "image/png"),
+                            ((200, 120), "JPEG", "image/jpeg")):
+        image = Image.new("RGBA", size, (10, 200, 30, 128))
+        buffer = io.BytesIO()
+        image.convert("RGB").save(buffer, format=fmt)
+        raw = buffer.getvalue()
+        kind, returned_mime, text, payload = prepare_file(f"icon-{size[0]}.{fmt.lower()}", raw)
+        assert (kind, returned_mime, text) == ("image", mime, ""), (size, fmt)
+        assert payload == raw, "a small supported image must not be re-encoded"
+        with Image.open(io.BytesIO(payload)) as check:
+            assert check.size == size
+
+
+def test_a_format_we_do_not_serve_is_converted_and_a_truncated_file_is_refused():
+    webp = io.BytesIO()
+    Image.new("RGB", (900, 300), "blue").save(webp, format="WEBP")
+    kind, mime, _, payload = prepare_file("wide.webp", webp.getvalue())
+    assert (kind, mime) == ("image", "image/jpeg")
+    assert Image.open(io.BytesIO(payload)).size == (900, 300)
+
+    # A file whose data stream is cut off must not reach a model as a picture.
+    valid = io.BytesIO()
+    Image.new("RGB", (256, 256), "green").save(valid, format="PNG")
+    with pytest.raises(ValueError):
+        prepare_file("truncated.png", valid.getvalue()[: len(valid.getvalue()) // 2])
+
+
 @pytest.mark.parametrize("mode,unknown,stateful", [
     ("read-only", "deny", "deny"),
     ("workspace-write", "deny", "ask"),

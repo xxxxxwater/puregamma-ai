@@ -79,20 +79,44 @@ def owned_attachment(db: Session, user_id: str, attachment_id: str) -> AgentAtta
     return row
 
 
+def _prepare_image(raw: bytes) -> tuple[str, str, str, bytes]:
+    """Validate and, only when it changes something, normalise an image.
+
+    A decoder failure is a bad upload, not a server fault: every Pillow/OSError
+    here becomes ATTACHMENT_INVALID so the router answers 400 instead of 500.
+    """
+    from PIL import Image, ImageOps
+    try:
+        with Image.open(io.BytesIO(raw)) as image:
+            if image.format not in {"PNG", "JPEG", "WEBP", "GIF"} or image.width * image.height > 20_000_000:
+                raise ValueError("ATTACHMENT_IMAGE_LIMIT")
+            # Re-encoding is only worth doing when it changes something. Writing a
+            # small, already-supported image through a JPEG round trip turned a
+            # valid icon into a rejected upload, so a file that is already inside
+            # the pixel budget and in a format the API serves back is stored as it
+            # arrived; anything larger is downscaled into a fresh JPEG.
+            if max(image.width, image.height) <= 2048 and image.format in {"PNG", "JPEG"}:
+                image.load()  # a truncated file must fail here, not reach the model
+                if not image.info.get("exif"):
+                    mime = {"PNG": "image/png", "JPEG": "image/jpeg"}[image.format]
+                    return "image", mime, "", raw
+            image = ImageOps.exif_transpose(image).convert("RGB")
+            image.thumbnail((2048, 2048))
+            output = io.BytesIO()
+            image.save(output, format="JPEG", quality=88)
+    except ValueError:
+        raise
+    except Exception as exc:  # noqa: BLE001 - any decoder failure is the caller's input
+        raise ValueError("ATTACHMENT_INVALID") from exc
+    return "image", "image/jpeg", "", output.getvalue()
+
+
 def prepare_file(name: str, raw: bytes) -> tuple[str, str, str, bytes]:
     if not raw or len(raw) > MAX_FILE_BYTES:
         raise ValueError("ATTACHMENT_SIZE_LIMIT")
     ext = PurePath(name).suffix.lower()
     if ext in {".png", ".jpg", ".jpeg", ".webp", ".gif"}:
-        from PIL import Image, ImageOps
-        with Image.open(io.BytesIO(raw)) as image:
-            if image.format not in {"PNG", "JPEG", "WEBP", "GIF"} or image.width * image.height > 20_000_000:
-                raise ValueError("ATTACHMENT_IMAGE_LIMIT")
-            image = ImageOps.exif_transpose(image).convert("RGB")
-            image.thumbnail((2048, 2048))
-            output = io.BytesIO()
-            image.save(output, format="JPEG", quality=88)
-        return "image", "image/jpeg", "", output.getvalue()
+        return _prepare_image(raw)
     if ext == ".pdf":
         from pypdf import PdfReader
         reader = PdfReader(io.BytesIO(raw), strict=True)
