@@ -125,18 +125,16 @@ test.describe("api docs width contract", () => {
         expect(t.scrolls, `a ${t.tableW}px table does not scroll inside its ${t.wrapperW}px wrapper`).toBe(true);
       }
 
-      // The defect this round fixed: the page itself must not widen. At 360px and
-      // below a SECOND, narrower defect (the nowrap price grid) still does, so the
-      // assertion is stated per width with the measured number rather than
-      // loosened to a value that would hide a regression everywhere.
-      if (width >= 375) {
-        expect(r.scroll, `api docs widen the page at ${width}px: ${r.scroll} > ${r.doc}`).toBeLessThanOrEqual(r.doc + 1);
-      } else {
-        // Recorded, not waved through: 341 at 320px and 361 at 360px were measured
-        // before and after this round's fix. This is a filed defect, and the bound
-        // below still fails if it gets materially worse.
-        expect(r.scroll, `narrow-phone overflow regressed beyond the filed defect at ${width}px: ${r.scroll}`).toBeLessThanOrEqual(width + 30);
-      }
+      // The page itself must not widen, at every width including the narrowest.
+      //
+      // This assertion was briefly split by width: the nowrap price grid still
+      // overflowed at 320px and 360px, so those two widths carried a loosened
+      // bound with the measured number in the message. That defect is now fixed
+      // (the grids take min-w-0 and their value cells may wrap), so the strict
+      // bound applies everywhere again. Leaving the loose branch in place would
+      // have let a real regression through at exactly the widths where one is
+      // most likely.
+      expect(r.scroll, `api docs widen the page at ${width}px: ${r.scroll} > ${r.doc}`).toBeLessThanOrEqual(r.doc + 1);
 
       await page.screenshot({ path: `${OUT}/api-docs-${width}.png`, fullPage: false });
       await context.close();
