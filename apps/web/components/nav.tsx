@@ -204,6 +204,25 @@ export function MobileNavDrawer({ locale, open, onClose }: { locale: Locale; ope
           <MessageCircle className="h-4 w-4" aria-hidden />
           {locale === "zh" ? "绑定 iMessage" : "Bind iMessage"}
         </Link>
+        {/*
+          Language and appearance moved here from the small-screen header.
+
+          They were removed from the top bar because that row also held the
+          wordmark, and the flex algorithm resolved the competition by
+          compressing the brand to 65px — the brand lost and the secondary
+          controls won. Keeping them reachable (rather than deleting them) is
+          what makes that a layout fix instead of a feature removal. This block
+          is hidden from `md` up, where the top bar has room for them again.
+        */}
+        <div className="mt-3 flex items-center justify-between gap-2 border-t border-border-pg pt-3 md:hidden" data-testid="nav-secondary-controls">
+          <span className="text-xs text-text-pg-dim">
+            {locale === "zh" ? "显示与外观" : "Display & appearance"}
+          </span>
+          <div className="flex items-center gap-1.5">
+            <LanguageSwitcher compact />
+            <AppearanceControls locale={locale} showFontScale={false} />
+          </div>
+        </div>
       </div>
     </>
   );
@@ -289,10 +308,27 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
   return (
     <header className="shell-chrome">
       <div className="mx-auto flex max-w-[1240px] items-center justify-between gap-2 px-3 py-2.5 sm:gap-4 sm:px-5 sm:py-3">
-        <button type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong lg:hidden rounded-lg"><Menu className="h-4 w-4" /></button>
-        <Link href={withLocale(locale, "/")} className="min-w-0 shrink flex items-center gap-2 truncate font-semibold text-text-pg lg:hidden">
-          <Image src="/logo.png" alt="PureGamma" width={20} height={20} />
-          PureGamma AI
+        {/*
+          Small-screen header order: menu, BRAND, primary action.
+          The brand sits second and is allowed to keep its natural width
+          (`shrink-0`). It used to be the only shrinkable item in a row that also
+          held the language switcher and four appearance buttons, so at 390px the
+          flex algorithm squeezed it to 65px and the wordmark rendered as
+          "PureG…" — the brand was unreadable on the device most visitors use.
+          The fix is to stop competing for that space: the language switcher and
+          appearance controls moved into the drawer, where they are still
+          reachable, and the brand is no longer compressible. Font size was not
+          reduced to make things fit.
+        */}
+        <button type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong lg:hidden rounded-lg" data-testid="nav-menu-button"><Menu className="h-4 w-4" /></button>
+        <Link
+          href={withLocale(locale, "/")}
+          className="flex shrink-0 items-center gap-2 whitespace-nowrap font-semibold text-text-pg lg:hidden"
+          data-testid="nav-brand"
+        >
+          <Image src="/logo.png" alt="" width={20} height={20} />
+          <span>PureGamma AI</span>
+          <span className="sr-only">{locale === "zh" ? "，返回首页" : ", back to home"}</span>
         </Link>
         <div className="hidden items-center gap-2 text-xs md:flex">
           {!dashboardRoute ? <TopClock locale={locale} /> : null}
@@ -308,19 +344,17 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
             </Link>
           ) : (
             <>
-              <Link href={withLocale(locale, "/signup")} className="ml-2 border border-border-pg-strong bg-pg-white px-3 py-1 text-xs font-semibold text-pg-black hover:bg-pg-white-soft rounded-lg">{t(locale, "common.nav.signup")}</Link>
+              <Link href={withLocale(locale, "/signup")} className="ml-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-1 text-xs font-semibold text-[var(--pg-text-inverse)] rounded-lg">{t(locale, "common.nav.signup")}</Link>
               <Link href={withLocale(locale, "/login")} className="border border-border-pg px-3 py-1 text-xs text-text-pg hover:border-border-pg-strong rounded-lg">{t(locale, "common.nav.signin")}</Link>
             </>
           )}
         </div>
-        <div className="flex shrink-0 items-center gap-3 text-xs text-text-pg-muted md:hidden">
+        {/* Only the primary action competes with the brand here; everything
+            secondary lives in the drawer. */}
+        <div className="flex shrink-0 items-center gap-2 text-xs text-text-pg-muted md:hidden">
           {storedUser ? null : (
-            <>
-              <Link href={withLocale(locale, "/signup")} className="border border-border-pg-strong bg-pg-white px-2.5 py-1 font-semibold text-pg-black hover:bg-pg-white-soft rounded-lg">{t(locale, "common.nav.signup")}</Link>
-              <Link href={withLocale(locale, "/login")} className="hidden min-[420px]:inline-flex border border-border-pg px-2.5 py-1 text-text-pg hover:border-border-pg-strong rounded-lg">{t(locale, "common.nav.signin")}</Link>
-            </>
+            <Link href={withLocale(locale, "/signup")} className="whitespace-nowrap border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-2.5 py-1 font-semibold text-[var(--pg-text-inverse)] rounded-lg">{t(locale, "common.nav.signup")}</Link>
           )}
-          <div className="flex items-center gap-1.5"><LanguageSwitcher compact /><AppearanceControls locale={locale} showFontScale={false} /></div>
         </div>
       </div>
     </header>
