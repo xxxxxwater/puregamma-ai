@@ -1153,9 +1153,10 @@ export function getDataSourcePreview(providerId: string) {
   return requestStrict<DataSourcePreview>(`/admin/data-sources/${encodeURIComponent(providerId)}/preview`);
 }
 
-export type AgentConversation = { id: string; title: string; summary?: string | null; status: string; created_at: string; updated_at: string; archived_at?: string | null };
+export type AgentConversation = { permission_mode?: AgentPermissionMode; id: string; title: string; summary?: string | null; status: string; created_at: string; updated_at: string; archived_at?: string | null };
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
-export type AgentAttachment = { name: string; content: string; mime: string };
+export type AgentPermissionMode = "read-only" | "workspace-write" | "full-access";
+export type AgentAttachment = { id?: string; name: string; content: string; mime: string; size?: number; kind?: string; url?: string; sha256?: string };
 export type SkillContextRef = { skill_id: string; slug: string; version: string; installation_id?: string | null };
 export type AgentRuntimePlan = {
   intent: string;
@@ -1193,7 +1194,7 @@ export type SkillSummary = {
   installed: boolean;
   enabled: boolean;
 };
-export type AgentContext = { research_mode?: boolean; data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
+export type AgentContext = { permission_mode?: AgentPermissionMode; research_mode?: boolean; data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type SecretaryMessage = { id: string; role: "user" | "assistant"; content: string; created_at: string };
@@ -1511,7 +1512,7 @@ export function deleteAllAgentConversations() {
 }
 
 export function getAgentConversation(id: string) {
-  return requestStrict<{ conversation: AgentConversation; messages: AgentMessage[] }>(`/api/agent/conversations/${encodeURIComponent(id)}`);
+  return requestStrict<{ conversation: AgentConversation; messages: AgentMessage[]; pending_approvals?: {toolCallId: string; tool: string; arguments: Record<string, unknown>}[] }>(`/api/agent/conversations/${encodeURIComponent(id)}`);
 }
 
 export function getAgentQuota() {
@@ -1950,7 +1951,8 @@ export async function streamAgentMessage(
       skill_refs: context?.skill_refs || (context?.skills || []).filter((item): item is SkillContextRef => typeof item !== "string"),
       custom_prompt: context?.custom_prompt || "",
       attachments: context?.attachments || [],
-      model: context?.model || "default"
+      model: context?.model || "default",
+      permission_mode: context?.permission_mode || "workspace-write"
     }),
     signal
   });
@@ -2393,4 +2395,24 @@ export function cancelSubscription(locale: Locale = defaultLocale) {
 
 export function reactivateSubscription(locale: Locale = defaultLocale) {
   return post<SubscriptionState>("/billing/reactivate-subscription", { locale }, fallbackSubscription, locale);
+}
+
+
+export function uploadAgentAttachment(file: File) {
+  return requestStrict<{attachment: AgentAttachment}>(`/api/agent/attachments?name=${encodeURIComponent(file.name)}`, {
+    method: "POST", headers: {"Content-Type": "application/octet-stream"}, body: file
+  });
+}
+export function setAgentPermission(id: string, permission_mode: AgentPermissionMode, acknowledge_full_access = false) {
+  return requestStrict<{conversation: AgentConversation}>(`/api/agent/conversations/${encodeURIComponent(id)}`, {
+    method: "PATCH", body: JSON.stringify({permission_mode, acknowledge_full_access})
+  });
+}
+export function approveAgentTool(id: string, decision: "approved" | "denied") {
+  return requestStrict<{id: string; decision: string}>(`/api/agent/tool-calls/${encodeURIComponent(id)}/approval`, {
+    method: "POST", body: JSON.stringify({decision})
+  });
+}
+export function getChatWorkspaceCapabilities() {
+  return requestStrict<{max_file_bytes: number; max_files: number; file_types: string[]}>("/api/agent/workspace-capabilities");
 }

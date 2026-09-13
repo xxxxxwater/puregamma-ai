@@ -3,9 +3,10 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FormEvent, useEffect, useRef, useState } from "react";
-import { Bot, CheckCircle2, ChevronDown, CircleAlert, CircleStop, Compass, Database, FilePlus2, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, Paperclip, RefreshCw, SearchCheck, Send, Settings2, ShieldCheck, Target, Trash2, Wrench, X } from "lucide-react";
+import { Bot, CheckCircle2, CircleAlert, Compass, Database, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, RefreshCw, SearchCheck, ShieldCheck, Target, Trash2, Wrench, X } from "lucide-react";
+import { ChatWorkspaceComposer, AttachmentCards } from "@/components/chat-workspace-composer";
+import { setAgentPermission, approveAgentTool, type AgentPermissionMode } from "@/lib/api";
 import { ReportMarkdown } from "@/components/puregamma";
-import { ResearchModeSwitch } from "@/components/research-mode-switch";
 import { ContextControls, nextActionLabel, nextActionPrompt, StrategyToolResult } from "@/components/chat-panels";
 import { AgentStageIndicator, nextAgentStage, type AgentStage } from "@/components/ocean/agent-stage-indicator";
 import { OceanShell } from "@/components/ocean/ocean-shell";
@@ -88,17 +89,19 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [skills, setSkills] = useState<string[]>([]);
   const [customPrompt, setCustomPrompt] = useState("");
   const [researchMode, setResearchMode] = useState(true);
+  const [permission, setPermission] = useState<AgentPermissionMode>("workspace-write");
+  const [uploading, setUploading] = useState(false);
+  const [approval, setApproval] = useState<{toolCallId: string; tool: string; arguments: Record<string, unknown>} | null>(null);
+  const [approving, setApproving] = useState(false);
   const [attachments, setAttachments] = useState<AgentAttachment[]>([]);
   const [runtimePlan, setRuntimePlan] = useState<AgentRuntimePlan | null>(null);
   const [evidenceStatus, setEvidenceStatus] = useState<AgentEvidenceSummary | null>(null);
-  const [settingsOpen, setSettingsOpen] = useState(false);
   const [historyCollapsed, setHistoryCollapsed] = useState(false);
   const [availability, setAvailability] = useState<"checking" | "published" | "pending" | "unavailable" | "unverified">("checking");
   /** Catalog display name for the platform default model; null until known. */
   const [defaultModelName, setDefaultModelName] = useState<string | null>(null);
   const controllerRef = useRef<AbortController | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
-  const composerRef = useRef<HTMLTextAreaElement>(null);
+  const composerRef = useRef<HTMLTextAreaElement | null>(null);
 
   /* Drawer behaviour: Escape closes it, background scroll is locked while it is
      open, focus moves into the panel, and focus returns to the trigger when it
@@ -166,8 +169,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   };
 
   const openConversation = async (id: string) => {
+    if (busy || uploading) return;
     const result = await getAgentConversation(id);
+    setApproval(result.pending_approvals?.[0] ?? null);
     setConversationId(id);
+    setPermission(result.conversation.permission_mode || "workspace-write");
     setMessages(result.messages);
     setFailure(null);
   };
@@ -205,19 +211,13 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   }, [initialConversationId, locale, router]);
 
   useEffect(() => {
-    if (!settingsOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setSettingsOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [settingsOpen]);
-
-  useEffect(() => {
     if (followRef.current) scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight, behavior: "smooth" });
   }, [messages, toolStatus]);
 
   const createNew = async () => {
+    if (busy || uploading) return;
+    setPermission("workspace-write");
+    setApproval(null);
     const result = await createAgentConversation();
     setConversations((current) => [result.conversation, ...current]);
     setConversationId(result.conversation.id);
@@ -260,10 +260,10 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
 
   const send = async (event?: FormEvent) => {
     event?.preventDefault();
-    const content = input.trim();
+    const content = input.trim() || (attachments.length ? (zh ? "请分析所附文件。" : "Please analyze the attached files.") : "");
     // A ref, not just the `busy` state: two submissions in the same tick would
     // both read the pre-update state and start two runs.
-    if (!content || busy || sendingRef.current) return;
+    if (!content || busy || uploading || sendingRef.current) return;
     sendingRef.current = true;
     setBusy(true);
     setFailure(null);
@@ -280,10 +280,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     let failureReported = false;
     try {
       const id = await ensureConversation();
+      await setAgentPermission(id, permission, permission === "full-access");
       setInput("");
       const now = new Date().toISOString();
       const skillRefs: SkillContextRef[] = skillCatalog.filter((skill) => skills.includes(skill.skill_id)).map((skill) => ({ skill_id: skill.skill_id, slug: skill.slug, version: skill.current_version, installation_id: skill.installation_id }));
-      const context = { research_mode: researchMode, data_sources: researchMode ? dataSources : [], skills: researchMode ? skillRefs : [], skill_refs: researchMode ? skillRefs : [], custom_prompt: researchMode ? customPrompt : "", attachments, model: selectedModel };
+      const context = { research_mode: researchMode, data_sources: researchMode ? dataSources : [], skills: researchMode ? skillRefs : [], skill_refs: researchMode ? skillRefs : [], custom_prompt: researchMode ? customPrompt : "", attachments, model: selectedModel, permission_mode: permission };
       setMessages((current) => [...current, { id: `local-${Date.now()}`, conversation_id: id, role: "user", content, status: "completed", input_tokens: 0, output_tokens: 0, created_at: now, context, sources: [] }]);
       const controller = new AbortController();
       controllerRef.current = controller;
@@ -312,6 +313,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           setStage((current) => nextAgentStage(current, "collecting"));
           setToolStatus((current) => [...current, { id: String(data.toolCallId || `${data.tool}-${Date.now()}`), tool: String(data.tool), status: zh ? "检索中" : "retrieving" }]);
         } else if (eventName === "tool.completed") {
+          setApproval(current => current?.toolCallId === String(data.toolCallId) ? null : current);
           const callId = String(data.toolCallId || "");
           setToolStatus((current) => current.map((item) => (item.id === callId || (!callId && item.tool === String(data.tool)) ? { ...item, status: data.error ? (zh ? "失败" : "failed") : (zh ? "完成" : "complete") } : item)));
           if (data.data && typeof data.data === "object") setToolResults((current) => [...current, { tool: String(data.tool), data: data.data as Record<string, unknown> }]);
@@ -321,6 +323,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         } else if (eventName === "evidence.ready") {
           setStage((current) => nextAgentStage(current, "validating"));
           setEvidenceStatus(data as unknown as AgentEvidenceSummary);
+        } else if (eventName === "approval.required") {
+          setApproval(data as unknown as {toolCallId: string; tool: string; arguments: Record<string, unknown>});
         } else if (eventName === "message.completed") {
           setStage(null);
           completed = true;
@@ -340,7 +344,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           if (typeof data.creditBalance === "number") publishCreditBalance(data.creditBalance);
         }
       }, context);
-      setAttachments([]);
+      if (completed) setAttachments([]);
       // Re-read the persisted messages: the reload carries `credits_refunded`,
       // the only authoritative settlement result for this run.
       const refreshed = await getAgentConversation(id);
@@ -389,6 +393,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         setFailure(describeChatFailure(locale, reason));
       }
     } finally {
+      setApproval(null);
       setBusy(false);
       setStage(null);
       activeRunRef.current = "";
@@ -408,23 +413,6 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         setQuota(await getAgentQuota().catch(() => quota));
       } catch { /* keep current view when refresh fails */ }
     }
-  };
-
-  const addFiles = async (files: FileList | null) => {
-    if (!files) return;
-    const accepted: AgentAttachment[] = [];
-    let totalBytes = attachments.reduce((sum, item) => sum + new TextEncoder().encode(item.content).length, 0);
-    for (const file of Array.from(files).slice(0, 5 - attachments.length)) {
-      if (file.size > 20_000 || totalBytes + file.size > 50_000 || !(/text|json|csv|markdown/.test(file.type) || /\.(txt|md|csv|json)$/i.test(file.name))) {
-        setFailure({ kind: "generic", message: zh ? `${file.name} 不支持；单文件上限 20KB、总上限 50KB，仅接受文本、Markdown、CSV 或 JSON。` : `${file.name} is unsupported; files are limited to 20KB each and 50KB total.` });
-        continue;
-      }
-      const content = await file.text();
-      totalBytes += new TextEncoder().encode(content).length;
-      accepted.push({ name: file.name, content, mime: file.type || "text/plain" });
-    }
-    setAttachments((current) => [...current, ...accepted].slice(0, 5));
-    if (fileRef.current) fileRef.current.value = "";
   };
 
   const toggle = (value: string, current: string[], update: (next: string[]) => void) => update(current.includes(value) ? current.filter((item) => item !== value) : [...current, value]);
@@ -539,7 +527,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div> : null}
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[min(85%,42rem)] break-words rounded-lg border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "min-w-0 max-w-full overflow-x-auto border-l border-border-pg pl-4"}>
-              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.map((file) => <span key={file.name} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{file.name}</span>)}</div> : null}</>}
+              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.length ? <AttachmentCards files={message.context.attachments} locale={locale} /> : null}</div> : null}</>}
               {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
               {message.role === "assistant" && message.credits_refunded ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "Credits 已退款" : "Credits refunded"}</div> : null}
@@ -561,93 +549,22 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div>
         </div>
         <div className="shrink-0 border-t border-border-pg bg-bg-app p-3 md:p-4">
-          <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-3">
-            <div className="flex min-w-0 items-center gap-2.5">
-              <ResearchModeSwitch enabled={researchMode} onChange={setResearchMode} labels={{ on: "ON", off: "OFF" }} />
-              <div className="min-w-0 text-[11px] leading-tight">
-                <span className="block font-medium text-text-pg">{zh ? "研究模式" : "Research mode"}</span>
-                <span className="mt-0.5 block truncate text-text-pg-muted">{researchMode ? (zh ? "内部 Skills + 数据管道" : "Internal Skills + data pipeline") : (zh ? "联网模式：直接联网检索，不使用内部 Skill 与数据管道" : "Online mode: direct web search, no internal Skills or data pipeline")}</span>
-              </div>
-            </div>
+          <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 lg:hidden">
+            <button ref={historyTriggerRef} type="button" onClick={() => setMobileHistoryOpen(true)} aria-label={zh ? "历史对话" : "Conversation history"} aria-expanded={mobileHistoryOpen} data-testid="chat-history-trigger" className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm hover:bg-[var(--pg-surface-hover)]"><PanelLeftOpen className="h-4 w-4" />{zh ? "历史" : "History"}</button>
+            <button type="button" onClick={createNew} aria-label={zh ? "新会话" : "New conversation"} data-testid="chat-new-trigger" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-[var(--pg-surface-hover)]"><MessageSquarePlus className="h-4 w-4" /></button>
           </div>
-          <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-3">
-            <label htmlFor="agent-model" className="text-[11px] text-text-pg-muted"><span className="block">{zh ? "本轮模型" : "Model for this turn"}</span>{selectedModelOption?.id !== "default" ? <span className="mt-0.5 block text-[10px] text-text-pg-dim">{selectedModelOption?.description}</span> : null}</label>
-            <select id="agent-model" value={selectedModel} onChange={(event) => setSelectedModel(event.target.value)} disabled={busy} className="max-w-[60%] border border-border-pg bg-bg-panel px-2 py-1 text-xs outline-none focus:border-border-pg-strong disabled:opacity-50 rounded-lg">
-              {models.map((model) => <option key={model.id} value={model.id} disabled={!model.available}>{agentModelLabel(model, modelCopy, defaultModelName)}{agentModelSuffix(model, zh)}</option>)}
-            </select>
-          </div>
-          {/* The current model is stated once, in the selector above. Only an
-              abnormal state earns a second mention, and it names the fix. */}
-          {availability !== "published" ? (
-            <p className="mx-auto mb-2 flex max-w-3xl items-center gap-1.5 text-[10px] text-status-warning" data-testid="chat-model-badge">
-              <CircleAlert className="h-3 w-3 shrink-0" aria-hidden />
-              <span>{modelCopy.chat.badgeChecking}</span>
-            </p>
-          ) : null}
-          <div className="mx-auto mb-3 max-w-3xl border border-border-pg bg-bg-panel rounded-lg">
-            {researchMode ? (
-              <>
-                <button type="button" aria-expanded={settingsOpen} onClick={() => setSettingsOpen((open) => !open)} className="flex w-full cursor-pointer items-center gap-2 p-3 text-left text-xs font-medium">
-                  <Settings2 className="h-4 w-4" />{zh ? "高级研究设置（可选）" : "Advanced research settings (optional)"}
-                  <span className="ml-auto flex items-center gap-1.5 text-text-pg-dim">{dataSources.length + skills.length + attachments.length || (zh ? "自动" : "Auto")}<ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${settingsOpen ? "rotate-180" : ""}`} /></span>
-                </button>
-                {settingsOpen ? (
-                  <div className="border-t border-border-pg">
-                    <div className="max-h-[55vh] overflow-y-auto p-3">
-                      <ContextControls locale={locale} dataSources={dataSources} skills={skills} skillCatalog={skillCatalog} customPrompt={customPrompt} attachments={attachments} allowedSources={capabilities?.allowed_data_sources || []} onToggleSource={(value) => toggle(value, dataSources, setDataSources)} onToggleSkill={(value) => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={(name) => setAttachments((current) => current.filter((file) => file.name !== name))} />
-                    </div>
-                    <div className="flex items-center justify-between border-t border-border-pg px-3 py-2 text-[11px] text-text-pg-dim">
-                      <span>{zh ? "按 Esc 可快速收起" : "Press Esc to collapse"}</span>
-                      <button type="button" onClick={() => setSettingsOpen(false)} className="border border-border-pg px-3 py-1.5 text-xs font-medium text-text-pg transition hover:border-border-pg-strong rounded-lg">
-                        {zh ? "完成" : "Done"}
-                      </button>
-                    </div>
-                  </div>
-                ) : null}
-              </>
-            ) : (
-              <div className="flex items-center gap-2 p-3 text-xs text-text-pg-dim">
-                <Settings2 className="h-4 w-4 shrink-0" />
-                {zh ? "联网模式已开启：本轮直接联网检索，不使用内部 Skill 与数据管道。" : "Online mode is on: this turn searches the web directly, without internal Skills or the data pipeline."}
-              </div>
-            )}
-          </div>
-          {/* Small screens: the history aside is off-canvas, so this is the only
-              way into it. Kept above the composer, inside the viewport.
-              Icon-only on purpose: these carry `aria-label`s rather than visible
-              text so they do not duplicate strings the header controls already
-              expose (a second "New conversation" label made text-based lookups
-              ambiguous). */}
-          <div className="mx-auto mb-2 flex max-w-3xl items-center justify-between gap-2 lg:hidden">
-            <button
-              ref={historyTriggerRef}
-              type="button"
-              onClick={() => setMobileHistoryOpen(true)}
-              className="inline-flex min-h-9 items-center gap-2 border border-border-pg px-3 text-xs text-text-pg-muted transition hover:border-border-pg-strong rounded-lg"
-              aria-expanded={mobileHistoryOpen}
-              aria-label={zh ? `历史对话（${conversations.length}）` : `Conversation history (${conversations.length})`}
-              data-testid="chat-history-trigger"
-            >
-              <PanelLeftOpen className="h-3.5 w-3.5" />
-              {conversations.length ? <span className="text-text-pg-dim">{conversations.length}</span> : null}
-            </button>
-            <button
-              type="button"
-              onClick={createNew}
-              className="inline-flex min-h-9 items-center gap-2 border border-border-pg px-3 text-xs text-text-pg-muted transition hover:border-border-pg-strong rounded-lg"
-              aria-label={zh ? "新会话" : "New conversation"}
-              data-testid="chat-new-trigger"
-            >
-              <MessageSquarePlus className="h-3.5 w-3.5" />
-            </button>
-          </div>
-          <form onSubmit={send} className="mx-auto flex max-w-3xl items-end gap-2">
-            <input ref={fileRef} type="file" multiple accept=".txt,.md,.csv,.json,text/plain,text/markdown,text/csv,application/json" className="hidden" onChange={(event) => void addFiles(event.target.files)} />
-            <button type="button" onClick={() => fileRef.current?.click()} className="grid h-14 w-11 shrink-0 place-items-center border border-border-pg hover:border-border-pg-strong rounded-lg" aria-label={zh ? "添加文件" : "Add files"}><Paperclip className="h-4 w-4" /></button>
-            <textarea ref={composerRef} value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void send(); } }} rows={2} aria-label={zh ? "消息输入" : "Message input"} placeholder={zh ? "说出目标或正在判断的问题，Shift + Enter 换行" : "State your goal or decision, Shift + Enter for a new line"} className="min-h-14 flex-1 resize-none border border-border-pg bg-bg-panel px-3 py-2 text-sm outline-none focus:border-border-pg-strong focus-visible:ring-2 focus-visible:ring-accent-ring rounded-lg" />
-            {busy ? <button type="button" onClick={stop} className="grid h-14 w-12 place-items-center border border-border-pg text-status-negative rounded-lg" aria-label={zh ? "停止生成" : "Stop generation"}><CircleStop className="h-5 w-5" /></button> : <RippleEffect as="button" type="submit" disabled={!input.trim()} className="grid h-14 w-12 place-items-center border border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)] disabled:opacity-40 rounded-lg" ariaLabel={zh ? "发送" : "Send"}><Send className="h-5 w-5" /></RippleEffect>}
-          </form>
-          <div className="mx-auto mt-2 flex max-w-3xl flex-wrap items-center justify-between gap-2 text-[11px] text-text-pg-dim"><span>{!researchMode ? (zh ? "联网模式：直接联网检索" : "Online mode: direct web search") : (creditQuote?.plan?.intent ? `${zh ? "自动识别" : "Detected"}: ${creditQuote.plan.intent.replaceAll("_", " ")}` : (zh ? "留空高级设置时，Agent 会自动选择 Skills 与证据。" : "Leave advanced settings blank for automatic Skills and evidence selection."))}</span><span>{creditQuote?.unavailable ? (zh ? "计费报价暂不可用" : "Credit quote unavailable") : `${zh ? "预计消耗" : "Estimated cost"}: ${estimatedCredits} Credits`}</span></div>
+          {approval ? <div role="alert" className="mx-auto mb-3 max-w-3xl rounded-lg border border-[var(--pg-border-default)] bg-[var(--pg-surface-2)] p-3" data-testid="tool-approval">
+            <p className="text-sm font-medium">{zh ? "此操作需要你的确认" : "This action needs your approval"}</p>
+            <p className="mt-1 break-words text-sm">{approval.tool.replaceAll("_", " ")}</p>
+            <details className="mt-2 text-xs"><summary>{zh ? "查看参数" : "View arguments"}</summary><pre className="max-h-40 overflow-auto whitespace-pre-wrap">{JSON.stringify(approval.arguments, null, 2)}</pre></details>
+            <div className="mt-3 flex gap-2">{(["denied", "approved"] as const).map(decision => <button key={decision} type="button" disabled={approving} className="min-h-10 rounded-md border border-[var(--pg-border-default)] px-4 text-sm" onClick={async () => { setApproving(true); try { await approveAgentTool(approval.toolCallId, decision); setApproval(null); } catch { setFailure({kind: "generic", message: zh ? "确认已过期或无法提交，请刷新会话。" : "Approval expired or could not be submitted. Refresh the conversation."}); } finally { setApproving(false); } }}>{decision === "approved" ? (zh ? "允许此次操作" : "Allow once") : (zh ? "拒绝" : "Deny")}</button>)}</div>
+          </div> : null}
+          <ChatWorkspaceComposer locale={locale} input={input} onInput={setInput} busy={busy} onSend={() => void send()} onStop={() => void stop()} attachments={attachments} onAttachments={setAttachments} permission={permission} onUploading={setUploading}
+            onPermission={async (mode, acknowledged) => { if (conversationId) await setAgentPermission(conversationId, mode, acknowledged); setPermission(mode); }}
+            researchMode={researchMode} onResearch={setResearchMode} onTextarea={node => { composerRef.current = node; }}
+            modelControl={<select id="agent-model" aria-label={zh ? "模型" : "Model"} value={selectedModel} onChange={event => setSelectedModel(event.target.value)} disabled={busy} className="min-h-10 max-w-[220px] rounded-md bg-transparent text-xs text-text-pg focus-visible:ring-2">{models.map(model => <option key={model.id} value={model.id} disabled={!model.available}>{agentModelLabel(model, modelCopy, defaultModelName)}</option>)}</select>}
+            settings={<ContextControls locale={locale} dataSources={dataSources} skills={skills} skillCatalog={skillCatalog} customPrompt={customPrompt} attachments={[]} allowedSources={capabilities?.allowed_data_sources || []} onToggleSource={value => toggle(value, dataSources, setDataSources)} onToggleSkill={value => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={() => undefined} />} />
+          {input.trim() && creditQuote && !creditQuote.unavailable ? <p className="mx-auto mt-2 max-w-3xl text-right text-xs text-text-pg-muted">{zh ? "预计" : "Estimated"} {estimatedCredits} Credits</p> : null}
           {failure ? (
             <div className="mx-auto mt-2 max-w-3xl border border-status-negative px-3 py-2 text-xs text-status-negative rounded-lg" role="alert" data-testid="chat-error">
               <div className="flex flex-wrap items-center gap-2">

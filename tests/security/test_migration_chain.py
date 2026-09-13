@@ -56,14 +56,14 @@ def test_single_alembic_head():
     heads = revisions - parents
     assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
     head = next(iter(heads))
-    assert head == "0031_deepseek_v41_flash_defaults"
+    assert head == "0032_chat_workspace"
 
 
 def test_chain_is_connected_and_acyclic():
     graph = _load_graph()
     # Walk the chain from the head back to the root; detect missing parents
     # and cycles by visited-count (a cycle would require re-visiting a node).
-    stack = ["0031_deepseek_v41_flash_defaults"]
+    stack = ["0032_chat_workspace"]
     visited: set[str] = set()
     while stack:
         revision = stack.pop()

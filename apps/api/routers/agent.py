@@ -1,6 +1,12 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import Response
+from starlette.concurrency import run_in_threadpool
+from datetime import timedelta
+from urllib.parse import quote
+from typing import Literal
+from apps.api.services.chat_workspace import MAX_FILE_BYTES, MAX_FILES, MAX_USER_BYTES, save_attachment, owned_attachment, permission_mode, attachment_metadata
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -11,7 +17,7 @@ from apps.api.services.credit_service import InsufficientCreditsError, refund_ta
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.skill_service import skill_registry
 from packages.billing.metering import CreditReservation
-from packages.database.models import AgentConversation, AgentMessage, AgentRun, User, utcnow
+from packages.database.models import AgentConversation, AgentMessage, AgentRun, AgentToolCall, User, utcnow
 from packages.skills.registry import SkillResolutionError, update_skill_runs
 
 
@@ -23,6 +29,8 @@ class ConversationRequest(BaseModel):
 
 
 class ConversationPatch(BaseModel):
+    permission_mode: Literal["read-only", "workspace-write", "full-access"] | None = None
+    acknowledge_full_access: bool = False
     title: str | None = None
     archived: bool | None = None
 
@@ -37,6 +45,7 @@ class MessageRequest(BaseModel):
     custom_prompt: str = ""
     attachments: list[dict] = Field(default_factory=list)
     model: str | None = None
+    permission_mode: Literal["read-only", "workspace-write", "full-access"] | None = None
 
 
 class AgentQuoteRequest(BaseModel):
@@ -48,6 +57,7 @@ class AgentQuoteRequest(BaseModel):
     custom_prompt: str = ""
     attachments: list[dict] = Field(default_factory=list)
     model: str | None = None
+    permission_mode: Literal["read-only", "workspace-write", "full-access"] | None = None
 
 
 @router.get("/quota")
@@ -72,6 +82,7 @@ def agent_quote(payload: AgentQuoteRequest, db: Session = Depends(get_db), user:
             "custom_prompt": payload.custom_prompt,
             "attachments": payload.attachments,
             "model": payload.model,
+            "permission_mode": payload.permission_mode,
         })
     except AgentModelInvalidError as exc:
         raise HTTPException(status_code=400, detail={"code": str(exc), "message": "The selected Agent model is invalid."}) from exc
@@ -104,7 +115,12 @@ def conversation(conversation_id: str, db: Session = Depends(get_db), user: User
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     messages = db.query(AgentMessage).filter_by(conversation_id=row.id, user_id=user.id).order_by(AgentMessage.created_at).all()
-    return {"conversation": serialize_conversation(row), "messages": [serialize_message(db, item) for item in messages]}
+    pending = db.query(AgentToolCall).join(AgentRun, AgentRun.id == AgentToolCall.run_id).filter(
+        AgentRun.conversation_id == row.id, AgentRun.user_id == user.id, AgentRun.status == "running",
+        AgentToolCall.status == "awaiting_approval", AgentToolCall.approval.is_(None),
+        AgentToolCall.approval_expires_at > utcnow()).all()
+    return {"conversation": serialize_conversation(row), "messages": [serialize_message(db, item) for item in messages],
+            "pending_approvals": [{"toolCallId": call.id, "tool": call.tool_name, "arguments": call.arguments_json, "expiresAt": call.approval_expires_at.isoformat()} for call in pending]}
 
 
 @router.patch("/conversations/{conversation_id}")
@@ -113,6 +129,13 @@ def update_conversation(conversation_id: str, payload: ConversationPatch, db: Se
         row = owned_conversation(db, user, conversation_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    row = db.query(AgentConversation).filter_by(id=row.id, user_id=user.id).with_for_update().one()
+    if payload.permission_mode is not None:
+        if payload.permission_mode == "full-access" and not payload.acknowledge_full_access:
+            raise HTTPException(status_code=400, detail="FULL_ACCESS_ACKNOWLEDGEMENT_REQUIRED")
+        if db.query(AgentRun).filter(AgentRun.conversation_id == row.id, AgentRun.status.in_(["pending", "running"])).count():
+            raise HTTPException(status_code=409, detail="CONVERSATION_BUSY")
+        row.permission_mode = permission_mode(payload.permission_mode)
     if payload.title is not None:
         row.title = payload.title.strip()[:160] or row.title
     if payload.archived is not None:
@@ -155,7 +178,7 @@ def messages(conversation_id: str, db: Session = Depends(get_db), user: User = D
 def send_message(conversation_id: str, payload: MessageRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> StreamingResponse:
     try:
         row = owned_conversation(db, user, conversation_id)
-        run = start_run(db, user, row, payload.content, context={"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model})
+        run = start_run(db, user, row, payload.content, context={"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model, "permission_mode": row.permission_mode})
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except AgentLimitError as exc:
@@ -185,7 +208,7 @@ def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(g
         raise HTTPException(status_code=400, detail="Original user message not found")
     conversation = owned_conversation(db, user, assistant.conversation_id)
     supplied = bool(payload.data_sources or payload.skills or payload.skill_refs or payload.custom_prompt or payload.attachments or payload.model or not payload.research_mode)
-    context = {"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model} if supplied else (previous.context_json or {})
+    context = {"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model, "permission_mode": conversation.permission_mode} if supplied else (previous.context_json or {})
     try:
         run = start_run(db, user, conversation, previous.content, context=context)
     except AgentLimitError as exc:
@@ -223,3 +246,64 @@ def cancel_run(run_id: str, db: Session = Depends(get_db), user: User = Depends(
         update_skill_runs(db, row.id, status="canceled", credits_used=0, error_code="USER_CANCELED")
         db.commit()
     return {"id": row.id, "status": row.status}
+
+
+@router.get("/workspace-capabilities")
+def workspace_capabilities(user: User = Depends(get_current_user)) -> dict:
+    return {"permission_modes": ["read-only", "workspace-write", "full-access"],
+            "default_permission_mode": "workspace-write", "max_file_bytes": MAX_FILE_BYTES,
+            "max_files": MAX_FILES, "storage_bytes": MAX_USER_BYTES,
+            "file_types": ["txt", "md", "csv", "tsv", "json", "log", "py", "js", "ts", "yaml", "yml", "pdf", "docx", "png", "jpg", "jpeg", "webp", "gif"],
+            "scope": "user-owned PureGamma tools; account, plan and trading controls always apply"}
+
+
+@router.post("/attachments")
+async def upload_attachment(request: Request, name: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    chunks = bytearray()
+    async for chunk in request.stream():
+        chunks.extend(chunk)
+        if len(chunks) > MAX_FILE_BYTES:
+            raise HTTPException(status_code=413, detail="ATTACHMENT_SIZE_LIMIT")
+    try:
+        result = await run_in_threadpool(save_attachment, db, user, name, bytes(chunks))
+        return {"attachment": result}
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc) if str(exc).startswith("ATTACHMENT_") else "ATTACHMENT_INVALID") from exc
+
+
+@router.get("/attachments/{attachment_id}/content")
+def attachment_content(attachment_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> Response:
+    import hashlib
+    try:
+        row = owned_attachment(db, user.id, attachment_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="ATTACHMENT_NOT_FOUND") from exc
+    if hashlib.sha256(row.payload).hexdigest() != row.sha256:
+        raise HTTPException(status_code=409, detail="ATTACHMENT_INTEGRITY_ERROR")
+    disposition = "inline" if row.kind == "image" else "attachment"
+    return Response(row.payload, media_type=row.mime, headers={
+        "Content-Disposition": disposition + "; filename*=UTF-8''" + quote(row.name, safe=""),
+        "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
+        "Content-Security-Policy": "default-src 'none'; sandbox"})
+
+
+class ApprovalRequest(BaseModel):
+    decision: Literal["approved", "denied"]
+
+
+@router.post("/tool-calls/{call_id}/approval")
+def approve_tool(call_id: str, payload: ApprovalRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    call = db.query(AgentToolCall).join(AgentRun, AgentRun.id == AgentToolCall.run_id).filter(
+        AgentToolCall.id == call_id, AgentRun.user_id == user.id).with_for_update().one_or_none()
+    if call is None:
+        raise HTTPException(status_code=404, detail="TOOL_CALL_NOT_FOUND")
+    run = db.get(AgentRun, call.run_id)
+    from datetime import timezone
+    expires = call.approval_expires_at
+    if expires and expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if call.status != "awaiting_approval" or call.approval is not None or not expires or expires <= utcnow() or run.status != "running":
+        raise HTTPException(status_code=409, detail="APPROVAL_NO_LONGER_PENDING")
+    call.approval = payload.decision
+    db.commit()
+    return {"id": call.id, "decision": call.approval}

@@ -4,7 +4,7 @@ import uuid
 from datetime import datetime, timezone
 
 from sqlalchemy import Boolean, Column, Date, DateTime, Float, ForeignKey, Index, Integer, Numeric, String, Text, UniqueConstraint, event, text
-from sqlalchemy import JSON
+from sqlalchemy import JSON, LargeBinary
 from sqlalchemy.orm import declarative_base, relationship
 
 
@@ -1007,6 +1007,7 @@ class OnchainMetric(Base):
 
 
 class AgentConversation(Base, TimestampMixin):
+    permission_mode = Column(String, nullable=False, default="workspace-write", server_default="workspace-write")
     __tablename__ = "agent_conversations"
 
     id = Column(String, primary_key=True, default=new_id)
@@ -1015,6 +1016,19 @@ class AgentConversation(Base, TimestampMixin):
     summary = Column(Text, nullable=True)
     status = Column(String, nullable=False, default="active", index=True)
     archived_at = Column(DateTime(timezone=True), nullable=True)
+
+
+class AgentAttachmentRecord(Base, TimestampMixin):
+    __tablename__ = "agent_attachments"
+    id = Column(String, primary_key=True, default=new_id)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String, nullable=False)
+    mime = Column(String, nullable=False)
+    kind = Column(String, nullable=False)
+    size = Column(Integer, nullable=False)
+    sha256 = Column(String, nullable=False)
+    payload = Column(LargeBinary, nullable=False)
+    extracted_text = Column(Text, nullable=False, default="")
 
 
 class AgentMessage(Base, TimestampMixin):
@@ -1098,6 +1112,8 @@ class AgentRun(Base):
 
 
 class AgentToolCall(Base):
+    approval = Column(String, nullable=True)
+    approval_expires_at = Column(DateTime(timezone=True), nullable=True)
     __tablename__ = "agent_tool_calls"
 
     id = Column(String, primary_key=True, default=new_id)

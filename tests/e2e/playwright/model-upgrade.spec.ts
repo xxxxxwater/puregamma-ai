@@ -1,4 +1,4 @@
-import { expect, test, type Page } from "@playwright/test";
+﻿import { expect, test, type Page } from "@playwright/test";
 import catalogFixture from "./fixtures/gateway-catalog.json";
 
 /**
@@ -391,7 +391,7 @@ test.describe("Agent Chat model label", () => {
   test("streaming a turn keeps the assistant answer renderable", async ({ page }) => {
     await page.goto("/zh/chat");
     await expect(page).toHaveURL(/\/zh\/chat$/);
-    await page.locator("textarea").fill("BTC market now");
+    await page.getByTestId("chat-composer-input").fill("BTC market now");
     await page.keyboard.press("Enter");
     await expect(page.getByText("BTC is trading in its current range.")).toBeVisible({ timeout: 15000 });
   });
@@ -432,7 +432,7 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
     await page.goto("/zh/chat");
     // Guard: a signed-out redirect would make these assertions meaningless.
     await expect(page).toHaveURL(/\/zh\/chat$/);
-    await page.locator("textarea").fill("trigger a refunded failure");
+    await page.getByTestId("chat-composer-input").fill("trigger a refunded failure");
     await page.keyboard.press("Enter");
     const billing = page.getByTestId("chat-error-billing");
     await expect(billing).toBeVisible({ timeout: 15000 });
@@ -461,7 +461,7 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
     await page.goto("/zh/chat");
     // Guard: a signed-out redirect would make these assertions meaningless.
     await expect(page).toHaveURL(/\/zh\/chat$/);
-    await page.locator("textarea").fill("interrupt me");
+    await page.getByTestId("chat-composer-input").fill("interrupt me");
     await page.keyboard.press("Enter");
     const billing = page.getByTestId("chat-error-billing");
     await expect(billing).toBeVisible({ timeout: 15000 });
@@ -479,7 +479,7 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
     await page.goto("/zh/chat");
     // Guard: a signed-out redirect would make these assertions meaningless.
     await expect(page).toHaveURL(/\/zh\/chat$/);
-    await page.locator("textarea").fill("cut me silently");
+    await page.getByTestId("chat-composer-input").fill("cut me silently");
     await page.keyboard.press("Enter");
     await expect(page.getByTestId("chat-error")).toBeVisible({ timeout: 15000 });
     await expect(page.getByTestId("chat-error")).toContainText("中断");
@@ -511,7 +511,7 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
     await page.goto("/zh/chat");
     // Guard: a signed-out redirect would make these assertions meaningless.
     await expect(page).toHaveURL(/\/zh\/chat$/);
-    await page.locator("textarea").fill("return nothing");
+    await page.getByTestId("chat-composer-input").fill("return nothing");
     await page.keyboard.press("Enter");
     const billing = page.getByTestId("chat-error-billing");
     await expect(billing).toBeVisible({ timeout: 15000 });

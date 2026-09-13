@@ -96,7 +96,7 @@ class DeepSeekProvider(LLMProvider):
                 kwargs.update(self._thinking_kwargs())
                 response = client.chat.completions.create(
                     model=self.model,
-                    messages=[{"role": "system", "content": self._system_prompt(locale)}, *[{"role": message.role, "content": message.content} for message in messages]],
+                    messages=[{"role": "system", "content": self._system_prompt(locale)}, *[{"role": message.role, "content": ([{"type": "text", "text": message.content}, *[{"type": "image_url", "image_url": {"url": url}} for url in message.images]] if message.images else message.content)} for message in messages]],
                     **kwargs,
                 )
                 content = response.choices[0].message.content or ""
@@ -132,7 +132,7 @@ class DeepSeekProvider(LLMProvider):
                     kwargs["temperature"] = self.settings.agent_temperature
                     kwargs["max_tokens"] = self.settings.agent_max_output_tokens
                 kwargs.update(self._thinking_kwargs())
-                stream = client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": self._system_prompt(locale)}, *[{"role": message.role, "content": message.content} for message in messages]], **kwargs)
+                stream = client.chat.completions.create(model=self.model, messages=[{"role": "system", "content": self._system_prompt(locale)}, *[{"role": message.role, "content": ([{"type": "text", "text": message.content}, *[{"type": "image_url", "image_url": {"url": url}} for url in message.images]] if message.images else message.content)} for message in messages]], **kwargs)
                 for chunk in stream:
                     usage = getattr(chunk, "usage", None)
                     if usage:

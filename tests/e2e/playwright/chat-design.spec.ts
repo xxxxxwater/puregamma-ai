@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Chat workspace regressions.
  *
  * Every assertion here corresponds to a defect confirmed earlier in this round:
@@ -70,7 +70,7 @@ test.describe("chat workspace", () => {
     await stub(page);
     const measure = async (path: string) => {
       await page.goto(path);
-      await expect(page.locator("textarea")).toBeVisible({ timeout: 15000 });
+      await expect(page.getByTestId("chat-composer-input")).toBeVisible({ timeout: 15000 });
       return page.evaluate(() => {
         const shell = document.querySelector('[class*="max-w-[1180px]"]') as HTMLElement | null;
         const column = document.querySelector(".max-w-3xl") as HTMLElement | null;
@@ -114,8 +114,8 @@ test.describe("chat workspace", () => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await stub(page);
     await page.goto("/zh/chat");
-    await expect(page.locator("textarea")).toBeVisible({ timeout: 15000 });
-    const box = await page.locator("textarea").boundingBox();
+    await expect(page.getByTestId("chat-composer-input")).toBeVisible({ timeout: 15000 });
+    const box = await page.getByTestId("chat-composer-input").boundingBox();
     expect(box, "composer must be measurable").not.toBeNull();
     expect(box!.y + box!.height, "the primary control must not sit below the fold").toBeLessThanOrEqual(900);
   });
@@ -124,7 +124,7 @@ test.describe("chat workspace", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await stub(page);
     await page.goto("/zh/chat/c1");
-    await expect(page.locator("textarea")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("chat-composer-input")).toBeVisible({ timeout: 15000 });
 
     const trigger = page.getByTestId("chat-history-trigger");
     await expect(trigger, "a phone needs a way into the conversation list").toBeVisible();
@@ -146,7 +146,7 @@ test.describe("chat workspace", () => {
     await page.setViewportSize({ width: 390, height: 844 });
     await stub(page);
     await page.goto("/zh/chat/c1");
-    await expect(page.locator("textarea")).toBeVisible({ timeout: 15000 });
+    await expect(page.getByTestId("chat-composer-input")).toBeVisible({ timeout: 15000 });
     await page.getByTestId("chat-history-trigger").click();
     // A backdrop button exists so the drawer can be dismissed by pointing at the
     // content behind it, and the body cannot scroll underneath.

@@ -8,6 +8,7 @@ from typing import Any
 class ChatMessage:
     role: str
     content: str
+    images: list[str] = field(default_factory=list)
 
 
 @dataclass

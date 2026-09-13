@@ -487,6 +487,16 @@ test.describe("chat workspace meets WCAG AA", () => {
       await page.route(`${API}/api/agent/quote`, (route) =>
         route.fulfill({ contentType: "application/json", body: JSON.stringify({ estimated_min: 8, estimated_max: 12 }) }),
       );
+      // The composer asks for its own limits on mount. Unstubbed, this leaves
+      // the origin through the dev proxy, fails CORS, and paints the dev error
+      // overlay over the surface under test — i.e. the audit would be measuring
+      // the overlay rather than the chat workspace.
+      await page.route(`${API}/api/agent/workspace-capabilities`, (route) =>
+        route.fulfill({
+          contentType: "application/json",
+          body: JSON.stringify({ permission_modes: ["read-only", "workspace-write", "full-access"], default_permission_mode: "workspace-write", max_file_bytes: 10485760, max_files: 8, storage_bytes: 104857600, file_types: ["txt", "md", "csv", "json", "pdf", "docx", "png"], scope: "user-owned PureGamma tools" }),
+        }),
+      );
 
       await openWithTheme(page, "/zh/chat", theme);
       const audit = await measureStable(page, theme);
@@ -495,8 +505,11 @@ test.describe("chat workspace meets WCAG AA", () => {
       await expectRealSurface(page, true, `chat (${theme})`);
       // These two only exist once the real Chat workspace has mounted, so their
       // presence is what distinguishes "contrast is fine" from "login page".
-      await expect(page.getByTestId("chat-model-badge"), `chat (${theme}): the workspace did not mount`).toBeVisible();
-      await expect(page.getByLabel("消息输入"), `chat (${theme}): the composer is missing`).toBeVisible();
+      // The model badge used to be the first of them, but the current design
+      // states the model once — in the composer's selector — and only mentions it
+      // again for an abnormal state, so a missing badge is now the healthy case.
+      await expect(page.getByTestId("chat-composer-input"), `chat (${theme}): the workspace did not mount`).toBeVisible();
+      await expect(page.getByTestId("harness-composer"), `chat (${theme}): the harness composer is missing`).toBeVisible();
 
       expect(audit.stats.measured, `the chat workspace did not render\n${report(audit)}`).toBeGreaterThanOrEqual(15);
       expect(audit.failures, `contrast violations in chat (${theme})\n${report(audit)}`).toEqual([]);
