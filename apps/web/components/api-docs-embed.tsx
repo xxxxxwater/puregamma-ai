@@ -265,15 +265,15 @@ function PriceCompare({
       <div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{label}</div>
       {official && final ? (
         <>
-          <div className="mt-3 grid grid-cols-2 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2">
-            <div>
+          <div className="mt-3 grid min-w-0 grid-cols-2 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2">
+            <div className="min-w-0">
               <div className="break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.12em] text-text-pg-dim">{officialLabel}</div>
-              <div className="mt-1 whitespace-nowrap font-mono text-sm text-text-pg">{priceAmount(official, currency)}</div>
+              <div className="mt-1 font-mono text-sm text-text-pg">{priceAmount(official, currency)}</div>
             </div>
             <ArrowRight className="mb-0.5 hidden h-3.5 w-3.5 text-text-pg-dim sm:block" />
-            <div className="text-right">
+            <div className="min-w-0 text-right">
               <div className="break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.12em] text-text-pg-dim">{finalLabel}</div>
-              <div className="mt-1 whitespace-nowrap font-mono text-sm font-semibold text-text-pg">{priceAmount(final, currency)}</div>
+              <div className="mt-1 font-mono text-sm font-semibold text-text-pg">{priceAmount(final, currency)}</div>
             </div>
           </div>
           <div className="mt-1 text-[11px] text-text-pg-muted">{priceUnit(official, zh)}</div>
@@ -541,15 +541,15 @@ PUREGAMMA_MODEL=${selectedId}
                 {cardAvailability ? <div className={`mt-2 inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] rounded-lg ${model?.availability === "available" && catalog?.gateway_enabled ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{cardAvailability}</div> : null}
                 <p className="mt-3 min-h-10 text-xs leading-5 text-text-pg-muted">{info.summary}</p>
                 <div className="mt-4 border-t border-border-pg pt-3">
-                  {input && output && finalInput && finalOutput ? <div className="mt-2 grid grid-cols-2 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2">
-                    <div>
+                  {input && output && finalInput && finalOutput ? <div className="mt-2 grid min-w-0 grid-cols-2 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2">
+                    <div className="min-w-0">
                       <div className="break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.1em] text-text-pg-dim">{officialPriceLabel}</div>
-                      <div className="mt-1 whitespace-nowrap font-mono text-xs text-text-pg">{priceAmount(input, cardPricing?.currency || "USD")} / {priceAmount(output, cardPricing?.currency || "USD")}</div>
+                      <div className="mt-1 font-mono text-xs text-text-pg">{priceAmount(input, cardPricing?.currency || "USD")} / {priceAmount(output, cardPricing?.currency || "USD")}</div>
                     </div>
                     <ArrowRight className="mb-0.5 hidden h-3.5 w-3.5 text-text-pg-dim sm:block" />
-                    <div className="text-right">
+                    <div className="min-w-0 text-right">
                       <div className="break-words text-[9px] font-semibold uppercase leading-3 tracking-[0.1em] text-text-pg-dim">{finalPriceLabel}</div>
-                      <div className="mt-1 whitespace-nowrap font-mono text-xs font-semibold text-text-pg">{priceAmount(finalInput, cardPricing?.currency || "USD")} / {priceAmount(finalOutput, cardPricing?.currency || "USD")}</div>
+                      <div className="mt-1 font-mono text-xs font-semibold text-text-pg">{priceAmount(finalInput, cardPricing?.currency || "USD")} / {priceAmount(finalOutput, cardPricing?.currency || "USD")}</div>
                     </div>
                   </div> : <div className="mt-2 text-xs text-text-pg-dim">{zh ? "价格待审核" : "Price pending review"}</div>}
                   <div className="mt-1 text-[10px] text-text-pg-dim">{content.perMillion}</div>
