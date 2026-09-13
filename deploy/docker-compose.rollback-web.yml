@@ -1,0 +1,49 @@
+# Web-only rollback pin.
+#
+# Copy this file to the deployment directory as docker-compose.rollback-web.yml
+# and bring up only that one service with ROLLBACK_IMAGE set to the tag you are
+# rolling back TO.
+#
+# WHY THIS FILE EXISTS
+# `docker compose -f docker-compose.production.yml up -d web` looks like a
+# rollback but is not one:
+#
+#   * docker-compose.production.yml declares NO `image:` for web/api/worker/
+#     scheduler — only `build:`. Their image tags live in
+#     docker-compose.v41-override.yml. Composing the base file alone therefore
+#     resolves `image: None` with `build: true`, so compose would build from the
+#     build context and tag the result `puregamma-ai-web:latest`.
+#   * That silently changes what runs, and it re-tags `latest` — so the "roll
+#     back" can land on code that was never released, which is how a rollback
+#     stops being a rollback.
+#
+# The deploy-time instruction in /puregamma/release-manifest.json used to read
+# `docker image tag <rollback> puregamma-ai-web:latest && docker compose -f
+# docker-compose.production.yml up -d --no-deps web`. Both halves were wrong for
+# the same reason: they depended on `latest`, and `latest` is exactly the tag a
+# release moves.
+#
+# This file intentionally cannot run as-is. `${ROLLBACK_IMAGE:?...}` makes compose
+# refuse outright when the variable is unset, which is the point: a template that
+# resolves to a literal placeholder string would silently shadow the valid pin in
+# docker-compose.v41-override.yml and take web down instead of rolling it back.
+# Verified: `docker compose config` exits non-zero while ROLLBACK_IMAGE is unset.
+#
+# THE INVOCATION THAT IS ACTUALLY VERIFIED
+#   1. cp deploy/docker-compose.rollback-web.yml /puregamma/app/
+#   2. cd /puregamma/app && ROLLBACK_IMAGE=puregamma-ai-web:<tag> docker compose \
+#        -f docker-compose.production.yml \
+#        -f docker-compose.v41-override.yml \
+#        -f docker-compose.rollback-web.yml \
+#        up -d --no-deps web
+#   3. docker inspect puregamma-ai-web-1 --format '{{.Image}}'
+#      and confirm it equals
+#      `docker image inspect <tag> --format '{{.Id}}'`
+#
+# Later files win in `docker compose -f`, so this pin lands last and web resolves
+# to an explicit tag with no `latest` anywhere in the path. Only `web` is listed,
+# so api/worker/scheduler keep the image the v41 override already pins.
+
+services:
+  web:
+    image: ${ROLLBACK_IMAGE:?set ROLLBACK_IMAGE to an explicit web image tag, for example puregamma-ai-web:rollback-r7b-20260913-084934}
