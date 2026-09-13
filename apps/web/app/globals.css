@@ -30,7 +30,66 @@
   }
 }
 
+/* =====================================================================
+   THEME TOKEN TABLE — the single place a theme is defined.
+   =====================================================================
+   Light is the default (`:root`); Dark is a full override under
+   `[data-theme="dark"]`. This direction matters:
+
+     * Before, dark was the `:root` default and light was the override, so a
+       first paint without a `data-theme` attribute always showed dark. Light
+       users therefore saw a dark flash on every load, and any third theme
+       would have had to stack another override on top.
+     * Now an absent attribute simply means Light, and the pre-paint script in
+       `app/layout.tsx` sets `data-theme` for anything else before first paint.
+
+   Both blocks declare the SAME set of names. That is deliberate: a token
+   defined only in one theme silently inherits the other theme's value, which
+   is how `--border-subtle`/`--text-primary` stayed dark-facing in light mode
+   for as long as they did.
+   ===================================================================== */
 :root {
+  /* Native controls (select popups, scrollbars, date pickers) follow the app
+     theme, not the operating system. The pre-paint script sets the same value
+     inline so this is correct from the very first frame. */
+  color-scheme: light;
+  /* PureGamma — California Daylight scene: warm cloud white / titanium,
+     near-black ink (not pure black), very light cool shadows. */
+  --background: #f4f4f2;
+  --foreground: #17181c;
+  --panel: #ffffff;
+  --panel-muted: #f0f1f3;
+  --panel-strong: #e8eaee;
+  --secretary-assistant-bg: #e3edfa;
+  --secretary-assistant-text: #172554;
+  --secretary-assistant-border: #9cc3f0;
+  --secretary-assistant-muted: #3b5ba9;
+  --border: rgba(15, 23, 42, 0.10);
+  --border-strong: rgba(15, 23, 42, 0.18);
+  --muted: #5b606b;
+  /* Same reasoning as the dark set: #7c8089 measured 3.50:1 as small text, and
+     #0e8f61 only 3.63:1 (fine for a chart line, short of AA for a status word).
+     Both are darkened to clear 4.5:1 on every surface. */
+  --muted-2: #666a73;
+  --positive: #0a784f;
+  --negative: #c2413c;
+  --warning: #96600a;
+  --info: #2f5fc4;
+  --accent-cyan: var(--info);
+  --accent-emerald: var(--positive);
+  --accent-amber: var(--warning);
+  --accent-red: var(--negative);
+  --admin-accent: #2f5fc4;
+  --admin-accent-soft: #6f93e0;
+  --admin-accent-ink: #ffffff;
+  --admin-accent-fill: rgba(47, 95, 196, 0.14);
+  --admin-accent-fill-soft: rgba(111, 147, 224, 0.12);
+  --admin-accent-fill-faint: rgba(47, 95, 196, 0.08);
+  --admin-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
   /* PureGamma — Night Intelligence scene: deep graphite + night blue-black,
      faint cool light fields, near-white ink, calm semantic colors. */
   --background: #0b0e14;
@@ -54,12 +113,6 @@
   --negative: #f87171;
   --warning: #f5b453;
   --info: #93b4ff;
-  --bg-app: var(--background);
-  --bg-card: var(--panel);
-  --bg-card-muted: var(--panel-muted);
-  --border-subtle: var(--border);
-  --text-primary: var(--foreground);
-  --text-secondary: var(--muted);
   --accent-cyan: var(--info);
   --accent-emerald: var(--positive);
   --accent-amber: var(--warning);
@@ -73,38 +126,6 @@
   --admin-accent-fill-soft: rgba(168, 194, 255, 0.14);
   --admin-accent-fill-faint: rgba(168, 194, 255, 0.10);
   --admin-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
-}
-
-:root[data-theme="light"] {
-  /* PureGamma — California Daylight scene: warm cloud white / titanium,
-     near-black ink (not pure black), very light cool shadows. */
-  --background: #f4f4f2;
-  --foreground: #17181c;
-  --panel: #ffffff;
-  --panel-muted: #f0f1f3;
-  --panel-strong: #e8eaee;
-  --secretary-assistant-bg: #e3edfa;
-  --secretary-assistant-text: #172554;
-  --secretary-assistant-border: #9cc3f0;
-  --secretary-assistant-muted: #3b5ba9;
-  --border: rgba(15, 23, 42, 0.10);
-  --border-strong: rgba(15, 23, 42, 0.18);
-  --muted: #5b606b;
-  /* Same reasoning as the dark set: #7c8089 measured 3.50:1 as small text, and
-     #0e8f61 only 3.63:1 (fine for a chart line, short of AA for a status word).
-     Both are darkened to clear 4.5:1 on every surface. */
-  --muted-2: #666a73;
-  --positive: #0a784f;
-  --negative: #c2413c;
-  --warning: #96600a;
-  --info: #2f5fc4;
-  --admin-accent: #2f5fc4;
-  --admin-accent-soft: #6f93e0;
-  --admin-accent-ink: #ffffff;
-  --admin-accent-fill: rgba(47, 95, 196, 0.14);
-  --admin-accent-fill-soft: rgba(111, 147, 224, 0.12);
-  --admin-accent-fill-faint: rgba(47, 95, 196, 0.08);
-  --admin-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
 }
 
 /* =====================================================================
@@ -123,23 +144,16 @@
      1. A component names intent (`--pg-text-secondary`), never a raw colour.
      2. Theme switching happens only in the token table. No `dark:` variants,
         no `[data-theme=…]` inside component CSS.
-     3. A skin (glass) may not redeclare a semantic token — see Phase 2.
+     3. A skin (glass) may not redeclare a semantic token.
 
-   Note on placement: this block is duplicated verbatim under BOTH `:root`
-   and `:root[data-theme="light"]`. That looks redundant but is required.
-   `:root` today still holds the dark values for the eight legacy tokens that
-   the light block overrides (`--background`, `--foreground`, `--panel`,
-   `--panel-muted`, `--panel-strong`, `--border`, `--muted`, `--muted-2`,
-   plus the admin set). If the aliases lived only in `:root`, a Light page
-   would resolve e.g. `--pg-bg-page` to the dark `--background` and render a
-   dark page behind a light shell. Duplicating keeps the semantic layer
-   self-consistent for whichever theme is active, which is also what makes
-   "zero visual difference" true rather than merely hoped for. Phase 2
-   collapses the duplication by moving the real values onto the `--pg-*`
-   names and turning the legacy names into aliases of them.
+   Placement: declared once under `:root` only. Phase 1 had to duplicate this
+   under `:root[data-theme="light"]` because `:root` then held the DARK values
+   for the legacy tokens and a light page would have resolved `--pg-bg-page` to
+   a dark `--background`. Light is now the `:root` default for both the legacy
+   and the semantic names, so the duplication is gone: the aliases resolve
+   through the active theme automatically.
    ===================================================================== */
-:root,
-:root[data-theme="light"] {
+:root {
   /* ── Text ────────────────────────────────────────────────────────── */
   --pg-text-primary: var(--foreground);
   --pg-text-secondary: var(--muted);
@@ -500,8 +514,15 @@ textarea {
   --glass-ambient-c: rgba(139, 124, 255, 0.08);
 }
 
-/* Dark glass surface tokens. */
-:root[data-visual-style="glass"] {
+/* Glass surface tokens, one block per theme.
+   These used to put the DARK values under a bare [data-visual-style="glass"]
+   and let a [data-theme="light"] block override them. Because this rule sits
+   AFTER the light token block, that made dark the implicit default of the skin:
+   any element matching [data-visual-style="glass"] without an explicit
+   data-theme="dark" attribute inherited dark glass surfaces. Once Light becomes
+   the `:root` default that ordering paints light pages with dark glass, so each
+   theme now states its own values and neither relies on source order. */
+:root[data-visual-style="glass"][data-theme="dark"] {
   --panel: rgba(19, 26, 38, 0.90);
   --panel-muted: rgba(26, 34, 48, 0.88);
   --panel-strong: rgba(33, 42, 58, 0.94);
@@ -524,7 +545,7 @@ textarea {
 
 /* Financial / security routes: prices, positions, alerts and action
    buttons must stay crisp — near-solid panels, softer blur. */
-:root[data-visual-style="glass"][data-surface-tier="financial"] {
+:root[data-visual-style="glass"][data-surface-tier="financial"][data-theme="dark"] {
   --panel: rgba(16, 21, 31, 0.97);
   --panel-muted: rgba(22, 29, 41, 0.96);
   --panel-strong: rgba(30, 38, 53, 0.98);
@@ -540,7 +561,7 @@ textarea {
 /* Ocean pages: the Ocean layers already blur beneath the work panel; a
    second backdrop-filter would double-blur. Keep translucent panels but
    disable the filter here. */
-:root[data-visual-style="glass"][data-surface-tier="ocean"] {
+:root[data-visual-style="glass"][data-surface-tier="ocean"][data-theme="dark"] {
   --panel: rgba(10, 14, 22, 0.80);
   --panel-muted: rgba(16, 21, 32, 0.74);
   --panel-strong: rgba(22, 28, 42, 0.88);

@@ -1,14 +1,26 @@
 "use client";
 
-import { useEffect, useState } from "react";
-import { Minus, Moon, Plus, Sparkles, Sun } from "lucide-react";
+import { Minus, Monitor, Moon, Plus, Sparkles, Sun } from "lucide-react";
 import { applyVisualStyle, readVisualStyle, type VisualStyle } from "@/lib/visual-style";
+import { SCALES, THEME_CYCLE, useAppearance, type FontScale, type ThemePreference } from "@/lib/appearance";
+import { useEffect, useState } from "react";
 
-type Theme = "dark" | "light";
-type FontScale = "compact" | "default" | "large";
+function clsxLike(visualStyle: VisualStyle, base: string): string {
+  // The glass style is the default: highlight the control only when the
+  // user switched away, keeping the same visual language as other toggles.
+  return visualStyle === "classic" ? `${base} border-border-pg-strong` : base;
+}
 
-const scales: FontScale[] = ["compact", "default", "large"];
-
+/**
+ * Theme / appearance controls.
+ *
+ * Mounted three times (sidebar rail, desktop top bar, mobile top bar). All
+ * instances now read one shared store, so they cannot disagree, and the
+ * preference survives a reload because the pre-paint script applies it before
+ * first paint. The control is a three-state cycle — System → Light → Dark —
+ * because a two-state switch cannot express "follow the OS", which was the
+ * only way to get a first-load theme that matches the user's desktop.
+ */
 export function AppearanceControls({
   locale,
   showFontScale = true,
@@ -16,32 +28,16 @@ export function AppearanceControls({
   locale: "en" | "zh";
   showFontScale?: boolean;
 }) {
-  const [theme, setTheme] = useState<Theme>("dark");
-  const [fontScale, setFontScale] = useState<FontScale>("default");
+  const { preference, resolved, fontScale, setPreference, setFontScale } = useAppearance();
   const [visualStyle, setVisualStyle] = useState<VisualStyle>("glass");
 
-  useEffect(() => {
-    const savedTheme = (localStorage.getItem("pg_theme") as Theme) || "dark";
-    const savedScale = (localStorage.getItem("pg_font_scale") as FontScale) || "default";
-    const savedStyle = readVisualStyle();
-    setTheme(savedTheme);
-    setFontScale(savedScale);
-    setVisualStyle(savedStyle);
-    document.documentElement.dataset.theme = savedTheme;
-    document.documentElement.dataset.fontScale = savedScale;
-    applyVisualStyle(savedStyle);
-  }, []);
+  useEffect(() => { setVisualStyle(readVisualStyle()); }, []);
 
-  const applyTheme = (value: Theme) => {
-    setTheme(value);
-    localStorage.setItem("pg_theme", value);
-    document.documentElement.dataset.theme = value;
-  };
-
-  const applyScale = (value: FontScale) => {
-    setFontScale(value);
-    localStorage.setItem("pg_font_scale", value);
-    document.documentElement.dataset.fontScale = value;
+  const cycleTheme = () => {
+    // "system" resolves to the OS preference, so the visible icon must reflect
+    // the resolved theme, not merely the stored preference.
+    const currentIndex = THEME_CYCLE.indexOf(preference);
+    setPreference(THEME_CYCLE[(currentIndex + 1) % THEME_CYCLE.length]);
   };
 
   const applyStyle = (value: VisualStyle) => {
@@ -49,13 +45,31 @@ export function AppearanceControls({
     applyVisualStyle(value);
   };
 
-  const scaleIndex = scales.indexOf(fontScale);
+  const scaleIndex = SCALES.indexOf(fontScale);
   const buttonClass = "grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong disabled:opacity-35";
+
+  const themeTitle =
+    preference === "system"
+      ? locale === "zh"
+        ? `跟随系统（当前${resolved === "dark" ? "深色" : "浅色"}）· 点击切换`
+        : `Following system (currently ${resolved}) · click to change`
+      : locale === "zh"
+        ? `主题：${preference === "dark" ? "深色" : "浅色"} · 点击切换`
+        : `Theme: ${preference} · click to change`;
+
+  const ThemeIcon = preference === "system" ? Monitor : resolved === "dark" ? Moon : Sun;
 
   return (
     <div className="flex items-center gap-1" aria-label={locale === "zh" ? "外观设置" : "Appearance settings"}>
-      <button className={buttonClass} type="button" onClick={() => applyTheme(theme === "dark" ? "light" : "dark")} title={locale === "zh" ? "切换明暗主题" : "Toggle theme"}>
-        {theme === "dark" ? <Sun className="h-3.5 w-3.5" /> : <Moon className="h-3.5 w-3.5" />}
+      <button
+        className={buttonClass}
+        type="button"
+        onClick={cycleTheme}
+        title={themeTitle}
+        aria-label={themeTitle}
+        data-theme-preference={preference}
+      >
+        <ThemeIcon className="h-3.5 w-3.5" />
       </button>
       <button
         className={clsxLike(visualStyle, buttonClass)}
@@ -67,10 +81,10 @@ export function AppearanceControls({
         <Sparkles className="h-3.5 w-3.5" />
       </button>
       {showFontScale ? <>
-        <button className={buttonClass} type="button" disabled={scaleIndex === 0} onClick={() => applyScale(scales[scaleIndex - 1])} title={locale === "zh" ? "缩小字体" : "Decrease text size"}>
+        <button className={buttonClass} type="button" disabled={scaleIndex === 0} onClick={() => setFontScale(SCALES[scaleIndex - 1])} title={locale === "zh" ? "缩小字体" : "Decrease text size"}>
           <Minus className="h-3.5 w-3.5" />
         </button>
-        <button className={buttonClass} type="button" disabled={scaleIndex === scales.length - 1} onClick={() => applyScale(scales[scaleIndex + 1])} title={locale === "zh" ? "放大字体" : "Increase text size"}>
+        <button className={buttonClass} type="button" disabled={scaleIndex === SCALES.length - 1} onClick={() => setFontScale(SCALES[scaleIndex + 1])} title={locale === "zh" ? "放大字体" : "Increase text size"}>
           <Plus className="h-3.5 w-3.5" />
         </button>
       </> : null}
@@ -78,8 +92,4 @@ export function AppearanceControls({
   );
 }
 
-function clsxLike(visualStyle: VisualStyle, base: string): string {
-  // The glass style is the default: highlight the control only when the
-  // user switched away, keeping the same visual language as other toggles.
-  return visualStyle === "classic" ? `${base} border-border-pg-strong` : base;
-}
+export type { FontScale, ThemePreference };

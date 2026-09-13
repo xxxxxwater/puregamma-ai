@@ -120,15 +120,28 @@ export function formatUtcTime(date: Date | null, withSeconds = true): string {
 }
 
 /** Reactively track a data attribute on <html> so components re-run when the
- *  theme / visual-style / surface-tier switches without a reload. */
+ *  theme / visual-style / surface-tier switches without a reload.
+ *
+ *  The caller passes a camelCase property name (`"visualStyle"`), which must be
+ *  converted to the kebab-case ATTRIBUTE name (`data-visual-style`). Building it
+ *  as `"data-" + name` produced `data-visualStyle`; `getAttribute` lowercases
+ *  its argument, so the lookup became `data-visualstyle`, which never matches
+ *  the real `data-visual-style` attribute. The result was a permanent `null`
+ *  and a MutationObserver watching an attribute that never changes — so every
+ *  consumer kept the classic/glass decision it made on first render. */
+function toDataAttribute(name: string): string {
+  return "data-" + name.replace(/([a-z0-9])([A-Z])/g, "$1-$2").toLowerCase();
+}
+
 export function useHtmlDataset(name: string): string | undefined {
   const [value, setValue] = useState<string | undefined>(undefined);
   useEffect(() => {
+    const attribute = toDataAttribute(name);
     const el = document.documentElement;
-    const read = () => setValue(el.getAttribute("data-" + name) ?? undefined);
+    const read = () => setValue(el.getAttribute(attribute) ?? undefined);
     read();
     const observer = new MutationObserver(read);
-    observer.observe(el, { attributes: true, attributeFilter: ["data-" + name] });
+    observer.observe(el, { attributes: true, attributeFilter: [attribute] });
     window.addEventListener("storage", read);
     return () => {
       observer.disconnect();
