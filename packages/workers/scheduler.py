@@ -76,6 +76,17 @@ def build_scheduler() -> BlockingScheduler:
         max_instances=1,
         coalesce=True,
     )
+    # X inbound crash/retry recovery. The task itself is a no-op unless the
+    # X bot is enabled, but scheduling it is required to recover a worker loss
+    # or a missed Celery countdown after an otherwise successful webhook ACK.
+    scheduler.add_job(
+        enqueue,
+        IntervalTrigger(minutes=1),
+        args=["puregamma.reap_x_inbound_tasks"],
+        id="x_inbound_reaper",
+        max_instances=1,
+        coalesce=True,
+    )
     scheduler.add_job(
         enqueue,
         CronTrigger(hour=1, minute=0),
@@ -302,21 +313,30 @@ def build_scheduler() -> BlockingScheduler:
 def main() -> None:
     # Single-scheduler invariant: refuse to start if another scheduler holds
     # the lock (fails open when Redis is down; idempotency keys still apply).
-    from packages.workers.redis_lock import acquire_redis_lock, release_redis_lock
+    from packages.workers.redis_lock import (
+        LOCK_HOLDER_TTL_SECONDS,
+        acquire_redis_lock,
+        release_redis_lock,
+        renew_redis_lock,
+    )
 
-    if not acquire_redis_lock("scheduler", ttl_seconds=600):
+    acquired, token = acquire_redis_lock("scheduler", ttl_seconds=LOCK_HOLDER_TTL_SECONDS)
+    if not acquired:
         raise SystemExit(
             "Another scheduler instance holds pg:lock:scheduler; refusing to "
             "start a duplicate (deploy checklist: only one scheduler may run)"
         )
     scheduler = build_scheduler()
-    # Keep the lock alive while this process runs; the lock expires naturally
-    # if the process dies and a restart can then take over.
+    # Keep our own lock alive. This must use renew (which checks the stored
+    # owner and extends the TTL): calling acquire again would be a SET NX against
+    # a key we already hold, which returns False and leaves the TTL untouched, so
+    # the lock would quietly expire under a running scheduler. The holder TTL is
+    # longer than this interval, so a single missed renewal is harmless.
     scheduler.add_job(
-        acquire_redis_lock,
+        renew_redis_lock,
         IntervalTrigger(minutes=5),
-        args=["scheduler"],
-        kwargs={"ttl_seconds": 600},
+        args=["scheduler", token],
+        kwargs={"ttl_seconds": LOCK_HOLDER_TTL_SECONDS},
         id="scheduler_lock_renew",
         max_instances=1,
         coalesce=True,
@@ -324,7 +344,7 @@ def main() -> None:
     try:
         scheduler.start()
     finally:
-        release_redis_lock("scheduler")
+        release_redis_lock("scheduler", token)
 
 
 if __name__ == "__main__":

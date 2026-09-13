@@ -417,7 +417,8 @@ def _orchestrate_due_daily_briefs(db) -> dict:
 def dispatch_due_daily_briefs() -> dict:
     from packages.workers.redis_lock import acquire_redis_lock, release_redis_lock
 
-    if not acquire_redis_lock("dispatch_due_daily_briefs", ttl_seconds=900):
+    acquired, lock_token = acquire_redis_lock("dispatch_due_daily_briefs", ttl_seconds=900)
+    if not acquired:
         logger.warning("daily_brief_dispatch_skipped_lock_held")
         return {"status": "skipped_lock_held"}
     db = SessionLocal()
@@ -430,7 +431,9 @@ def dispatch_due_daily_briefs() -> dict:
         notify_ops("Daily brief dispatch failed; users may not have received their digest", level="error")
         return {"error": "dispatch_failed"}
     finally:
-        release_redis_lock("dispatch_due_daily_briefs")
+        # Release only our own lock: an unconditional delete could remove a
+        # successor's lock if this task overran its TTL.
+        release_redis_lock("dispatch_due_daily_briefs", lock_token)
         db.close()
 
 
@@ -1315,4 +1318,30 @@ def reap_photon_inbound_tasks_task() -> dict:
         return reap_photon_inbound_tasks()
     except Exception:
         logger.exception("photon_inbound_reaper_failed")
+        raise
+
+
+@celery_app.task(name="puregamma.process_x_inbound", bind=True, max_retries=0)
+def process_x_inbound_task(self, task_id: str) -> dict:
+    """Process one persisted X inbound DM: shared agent flow, then the reply
+    goes out through XDMProvider. Retries are bounded inside the service
+    (MAX_ATTEMPTS); a crashed attempt is recovered by
+    puregamma.reap_x_inbound_tasks."""
+    from apps.api.services.x_inbound_service import process_x_inbound
+
+    try:
+        return process_x_inbound(task_id)
+    except Exception:
+        logger.exception("x_inbound_task_crashed task_id=%s", task_id)
+        raise
+
+
+@celery_app.task(name="puregamma.reap_x_inbound_tasks")
+def reap_x_inbound_tasks_task() -> dict:
+    from apps.api.services.x_inbound_service import reap_x_inbound_tasks
+
+    try:
+        return reap_x_inbound_tasks()
+    except Exception:
+        logger.exception("x_inbound_reaper_failed")
         raise
