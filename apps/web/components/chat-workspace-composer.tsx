@@ -2,12 +2,12 @@
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Paperclip, ArrowUp, Square, X, FileText, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
-import { apiBaseUrl, uploadAgentAttachment, getChatWorkspaceCapabilities, type AgentAttachment, type AgentPermissionMode } from "@/lib/api";
+import { apiBaseUrl, uploadAgentAttachment, deleteAgentAttachment, getChatWorkspaceCapabilities, type AgentAttachment, type AgentPermissionMode } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
 
 const copy = {
-  zh: { add: "添加文件", remove: "移除", retry: "重试", uploading: "上传中", failed: "上传失败", send: "发送", stop: "停止生成", placeholder: "向 PureGamma 提问…", permission: "对话权限", read: "仅可查看", ask: "修改前确认", full: "自动执行", confirm: "启用自动执行？Agent 可直接执行你账户内允许的工具操作。套餐限制、交易确认和风控仍然生效，不提供服务器文件或命令访问。", scope: "权限仅适用于你自己的 PureGamma 数据与工具。", drop: "松开以添加附件", unavailable: "附件服务暂不可用", limit: "文件数量或大小超限", unsupported: "不支持此文件格式", error: "请检查文件格式、大小或存储额度后重试。", preview: "预览图片", close: "关闭预览", files: "附件", select: "请选择文件", details: "研究设置", research: "研究", online: "联网", imageNote: "图片仅支持 DeepSeek V4.1 Flash。", fileOnly: "请分析所附文件。" },
-  en: { add: "Add files", remove: "Remove", retry: "Retry", uploading: "Uploading", failed: "Upload failed", send: "Send", stop: "Stop generation", placeholder: "Ask PureGamma…", permission: "Conversation permissions", read: "Read only", ask: "Ask before changes", full: "Auto execute", confirm: "Enable automatic execution? The agent may run tools allowed for your account. Plan limits, trading confirmations and risk checks still apply. This does not grant server filesystem or shell access.", scope: "Permissions apply only to your PureGamma data and tools.", drop: "Drop to attach", unavailable: "Attachments are temporarily unavailable", limit: "File count or size limit exceeded", unsupported: "Unsupported file format", error: "Check the file format, size or storage allowance, then retry.", preview: "Preview image", close: "Close preview", files: "Attachments", select: "Choose files", details: "Research settings", research: "Research", online: "Web", imageNote: "Images require DeepSeek V4.1 Flash.", fileOnly: "Please analyze the attached files." }
+  zh: { add: "添加文件", remove: "移除", retry: "重试", uploading: "上传中", failed: "上传失败", send: "发送", stop: "停止生成", placeholder: "向 PureGamma 提问…", permission: "对话权限", read: "仅可查看", ask: "修改前确认", full: "自动执行", confirm: "启用自动执行？Agent 可直接执行你账户内允许的工具操作。套餐限制、交易确认和风控仍然生效，不提供服务器文件或命令访问。", scope: "权限仅适用于你自己的 PureGamma 数据与工具。", drop: "松开以添加附件", unavailable: "附件服务暂不可用", limit: "文件数量或大小超限", storage: "存储额度已满，请先移除已上传的附件。", unsupported: "不支持此文件格式", error: "请检查文件格式、大小或存储额度后重试。", preview: "预览图片", close: "关闭预览", files: "附件", select: "请选择文件", details: "研究设置", research: "研究", online: "联网", imageNote: "图片仅支持 DeepSeek V4.1 Flash。", fileOnly: "请分析所附文件。", removeStored: "移除并释放额度", removing: "移除中", removed: "已移除", removeFailed: "无法移除，请稍后重试。" },
+  en: { add: "Add files", remove: "Remove", retry: "Retry", uploading: "Uploading", failed: "Upload failed", send: "Send", stop: "Stop generation", placeholder: "Ask PureGamma…", permission: "Conversation permissions", read: "Read only", ask: "Ask before changes", full: "Auto execute", confirm: "Enable automatic execution? The agent may run tools allowed for your account. Plan limits, trading confirmations and risk checks still apply. This does not grant server filesystem or shell access.", scope: "Permissions apply only to your PureGamma data and tools.", drop: "Drop to attach", unavailable: "Attachments are temporarily unavailable", limit: "File count or size limit exceeded", storage: "Your storage allowance is full. Remove an uploaded file to free space.", unsupported: "Unsupported file format", error: "Check the file format, size or storage allowance, then retry.", preview: "Preview image", close: "Close preview", files: "Attachments", select: "Choose files", details: "Research settings", research: "Research", online: "Web", imageNote: "Images require DeepSeek V4.1 Flash.", fileOnly: "Please analyze the attached files.", removeStored: "Remove and free space", removing: "Removing", removed: "Removed", removeFailed: "Could not remove it. Try again shortly." }
 };
 
 export function AttachmentCards({ files, locale, onRemove }: { files: AgentAttachment[]; locale: Locale; onRemove?: (index: number) => void }) {
@@ -26,9 +26,9 @@ export function AttachmentCards({ files, locale, onRemove }: { files: AgentAttac
         </button> : <FileText className="h-6 w-6 shrink-0 text-text-pg-muted" />}
         <div className="min-w-0 flex-1">
           {file.url ? <a href={url(file)} target="_blank" rel="noreferrer" className="block truncate underline-offset-2 hover:underline" title={file.name}>{file.name}</a> : <span className="block truncate" title={file.name}>{file.name}</span>}
-          <span className="text-xs text-text-pg-muted">{file.name.split(".").pop()?.toUpperCase()} · {Math.ceil((file.size ?? new TextEncoder().encode(file.content).length) / 1024)} KB</span>
+          <span className="text-xs text-text-pg-muted">{file.name.split(".").pop()?.toUpperCase()} · {file.removed ? t.removed : `${Math.ceil((file.size ?? new TextEncoder().encode(file.content).length) / 1024)} KB`}</span>
         </div>
-        {onRemove ? <button type="button" onClick={() => onRemove(index)} aria-label={`${t.remove}: ${file.name}`} className="grid h-9 w-8 shrink-0 place-items-center rounded-md hover:bg-[var(--pg-surface-hover)]"><X className="h-4 w-4" /></button> : null}
+        {onRemove && !file.removed ? <button type="button" onClick={() => onRemove(index)} aria-label={`${t.remove}: ${file.name}`} className="grid h-9 w-8 shrink-0 place-items-center rounded-md hover:bg-[var(--pg-surface-hover)]"><X className="h-4 w-4" /></button> : null}
       </div>)}
     </div>
     <dialog ref={dialog} onClose={() => setPreview(null)} onClick={event => { if (event.target === dialog.current) dialog.current.close(); }} className="max-h-[90dvh] max-w-[92vw] rounded-xl bg-[var(--pg-surface-1)] p-4 text-text-pg backdrop:bg-black/60">
@@ -58,6 +58,7 @@ export function ChatWorkspaceComposer(p: Props) {
   filesRef.current = p.attachments;
   const uploadLock = useRef(false);
   const [uploading, setUploading] = useState<string | null>(null);
+  const [removing, setRemoving] = useState<string | null>(null);
   const [failed, setFailed] = useState<File[]>([]);
   const [error, setError] = useState("");
   const [dragging, setDragging] = useState(false);
@@ -81,9 +82,37 @@ export function ChatWorkspaceComposer(p: Props) {
           const next = [...filesRef.current, result.attachment];
           filesRef.current = next; p.onAttachments(next);
           setFailed(current => current.filter(item => item !== file));
-        } catch { setFailed(current => current.includes(file) ? current : [...current, file]); setError(t.error); }
+        } catch (reason) {
+          setFailed(current => current.includes(file) ? current : [...current, file]);
+          // A server-side rejection has a specific cause, and "check the format"
+          // is the wrong advice for all of them: a full allowance needs a file
+          // removed, and an oversize file needs a smaller one.
+          const detail = String((reason as Error)?.message || "");
+          setError(detail.includes("ATTACHMENT_STORAGE_LIMIT") ? t.storage
+            : detail.includes("ATTACHMENT_SIZE_LIMIT") ? `${file.name}: ${t.limit}`
+            : t.error);
+        }
       }
     } finally { setUploading(null); uploadLock.current = false; p.onUploading(false); if (input.current) input.current.value = ""; }
+  }
+
+  /** Drop a file that is already stored, freeing its bytes from the allowance. */
+  async function removeStored(index: number) {
+    const target = p.attachments[index];
+    if (!target || removing) return;
+    setError("");
+    if (!target.id) { p.onAttachments(p.attachments.filter((_, i) => i !== index)); return; }
+    setRemoving(target.id);
+    try {
+      const result = await deleteAgentAttachment(target.id);
+      // The card stays, marked as removed: it is still part of what was
+      // discussed, and hiding it would make the allowance look like it shrank
+      // for no reason.
+      const next = [...p.attachments];
+      next[index] = { ...target, ...result.attachment, removed: true };
+      p.onAttachments(next);
+    } catch { setError(t.removeFailed); }
+    finally { setRemoving(null); }
   }
 
   async function changePermission(mode: AgentPermissionMode) {
@@ -98,7 +127,8 @@ export function ChatWorkspaceComposer(p: Props) {
     onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node)) setDragging(false); }}
     onDrop={event => { event.preventDefault(); setDragging(false); void add(Array.from(event.dataTransfer.files)); }}>
     {dragging ? <div className="pointer-events-none absolute inset-0 z-20 grid place-items-center rounded-xl border-2 border-dashed border-[var(--pg-border-focus)] bg-[var(--pg-surface-1)] text-text-pg">{t.drop}</div> : null}
-    {p.attachments.length ? <AttachmentCards files={p.attachments} locale={p.locale} onRemove={p.busy || uploading ? undefined : index => p.onAttachments(p.attachments.filter((_, i) => i !== index))} /> : null}
+    {p.attachments.length ? <AttachmentCards files={p.attachments} locale={p.locale} onRemove={p.busy || uploading || removing ? undefined : index => void removeStored(index)} /> : null}
+    {removing ? <div className="flex items-center gap-2 py-1 text-sm" role="status"><Loader2 className="h-4 w-4 animate-spin" />{t.removing} · {p.attachments.find(item => item.id === removing)?.name || ""}</div> : null}
     {uploading ? <div className="flex items-center gap-2 py-2 text-sm" role="status"><Loader2 className="h-4 w-4 animate-spin" />{t.uploading} · {uploading}</div> : null}
     {failed.map((file, index) => <div key={`${file.name}-${index}`} className="flex items-center gap-2 py-1 text-sm text-status-negative"><span className="min-w-0 flex-1 truncate">{t.failed}: {file.name}</span><button disabled={!!uploading || p.busy} type="button" className="p-2" onClick={() => void add([file])} aria-label={`${t.retry}: ${file.name}`}><RotateCcw className="h-4 w-4" /></button><button type="button" className="p-2" onClick={() => setFailed(current => current.filter(item => item !== file))} aria-label={`${t.remove}: ${file.name}`}><X className="h-4 w-4" /></button></div>)}
     <form onSubmit={event => { event.preventDefault(); if (!uploadLock.current && !changing && !failed.length) p.onSend(); }} className="rounded-xl bg-[var(--pg-surface-raised)] p-3 shadow-sm focus-within:ring-2 focus-within:ring-[var(--pg-focus-ring)]">

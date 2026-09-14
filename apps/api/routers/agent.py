@@ -6,7 +6,7 @@ from starlette.concurrency import run_in_threadpool
 from datetime import timedelta
 from urllib.parse import quote
 from typing import Literal
-from apps.api.services.chat_workspace import MAX_FILE_BYTES, MAX_FILES, MAX_USER_BYTES, save_attachment, owned_attachment, permission_mode, attachment_metadata
+from apps.api.services.chat_workspace import MAX_FILE_BYTES, MAX_FILES, MAX_USER_BYTES, save_attachment, owned_attachment, permission_mode, attachment_metadata, remove_attachment, release_conversation_attachments
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
@@ -151,20 +151,31 @@ def delete_conversation(conversation_id: str, db: Session = Depends(get_db), use
         row = owned_conversation(db, user, conversation_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    # Free the uploaded bytes this conversation had sent before its messages stop
+    # being reachable: they would otherwise sit against the user's quota forever.
+    freed = release_conversation_attachments(db, user.id, row.id)
     row.status = "deleted"
     row.archived_at = utcnow()
     db.commit()
-    return {"ok": True}
+    return {"ok": True, "attachments_released": freed}
 
 
 @router.delete("/conversations")
 def delete_all_conversations(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    # Materialise the ids before releasing anything: the release helper commits,
+    # and iterating a query that a commit can expire is how a loop silently
+    # stops halfway through.
+    doomed = [row[0] for row in db.query(AgentConversation.id).filter(
+        AgentConversation.user_id == user.id,
+        AgentConversation.status != "deleted",
+    ).all()]
+    released = sum(release_conversation_attachments(db, user.id, conversation_id) for conversation_id in doomed)
     count = db.query(AgentConversation).filter(
         AgentConversation.user_id == user.id,
         AgentConversation.status != "deleted"
     ).update({"status": "deleted", "archived_at": utcnow()}, synchronize_session=False)
     db.commit()
-    return {"ok": True, "deleted": count}
+    return {"ok": True, "deleted": count, "attachments_released": released}
 
 
 @router.get("/conversations/{conversation_id}/messages")
@@ -278,6 +289,10 @@ def attachment_content(attachment_id: str, db: Session = Depends(get_db), user: 
         row = owned_attachment(db, user.id, attachment_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail="ATTACHMENT_NOT_FOUND") from exc
+    if not row.payload:
+        # Removed by its owner: the bytes are gone, and saying so beats a 409
+        # "integrity error" for a file that was deliberately deleted.
+        raise HTTPException(status_code=410, detail="ATTACHMENT_REMOVED")
     if hashlib.sha256(row.payload).hexdigest() != row.sha256:
         raise HTTPException(status_code=409, detail="ATTACHMENT_INTEGRITY_ERROR")
     disposition = "inline" if row.kind == "image" else "attachment"
@@ -285,6 +300,20 @@ def attachment_content(attachment_id: str, db: Session = Depends(get_db), user: 
         "Content-Disposition": disposition + "; filename*=UTF-8''" + quote(row.name, safe=""),
         "Cache-Control": "private, no-store", "X-Content-Type-Options": "nosniff",
         "Content-Security-Policy": "default-src 'none'; sandbox"})
+
+
+@router.delete("/attachments/{attachment_id}")
+def delete_attachment(attachment_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    """Free the bytes of one of the caller's own attachments.
+
+    Quota is measured in stored bytes and nothing else releases them, so without
+    this a user who reached the ceiling could never upload again.
+    """
+    try:
+        result = remove_attachment(db, user.id, attachment_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="ATTACHMENT_NOT_FOUND") from exc
+    return {"attachment": result}
 
 
 class ApprovalRequest(BaseModel):

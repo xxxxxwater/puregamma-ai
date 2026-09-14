@@ -6,13 +6,14 @@ import hashlib
 import io
 import os
 import zipfile
+from datetime import timedelta
 from pathlib import PurePath
 from xml.etree import ElementTree
 
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
-from packages.database.models import AgentAttachmentRecord, User
+from packages.database.models import AgentAttachmentRecord, AgentMessage, User, utcnow
 
 MAX_FILE_BYTES = int(os.getenv("AGENT_ATTACHMENT_MAX_BYTES", "10485760"))
 MAX_USER_BYTES = int(os.getenv("AGENT_ATTACHMENT_USER_BYTES", "104857600"))
@@ -67,9 +68,13 @@ def tool_permission(mode: str, tool: str) -> str:
 
 
 def attachment_metadata(row: AgentAttachmentRecord) -> dict:
+    # A removed attachment keeps its identity so a historical message can still say
+    # what was sent, but it has no bytes left to serve and therefore no URL: a link
+    # to a freed file would be a 404 dressed up as a download.
+    removed = not row.payload
     return {"id": row.id, "name": row.name, "mime": row.mime, "size": row.size,
-            "sha256": row.sha256, "kind": row.kind, "content": "",
-            "url": f"/api/agent/attachments/{row.id}/content"}
+            "sha256": row.sha256, "kind": row.kind, "content": "", "removed": removed,
+            "url": "" if removed else f"/api/agent/attachments/{row.id}/content"}
 
 
 def owned_attachment(db: Session, user_id: str, attachment_id: str) -> AgentAttachmentRecord:
@@ -77,6 +82,68 @@ def owned_attachment(db: Session, user_id: str, attachment_id: str) -> AgentAtta
     if row is None:
         raise LookupError("ATTACHMENT_NOT_FOUND")
     return row
+
+
+def remove_attachment(db: Session, user_id: str, attachment_id: str) -> dict:
+    """Free an attachment's bytes while keeping the record of what it was.
+
+    Quota is consumed by stored bytes and there is no other way for a user to
+    reclaim it, so deletion has to exist. The row stays (name, mime, kind and
+    sha256 are the audit trail a historical message renders) but payload and
+    extracted text are dropped, which is what the quota counts.
+    """
+    row = (
+        db.query(AgentAttachmentRecord)
+        .filter_by(id=attachment_id, user_id=user_id)
+        .with_for_update()
+        .one_or_none()
+    )
+    if row is None:
+        raise LookupError("ATTACHMENT_NOT_FOUND")
+    row.payload = b""
+    row.extracted_text = ""
+    row.size = 0
+    db.commit()
+    db.refresh(row)
+    return attachment_metadata(row)
+
+
+def attachment_ids_for_conversation(db: Session, user_id: str, conversation_id: str) -> set[str]:
+    """Collect the attachment ids a conversation's own messages carry."""
+    ids: set[str] = set()
+    rows = db.query(AgentMessage.context_json).filter_by(conversation_id=conversation_id, user_id=user_id).all()
+    for (context,) in rows:
+        for item in (context or {}).get("attachments", []) or []:
+            if isinstance(item, dict) and item.get("id"):
+                ids.add(str(item["id"]))
+    return ids
+
+
+def release_conversation_attachments(db: Session, user_id: str, conversation_id: str) -> int:
+    """Free the bytes of the attachments a deleted conversation had sent.
+
+    Deleting a conversation is an explicit, user-initiated removal, so keeping
+    megabytes of that conversation's uploads against a 100 MB quota would punish
+    the user for tidying up. Only bytes are freed; the messages and their
+    attachment metadata survive.
+    """
+    ids = attachment_ids_for_conversation(db, user_id, conversation_id)
+    if not ids:
+        return 0
+    freed = 0
+    rows = db.query(AgentAttachmentRecord).filter(
+        AgentAttachmentRecord.user_id == user_id,
+        AgentAttachmentRecord.id.in_(ids),
+        AgentAttachmentRecord.size > 0,
+    ).all()
+    for row in rows:
+        row.payload = b""
+        row.extracted_text = ""
+        row.size = 0
+        freed += 1
+    if freed:
+        db.commit()
+    return freed
 
 
 def _prepare_image(raw: bytes) -> tuple[str, str, str, bytes]:
@@ -154,6 +221,49 @@ def prepare_file(name: str, raw: bytes) -> tuple[str, str, str, bytes]:
     return "file", mime, text, raw
 
 
+def referenced_attachment_ids(db: Session, user_id: str) -> set[str]:
+    """Every attachment id this user's messages carry, in one pass."""
+    ids: set[str] = set()
+    rows = db.query(AgentMessage.context_json).filter_by(user_id=user_id).all()
+    for (context,) in rows:
+        for item in (context or {}).get("attachments", []) or []:
+            if isinstance(item, dict) and item.get("id"):
+                ids.add(str(item["id"]))
+    return ids
+
+
+def release_stale_uploads(db: Session, user_id: str, *, older_than_hours: int = 24) -> int:
+    """Free uploads that were never sent anywhere and are no longer being composed.
+
+    An upload the user abandoned still counts against the allowance while being
+    invisible: it is not in the composer (that state is gone) and not in any
+    message. Reclaiming those is what makes a full allowance recoverable without
+    the user having to find something to delete.
+    """
+    cutoff = utcnow() - timedelta(hours=older_than_hours)
+    referenced = referenced_attachment_ids(db, user_id)
+    rows = (
+        db.query(AgentAttachmentRecord)
+        .filter(
+            AgentAttachmentRecord.user_id == user_id,
+            AgentAttachmentRecord.size > 0,
+            AgentAttachmentRecord.created_at < cutoff,
+        )
+        .all()
+    )
+    freed = 0
+    for row in rows:
+        if row.id in referenced:
+            continue
+        row.payload = b""
+        row.extracted_text = ""
+        row.size = 0
+        freed += 1
+    if freed:
+        db.commit()
+    return freed
+
+
 def save_attachment(db: Session, user: User, name: str, raw: bytes) -> dict:
     name = name.replace("\\", "/").split("/")[-1]
     name = "".join(c for c in name if ord(c) >= 32)[:160]
@@ -168,6 +278,12 @@ def save_attachment(db: Session, user: User, name: str, raw: bytes) -> dict:
     # Serialize quota checks on the tenant row so concurrent uploads cannot exceed it.
     db.query(User).filter_by(id=user.id).with_for_update().one()
     used = db.query(func.coalesce(func.sum(AgentAttachmentRecord.size), 0)).filter_by(user_id=user.id).scalar()
+    if used + len(payload) > MAX_USER_BYTES:
+        # An allowance spent on uploads the user abandoned and can no longer see
+        # is reclaimed before the upload is refused: refusing outright would be a
+        # dead end with nothing for the user to act on.
+        release_stale_uploads(db, user.id)
+        used = db.query(func.coalesce(func.sum(AgentAttachmentRecord.size), 0)).filter_by(user_id=user.id).scalar()
     if used + len(payload) > MAX_USER_BYTES:
         raise ValueError("ATTACHMENT_STORAGE_LIMIT")
     row = AgentAttachmentRecord(user_id=user.id, name=name, mime=mime, kind=kind,
@@ -187,8 +303,21 @@ def resolve_attachments(db: Session, user_id: str, items: list[dict]) -> list[di
         if not isinstance(item, dict):
             raise ValueError("ATTACHMENT_INVALID")
         if item.get("id"):
-            row = owned_attachment(db, user_id, str(item["id"]))
-            result.append({**attachment_metadata(row), "content": row.extracted_text})
+            row = (
+                db.query(AgentAttachmentRecord)
+                .filter_by(id=str(item["id"]), user_id=user_id)
+                .one_or_none()
+            )
+            if row is None:
+                # The draft it belonged to was deleted before this turn was sent.
+                # A tidied-up draft must not fail the send.
+                continue
+            metadata = attachment_metadata(row)
+            if metadata["removed"]:
+                # A deliberately freed file is not evidence the model should see,
+                # and re-uploading it is not our decision to make.
+                continue
+            result.append({**metadata, "content": row.extracted_text})
         else:
             # Existing clients and historical inline text remain supported.
             content = str(item.get("content", ""))
@@ -206,6 +335,8 @@ def image_urls(db: Session, user_id: str, items: list[dict]) -> list[str]:
     for item in items:
         if item.get("kind") == "image" and item.get("id"):
             row = owned_attachment(db, user_id, item["id"])
+            if not row.payload:
+                continue  # freed by its owner; the turn simply carries no pixels
             if hashlib.sha256(row.payload).hexdigest() != row.sha256:
                 raise ValueError("ATTACHMENT_INTEGRITY_ERROR")
             urls.append(f"data:{row.mime};base64," + base64.b64encode(row.payload).decode())

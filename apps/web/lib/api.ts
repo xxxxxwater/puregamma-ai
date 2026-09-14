@@ -1156,7 +1156,7 @@ export function getDataSourcePreview(providerId: string) {
 export type AgentConversation = { permission_mode?: AgentPermissionMode; id: string; title: string; summary?: string | null; status: string; created_at: string; updated_at: string; archived_at?: string | null };
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
 export type AgentPermissionMode = "read-only" | "workspace-write" | "full-access";
-export type AgentAttachment = { id?: string; name: string; content: string; mime: string; size?: number; kind?: string; url?: string; sha256?: string };
+export type AgentAttachment = { id?: string; name: string; content: string; mime: string; size?: number; kind?: string; url?: string; sha256?: string; removed?: boolean };
 export type SkillContextRef = { skill_id: string; slug: string; version: string; installation_id?: string | null };
 export type AgentRuntimePlan = {
   intent: string;
@@ -2401,6 +2401,12 @@ export function reactivateSubscription(locale: Locale = defaultLocale) {
 export function uploadAgentAttachment(file: File) {
   return requestStrict<{attachment: AgentAttachment}>(`/api/agent/attachments?name=${encodeURIComponent(file.name)}`, {
     method: "POST", headers: {"Content-Type": "application/octet-stream"}, body: file
+  });
+}
+/** Free a stored attachment's bytes. The record stays; the payload does not. */
+export function deleteAgentAttachment(id: string) {
+  return requestStrict<{attachment: AgentAttachment}>(`/api/agent/attachments/${encodeURIComponent(id)}`, {
+    method: "DELETE"
   });
 }
 export function setAgentPermission(id: string, permission_mode: AgentPermissionMode, acknowledge_full_access = false) {

@@ -260,7 +260,10 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
 
   const send = async (event?: FormEvent) => {
     event?.preventDefault();
-    const content = input.trim() || (attachments.length ? (zh ? "请分析所附文件。" : "Please analyze the attached files.") : "");
+    // A file the user removed is still shown (so the conversation stays honest)
+    // but must never be sent: its bytes are gone.
+    const outgoing = attachments.filter((file) => !file.removed);
+    const content = input.trim() || (outgoing.length ? (zh ? "请分析所附文件。" : "Please analyze the attached files.") : "");
     // A ref, not just the `busy` state: two submissions in the same tick would
     // both read the pre-update state and start two runs.
     if (!content || busy || uploading || sendingRef.current) return;
@@ -284,7 +287,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       setInput("");
       const now = new Date().toISOString();
       const skillRefs: SkillContextRef[] = skillCatalog.filter((skill) => skills.includes(skill.skill_id)).map((skill) => ({ skill_id: skill.skill_id, slug: skill.slug, version: skill.current_version, installation_id: skill.installation_id }));
-      const context = { research_mode: researchMode, data_sources: researchMode ? dataSources : [], skills: researchMode ? skillRefs : [], skill_refs: researchMode ? skillRefs : [], custom_prompt: researchMode ? customPrompt : "", attachments, model: selectedModel, permission_mode: permission };
+      const context = { research_mode: researchMode, data_sources: researchMode ? dataSources : [], skills: researchMode ? skillRefs : [], skill_refs: researchMode ? skillRefs : [], custom_prompt: researchMode ? customPrompt : "", attachments: outgoing, model: selectedModel, permission_mode: permission };
       setMessages((current) => [...current, { id: `local-${Date.now()}`, conversation_id: id, role: "user", content, status: "completed", input_tokens: 0, output_tokens: 0, created_at: now, context, sources: [] }]);
       const controller = new AbortController();
       controllerRef.current = controller;

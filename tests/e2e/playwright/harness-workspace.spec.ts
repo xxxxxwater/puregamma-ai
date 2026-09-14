@@ -75,7 +75,15 @@ for (const theme of ["light", "dark"]) {
     let uploaded = false;
     await page.route(`${API}/api/agent/attachments?*`, async r => {
       expect(r.request().postData()).toBe("attachment body"); uploaded = true;
-      await r.fulfill({json: {attachment: {id:"a1", name:"notes.txt", mime:"text/plain", size:15, kind:"file", content:"", url:"/api/agent/attachments/a1/content"}}});
+      await r.fulfill({json: {attachment: {id:"a1", name:"notes.txt", mime:"text/plain", size:15, kind:"file", content:"", removed:false, url:"/api/agent/attachments/a1/content"}}});
+    });
+    // Removing a stored file frees its bytes; the card stays, marked as removed,
+    // so the allowance shrinking always has a visible cause.
+    let deleted = false;
+    await page.route(`${API}/api/agent/attachments/a1`, async r => {
+      if (r.request().method() !== "DELETE") { await r.fulfill({json: {}}); return; }
+      deleted = true;
+      await r.fulfill({json: {attachment: {id:"a1", name:"notes.txt", mime:"text/plain", size:0, kind:"file", content:"", removed:true, url:""}}});
     });
     let permission = "workspace-write";
     await page.route(`${API}/api/agent/conversations/c1`, async r => {
@@ -92,10 +100,25 @@ for (const theme of ["light", "dark"]) {
     await page.locator('input[type="file"]').setInputFiles({name:"notes.txt", mimeType:"text/plain", buffer:Buffer.from("attachment body")});
     await expect(page.getByRole("link", {name:"notes.txt"})).toBeVisible(); expect(uploaded).toBe(true);
     await page.getByRole("button", {name:"移除: notes.txt"}).click();
+    expect(deleted).toBe(true);
     await expect(page.getByRole("link", {name:"notes.txt"})).toHaveCount(0);
+    await expect(page.getByText("已移除")).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth - innerWidth)).toBeLessThanOrEqual(1);
     const composer = await page.getByTestId("harness-composer").boundingBox();
     expect(composer!.y + composer!.height).toBeLessThanOrEqual(page.viewportSize()!.height);
     await page.screenshot({path:`../../.preview-harness-${theme}-${page.viewportSize()!.width}.png`, fullPage:true});
   });
 }
+
+test("a full storage allowance is reported as storage, not as a bad format", async ({page}) => {
+  await stub(page);
+  await page.route(`${API}/api/agent/workspace-capabilities`, r => r.fulfill({json: {max_file_bytes: 10485760, max_files: 8, file_types: ["txt"]}}));
+  await page.route(`${API}/api/agent/attachments?*`, r => r.fulfill({status: 400, json: {detail: "ATTACHMENT_STORAGE_LIMIT"}}));
+  await page.goto("/zh/chat/c1");
+  await page.locator('input[type="file"]').setInputFiles({name:"too-much.txt", mimeType:"text/plain", buffer:Buffer.from("x")});
+  const alert = page.getByRole("alert").filter({ hasText: "存储额度已满" });
+  await expect(alert).toBeVisible();
+  await expect(page.getByRole("alert").filter({ hasText: "请检查文件格式" })).toHaveCount(0);
+  // The failed upload stays retryable rather than being silently dropped.
+  await expect(page.getByRole("button", {name:"重试: too-much.txt"})).toBeVisible();
+});

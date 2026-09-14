@@ -8,7 +8,7 @@ import pytest
 from PIL import Image
 from tests.conftest import auth_headers
 from apps.api.services.agent_service import stream_run
-from apps.api.services.chat_workspace import prepare_file, resolve_attachments, tool_permission
+from apps.api.services.chat_workspace import owned_attachment, prepare_file, resolve_attachments, tool_permission
 from packages.database.models import AgentAttachmentRecord, AgentConversation, AgentMessage, AgentRun, AgentToolCall, utcnow
 
 
@@ -23,12 +23,106 @@ def test_upload_download_and_tenant_isolation(api_client, db, normal_user, max_u
     assert api_client.get(item["url"], headers=auth_headers(max_user)).status_code == 404
     resolved = resolve_attachments(db, normal_user.id, [{"id": item["id"], "content": "forged", "name": "forged"}])
     assert resolved[0]["content"] == "durable user notes"
+    # Ownership is enforced by the lookup every read path goes through; the send
+    # path deliberately SKIPS an attachment it cannot resolve (a draft whose file
+    # was deleted must not fail the turn) rather than reporting it as present.
     with pytest.raises(LookupError):
-        resolve_attachments(db, max_user.id, [item])
+        owned_attachment(db, max_user.id, item["id"])
+    assert resolve_attachments(db, max_user.id, [{"id": item["id"]}]) == []
+    assert resolve_attachments(db, normal_user.id, [{"id": "does-not-exist"}]) == []
     row = db.get(AgentAttachmentRecord, item["id"])
     row.payload = b"corrupted"
     db.commit()
     assert api_client.get(item["url"], headers=headers).status_code == 409
+
+
+def test_an_attachment_can_be_removed_and_frees_its_allowance(api_client, db, normal_user, max_user):
+    """Quota is measured in stored bytes, so something has to release them.
+
+    Before this existed the ceiling was a dead end: every later upload answered
+    400 ATTACHMENT_STORAGE_LIMIT with no way for the account to recover.
+    """
+    headers = auth_headers(normal_user)
+    item = api_client.post("/api/agent/attachments?name=big.bin.txt", content=b"k" * 4096, headers=headers).json()["attachment"]
+    assert item["size"] == 4096
+    assert item["removed"] is False
+
+    assert api_client.delete(f"/api/agent/attachments/{item['id']}", headers=auth_headers(max_user)).status_code == 404
+    removed = api_client.delete(f"/api/agent/attachments/{item['id']}", headers=headers)
+    assert removed.status_code == 200, removed.text
+    body = removed.json()["attachment"]
+    assert body["removed"] is True
+    assert body["size"] == 0
+    assert body["url"] == "", "a freed file must not advertise a download link"
+
+    # The record survives (a historical message still names what was sent) but
+    # the bytes are gone and the download says so rather than 409-ing.
+    row = db.get(AgentAttachmentRecord, item["id"])
+    assert row is not None and row.payload == b"" and row.extracted_text == ""
+    assert api_client.get(f"/api/agent/attachments/{item['id']}/content", headers=headers).status_code == 410
+
+    # A draft pointing at the freed file is skipped, and the turn still starts.
+    assert resolve_attachments(db, normal_user.id, [{"id": item["id"]}]) == []
+
+    # And the freed space is usable again.
+    again = api_client.post("/api/agent/attachments?name=again.txt", content=b"y" * 4096, headers=headers)
+    assert again.status_code == 200, again.text
+
+
+def test_an_abandoned_upload_is_reclaimed_instead_of_blocking_the_account(api_client, db, normal_user, monkeypatch):
+    """An upload nobody sent is invisible and still counted: reclaim it.
+
+    Otherwise a user who hits the ceiling with drafts they cannot see has nothing
+    to act on, and the only symptom is a 400 on every later upload.
+    """
+    import apps.api.services.chat_workspace as workspace
+
+    headers = auth_headers(normal_user)
+    # One referenced attachment (must survive, 4 bytes) and one abandoned draft
+    # (30 bytes) inside a 15-byte allowance: the draft has to go for the new
+    # 8-byte upload to fit, and the referenced file must not be touched.
+    sent = api_client.post("/api/agent/attachments?name=sent.txt", content=b"kept", headers=headers).json()["attachment"]
+    draft = api_client.post("/api/agent/attachments?name=draft.txt", content=b"a" * 30, headers=headers).json()["attachment"]
+    conversation = api_client.post("/api/agent/conversations", json={}, headers=headers).json()["conversation"]
+    api_client.post(
+        f"/api/agent/conversations/{conversation['id']}/messages",
+        json={"content": "read", "attachments": [{"id": sent["id"]}], "research_mode": True},
+        headers=headers,
+    )
+    # Age both past the staleness window and make the allowance effectively full.
+    old = utcnow() - timedelta(hours=48)
+    for item in (sent, draft):
+        row = db.get(AgentAttachmentRecord, item["id"])
+        row.created_at = old
+    db.commit()
+    monkeypatch.setattr(workspace, "MAX_USER_BYTES", 15)
+
+    fresh = api_client.post("/api/agent/attachments?name=fresh.txt", content=b"fresh by", headers=headers)
+    assert fresh.status_code == 200, fresh.text
+    assert db.get(AgentAttachmentRecord, sent["id"]).size > 0, "a referenced attachment must never be reclaimed"
+    assert db.get(AgentAttachmentRecord, draft["id"]).size == 0, "the abandoned draft should have been freed"
+
+
+def test_deleting_a_conversation_releases_the_attachments_it_sent(api_client, db, normal_user):
+    headers = auth_headers(normal_user)
+    conversation = api_client.post("/api/agent/conversations", json={}, headers=headers).json()["conversation"]
+    item = api_client.post("/api/agent/attachments?name=sent.txt", content=b"sent bytes", headers=headers).json()["attachment"]
+    stream = api_client.post(
+        f"/api/agent/conversations/{conversation['id']}/messages",
+        json={"content": "read it", "attachments": [{"id": item["id"]}], "research_mode": True},
+        headers=headers,
+    )
+    assert stream.status_code == 200, stream.text
+    assert db.get(AgentAttachmentRecord, item["id"]).size > 0
+
+    deleted = api_client.delete(f"/api/agent/conversations/{conversation['id']}", headers=headers)
+    assert deleted.status_code == 200, deleted.text
+    assert deleted.json()["attachments_released"] == 1
+    row = db.get(AgentAttachmentRecord, item["id"])
+    assert row.size == 0 and row.payload == b""
+    # The message still exists: deleting a conversation never destroys history
+    # rows, it only stops them counting against the allowance.
+    assert db.query(AgentMessage).filter_by(conversation_id=conversation["id"]).count() > 0
 
 
 def test_file_validation_and_image_normalization():
