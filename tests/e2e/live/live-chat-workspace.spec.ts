@@ -10,13 +10,15 @@
  *  - does a real uploaded file come back as a card with a working link?
  *  - does the permission selector report what the server stored?
  *
- * Two constraints shape this file. The API rate-limits writes per client
- * (EXPENSIVE_RATE_LIMIT_PER_MINUTE, 20/min in production), so the run makes as
- * few uploads as it can and retries a 429 instead of failing. And a real signup
- * needs a captcha, so LIVE_TOKEN is minted server-side for a disposable account
- * by deploy/release-live-session.sh; the account only ever touches its own rows.
+ * Two constraints shape this file. The API rate-limits per client — 120 requests
+ * and 20 writes per minute in production, now correctly keyed per visitor — so
+ * the run makes as few uploads as it can, retries a 429 instead of failing, and
+ * retries a page load that a 429 turned into a capability-less composer. And a
+ * real signup needs a captcha, so LIVE_TOKEN is minted server-side for a
+ * disposable account by deploy/release-live-session.sh; the account only ever
+ * touches its own rows.
  */
-import { expect, request, test, type APIResponse } from "@playwright/test";
+import { expect, request, test, type APIResponse, type Page } from "@playwright/test";
 
 const BASE = (process.env.LIVE_BASE_URL || "https://app.puregamma.ai").replace(/\/+$/, "");
 const TOKEN = process.env.LIVE_TOKEN || "";
@@ -34,19 +36,49 @@ const PNG = Buffer.from(
   "base64",
 );
 
+const RETRY_LIMIT = 4;
+const MAX_WAIT_SECONDS = 65;
+
 function auth() {
   return { Authorization: `Bearer ${TOKEN}` };
 }
 
-/** Retry a 429 (per-client write budget) rather than reporting it as a defect. */
+function sleep(seconds: number) {
+  return new Promise((resolve) => setTimeout(resolve, seconds * 1000));
+}
+
+/** Retry a 429 (per-client request budget) rather than reporting it as a defect. */
 async function withinRateLimit(send: () => Promise<APIResponse>): Promise<APIResponse> {
   let response = await send();
-  for (let attempt = 0; attempt < 4 && response.status() === 429; attempt += 1) {
-    const retryAfter = Number(response.headers()["retry-after"] || "60");
-    await new Promise((resolve) => setTimeout(resolve, Math.min(retryAfter, 65) * 1000));
+  for (let attempt = 0; attempt < RETRY_LIMIT && response.status() === 429; attempt += 1) {
+    await sleep(Math.min(Number(response.headers()["retry-after"] || "60"), MAX_WAIT_SECONDS));
     response = await send();
   }
   return response;
+}
+
+/**
+ * Open a page and wait until the app is actually usable.
+ *
+ * A 429 on the capability call leaves the composer mounted with its add-file
+ * button permanently disabled, which is a rate limit, not a broken deployment.
+ * The tell is an `alert`, so the page is reloaded after the window instead of
+ * asserting against a composer that could never have worked.
+ */
+async function openChat(page: Page, path: string) {
+  for (let attempt = 0; ; attempt += 1) {
+    await page.goto(`${BASE}${path}`);
+    try {
+      await expect(page.getByTestId("harness-composer")).toBeVisible({ timeout: 30_000 });
+      const add = page.getByRole("button", { name: "添加文件" });
+      await expect(add).toBeVisible({ timeout: 20_000 });
+      await expect(add).toBeEnabled({ timeout: 10_000 });
+      return;
+    } catch (error) {
+      if (attempt >= RETRY_LIMIT) throw error;
+      await sleep(MAX_WAIT_SECONDS);
+    }
+  }
 }
 
 test.describe("live chat workspace", () => {
@@ -67,8 +99,10 @@ test.describe("live chat workspace", () => {
       },
     ]);
 
-    await page.goto(`${BASE}/zh/chat`);
-    await expect(page.getByTestId("harness-composer"), "the chat workspace did not mount").toBeVisible({ timeout: 20000 });
+    // Open the chat only once the composer is usable: a 429 on the capability
+    // call leaves the add-file button disabled forever, which is a rate limit
+    // rather than a broken deployment.
+    await openChat(page, "/zh/chat");
     await expect(page).not.toHaveURL(/\/login/);
 
     // The permission selector must report what the server stored, not a default.
@@ -76,11 +110,7 @@ test.describe("live chat workspace", () => {
     await expect(permission).toBeVisible();
     await expect(permission).toHaveValue("workspace-write");
 
-    // The add-file button stays disabled until the workspace policy has loaded,
-    // and a click on a disabled control is silently ignored. Waiting for it is
-    // what makes this spec test the upload instead of racing it.
     const fileInput = page.locator('input[type="file"]');
-    await expect(page.getByRole("button", { name: "添加文件" })).toBeEnabled({ timeout: 30000 });
 
     // A text attachment: upload, then read the same bytes back from the API host.
     const stamp = Date.now().toString(36);
@@ -141,8 +171,7 @@ test.describe("live chat workspace", () => {
 
     const stamp = Date.now().toString(36);
     const name = `space-${stamp}.txt`;
-    await page.goto(`${BASE}/zh/chat`);
-    await expect(page.getByRole("button", { name: "添加文件" })).toBeEnabled({ timeout: 30000 });
+    await openChat(page, "/zh/chat");
 
     // An image attachment is stored as an image and handed back byte-for-byte.
     const upload = await withinRateLimit(() =>
