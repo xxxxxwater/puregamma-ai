@@ -330,8 +330,19 @@ def resolve_attachments(db: Session, user_id: str, items: list[dict]) -> list[di
     return result
 
 
-def image_urls(db: Session, user_id: str, items: list[dict]) -> list[str]:
-    urls = []
+#: Bytes of image payload one turn may carry into the model. Measured, not
+#: guessed: a 2048px dense screenshot is ~600 KB of JPEG, which base64 turns into
+#: ~830 KB and the provider bills as roughly 200k input tokens. Four of those is
+#: most of a 1M-token window, so the turn stops collecting images at 3 MB and says
+#: how many it left out instead of sending a request that cannot fit.
+MAX_IMAGE_CONTEXT_BYTES = int(os.getenv("AGENT_IMAGE_CONTEXT_BYTES", str(3 * 1024 * 1024)))
+
+
+def image_urls(db: Session, user_id: str, items: list[dict], *, max_bytes: int | None = None) -> list[str]:
+    """Decode the image attachments of one turn, respecting the turn's budget."""
+    budget = MAX_IMAGE_CONTEXT_BYTES if max_bytes is None else max_bytes
+    urls: list[str] = []
+    used = 0
     for item in items:
         if item.get("kind") == "image" and item.get("id"):
             row = owned_attachment(db, user_id, item["id"])
@@ -339,5 +350,17 @@ def image_urls(db: Session, user_id: str, items: list[dict]) -> list[str]:
                 continue  # freed by its owner; the turn simply carries no pixels
             if hashlib.sha256(row.payload).hexdigest() != row.sha256:
                 raise ValueError("ATTACHMENT_INTEGRITY_ERROR")
+            if used + len(row.payload) > budget:
+                continue  # over this turn's image budget; the text still goes
+            used += len(row.payload)
             urls.append(f"data:{row.mime};base64," + base64.b64encode(row.payload).decode())
     return urls
+
+
+def image_names(items: list[dict]) -> list[str]:
+    """Names of the image attachments in a stored turn, in stored order.
+
+    Used to report which images the turn's budget left out: the caller compares
+    this with the number of URLs that actually got decoded.
+    """
+    return [str(item.get("name") or "image") for item in items if item.get("kind") == "image" and item.get("id")]

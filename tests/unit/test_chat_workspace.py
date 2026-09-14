@@ -191,6 +191,54 @@ def test_only_one_turn_in_the_window_carries_pixels(db, normal_user):
     assert all(not message.images for message in _context_messages(db, conversation, turns[2].id))
 
 
+def test_an_image_over_the_turn_budget_is_left_out_instead_of_breaking_the_request(db, normal_user, monkeypatch):
+    """A turn's images are capped by bytes, and the cap is observable.
+
+    A 2048px dense screenshot is roughly 200k input tokens once base64-encoded, so
+    an unbounded turn can be asked to send a request the model's window cannot
+    hold. The turn keeps what fits and reports what it dropped.
+    """
+    import apps.api.services.chat_workspace as workspace
+
+    def stored_image(name: str, size: int) -> AgentAttachmentRecord:
+        payload = io.BytesIO()
+        Image.new("RGB", (16, 16), "blue").save(payload, format="PNG")
+        blob = payload.getvalue() + b"\x00" * max(0, size - len(payload.getvalue()))
+        return AgentAttachmentRecord(
+            user_id=normal_user.id, name=name, mime="image/png", kind="image", size=len(blob),
+            payload=blob, extracted_text="", sha256=hashlib.sha256(blob).hexdigest(),
+        )
+
+    small = stored_image("small.png", 1024)
+    large = stored_image("large.png", 4096)
+    conversation = AgentConversation(user_id=normal_user.id, title="budget")
+    db.add_all([small, large, conversation]); db.flush()
+    turn = AgentMessage(
+        conversation_id=conversation.id, user_id=normal_user.id, role="user", content="two pictures",
+        status="completed",
+        context_json={"attachments": [
+            {"id": small.id, "name": "small.png", "kind": "image", "content": ""},
+            {"id": large.id, "name": "large.png", "kind": "image", "content": ""},
+        ]},
+    )
+    db.add(turn); db.commit()
+
+    delivered = workspace.image_urls(db, normal_user.id, turn.context_json["attachments"], max_bytes=2048)
+    assert len(delivered) == 1, "only the image that fits the budget should be sent"
+    assert workspace.image_names(turn.context_json["attachments"])[len(delivered):] == ["large.png"]
+
+    # Through the context builder the same turn still reaches the model, with the
+    # one image that fits. The budget is narrowed so the 4 KB file is the one that
+    # does not.
+    monkeypatch.setattr(workspace, "MAX_IMAGE_CONTEXT_BYTES", 2048)
+    messages = _context_messages(db, conversation, turn.id)
+    carrying = [message for message in messages if message.images]
+    assert len(carrying) == 1 and len(carrying[0].images) == 1
+    # And if the budget cannot hold even the smallest one, the turn still goes:
+    # text only, never a failure.
+    assert workspace.image_urls(db, normal_user.id, turn.context_json["attachments"], max_bytes=8) == []
+
+
 def test_deleting_a_conversation_releases_the_attachments_it_sent(api_client, db, normal_user):
     headers = auth_headers(normal_user)
     conversation = api_client.post("/api/agent/conversations", json={}, headers=headers).json()["conversation"]

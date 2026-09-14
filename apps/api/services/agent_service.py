@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from apps.api.services.chat_workspace import resolve_attachments, permission_mode, tool_permission, image_urls
+from apps.api.services.chat_workspace import resolve_attachments, permission_mode, tool_permission, image_urls, image_names
 
 import json
 import logging
@@ -644,15 +644,24 @@ def _context_messages(db: Session, conversation: AgentConversation, current_user
     # Images ride only on the NEWEST turn that carries any. A later turn with a
     # document must not make the model fall back to an earlier turn's pixels: it
     # would pay for the same image twice and read it as current evidence. One
-    # backward pass finds that turn and decodes its pixels once.
+    # backward pass finds that turn and decodes its pixels once, under that turn's
+    # byte budget — a request that cannot fit the model's window is worse than one
+    # that carries fewer pictures and says so.
     images_by_row: dict[str, list[str]] = {}
-    owner_of_images = ""
+    image_dropped: list[str] = []
     for row in reversed(rows):
-        urls = image_urls(db, conversation.user_id, _files_of(row))
+        files = _files_of(row)
+        urls = image_urls(db, conversation.user_id, files)
         if urls:
-            owner_of_images = row.id
             images_by_row[row.id] = urls
+            image_dropped = image_names(files)[len(urls):]
             break
+    if image_dropped:
+        logger.warning(
+            "image_context_budget_exceeded conversation=%s dropped=%s",
+            conversation.id,
+            ",".join(image_dropped)[:400],
+        )
 
     candidates: list[ChatMessage] = []
     for row in rows:  # oldest first
