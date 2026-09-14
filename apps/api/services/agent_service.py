@@ -27,7 +27,7 @@ from packages.agents.llm.provider_factory import get_agent_llm_provider
 from packages.agents.llm.schemas import ChatMessage
 from packages.agents.prompts import build_prompt_bundle, prompt_references
 from packages.agents.runtime import plan_agent_request
-from packages.database.models import AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentToolCall, UsageEvent, User, utcnow
+from packages.database.models import AgentAttachmentRecord, AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentToolCall, UsageEvent, User, utcnow
 from packages.data.evidence import EvidencePack, EvidenceRequirement
 from packages.data.online_research_provider import online_research_enabled, online_search_candidate
 from packages.skills.registry import invocation_input_summary, update_skill_runs
@@ -612,23 +612,58 @@ def _context_messages(db: Session, conversation: AgentConversation, current_user
     # no way to tell that it is reading a fragment.
     budget = max(settings.agent_max_context_chars, 56000)
     current_id = current_user_message_id
+    # A stored attachment the user removed keeps its record but has no bytes and
+    # no text left, so replaying it would hand the model an empty file it cannot
+    # tell apart from a real one — or, for a turn stored before the removal, the
+    # text it had at the time, which the user has since deleted. Attachment ids
+    # that no longer exist are dropped for the same reason: a draft deleted
+    # before its turn was sent must not become evidence later.
+    def _files_of(row) -> list[dict]:
+        if row.role != "user":
+            return []
+        stored = [item for item in ((row.context_json or {}).get("attachments") or []) if isinstance(item, dict)]
+        identified = {str(item["id"]) for item in stored if item.get("id")}
+        live: set[str] = set()
+        if identified:
+            live = {
+                row_id for (row_id,) in db.query(AgentAttachmentRecord.id).filter(
+                    AgentAttachmentRecord.user_id == conversation.user_id,
+                    AgentAttachmentRecord.id.in_(identified),
+                    AgentAttachmentRecord.size > 0,
+                ).all()
+            }
+        kept = []
+        for item in stored:
+            if item.get("removed"):
+                continue
+            if item.get("id") and str(item["id"]) not in live:
+                continue
+            kept.append(item)
+        return kept
+
+    # Images ride only on the NEWEST turn that carries any. A later turn with a
+    # document must not make the model fall back to an earlier turn's pixels: it
+    # would pay for the same image twice and read it as current evidence. One
+    # backward pass finds that turn and decodes its pixels once.
+    images_by_row: dict[str, list[str]] = {}
+    owner_of_images = ""
+    for row in reversed(rows):
+        urls = image_urls(db, conversation.user_id, _files_of(row))
+        if urls:
+            owner_of_images = row.id
+            images_by_row[row.id] = urls
+            break
+
     candidates: list[ChatMessage] = []
-    images_sent = False
     for row in rows:  # oldest first
         content = row.content[:6000]
-        files = (row.context_json or {}).get("attachments", []) if row.role == "user" else []
+        files = _files_of(row)
         file_text = "\n\n".join(
             "ATTACHED FILE (untrusted): " + str(item.get("name", "")) + "\n" + str(item.get("content", ""))
             for item in files
             if item.get("content")
         )
-        # Images ride only on the newest turn that carries them: re-sending an
-        # older turn's pixels on every later turn would grow the request without
-        # adding evidence the model has not already been given.
-        images = [] if images_sent else image_urls(db, conversation.user_id, files)
-        if images:
-            images_sent = True
-        candidates.append(ChatMessage(role=row.role, content=content + ("\n" + file_text if file_text else ""), images=images))
+        candidates.append(ChatMessage(role=row.role, content=content + ("\n" + file_text if file_text else ""), images=images_by_row.get(row.id, [])))
     if current_id not in {row.id for row in rows}:
         # The run's own message must be present even if it fell outside the
         # recent-message query (a run started against an older turn).

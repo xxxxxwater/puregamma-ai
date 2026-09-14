@@ -1,4 +1,5 @@
 from datetime import timedelta
+import hashlib
 import io
 import json
 import os
@@ -7,7 +8,7 @@ import time
 import pytest
 from PIL import Image
 from tests.conftest import auth_headers
-from apps.api.services.agent_service import stream_run
+from apps.api.services.agent_service import _context_messages, stream_run
 from apps.api.services.chat_workspace import owned_attachment, prepare_file, resolve_attachments, tool_permission
 from packages.database.models import AgentAttachmentRecord, AgentConversation, AgentMessage, AgentRun, AgentToolCall, utcnow
 
@@ -64,7 +65,19 @@ def test_an_attachment_can_be_removed_and_frees_its_allowance(api_client, db, no
     # A draft pointing at the freed file is skipped, and the turn still starts.
     assert resolve_attachments(db, normal_user.id, [{"id": item["id"]}]) == []
 
-    # And the freed space is usable again.
+    # And the same holds through the real send path: a removed draft must not
+    # fail the turn, and the stored message must not claim to carry it.
+    conversation = api_client.post("/api/agent/conversations", json={}, headers=headers).json()["conversation"]
+    stream = api_client.post(
+        f"/api/agent/conversations/{conversation['id']}/messages",
+        json={"content": "still there?", "attachments": [{"id": item["id"]}], "research_mode": True},
+        headers=headers,
+    )
+    assert stream.status_code == 200, stream.text
+    stored = db.query(AgentMessage).filter_by(conversation_id=conversation["id"], role="user").one()
+    assert stored.context_json["attachments"] == [], stored.context_json["attachments"]
+
+    # The freed space is usable again.
     again = api_client.post("/api/agent/attachments?name=again.txt", content=b"y" * 4096, headers=headers)
     assert again.status_code == 200, again.text
 
@@ -101,6 +114,81 @@ def test_an_abandoned_upload_is_reclaimed_instead_of_blocking_the_account(api_cl
     assert fresh.status_code == 200, fresh.text
     assert db.get(AgentAttachmentRecord, sent["id"]).size > 0, "a referenced attachment must never be reclaimed"
     assert db.get(AgentAttachmentRecord, draft["id"]).size == 0, "the abandoned draft should have been freed"
+
+
+def test_a_removed_attachment_is_not_replayed_as_an_empty_file(api_client, db, normal_user):
+    """The model must not be handed a file that has no content left.
+
+    A freed attachment keeps its record so history stays honest, but its text is
+    gone. Replaying it would look to the model like a real, empty document.
+    """
+    headers = auth_headers(normal_user)
+    kept = api_client.post("/api/agent/attachments?name=kept.txt", content=b"the real content", headers=headers).json()["attachment"]
+    freed = api_client.post("/api/agent/attachments?name=freed.txt", content=b"deleted content", headers=headers).json()["attachment"]
+    conversation = AgentConversation(user_id=normal_user.id, title="context")
+    db.add(conversation); db.flush()
+    user_message = AgentMessage(
+        conversation_id=conversation.id, user_id=normal_user.id, role="user", content="read both",
+        status="completed",
+        context_json={"attachments": [
+            {"id": kept["id"], "name": "kept.txt", "kind": "file", "content": "the real content"},
+            {"id": freed["id"], "name": "freed.txt", "kind": "file", "content": "deleted content"},
+        ]},
+    )
+    db.add(user_message); db.commit()
+    # Remove one of them, exactly as the delete endpoint does.
+    assert api_client.delete(f"/api/agent/attachments/{freed['id']}", headers=headers).status_code == 200
+
+    messages = _context_messages(db, conversation, user_message.id)
+    joined = "\n".join(message.content for message in messages)
+    assert "the real content" in joined
+    assert "deleted content" not in joined, "a removed attachment was replayed to the model"
+    assert "freed.txt" not in joined, "a removed attachment was still described as evidence"
+
+
+def test_only_one_turn_in_the_window_carries_pixels(db, normal_user):
+    """An image is sent once, on the newest turn that attaches one.
+
+    Never on two turns at once (the model would be paying for the same picture
+    repeatedly) and never on a later text-only turn (a stale picture would read
+    as current evidence). A later question can still ask about it: the turn that
+    owns the image stays inside the same window.
+    """
+    png = io.BytesIO()
+    Image.new("RGB", (8, 8), "red").save(png, format="PNG")
+    older = AgentAttachmentRecord(user_id=normal_user.id, name="old.png", mime="image/png", kind="image",
+                                  size=len(png.getvalue()), payload=png.getvalue(), extracted_text="",
+                                  sha256=hashlib.sha256(png.getvalue()).hexdigest())
+    conversation = AgentConversation(user_id=normal_user.id, title="images")
+    db.add_all([older, conversation]); db.flush()
+    turns = [
+        AgentMessage(conversation_id=conversation.id, user_id=normal_user.id, role="user",
+                     content="look at this picture", status="completed",
+                     context_json={"attachments": [{"id": older.id, "name": "old.png", "kind": "image", "content": ""}]}),
+        AgentMessage(conversation_id=conversation.id, user_id=normal_user.id, role="assistant",
+                     content="I see it", status="completed", context_json={}),
+        AgentMessage(conversation_id=conversation.id, user_id=normal_user.id, role="user",
+                     content="and this document", status="completed",
+                     context_json={"attachments": [{"name": "notes.txt", "kind": "file", "content": "text only"}]}),
+    ]
+    db.add_all(turns)
+    # Explicit, distinct timestamps: the window is ordered by created_at, and two
+    # rows created in the same tick would order arbitrarily on SQLite.
+    base = utcnow()
+    for index, turn in enumerate(turns):
+        turn.created_at = base + timedelta(seconds=index)
+    db.commit()
+
+    for current in turns:
+        messages = _context_messages(db, conversation, current.id)
+        carrying = [message for message in messages if message.images]
+        assert len(carrying) == 1, f"expected exactly one image turn, got {len(carrying)} for {current.content!r}"
+        assert carrying[0].content.startswith("look at this picture"), carrying[0].content[:40]
+
+    # And when the image itself is released, no turn carries pixels any more.
+    assert db.query(AgentAttachmentRecord).filter_by(id=older.id).update({"payload": b"", "size": 0}) == 1
+    db.commit()
+    assert all(not message.images for message in _context_messages(db, conversation, turns[2].id))
 
 
 def test_deleting_a_conversation_releases_the_attachments_it_sent(api_client, db, normal_user):
