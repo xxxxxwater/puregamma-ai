@@ -26,7 +26,9 @@ echo "--- 1. fetch the mirror ---"
 git --git-dir="$MIRROR" fetch --prune origin '+refs/heads/*:refs/remotes/origin/*'
 FULL="$(git --git-dir="$MIRROR" rev-parse "$REF")"
 echo "mirror $REF = $FULL"
-if [ "${FULL:0:8}" != "$SHORT" ]; then
+# Compare over the length the caller supplied, so a 7- and an 8-character short
+# SHA both work: the earlier fixed 8-character slice accepted only one of them.
+if [ "${FULL:0:${#SHORT}}" != "$SHORT" ]; then
   echo "ERROR: mirror main is ${FULL:0:8}, expected $SHORT — refusing to build the wrong commit."
   exit 1
 fi

@@ -226,11 +226,27 @@ try:
     print("approval-for-unknown-call", status)
     assert status == 404, status
 
+    # The allowance must be reclaimable, or the ceiling is a dead end: an
+    # attachment the account cannot delete is an attachment it can never replace.
+    status, removed = call("DELETE", "/api/agent/attachments/" + attachment_id, token=token)
+    print("delete-attachment", status, str(removed)[:160])
+    assert status == 200 and removed["attachment"]["removed"] is True, removed
+    assert removed["attachment"]["url"] == "", removed
+    status, gone = call("GET", "/api/agent/attachments/" + attachment_id + "/content", token=token)
+    print("download-after-removal", status, str(gone)[:80])
+    assert status == 410, status
+    status, again = call("POST", "/api/agent/attachments?name=after-removal.txt", token=token,
+                         raw=b"space reclaimed", ctype="application/octet-stream")
+    print("upload-after-removal", status, str(again)[:120])
+    assert status == 200, again
+
     print("counts", {
         "users": session.query(User).count(),
         "conversations": session.query(AgentConversation).count(),
         "messages": session.query(AgentMessage).count(),
         "attachments": session.query(AgentAttachmentRecord).count(),
+        "still_storing_bytes": session.query(AgentAttachmentRecord)
+            .filter(AgentAttachmentRecord.user_id == user_id, AgentAttachmentRecord.size > 0).count(),
     })
     print("VERIFY_OK")
 finally:
@@ -240,10 +256,15 @@ finally:
     session.query(AgentMessage).filter(AgentMessage.user_id == user_id).delete(synchronize_session=False)
     session.query(AgentRun).filter(AgentRun.user_id == user_id).delete(synchronize_session=False)
     session.query(AgentConversation).filter(AgentConversation.user_id == user_id).delete(synchronize_session=False)
+    # Attachments are owned by the user row, so they outlive a `users` delete
+    # unless they are removed first: the first run of this left two behind.
+    session.query(AgentAttachmentRecord).filter(AgentAttachmentRecord.user_id == user_id).delete(synchronize_session=False)
     session.query(User).filter(User.id == user_id).delete(synchronize_session=False)
     session.commit()
-    print("cleaned up, disposable rows left:",
-          session.query(User).filter(User.email == email).count())
+    print("cleaned up:",
+          "users left", session.query(User).filter(User.email == email).count(),
+          "| attachment rows left for that account",
+          session.query(AgentAttachmentRecord).filter(AgentAttachmentRecord.user_id == user_id).count())
     session.close()
 PY
 

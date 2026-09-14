@@ -7,12 +7,29 @@
 # downgrade deliberately refuses to drop the attachments table. Older images
 # ignore the new table and the new columns, so a code rollback is safe while the
 # schema stays at 0032.
+#
+# Data safety on the way back: a version that predates the attachment endpoints
+# cannot serve or release the files already stored, so those rows are left
+# exactly as they are. Nothing here deletes data.
 set -Eeuo pipefail
 
-PIN="${1:?usage: release-rollback.sh /puregamma/override-<stamp>.yml}"
+PIN="${1:?usage: release-rollback.sh /puregamma/override-<stamp>-before-<short>.yml}"
 [ -f "$PIN" ] || { echo "ERROR: pin file $PIN not found"; exit 1; }
-BUILD=/puregamma/build-6a9e924f
+
+# The compose context only needs to exist and carry .env + the compose files;
+# which build-* directory it is does not change the pinned images. Prefer the
+# directory the pin names, then the newest one that is complete.
+BUILD="${BUILD_DIR:-}"
+if [ -z "$BUILD" ]; then
+  named="$(basename "$PIN" | sed -n 's/.*-\([0-9a-f]\{7,40\}\)\.yml$/\1/p')"
+  for candidate in "/puregamma/build-$named" /puregamma/build-*; do
+    [ -f "$candidate/docker-compose.production.yml" ] && [ -f "$candidate/.env" ] && { BUILD="$candidate"; break; }
+  done
+fi
+[ -n "${BUILD:-}" ] || { echo "ERROR: no usable build directory found (set BUILD_DIR)"; exit 1; }
+BUILD="$(ls -d "$BUILD" | tail -1)"
 cd "$BUILD"
+echo "using compose context: $BUILD"
 
 echo "=== rolling back to the pins in $PIN ==="
 cat "$PIN"

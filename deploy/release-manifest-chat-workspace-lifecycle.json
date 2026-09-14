@@ -1,0 +1,72 @@
+{
+  "release": "chat-workspace-attachment-lifecycle",
+  "generated_at": "2026-09-14T03:05:00+00:00",
+  "supersedes": "chat-workspace-permissions-and-attachments (15f7b9d5), which stays in the repository manifest as the feature release this one repairs",
+  "authority": "actual container image IDs, docker image inspect of the artifacts, a live contract check driven from inside the compose network, a real-browser acceptance run against https://app.puregamma.ai, and the database's own row counts; image TAGS are not treated as evidence",
+  "source": {
+    "commit": "8c165132",
+    "commits": [
+      "5d0b8f2f fix(chat): let a stored attachment be removed, and clean up what nobody kept",
+      "8c165132 test(chat): keep the attachment-lifecycle probe that found the quota dead end"
+    ],
+    "pushed_to": "github.com:xxxxxwater/puregamma-ai.git refs/heads/main"
+  },
+  "why": {
+    "reported_as": "保留数据 + 一些微小的问题 (preserve the data, and fix the smaller problems)",
+    "found_by": "scripts/probe_chat_workspace.py, a probe that drives the real endpoints through a session and prints what happens",
+    "defect": "the 100 MB attachment allowance was a one-way door. Quota is measured in stored bytes and NOTHING released them: DELETE /api/agent/attachments/{id} did not exist (404), no screen listed a user's uploads, and a user who reached the ceiling received 400 ATTACHMENT_STORAGE_LIMIT on every later upload with nothing to act on. Deleting a conversation did not release the bytes its attachments held either.",
+    "second_defect": "a draft the user abandoned (uploaded, never sent) stayed stored forever while being invisible, and the composer's remove button only dropped it from local state, leaving the bytes behind."
+  },
+  "what_changed": [
+    "DELETE /api/agent/attachments/{id} frees one of the caller's own attachments. The row survives (name, mime, kind, sha256 are what a historical message renders) while payload and extracted text are dropped, and metadata now reports removed:true with an empty url so the UI can say what happened instead of linking to a 404. Downloading a freed file answers 410 ATTACHMENT_REMOVED, not 409.",
+    "Deleting a conversation releases the bytes its own messages had sent, and returns attachments_released. History rows are untouched: only the byte count is freed.",
+    "An upload older than 24 h that no message references is reclaimed when the allowance is next exhausted, so a full account recovers without the user having to find something to delete.",
+    "The send path skips an attachment it cannot resolve instead of failing the turn: a draft whose file was deleted before sending must not become an error.",
+    "The composer's remove button now calls the API and keeps the card as 已移除/Removed; the send button ignores removed files; a full allowance reports storage rather than advising the user to check the file format; an oversize file names the limit it hit.",
+    "The build script's mirror guard compared a fixed 8-character slice, so a 7-character short SHA was rejected; it now compares over the length the caller supplied.",
+    "The rollback script hard-coded one build directory and now derives the compose context from the pin file name, falling back to the newest complete build directory.",
+    "The release-verification script cleans up agent_attachments for its disposable account, which the first run left behind."
+  ],
+  "services": {
+    "api": { "container": "puregamma-ai-api-1", "image_ref": "puregamma-ai-api:8c165132", "image_id": "sha256:c3c9ef08f5614bf2a0f3e6db1474aa7f7ac5fab24e5a54e05de6fc452003fe19", "state": "running (healthy)" },
+    "worker": { "container": "puregamma-ai-worker-1", "image_ref": "puregamma-ai-worker:8c165132", "image_id": "sha256:c3c9ef08f5614bf2a0f3e6db1474aa7f7ac5fab24e5a54e05de6fc452003fe19", "state": "running (celery ready)" },
+    "scheduler": { "container": "puregamma-ai-scheduler-1", "image_ref": "puregamma-ai-scheduler:8c165132", "image_id": "sha256:c3c9ef08f5614bf2a0f3e6db1474aa7f7ac5fab24e5a54e05de6fc452003fe19", "state": "waiting out the previous holder's pg:lock:scheduler TTL, as designed", "note": "same behaviour as the previous promote and as documented in the earlier manifest: the lock TTL (LOCK_HOLDER_TTL_SECONDS = 900) outlives the container that held it, so the new scheduler restarts until the key expires and then takes over on its own. The worker — which runs the actual scheduled tasks — starts immediately." },
+    "web": { "container": "puregamma-ai-web-1", "image_ref": "puregamma-ai-web:8c165132", "image_id": "sha256:4e7d01351edf3fd09dfe970bea7d728a23b56dd48f1baf54bcd7aabd0e62dbae", "state": "running (healthy)", "artifact_proof": "the running container's .next-build/static/chunks/7491-51cd6deb63ca4bda.js contains chat-composer-input, which is the chunk the deployed page loads" },
+    "caddy": { "changed_this_release": false },
+    "postgres": { "changed_this_release": false },
+    "redis": { "changed_this_release": false },
+    "nautilus-runtime": { "changed_this_release": false },
+    "pocket": { "changed_this_release": false }
+  },
+  "all_services_aligned": { "value": true, "source_sha": "8c165132" },
+  "database": {
+    "alembic_head": "0032_chat_workspace",
+    "migrations_run_this_release": false,
+    "note": "no schema change: the lifecycle work fits the columns 0032 already added. Released files are rows with size 0, which is why no migration was needed.",
+    "backup_before_this_release": "/var/backups/puregamma/pre-chat-workspace-20260913T174812Z.dump",
+    "data_preserved": "users 19, agent_conversations 40, agent_messages 150 — unchanged through both promotes. credit_ledger 2471. agent_attachments 0, and 0 accounts left behind from acceptance."
+  },
+  "verified_this_release": {
+    "unit_and_security": "tests/unit/test_chat_workspace.py -> 14 passed. Three of them are new and cover exactly this release: an attachment can be removed and frees its allowance; deleting a conversation releases the bytes it sent; an abandoned upload is reclaimed instead of blocking the account. tests/security/test_migration_chain.py still passes.",
+    "typecheck_and_lint": "npx tsc --noEmit clean; npx next lint 0 errors (only the pre-existing warnings)",
+    "e2e_stubbed": "chat-design 5/5, contrast-audit 10/10 (chat surface in both themes), harness-workspace 3/3 including a new case that a full allowance is reported as storage rather than as a bad file format",
+    "live_contract_in_network": "against the running api from inside the compose network: workspace-capabilities 200; create conversation returns workspace-write; full-access without acknowledgement 400; text upload round-trips; a small PNG is stored as image/png and returned byte-identical; download without a token 401; approve an unknown tool call 404; DELETE attachment 200 with removed:true and url:\"\"; download after removal 410 ATTACHMENT_REMOVED; an upload immediately afterwards 200 — the dead end is gone. The disposable account and its attachment rows were deleted in the same run.",
+    "e2e_live_browser": "2/2 passed in a real Chromium against https://app.puregamma.ai with a server-minted session cookie: the composer renders an uploaded file as a card, its link downloads the exact bytes, the remove button frees the file (410 afterwards) and keeps the card marked 已移除; and the image path stores a PNG as image/png, returns it byte-for-byte, and releasing it behaves the same way.",
+    "public_routes": "https://api.puregamma.ai/health 200; https://app.puregamma.ai/zh 200; https://app.puregamma.ai/zh/chat redirects an anonymous visitor (307); https://api.puregamma.ai/api/agent/workspace-capabilities 401 unauthenticated.",
+    "api_errors": "docker logs --since 10m puregamma-ai-api-1 | grep -icE 'traceback|exception' -> 0"
+  },
+  "predictable_side_effect": {
+    "scheduler": "after every promote the scheduler restart-loops for up to 15 minutes while the previous holder's Redis lock TTL runs out; it then acquires the lock by itself (verified twice: the lock value became this container's own hostname:pid and stayed renewed). Nothing to do, but a release report should say so instead of discovering it."
+  },
+  "follow_ups_not_shipped": [
+    "the API rate limiter keys on the peer address it sees, which in production is the Caddy container rather than the visitor, so API_RATE_LIMIT_PER_MINUTE=120 and EXPENSIVE_RATE_LIMIT_PER_MINUTE=20 are effectively per-deployment budgets. Writes (uploads, agent runs) therefore share a 20/min ceiling across all users. Pre-existing; surfaced because acceptance runs make bursts of uploads and correctly receive 429. Needs a trusted client address forwarded from Caddy.",
+    "the X login / DM bot work is still uncommitted and undeployed by design (see the earlier manifest's not_shipped_on_purpose)."
+  ],
+  "rollback": {
+    "pin_file": "/puregamma/override-20260914T023803Z-before-8c165132.yml",
+    "earlier_pins": ["/puregamma/override-20260914T023530Z-before-8c165132.yml", "/puregamma/override-20260913T180850Z-before-15f7b9d5.yml"],
+    "procedure": "bash /puregamma/release-rollback.sh /puregamma/override-20260914T023803Z-before-8c165132.yml",
+    "database": "not rolled back and not affected: no schema change in this release.",
+    "residual_risk": "rolling back to 15f7b9d5 removes the ability to delete an attachment, so the allowance becomes a one-way door again and any file already freed stays freed; rolling back to 044effcf additionally removes the attachment feature itself, leaving stored files unreachable until the new image returns. Nothing is deleted by a rollback."
+  }
+}
