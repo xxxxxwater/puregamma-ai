@@ -121,6 +121,43 @@ def release_redis_lock(name: str, token: str | None = None) -> bool:
         return False
 
 
+def reclaim_own_lock(name: str, token: str | None = None) -> bool:
+    """Take back a lock that our own process left behind when it died.
+
+    A lock recorded as ``"<hostname>:<pid>"`` can be checked against the caller's
+    own identity: if the stored owner's hostname is this process's hostname, that
+    holder cannot be a sibling instance — a sibling would have its own container
+    and therefore its own hostname. It is either this container's previous
+    incarnation (a hard kill leaves pid 1's lock behind, and the restart is also
+    pid 1, so the two are indistinguishable) or the same lock we are asking about.
+    Both mean the lock is ours to clear. Without this the container restart-loops
+    until the holder TTL expires, so one crash costs fifteen minutes of schedules
+    and looks exactly like a duplicate instance refusing to start.
+
+    A live sibling on another host is never touched, and the delete is still
+    compare-and-swap, so a lock that moved on between the read and the delete
+    survives.
+    """
+    owner = token or instance_identity()
+    host = owner.split(":")[0]
+    try:
+        from apps.api.redis_client import get_redis
+
+        client = get_redis()
+        held = client.get(lock_key(name))
+        if isinstance(held, bytes):
+            held = held.decode("utf-8", "replace")
+        if held is None or held.split(":")[0] != host:
+            return False
+        if int(client.eval(RELEASE_SCRIPT, 1, lock_key(name), held)) != 2:
+            return False
+        logger.warning("redis_lock_reclaimed name=%s stale_holder=%s taker=%s", name, held, owner)
+        return True
+    except Exception:
+        logger.warning("redis_lock_reclaim_failed name=%s", name)
+        return False
+
+
 def lock_status(name: str) -> dict[str, object]:
     """Describe the current lock for operators and deployment checks.
 

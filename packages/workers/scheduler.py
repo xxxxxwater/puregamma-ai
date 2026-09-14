@@ -1,11 +1,15 @@
 from __future__ import annotations
 
+import logging
+
 from apscheduler.schedulers.blocking import BlockingScheduler
 from apscheduler.triggers.cron import CronTrigger
 from apscheduler.triggers.interval import IntervalTrigger
 
 from apps.api.config import get_settings
 from packages.workers.celery_app import celery_app
+
+logger = logging.getLogger("puregamma.workers.scheduler")
 
 
 def enqueue(task_name: str, *args) -> None:
@@ -316,17 +320,35 @@ def main() -> None:
     from packages.workers.redis_lock import (
         LOCK_HOLDER_TTL_SECONDS,
         acquire_redis_lock,
+        reclaim_own_lock,
         release_redis_lock,
         renew_redis_lock,
     )
 
     acquired, token = acquire_redis_lock("scheduler", ttl_seconds=LOCK_HOLDER_TTL_SECONDS)
     if not acquired:
+        # The holder may be our own previous incarnation. A scheduler killed
+        # before its `finally` ran (SIGKILL, OOM, a hard redeploy) leaves the lock
+        # naming this same container, and every restart then refuses to run until
+        # the holder TTL expires — fifteen minutes of missing schedules that look
+        # exactly like a duplicate instance. reclaim_own_lock only ever deletes a
+        # lock whose owner shares this process's hostname with a different pid.
+        if reclaim_own_lock("scheduler"):
+            acquired, token = acquire_redis_lock("scheduler", ttl_seconds=LOCK_HOLDER_TTL_SECONDS)
+    if not acquired:
         raise SystemExit(
             "Another scheduler instance holds pg:lock:scheduler; refusing to "
             "start a duplicate (deploy checklist: only one scheduler may run)"
         )
-    scheduler = build_scheduler()
+    logger.info("scheduler_lock_acquired holder=%s ttl_seconds=%s", token, LOCK_HOLDER_TTL_SECONDS)
+    try:
+        scheduler = build_scheduler()
+    except BaseException:
+        # Release before propagating: a scheduler that cannot build must not leave
+        # the lock behind for its own restart to trip over.
+        logger.exception("scheduler_build_failed")
+        release_redis_lock("scheduler", token)
+        raise
     # Keep our own lock alive. This must use renew (which checks the stored
     # owner and extends the TTL): calling acquire again would be a SET NX against
     # a key we already hold, which returns False and leaves the TTL untouched, so
