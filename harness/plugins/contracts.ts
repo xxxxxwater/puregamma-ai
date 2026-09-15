@@ -1,26 +1,37 @@
 export type PureGammaCapabilityId =
   | 'auth'
+  | 'agent-chat'
   | 'market-data'
+  | 'data-sources'
   | 'research'
+  | 'research-runner'
+  | 'secretary'
+  | 'skills'
   | 'portfolio'
+  | 'portfolio-autopilot'
   | 'options'
   | 'backtest'
   | 'memory'
   | 'trading'
+  | 'trading-mandates'
+  | 'nautilus-runtime'
+  | 'pg-tsy-runtime'
   | 'notifications'
   | 'billing'
   | 'api-gateway'
+  | 'mobile-api'
   | 'admin'
 
 export type CapabilityPlane = 'host' | 'client' | 'dual'
 export type CapabilityRisk = 'read-only' | 'stateful' | 'money-movement'
 
 /**
- * Stable metadata owned by a PureGamma Harness capability package.
+ * Stable metadata owned by one PureGamma Harness capability plugin.
  *
- * This replaces the old assumption that a Next route or FastAPI router is the
- * unit of product ownership. One capability may expose tools, remotes, jobs,
- * UI slots and one or more replaceable service providers.
+ * The application shell is deliberately absent from this union: it owns only
+ * branding + conversation composition. Every former PureGamma.ai business
+ * capability, integration and backend control surface must appear here or as a
+ * provider plugin underneath one of these service definitions.
  */
 export interface PureGammaCapabilityDescriptor {
   id: PureGammaCapabilityId
@@ -29,7 +40,7 @@ export interface PureGammaCapabilityDescriptor {
   risk: CapabilityRisk
   /** Cordis/Harness service definitions consumed by other plugins. */
   services: readonly string[]
-  /** Model-facing tools registered only when the capability is healthy. */
+  /** Model-facing tools registered only while required services are healthy. */
   tools: readonly string[]
   /** Browser slot/tool-view contributions. Empty means no direct UI. */
   ui: readonly string[]
