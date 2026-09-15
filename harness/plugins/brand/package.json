@@ -28,12 +28,17 @@
     }
   },
   "scripts": {
-    "bundle": "tsdown"
+    "bundle": "tsc -p tsconfig.build.json && tsdown"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": ">=0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-conversation": ">=0.1.5-rc.2",
-    "@deepseek-ai/dsh-client-ui-renderer": ">=0.1.5-rc.2",
-    "react": ">=18"
-  }
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-client-ui-conversation": "^0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "^0.1.5-rc.2",
+    "react": "^18.2.0"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ]
 }
