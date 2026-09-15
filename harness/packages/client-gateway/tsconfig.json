@@ -10,13 +10,12 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
-    "baseUrl": ".",
     "paths": {
-      "@deepseek-ai/dsh-typert-protocol": ["./typert-host-protocol.d.ts"]
+      "@deepseek-ai/dsh-typert-protocol": ["./src/typert-host-protocol.d.ts"]
     },
     "skipLibCheck": true,
     "verbatimModuleSyntax": true,
-    "allowImportingTsExtensions": true
+    "rewriteRelativeImportExtensions": true
   },
-  "include": ["src/**/*.ts", "typert-host-protocol.d.ts"]
+  "include": ["src/**/*.ts"]
 }

@@ -31,5 +31,5 @@
     }
   },
   "include": ["packages/*/src/**/*.ts", "plugins/contracts.ts", "plugins/catalog.ts", "plugins/*/src/**/*.ts"],
-  "exclude": ["packages/*/tsdown.config.ts", "plugins/*/tsdown.config.ts", "tsdown.node.ts", "../vendor/deepseek-harness/**", "../vendor/pg-tsy-core-bootstrap/**"]
+  "exclude": ["packages/client-gateway/src/typert-host-protocol.d.ts", "packages/*/tsdown.config.ts", "plugins/*/tsdown.config.ts", "tsdown.node.ts", "../vendor/deepseek-harness/**", "../vendor/pg-tsy-core-bootstrap/**"]
 }
