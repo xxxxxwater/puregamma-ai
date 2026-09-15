@@ -1,7 +1,8 @@
 {
-  "name": "@puregamma/harness-workspace",
+  "name": "@puregamma/harness",
   "private": true,
   "version": "0.0.1",
+  "description": "PureGamma Harness — AI-native investment research and execution workspace on DeepSeek Harness",
   "type": "module",
   "packageManager": "pnpm@11.7.0",
   "engines": {
