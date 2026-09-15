@@ -75,16 +75,3 @@ export interface PureGammaQuantRuntimeView {
   blockingGates?: string[]
   lastError?: string
 }
-
-/**
- * Structural client contract for the generated PureGamma Typert Remote
- * namespace. Keeping this contract beside the Host service prevents the
- * browser assembly from depending on TypeScript module-augmentation identity
- * while the generated Remote artifact remains the runtime transport boundary.
- */
-export interface PureGammaClientRemote {
-  account(): Promise<PureGammaAccountView>
-  billing(): Promise<PureGammaBillingView>
-  notifications(): Promise<PureGammaNotificationsView>
-  quantRuntime(): Promise<PureGammaQuantRuntimeView>
-}

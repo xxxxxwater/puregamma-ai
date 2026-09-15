@@ -12,7 +12,6 @@ import type {} from '@puregamma/dsh-notifications'
 import type {} from '@puregamma/dsh-pg-tsy-runtime'
 
 export type {
-  PureGammaClientRemote,
   PureGammaAccountView,
   PureGammaBillingView,
   PureGammaNotificationsView,
