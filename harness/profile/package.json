@@ -26,6 +26,8 @@
     "@puregamma/dsh-tool-auth": "workspace:^",
     "@puregamma/dsh-billing-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-billing": "workspace:^",
+    "@puregamma/dsh-api-gateway-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-api-gateway": "workspace:^",
     "@puregamma/dsh-notifications-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-notifications": "workspace:^",
     "@puregamma/dsh-market-data-legacy-api": "workspace:^",
