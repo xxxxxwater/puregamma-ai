@@ -18,6 +18,7 @@
       "@puregamma/dsh-memory": ["./plugins/memory/src/index.ts"],
       "@puregamma/dsh-secretary": ["./plugins/secretary/src/index.ts"],
       "@puregamma/dsh-skills": ["./plugins/skills/src/index.ts"],
+      "@puregamma/dsh-research-runner": ["./plugins/research-runner/src/index.ts"],
       "@puregamma/dsh-trading": ["./plugins/trading/src/index.ts"],
       "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"]
     }
