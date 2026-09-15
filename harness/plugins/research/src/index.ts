@@ -8,13 +8,14 @@ export type ResearchKind =
   | 'opportunities'
   | 'alerts'
 
+/** Harness-compatible lossless JSON tree. */
 export type ResearchJson =
   | null
   | boolean
   | number
   | string
-  | readonly ResearchJson[]
-  | { readonly [key: string]: ResearchJson }
+  | ResearchJson[]
+  | { [key: string]: ResearchJson }
 
 export interface ResearchDocument {
   kind: ResearchKind
@@ -25,7 +26,7 @@ export interface ResearchDocument {
   /** Explicit health projection. Degraded results remain real results, never placeholders. */
   degraded: boolean
   source: string
-  payload: { readonly [key: string]: ResearchJson }
+  payload: { [key: string]: ResearchJson }
 }
 
 declare module '@deepseek-ai/cordis' {
