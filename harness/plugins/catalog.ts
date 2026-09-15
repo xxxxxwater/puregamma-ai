@@ -158,9 +158,9 @@ export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = 
     plane: 'dual',
     risk: 'stateful',
     services: ['pgMemory'],
-    tools: ['memory_search', 'memory_propose', 'memory_forget'],
-    ui: ['settings.memory'],
-    legacyOwners: ['packages/memory', 'docs/developer/MEMORY_ARCHITECTURE.md'],
+    tools: ['memory_settings', 'memory_items', 'memory_proposals', 'memory_export_descriptor'],
+    ui: ['settings.memory', 'resource.memory-export'],
+    legacyOwners: ['packages/memory', 'apps/api/routers/memory.py', 'docs/developer/MEMORY_ARCHITECTURE.md'],
   },
   {
     id: 'trading',
