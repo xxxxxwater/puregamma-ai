@@ -12,7 +12,8 @@
     "architecture-check": "node scripts/architecture-check.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "build": "pnpm -r --if-present run bundle",
-    "check": "pnpm run architecture-check && pnpm run typecheck && pnpm run build"
+    "profile-check": "node scripts/profile-check.mjs",
+    "check": "pnpm run architecture-check && pnpm run typecheck && pnpm run build && pnpm run profile-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
@@ -23,6 +24,7 @@
     "@deepseek-ai/dsh-web-app": "0.1.5-rc.2",
     "@types/node": "^22.20.0",
     "@types/react": "~18.3.1",
+    "js-yaml": "^4.1.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "tsdown": "^0.22.2",

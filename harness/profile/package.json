@@ -3,10 +3,23 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "PureGamma Harness distribution overlay for DeepSeek Harness",
-  "exports": { "./cordis.patch.yml": "./cordis.patch.yml", "./package.json": "./package.json" },
-  "files": ["cordis.patch.yml"],
-  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
+  "description": "Standalone PureGamma Harness web profile on the pinned DeepSeek Harness runtime",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "cordis.patch.yml"
+  ],
+  "dsh": {
+    "profile": {
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app"
+      ],
+      "patchReload": "live"
+    }
+  },
   "dependencies": {
     "@puregamma/dsh-ui-brand": "workspace:^",
     "@puregamma/dsh-auth-legacy-api": "workspace:^",
@@ -35,6 +48,5 @@
     "@puregamma/dsh-tool-research-runner": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
     "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^"
-  },
-  "peerDependencies": { "@deepseek-ai/dsh-web-app": ">=0.1.5-rc.2" }
+  }
 }

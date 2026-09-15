@@ -60,6 +60,16 @@ for (const file of packageFiles) {
 }
 
 const profile = JSON.parse(await fs.readFile(profilePath, 'utf8'))
+const expectedBundles = ['@deepseek-ai/dsh-base', '@deepseek-ai/dsh-web-app']
+if (profile.dsh?.bundle) errors.push('PureGamma product profile must not declare dsh.bundle')
+if (!profile.dsh?.profile) {
+  errors.push('PureGamma product profile must declare dsh.profile')
+} else {
+  if (JSON.stringify(profile.dsh.profile.bundles) !== JSON.stringify(expectedBundles)) {
+    errors.push(`PureGamma profile must compose the pinned Harness web bundles ${JSON.stringify(expectedBundles)}`)
+  }
+  if (profile.dsh.profile.patchReload !== 'live') errors.push('PureGamma web profile must use live patch reload')
+}
 for (const name of Object.keys(profile.dependencies ?? {})) {
   if (!name.startsWith('@puregamma/dsh-')) {
     errors.push(`profile dependency ${name} is not a PureGamma Harness plugin`)
@@ -88,4 +98,4 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-console.log(`PureGamma Harness architecture check passed (${sourceFiles.length} source files, ${packageFiles.length} plugin packages, ${routerFiles.length} legacy routers mapped).`)
+console.log(`PureGamma Harness architecture check passed (${sourceFiles.length} source files, ${packageFiles.length} plugin packages, ${routerFiles.length} legacy routers mapped; standalone profile enforced).`)

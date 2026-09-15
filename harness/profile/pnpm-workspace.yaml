@@ -1,0 +1,9 @@
+# Matches the profile-local pnpm semantics used by the pinned DeepSeek Harness
+# launcher for out-of-tree plugins. In this monorepo the parent Harness
+# workspace owns installation; this file also makes the profile self-describing
+# when it is materialized under $DSH_HOME/profiles/puregamma.
+packages:
+  - .
+
+nodeLinker: hoisted
+autoInstallPeers: false
