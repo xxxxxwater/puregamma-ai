@@ -28,6 +28,8 @@
     "@puregamma/dsh-tool-options": "workspace:^",
     "@puregamma/dsh-backtest-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-backtest": "workspace:^",
+    "@puregamma/dsh-memory-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-memory": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
     "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^"
   },
