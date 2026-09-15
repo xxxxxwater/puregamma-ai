@@ -19,8 +19,7 @@
     "lib/typert.host.js",
     "lib/typert.host.d.ts",
     "lib/typert.remote-client.js",
-    "lib/typert.remote-client.d.ts",
-    "lib/typert.remote-client.d.ts.map"
+    "lib/typert.remote-client.d.ts"
   ],
   "scripts": {
     "bundle": "tsc -p tsconfig.json && tsdown --config-loader tsx"

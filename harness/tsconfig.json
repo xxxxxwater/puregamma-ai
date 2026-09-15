@@ -13,7 +13,7 @@
       "@puregamma/dsh-auth": ["./plugins/auth/src/index.ts"],
       "@puregamma/dsh-billing": ["./plugins/billing/src/index.ts"],
       "@puregamma/dsh-api-gateway": ["./plugins/api-gateway/src/index.ts"],
-      "@puregamma/dsh-client-gateway": ["./plugins/client-gateway/src/index.ts"],
+      "@puregamma/dsh-client-gateway": ["./packages/client-gateway/src/index.ts"],
       "@puregamma/dsh-data-sources": ["./plugins/data-sources/src/index.ts"],
       "@puregamma/dsh-admin": ["./plugins/admin/src/index.ts"],
       "@puregamma/dsh-notifications": ["./plugins/notifications/src/index.ts"],
@@ -30,6 +30,6 @@
       "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"]
     }
   },
-  "include": ["plugins/contracts.ts", "plugins/catalog.ts", "plugins/*/src/**/*.ts"],
-  "exclude": ["plugins/*/tsdown.config.ts", "tsdown.node.ts", "../vendor/deepseek-harness/**", "../vendor/pg-tsy-core-bootstrap/**"]
+  "include": ["packages/*/src/**/*.ts", "plugins/contracts.ts", "plugins/catalog.ts", "plugins/*/src/**/*.ts"],
+  "exclude": ["packages/*/tsdown.config.ts", "plugins/*/tsdown.config.ts", "tsdown.node.ts", "../vendor/deepseek-harness/**", "../vendor/pg-tsy-core-bootstrap/**"]
 }

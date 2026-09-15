@@ -1,5 +1,6 @@
 packages:
   - profile
+  - packages/*
   - plugins/*
 
 # Keep pnpm 11 fail-closed for dependency lifecycle scripts. These are the same
