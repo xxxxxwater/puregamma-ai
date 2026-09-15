@@ -25,12 +25,18 @@ function documentSchema() {
       observedAt: { type: 'string' as const, required: true as const },
       degraded: { type: 'boolean' as const, required: true as const },
       source: { type: 'string' as const, required: true as const },
-      payload: { type: 'object' as const, required: true as const, additionalProperties: true },
+      payload: { type: 'json' as const, required: true as const },
     },
   }
 }
 
-function renderDocument(value: Pick<ResearchDocument, 'kind' | 'asOf' | 'observedAt' | 'degraded' | 'source'>): string {
+function renderDocument(value: {
+  kind: ResearchDocument['kind']
+  asOf?: string
+  observedAt: string
+  degraded: boolean
+  source: string
+}): string {
   const effectiveAt = value.asOf ?? value.observedAt
   return `${value.kind} research as of ${effectiveAt} from ${value.source}${value.degraded ? ' (degraded)' : ''}.`
 }
