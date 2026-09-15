@@ -43,17 +43,17 @@ function toResearchJson(value: unknown, path = '$'): ResearchJson {
   throw new Error(`research compatibility payload contains non-JSON value at ${path}`)
 }
 
-function toResearchRecord(value: unknown): { readonly [key: string]: ResearchJson } {
+function toResearchRecord(value: unknown): Record<string, ResearchJson> {
   if (!isRecord(value)) throw new Error('research compatibility API returned a non-object payload')
-  return toResearchJson(value) as { readonly [key: string]: ResearchJson }
+  return toResearchJson(value) as Record<string, ResearchJson>
 }
 
-function stringField(record: { readonly [key: string]: ResearchJson }, key: string): string | undefined {
+function stringField(record: Record<string, ResearchJson>, key: string): string | undefined {
   const value = record[key]
   return typeof value === 'string' && value.trim().length > 0 ? value.trim() : undefined
 }
 
-function healthIsDegraded(payload: { readonly [key: string]: ResearchJson }): boolean {
+function healthIsDegraded(payload: Record<string, ResearchJson>): boolean {
   const health = payload.health
   if (!isRecord(health)) return false
 
@@ -101,7 +101,7 @@ export class LegacyApiResearchProvider extends ResearchService {
     this.timeoutMs = config.requestTimeoutMs ?? 10000
   }
 
-  private async request(path: string, query: Record<string, string | number | undefined> = {}): Promise<{ readonly [key: string]: ResearchJson }> {
+  private async request(path: string, query: Record<string, string | number | undefined> = {}): Promise<Record<string, ResearchJson>> {
     const token = process.env[this.tokenEnv]
     if (token === undefined || token.length === 0) {
       throw new Error(`PureGamma Harness research compatibility provider requires bearer token in ${this.tokenEnv}`)
@@ -130,7 +130,7 @@ export class LegacyApiResearchProvider extends ResearchService {
     }
   }
 
-  private document(kind: ResearchKind, payload: { readonly [key: string]: ResearchJson }): ResearchDocument {
+  private document(kind: ResearchKind, payload: Record<string, ResearchJson>): ResearchDocument {
     const asOf = stringField(payload, 'as_of')
     return {
       kind,
