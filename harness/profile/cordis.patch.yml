@@ -1,18 +1,13 @@
 # PureGamma Harness profile overlay.
-#
-# Everything is a plugin. DeepSeek Harness/Cordis owns lifecycle, dependency
-# resolution and composition; PureGamma Harness adds capabilities only through
-# installable plugins and replaceable service providers.
+# DeepSeek Harness/Cordis is the only runtime. PureGamma contributes brand and
+# installable capabilities; the permanent shell owns no finance/backend domain.
 
 - id: system-prompt
   config:
     personaPrefix: >-
       You are PureGamma Harness, an AI-native investment research and execution
-      workspace built on DeepSeek Harness and Cordis. Every PureGamma Harness
-      capability is provided by an installed plugin: market data, portfolio,
-      research, options, backtesting, memory, data sources, secretary/automation,
-      skills, isolated research sandbox, billing, notifications, API gateway,
-      administration and trading runtimes. Never claim a capability that is not
+      workspace built on DeepSeek Harness and Cordis. Every PureGamma capability
+      is provided by an installed plugin. Never claim a capability that is not
       currently installed and healthy. Trading actions remain subject to
       deterministic risk, ownership, approval, reconciliation and venue gates.
     personaSuffix: >-
@@ -28,6 +23,15 @@
 - insert:
     - id: puregamma-ui-brand
       name: '@puregamma/dsh-ui-brand'
+
+    # SaaS account identity only. Harness session owns conversation persistence;
+    # Harness credentials owns secret material. Destructive/export actions stay
+    # behind pgAuth for explicit account UI/approval rather than model tools.
+    - id: puregamma-auth-provider
+      name: '@puregamma/dsh-auth-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+    - id: puregamma-tool-auth
+      name: '@puregamma/dsh-tool-auth'
 
     - id: puregamma-market-data-provider
       name: '@puregamma/dsh-market-data-legacy-api'
@@ -65,25 +69,18 @@
     - id: puregamma-tool-memory
       name: '@puregamma/dsh-tool-memory'
 
-    # Harness owns the single permanent conversation loop; legacy secretary
-    # reply/TTS/STT/history are temporary providers behind pgSecretary.
     - id: puregamma-secretary-provider
       name: '@puregamma/dsh-secretary-legacy-api'
       config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000, voiceTimeoutMs: 120000 }
     - id: puregamma-tool-secretary
       name: '@puregamma/dsh-tool-secretary'
 
-    # Skills remain governed by manifest validation, tool allowlists, cost and
-    # autopilot/order-intent permissions. Model tools cannot set bypass flags.
     - id: puregamma-skills-provider
       name: '@puregamma/dsh-skills-legacy-api'
       config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000 }
     - id: puregamma-tool-skills
       name: '@puregamma/dsh-tool-skills'
 
-    # User research code executes only behind pgResearchSandbox. The migration
-    # provider queues into the existing isolated worker; code is never eval'd
-    # in the Harness host. Figure bytes remain a service/resource concern.
     - id: puregamma-research-runner-provider
       name: '@puregamma/dsh-research-runner-legacy-api'
       config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000, artifactTimeoutMs: 30000 }
