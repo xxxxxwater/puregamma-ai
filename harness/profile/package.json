@@ -8,14 +8,8 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "files": [
-    "cordis.patch.yml"
-  ],
-  "dsh": {
-    "bundle": {
-      "patch": "./cordis.patch.yml"
-    }
-  },
+  "files": ["cordis.patch.yml"],
+  "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
   "dependencies": {
     "@puregamma/dsh-ui-brand": "workspace:^",
     "@puregamma/dsh-market-data-legacy-api": "workspace:^",
@@ -32,10 +26,10 @@
     "@puregamma/dsh-tool-memory": "workspace:^",
     "@puregamma/dsh-secretary-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-secretary": "workspace:^",
+    "@puregamma/dsh-skills-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-skills": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
     "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^"
   },
-  "peerDependencies": {
-    "@deepseek-ai/dsh-web-app": ">=0.1.5-rc.2"
-  }
+  "peerDependencies": { "@deepseek-ai/dsh-web-app": ">=0.1.5-rc.2" }
 }
