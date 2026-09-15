@@ -1,0 +1,72 @@
+import { promises as fs } from 'node:fs'
+import path from 'node:path'
+import process from 'node:process'
+
+const root = path.resolve(process.cwd())
+const pluginsRoot = path.join(root, 'plugins')
+const profilePath = path.join(root, 'profile', 'package.json')
+
+const errors = []
+
+async function walk(dir) {
+  const entries = await fs.readdir(dir, { withFileTypes: true })
+  const files = []
+  for (const entry of entries) {
+    if (entry.name === 'lib' || entry.name === 'node_modules') continue
+    const full = path.join(dir, entry.name)
+    if (entry.isDirectory()) files.push(...await walk(full))
+    else files.push(full)
+  }
+  return files
+}
+
+const sourceFiles = (await walk(pluginsRoot)).filter(file => /\.(?:ts|tsx|js|mjs)$/.test(file))
+const forbiddenImportPatterns = [
+  /(?:from\s+|import\s*\()['"](?:\.\.\/)+apps\//,
+  /(?:from\s+|import\s*\()['"](?:\.\.\/)+packages\//,
+  /(?:from\s+|import\s*\()['"](?:\.\.\/)+services\//,
+  /(?:from\s+|import\s*\()['"](?:apps|packages|services)\//,
+]
+
+for (const file of sourceFiles) {
+  const content = await fs.readFile(file, 'utf8')
+  for (const pattern of forbiddenImportPatterns) {
+    if (pattern.test(content)) {
+      errors.push(`${path.relative(root, file)} imports legacy application code directly`)
+      break
+    }
+  }
+  if (/new\s+Context\s*\(/.test(content)) {
+    errors.push(`${path.relative(root, file)} creates a second Cordis Context; Harness must own the runtime root`)
+  }
+}
+
+const packageFiles = (await walk(pluginsRoot)).filter(file => path.basename(file) === 'package.json')
+for (const file of packageFiles) {
+  const pkg = JSON.parse(await fs.readFile(file, 'utf8'))
+  if (typeof pkg.name !== 'string' || !pkg.name.startsWith('@puregamma/dsh-')) {
+    errors.push(`${path.relative(root, file)} must use the @puregamma/dsh-* plugin namespace`)
+  }
+  for (const field of ['dependencies', 'peerDependencies', 'optionalDependencies']) {
+    for (const [name, version] of Object.entries(pkg[field] ?? {})) {
+      if (typeof version === 'string' && /^(?:file:|link:).*(?:apps|packages|services)\//.test(version)) {
+        errors.push(`${pkg.name} ${field}.${name} links directly to legacy application code`)
+      }
+    }
+  }
+}
+
+const profile = JSON.parse(await fs.readFile(profilePath, 'utf8'))
+for (const name of Object.keys(profile.dependencies ?? {})) {
+  if (!name.startsWith('@puregamma/dsh-')) {
+    errors.push(`profile dependency ${name} is not a PureGamma Harness plugin`)
+  }
+}
+
+if (errors.length > 0) {
+  console.error('PureGamma Harness architecture check failed:')
+  for (const error of errors) console.error(`- ${error}`)
+  process.exit(1)
+}
+
+console.log(`PureGamma Harness architecture check passed (${sourceFiles.length} source files, ${packageFiles.length} plugin packages).`)
