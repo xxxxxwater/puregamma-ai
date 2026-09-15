@@ -9,9 +9,10 @@
     "node": "^22.19.0 || >=24.0.0"
   },
   "scripts": {
+    "architecture-check": "node scripts/architecture-check.mjs",
     "typecheck": "tsc -p tsconfig.json",
     "build": "pnpm -r --if-present run bundle",
-    "check": "pnpm run typecheck && pnpm run build"
+    "check": "pnpm run architecture-check && pnpm run typecheck && pnpm run build"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
