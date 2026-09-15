@@ -59,6 +59,20 @@
     - id: puregamma-tool-portfolio
       name: '@puregamma/dsh-tool-portfolio'
 
+    # Research read models are exposed through a stable pgResearch service.
+    # The legacy FastAPI implementation is temporary transport only; source
+    # outages remain explicit degraded/empty results and never become invented
+    # market facts. Deep-research execution is intentionally a separate plugin.
+    - id: puregamma-research-provider
+      name: '@puregamma/dsh-research-legacy-api'
+      config:
+        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
+        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
+        requestTimeoutMs: 10000
+
+    - id: puregamma-tool-research
+      name: '@puregamma/dsh-tool-research'
+
     # pg-tsy-core-bootstrap is an independent Rust runtime pinned under
     # vendor/pg-tsy-core-bootstrap. This provider exposes only its stable local
     # health/control seam. Installing it does not grant live-trading permission
