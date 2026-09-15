@@ -33,6 +33,23 @@
     - id: puregamma-tool-auth
       name: '@puregamma/dsh-tool-auth'
 
+    # Billing owns credits and entitlements. Checkout/portal/cancel/reactivate
+    # remain explicit service/UI actions; model tools are read/estimate only.
+    - id: puregamma-billing-provider
+      name: '@puregamma/dsh-billing-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+    - id: puregamma-tool-billing
+      name: '@puregamma/dsh-tool-billing'
+
+    # External notification delivery is a capability seam. The model can inspect
+    # configuration/history, but send/verify/device mutations require service/UI
+    # callers and later Harness approval integration.
+    - id: puregamma-notifications-provider
+      name: '@puregamma/dsh-notifications-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+    - id: puregamma-tool-notifications
+      name: '@puregamma/dsh-tool-notifications'
+
     - id: puregamma-market-data-provider
       name: '@puregamma/dsh-market-data-legacy-api'
       config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
