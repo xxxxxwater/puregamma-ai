@@ -10,8 +10,9 @@
   },
   "scripts": {
     "architecture-check": "node scripts/architecture-check.mjs",
-    "typecheck": "tsc -p tsconfig.json",
-    "build": "pnpm -r --if-present run bundle",
+    "build:host": "tsc -b tsconfig.host.json && tsdown --config tsdown.host.ts --env.DSH_BUILD_FACE host",
+    "typecheck": "pnpm run build:host && tsc -p tsconfig.json",
+    "build": "pnpm run build:host && pnpm -r --if-present run bundle",
     "profile-check": "node scripts/profile-check.mjs",
     "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check"
   },
