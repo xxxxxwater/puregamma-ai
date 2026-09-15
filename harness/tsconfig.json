@@ -12,6 +12,7 @@
     "paths": {
       "@puregamma/dsh-market-data": ["./plugins/market-data/src/index.ts"],
       "@puregamma/dsh-portfolio": ["./plugins/portfolio/src/index.ts"],
+      "@puregamma/dsh-research": ["./plugins/research/src/index.ts"],
       "@puregamma/dsh-trading": ["./plugins/trading/src/index.ts"],
       "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"]
     }
