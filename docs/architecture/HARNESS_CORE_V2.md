@@ -1,204 +1,305 @@
-# PureGamma Harness Core v2
+# PureGamma Harness — Everything Is a Plugin
 
 Status: **active refactor branch** (`refactor/harness-core-v2`)
 
-## Decision
+## Architectural decision
 
-PureGamma is being rebuilt as a **DeepSeek Harness distribution**, not as a
-Next.js/FastAPI application that happens to embed Harness.
+PureGamma.ai is being rebuilt as **PureGamma Harness**, a DeepSeek Harness
+profile/distribution powered by Cordis. It is not a Next.js/FastAPI monolith
+that embeds a plugin runtime.
 
-The permanent shell is intentionally small:
-
-```text
-PureGamma profile
-  ├─ PureGamma brand
-  ├─ Harness conversation
-  ├─ Harness session/model/runtime primitives
-  └─ plugin loader
-```
-
-Every domain capability is an installable Harness/Cordis plugin. The existing
-Next.js and FastAPI applications are migration sources and temporary
-compatibility surfaces.
-
-## Why the old plugin runtime is not the target
-
-The current frontend runtime in `apps/web/plugins/core` creates its own Cordis
-`Context`, manually injects PG services, fetches a FastAPI manifest, then loads
-one of a compiled set of built-in frontend plugins. That is useful as an
-intermediate architecture but it duplicates facilities that DeepSeek Harness
-already owns: profile composition, Loader lifecycle, host/client plugins,
-service injection, remotes, credentials, settings, session state and typed UI
-slots.
-
-**No new business capability should be added to the old PG frontend plugin
-runtime.** It remains only until equivalent Harness plugins have crossed the
-migration gate.
-
-## Target capability graph
+The permanent product shell is intentionally almost empty:
 
 ```text
-                      DeepSeek Harness
-                            │
-                    PureGamma profile
-                            │
-            ┌───────────────┼────────────────┐
-            │               │                │
-      MarketData        Portfolio         Trading
-       Service           Service           Service
-            │               │                │
-     providers/tools   providers/tools   risk/execution
-            │               │                │
-            └──────┬────────┴───────┬────────┘
-                   │                │
-               Research          Options
-                   │                │
-                Backtest          Gamma
-                   │
-              Memory/Skills
-
-     Auth / Billing / Notifications / API Gateway / Admin
-                 are plugins on the same runtime
+PureGamma Harness
+  ├─ brand/logo plugin
+  ├─ Harness conversation surface
+  └─ Cordis composition/profile
 ```
 
-## Ownership rules
+**Everything else is a plugin.** There is no business-domain exception for
+backend code, UI, workers, finance engines, data sources, mobile capability
+APIs, billing, administration, or trading runtimes.
 
-1. **Service Definition packages own contracts.** Consumers import only the
-   contract package.
-2. **Provider packages own integrations.** Plaid, IBKR, Hyperliquid, Binance,
-   Polygon, Deribit, RSS, X, Bloomberg, Nautilus, etc. never leak into consumer
-   imports.
-3. **Tool packages own model-facing actions.** A tool is mounted only while its
-   required service/provider is healthy.
-4. **Client packages own UI contributions.** Business UI is registered into
-   Harness slots/tool views/resources. The shell does not gain a Portfolio,
-   Trading, Research or Options route.
-5. **Python/Rust runtimes are providers, not exceptions.** Existing engines can
-   remain out-of-process; a Harness plugin owns their lifecycle/health/RPC.
-6. **Backend state remains server-authoritative.** Browser plugins cannot grant
-   trading, billing, admin or data entitlements.
+Design references:
 
-## First Service Definitions
+- Cordis: https://github.com/cordiverse/cordis
+- DeepSeek Harness: https://github.com/xxxxxwater/deepseek-harness
+- Architecture reference supplied for this refactor: https://arxiv.org/abs/2608.25512
 
-The refactor starts with three high-fan-out seams:
+## What “everything is a plugin” means here
 
-- `ctx.pgMarketData` — timestamped/provenance-carrying market/news data.
-- `ctx.pgPortfolio` — consolidated positions/cash/NAV with explicit freshness.
-- `ctx.pgTrading` — guarded money-moving execution.
+Cordis is the microkernel. It owns plugin mounting/unmounting, service
+dependencies, event wiring and reversible effects. PureGamma Harness does not
+create a second privileged application core on top of it.
 
-Research and Options consume MarketData; Research/Risk consume Portfolio;
-Trading consumes all three plus deterministic policy/reconciliation providers.
+A former PureGamma capability must become one or more of these plugin roles:
 
-## Trading invariants that survive the migration
+```text
+Service Definition  -> stable ctx.<service> contract
+Provider            -> concrete vendor/runtime implementation
+Tool                -> model-facing action/query
+Client/UI            -> Harness slot/tool-view/resource contribution
+Worker               -> scheduled/background lifecycle owned by a plugin
+Runtime Adapter      -> supervised Python/Rust/external process provider
+```
 
-Pluginization is not permission to weaken execution safety. Every
-`pgTrading` provider must retain these invariants:
+Consumers depend on Service Definitions, never concrete providers. Replacing
+Plaid with another portfolio provider, Nautilus with pg-tsy, or a news vendor
+with another source must not require editing the PureGamma Harness shell.
 
-- `clientOrderId` is idempotent across retries and restarts.
-- Ambiguous submit transport state becomes `unknown`; it is queried, never
-  blindly submitted again.
-- Terminal and filled orders remain queryable by client id.
-- reduce-only is checked before submission, encoded at the provider/venue
-  boundary, and verified again during ownership/reconciliation.
-- kill switches prevent new exposure but keep query/cancel/fill recording and
-  reconciliation available.
-- immutable ledger/reconciliation semantics remain server-side.
-- numeric money/quantity crosses the TypeScript seam as decimal strings.
+## No privileged PureGamma business core
 
-## Migration map
+The following are explicitly forbidden as permanent architecture:
 
-The machine-readable source of truth is `harness/plugins/catalog.ts`.
+- shell-owned Portfolio/Research/Options/Trading pages;
+- a global `PureGammaService` or mega FastAPI service imported by plugins;
+- a second browser Cordis root or second plugin loader;
+- provider SDK types leaking into consumer packages;
+- direct UI imports of database/broker/vendor implementations;
+- background workers whose lifecycle is not owned by a Cordis plugin;
+- a trading runtime that bypasses the Harness service/risk/approval boundaries;
+- “temporary” legacy imports becoming dependencies of new Harness packages.
 
-| Target plugin | Primary legacy source |
+Compatibility providers are allowed only as one-way migration bridges:
+
+```text
+Harness consumer
+      -> Service Definition
+      -> compatibility provider
+      -> legacy API/runtime
+```
+
+The arrow never points back into Harness.
+
+## Complete PureGamma Harness capability families
+
+The machine-readable source of truth is `harness/plugins/catalog.ts`. The
+current target families cover all feature groups documented by the legacy
+PureGamma.ai product:
+
+| Capability plugin | Legacy PureGamma functionality being migrated |
 | --- | --- |
-| `@puregamma/dsh-market-data` | `packages/data`, market/news routers |
-| `@puregamma/dsh-research` | `packages/agents`, `packages/harness`, Research frontend plugin |
-| `@puregamma/dsh-portfolio` | portfolio code + Portfolio frontend plugin |
-| `@puregamma/dsh-options` | `packages/options`, Options frontend plugin |
-| `@puregamma/dsh-backtest` | `packages/backtest` |
-| `@puregamma/dsh-memory` | `packages/memory` |
-| `@puregamma/dsh-trading` | `packages/trading`, `packages/live_trading`, Nautilus runtime |
-| `@puregamma/dsh-notifications` | `packages/notifications` |
-| `@puregamma/dsh-billing` | `packages/billing` + Stripe API layer |
-| `@puregamma/dsh-api-gateway` | `packages/gateway` |
-| `@puregamma/dsh-auth` | auth routers/middleware |
-| `@puregamma/dsh-admin` | admin routes/services/UI |
+| `dsh-auth` | Google OIDC, Apple sign-in, email/password, mobile sessions, entitlements bootstrap |
+| `dsh-agent-chat` | persistent Agent chat, streaming, citations, tool calls, cancellation, quotas |
+| `dsh-market-data` | quotes, Market Wire/news, source attribution, freshness |
+| `dsh-data-sources` | provider catalog, health, source entitlements/admin configuration |
+| `dsh-research` | research orchestration, evidence snapshots, artifacts, sub-agent workflows |
+| `dsh-research-runner` | no-network sandboxed research code execution |
+| `dsh-secretary` | Private Secretary, daily brief, voice/TTS, automation orchestration |
+| `dsh-skills` | declarative skills, tool whitelists, deterministic workflows |
+| `dsh-portfolio` | accounts, positions, Plaid/IBKR/Hyperliquid aggregation, server NAV |
+| `dsh-portfolio-autopilot` | scheduled portfolio reviews, concentration/freshness findings |
+| `dsh-options` | Deribit/Polygon chains, surfaces, Long Gamma candidates |
+| `dsh-backtest` | strategy compiler, unified backtests, metrics/artifacts |
+| `dsh-memory` | scoped user memory, proposals, consent, audit, TTL summaries |
+| `dsh-trading` | preview/submit/cancel, risk, execution, ledger, reconcile, kill switch |
+| `dsh-trading-mandates` | mandates, dual confirmation, pause/resume, approvals, release refs |
+| `dsh-nautilus-runtime` | existing Nautilus PAPER/SHADOW/BACKTEST execution provider |
+| `dsh-pg-tsy-runtime` | pg-tsy Rust market/strategy/risk/OMS/execution/reconcile runtime provider |
+| `dsh-notifications` | email, Telegram, Slack, APNs, iMessage relay/inbound routing |
+| `dsh-billing` | Stripe, plans, credits, entitlements, reservations, gateway wallet |
+| `dsh-api-gateway` | OpenAI-compatible gateway, model catalog/router, keys, RPM, usage/pricing |
+| `dsh-mobile-api` | capabilities, deep links, push routing and mobile compatibility contract |
+| `dsh-admin` | users, data-source health, billing/gateway approvals, trading admin, plugin inventory |
+
+Provider integrations underneath these families are plugins too. Examples:
+Plaid, IBKR, Hyperliquid, Binance, EVM/Moralis, Deribit, Polygon, ChainCatcher,
+RSS, X, Bloomberg, CoinGecko, Coinglass, Glassnode, DefiLlama, Stripe, Telegram,
+Slack, APNs, iMessage/Photon, Nautilus, and pg-tsy.
+
+## Runtime composition
+
+```text
+                         Cordis kernel
+                              │
+                     DeepSeek Harness
+                              │
+                    PureGamma Harness profile
+                              │
+        ┌─────────────────────┼────────────────────────┐
+        │                     │                        │
+   Service plugins       Provider plugins          UI/tool plugins
+        │                     │                        │
+        │         ┌───────────┴────────────┐           │
+        │         │                        │           │
+  pgMarketData  pgPortfolio           pgTsyRuntime    │
+        │         │                        │           │
+     vendors   Plaid/IBKR/...     pg-tsy Rust core    │
+        │         │                        │           │
+        └─────────┴──────────┬─────────────┘           │
+                            │                         │
+                     Research / Risk / Trading <─────┘
+```
+
+A plugin disappearing must remove its services, tools, jobs and UI contributions
+without editing the shell. A dependent plugin uses Cordis dependency injection
+and transitions out when its required service disappears.
+
+## pg-tsy-core-bootstrap as a first-class plugin runtime
+
+`xxxxxwater/pg-tsy-core-bootstrap` is pinned in this branch as:
+
+```text
+vendor/pg-tsy-core-bootstrap
+commit d7e719b0b2815a1069df9cb4e25c49946dead699
+```
+
+It remains an independent Rust runtime. PureGamma Harness does **not** copy its
+crates into TypeScript. The Cordis boundary is:
+
+```text
+@puregamma/dsh-pg-tsy-runtime            # Service Definition
+              │
+@puregamma/dsh-pg-tsy-runtime-http       # provider
+              │
+       /healthz /readyz /admin/reload
+              │
+      pg-tsy-core --serve (Rust)
+```
+
+The current pg-tsy HTTP control listener is intentionally narrow. The Harness
+provider therefore exposes health/readiness and an explicit strategy-reload
+service call; strategy reload is disabled by default. Installation does not
+turn on live trading and does not add any model-facing submit/cancel/flatten
+shortcut.
+
+Money-moving pg-tsy execution will integrate behind the same deterministic
+`pgExecution` / `pgRisk` / `pgReconciliation` / mandate/approval services as
+other execution providers. The model may request an action; it never grants the
+authority for it.
+
+## Current migrated vertical slices
+
+### MarketData
+
+```text
+Harness Agent
+  -> market_snapshot / market_news / market_provider_health
+  -> ctx.pgMarketData
+  -> @puregamma/dsh-market-data-legacy-api
+  -> temporary FastAPI compatibility endpoints
+```
+
+### Portfolio/NAV
+
+```text
+Harness Agent
+  -> portfolio_snapshot / portfolio_positions / portfolio_nav
+  -> ctx.pgPortfolio
+  -> @puregamma/dsh-portfolio-legacy-api
+  -> authenticated legacy /portfolio snapshot
+```
+
+No connected account is represented as unavailable (`nav = null` at the service
+seam), never as a fabricated zero portfolio. Compatibility reads do not silently
+trigger billable Plaid refreshes.
+
+### Quant runtime / pg-tsy
+
+```text
+Harness Agent
+  -> quant_runtime_status
+  -> ctx.pgTsyRuntime
+  -> @puregamma/dsh-pg-tsy-runtime-http
+  -> pg-tsy /healthz or /readyz
+```
+
+The source runtime is pinned as a submodule and verified by CI.
+
+## Trading invariants that survive every plugin migration
+
+Pluginization is not permission to weaken financial safety. Every execution
+provider must preserve these invariants:
+
+- stable `clientOrderId` idempotency across retries and restarts;
+- ambiguous external submission becomes `UNKNOWN`, then reconcile/query — never
+  blind replacement submission;
+- terminal/filled orders remain discoverable by client identity;
+- reduce-only is validated before submission and verified during ownership and
+  reconciliation;
+- kill switches block new exposure but not query/cancel/fill recording/reconcile;
+- immutable ledger history is never rewritten;
+- reconciliation and venue truth remain server-side authorities;
+- credentials never enter browser/client plugin state;
+- money/quantity crosses JavaScript boundaries as decimal strings;
+- live trading requires deterministic gates independent of LLM output.
 
 ## Migration sequence
 
-### Slice 0 — runtime skeleton
+### Slice 0 — PureGamma Harness skeleton
 
-- Create an isolated refactor branch.
-- Add standalone `harness/` workspace.
-- Add PureGamma profile overlay.
-- Disable official Harness branding and shell sidebar in the PG profile.
-- Register PureGamma identity directly in the conversation hero.
-- Define capability catalog and cross-plugin contracts.
+Completed/active:
 
-### Slice 1 — compatibility providers
+- isolated refactor branch;
+- pinned DeepSeek Harness upstream;
+- `harness/` workspace and profile overlay;
+- PureGamma Harness logo/brand plugin;
+- conversation-first shell with business navigation removed;
+- capability catalog and service contracts;
+- isolated CI build gate.
 
-Wrap the existing backend as providers behind the new service seams. This is a
-**one-way dependency**:
+### Slice 1 — read-side compatibility providers
 
-```text
-Harness consumer -> Service Definition -> compatibility provider -> legacy API
-```
+1. MarketData — implemented first vertical slice.
+2. Portfolio/NAV — compatibility provider/tool slice implemented.
+3. pg-tsy runtime health/readiness — provider/tool slice implemented.
+4. Research.
+5. Options.
+6. Backtest.
+7. Memory.
 
-Legacy code must never import Harness client packages. Once a native provider
-replaces a compatibility provider, the bridge is deleted.
+### Slice 2 — agent/product plugins
 
-### Slice 2 — read-only finance capabilities
+Migrate Agent Chat, Research Runner, Secretary, Skills, Portfolio Autopilot,
+Data Sources and Mobile API capability surfaces.
 
-Migrate in this order:
+### Slice 3 — account/commercial infrastructure
 
-1. MarketData
-2. Portfolio/NAV
-3. Research
-4. Options
-5. Backtest
-6. Memory
+Migrate Auth, Billing/Entitlements/Wallet, Notifications, API Gateway and Admin.
+All scheduled jobs and workers move under plugin-owned lifecycle scopes.
 
-Each capability must ship its tool surface and UI contribution before the old
-route is removed.
+### Slice 4 — execution runtimes and LIVE control plane
 
-### Slice 3 — account/product infrastructure
+- expose Nautilus as a replaceable runtime provider;
+- extend pg-tsy with the stable control/runtime API required by Harness;
+- migrate mandates, approvals, risk, ledger, reconciliation and kill switches;
+- add native Hyperliquid/IBKR execution provider wiring only behind those gates;
+- preserve venue idempotency/UNKNOWN recovery semantics;
+- remove compatibility execution paths only after shadow/paper/canary parity.
 
-Migrate Auth, Entitlements/Billing, Notifications, API Gateway and Admin into
-host/client plugin families.
+### Slice 5 — delete the monolith
 
-### Slice 4 — trading control plane
+When every migration gate passes:
 
-Move execution only after read-side parity exists. Preserve the existing
-control-plane gates, immutable ledger, recovery semantics and reconciliation.
-The LLM-facing tool layer may request execution but never becomes the authority
-that grants it.
-
-### Slice 5 — delete the monolith shell
-
-When all migration gates pass:
-
-- delete the PG-specific browser Cordis runtime;
-- remove business navigation/routes from the shell;
-- retire FastAPI routers that have native Harness providers;
-- keep only required out-of-process finance engines/providers;
-- make the Harness profile the production entry point.
+- delete `apps/web/plugins/core` and the old browser plugin runtime;
+- remove shell-owned finance routes/navigation;
+- retire FastAPI routers/services whose ownership has moved to native plugins;
+- keep Python/Rust processes only where they are intentionally provider
+  runtimes;
+- make the PureGamma Harness profile the production entry point.
 
 ## Per-capability migration gate
 
 A legacy capability can be removed only when all are true:
 
-- service contract is versioned and tested;
+- Service Definition is versioned and tested;
 - provider has explicit health and fail-closed unavailable state;
+- required services are declared through Cordis dependency injection;
+- all external resources are lifecycle-owned/reversible effects;
 - model tools are permission/entitlement gated;
-- UI comes from a Harness plugin, not shell code;
+- UI comes from a Harness client plugin, not shell code;
+- background jobs are mounted/unmounted with their owning plugin;
 - restart/reconnect behavior is tested;
 - observability identifies plugin + provider + request/session trace;
-- security/financial invariants are at least as strong as legacy;
+- financial/security invariants are at least as strong as legacy;
 - parity tests cover the legacy behavior being retired.
 
 ## Definition of done
 
-The refactor is complete when `puregamma.ai` can be assembled as a Harness
-profile where removing a domain plugin removes its model tools, host services,
-background work and UI contributions without editing the shell, and the shell
-itself contains no finance-domain implementation.
+The refactor is complete only when PureGamma Harness can be assembled entirely
+from its profile and plugin tree, and removing any domain plugin removes that
+capability's host services, tools, jobs, provider connections and UI without a
+shell code change.
+
+The shell itself must contain **zero finance-domain implementation**.
