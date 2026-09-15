@@ -147,7 +147,7 @@ function billingUsageRows(payload: Record<string, unknown> | undefined): PureGam
   }))
 }
 
-/** Read-only browser projections plus explicit UI action seams. No cache or business state lives here. */
+/** Browser projections plus explicit UI action seams; no cache or business state lives here. */
 export class PureGammaClientGateway extends TypertRemoteService {
   constructor(ctx: Context) {
     super(ctx, 'puregammaClient')
@@ -205,7 +205,7 @@ export class PureGammaClientGateway extends TypertRemoteService {
     let normalized: string
     try { normalized = normalizePlanName(planName) } catch { return billingActionUnavailable('checkout', 'cordis:pgBilling', 'plan name is invalid', planName) }
     if (service === undefined) return billingActionUnavailable('checkout', 'cordis:pgBilling', 'billing capability is not installed', normalized)
-    try { return billingAction(service.createCheckout(normalized), 'checkout', normalized) } catch { return billingActionUnavailable('checkout', 'cordis:pgBilling', 'checkout is currently unavailable', normalized) }
+    try { return billingAction(await service.createCheckout(normalized), 'checkout', normalized) } catch { return billingActionUnavailable('checkout', 'cordis:pgBilling', 'checkout is currently unavailable', normalized) }
   }
 
   @Remote('billingPaymentLinkCheckout')
@@ -214,7 +214,7 @@ export class PureGammaClientGateway extends TypertRemoteService {
     let normalized: string
     try { normalized = normalizePlanName(planName) } catch { return billingActionUnavailable('checkout', 'cordis:pgBilling', 'plan name is invalid', planName) }
     if (service === undefined) return billingActionUnavailable('checkout', 'cordis:pgBilling', 'billing capability is not installed', normalized)
-    try { return billingAction(service.createPaymentLinkCheckout(normalized), 'checkout', normalized) } catch { return billingActionUnavailable('checkout', 'cordis:pgBilling', 'payment-link checkout is currently unavailable', normalized) }
+    try { return billingAction(await service.createPaymentLinkCheckout(normalized), 'checkout', normalized) } catch { return billingActionUnavailable('checkout', 'cordis:pgBilling', 'payment-link checkout is currently unavailable', normalized) }
   }
 
   @Remote('billingPortal')
