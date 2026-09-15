@@ -74,6 +74,9 @@ jobs:
           test -f harness/plugins/billing/lib/index.js
           test -f harness/plugins/billing-legacy-api/lib/index.js
           test -f harness/plugins/tool-billing/lib/index.js
+          test -f harness/plugins/api-gateway/lib/index.js
+          test -f harness/plugins/api-gateway-legacy-api/lib/index.js
+          test -f harness/plugins/tool-api-gateway/lib/index.js
           test -f harness/plugins/notifications/lib/index.js
           test -f harness/plugins/notifications-legacy-api/lib/index.js
           test -f harness/plugins/tool-notifications/lib/index.js
