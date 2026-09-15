@@ -18,9 +18,10 @@ function matches(names: ReadonlySet<string>, specifier: string): boolean {
  * as DeepSeek Harness' in-repository clientBundle preset.
  *
  * The upstream preset intentionally discovers manifests only under its own
- * `packages/*/*` tree. PureGamma plugins live in a separate overlay workspace,
- * so this preset preserves the runtime artifact contract without modifying the
- * pinned upstream submodule or pretending our package lives inside it.
+ * two-level `packages/<family>/<package>` tree. PureGamma plugins live in a
+ * separate overlay workspace, so this preset preserves the runtime artifact
+ * contract without modifying the pinned upstream submodule or pretending our
+ * package lives inside it.
  *
  * Contract preserved here:
  * - Node half at `lib/index.js`.
