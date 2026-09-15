@@ -1,4 +1,4 @@
-import type { PureGammaCapabilityDescriptor } from './contracts'
+import type { PureGammaCapabilityDescriptor } from './contracts.js'
 
 /**
  * Target plugin ownership map for the PureGamma Harness refactor.
