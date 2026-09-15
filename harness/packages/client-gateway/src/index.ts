@@ -1,92 +1,22 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
+import type {
+  PureGammaAccountView,
+  PureGammaBillingView,
+  PureGammaNotificationsView,
+  PureGammaQuantRuntimeView,
+} from './types.ts'
 import type {} from '@puregamma/dsh-auth'
 import type {} from '@puregamma/dsh-billing'
 import type {} from '@puregamma/dsh-notifications'
 import type {} from '@puregamma/dsh-pg-tsy-runtime'
 
-export interface PureGammaAccountView {
-  available: boolean
-  observedAt: string
-  source: string
-  reason?: string
-  id?: string
-  email?: string
-  name?: string
-  role?: string
-  plan?: string
-  membershipTier?: string
-  creditBalance?: number
-  avatarUrl?: string
-  authProvider?: string
-  hasPassword?: boolean
-  emailVerified?: boolean
-  emailVerifiedAt?: string
-  lastLoginAt?: string
-  loginMethods?: string[]
-  locale?: string
-}
-
-export interface PureGammaBillingView {
-  available: boolean
-  observedAt: string
-  source: string
-  reason?: string
-  plan?: string
-  subscribedPlan?: string
-  effectivePlan?: string
-  subscriptionStatus?: string
-  currentPeriodEnd?: string
-  cancelAtPeriodEnd?: boolean
-  creditBalance?: number
-  billingMode?: string
-  checkoutMode?: string
-}
-
-export interface PureGammaNotificationsView {
-  available: boolean
-  observedAt: string
-  source: string
-  reason?: string
-  enabled?: boolean
-  timezone?: string
-  localTime?: string
-  channel?: string
-  channels?: string[]
-  reportTypes?: string[]
-  locale?: string
-  failureCount?: number
-  lastError?: string
-  nextDeliveryAt?: string
-  recentDeliveries?: number
-  lastDeliveryStatus?: string
-  lastDeliveryChannel?: string
-  lastDeliveryAt?: string
-}
-
-export interface PureGammaQuantRuntimeView {
-  available: boolean
-  observedAt: string
-  source: string
-  reason?: string
-  processHealthy?: boolean
-  ready?: boolean
-  mode?: string
-  leaseHealthy?: boolean
-  feedsTotal?: number
-  feedsConnected?: number
-  eventsTotal?: number
-  policyDecisionsTotal?: number
-  openOrders?: number
-  ordersJournaledTotal?: number
-  blockingGates?: string[]
-  lastError?: string
-}
-
-function errorDetail(error: unknown): string {
-  const value = error instanceof Error ? error.message : String(error)
-  return value.slice(0, 300)
-}
+export type {
+  PureGammaAccountView,
+  PureGammaBillingView,
+  PureGammaNotificationsView,
+  PureGammaQuantRuntimeView,
+} from './types.ts'
 
 function record(value: unknown): Record<string, unknown> | undefined {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
@@ -121,6 +51,18 @@ function objectArray(source: Record<string, unknown> | undefined, key: string): 
   return value.map(record).filter((item): item is Record<string, unknown> => item !== undefined)
 }
 
+function unavailable<T extends { available: boolean; observedAt: string; source: string; reason?: string }>(
+  source: string,
+  reason: string,
+): T {
+  return {
+    available: false,
+    observedAt: new Date().toISOString(),
+    source,
+    reason,
+  } as T
+}
+
 /**
  * Read-only browser projection of PureGamma domain state.
  *
@@ -138,7 +80,7 @@ export class PureGammaClientGateway extends TypertRemoteService {
   async account(): Promise<PureGammaAccountView> {
     const service = this.ctx.get('pgAuth')
     if (service === undefined) {
-      return { available: false, observedAt: new Date().toISOString(), source: 'cordis:pgAuth', reason: 'account capability is not installed' }
+      return unavailable<PureGammaAccountView>('cordis:pgAuth', 'account capability is not installed')
     }
     try {
       const user = await service.currentUser()
@@ -162,8 +104,8 @@ export class PureGammaClientGateway extends TypertRemoteService {
         loginMethods: [...user.loginMethods],
         locale: user.locale,
       }
-    } catch (error) {
-      return { available: false, observedAt: new Date().toISOString(), source: 'cordis:pgAuth', reason: errorDetail(error) }
+    } catch {
+      return unavailable<PureGammaAccountView>('cordis:pgAuth', 'account data is currently unavailable')
     }
   }
 
@@ -171,7 +113,7 @@ export class PureGammaClientGateway extends TypertRemoteService {
   async billing(): Promise<PureGammaBillingView> {
     const service = this.ctx.get('pgBilling')
     if (service === undefined) {
-      return { available: false, observedAt: new Date().toISOString(), source: 'cordis:pgBilling', reason: 'billing capability is not installed' }
+      return unavailable<PureGammaBillingView>('cordis:pgBilling', 'billing capability is not installed')
     }
     try {
       const [subscription, credits] = await Promise.all([service.subscription(), service.credits()])
@@ -191,8 +133,8 @@ export class PureGammaClientGateway extends TypertRemoteService {
         billingMode: stringValue(subscriptionPayload, 'billing_mode'),
         checkoutMode: stringValue(subscriptionPayload, 'checkout_mode'),
       }
-    } catch (error) {
-      return { available: false, observedAt: new Date().toISOString(), source: 'cordis:pgBilling', reason: errorDetail(error) }
+    } catch {
+      return unavailable<PureGammaBillingView>('cordis:pgBilling', 'billing data is currently unavailable')
     }
   }
 
@@ -200,7 +142,7 @@ export class PureGammaClientGateway extends TypertRemoteService {
   async notifications(): Promise<PureGammaNotificationsView> {
     const service = this.ctx.get('pgNotifications')
     if (service === undefined) {
-      return { available: false, observedAt: new Date().toISOString(), source: 'cordis:pgNotifications', reason: 'notifications capability is not installed' }
+      return unavailable<PureGammaNotificationsView>('cordis:pgNotifications', 'notifications capability is not installed')
     }
     try {
       const [dailyBrief, deliveries] = await Promise.all([service.dailyBrief(), service.deliveries()])
@@ -227,8 +169,8 @@ export class PureGammaClientGateway extends TypertRemoteService {
         lastDeliveryChannel: stringValue(latest, 'channel'),
         lastDeliveryAt: stringValue(latest, 'sent_at') ?? stringValue(latest, 'created_at'),
       }
-    } catch (error) {
-      return { available: false, observedAt: new Date().toISOString(), source: 'cordis:pgNotifications', reason: errorDetail(error) }
+    } catch {
+      return unavailable<PureGammaNotificationsView>('cordis:pgNotifications', 'notification data is currently unavailable')
     }
   }
 
@@ -236,7 +178,7 @@ export class PureGammaClientGateway extends TypertRemoteService {
   async quantRuntime(): Promise<PureGammaQuantRuntimeView> {
     const service = this.ctx.get('pgTsyRuntime')
     if (service === undefined) {
-      return { available: false, observedAt: new Date().toISOString(), source: 'cordis:pgTsyRuntime', reason: 'pg-tsy runtime capability is not installed' }
+      return unavailable<PureGammaQuantRuntimeView>('cordis:pgTsyRuntime', 'pg-tsy runtime capability is not installed')
     }
     try {
       const snapshot = await service.health()
@@ -257,8 +199,8 @@ export class PureGammaClientGateway extends TypertRemoteService {
         blockingGates: [...snapshot.blockingGates],
         lastError: snapshot.lastError,
       }
-    } catch (error) {
-      return { available: false, observedAt: new Date().toISOString(), source: 'cordis:pgTsyRuntime', reason: errorDetail(error) }
+    } catch {
+      return unavailable<PureGammaQuantRuntimeView>('cordis:pgTsyRuntime', 'quant runtime health is currently unavailable')
     }
   }
 }

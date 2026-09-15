@@ -8,6 +8,7 @@
   "types": "lib/types/index.d.ts",
   "exports": {
     ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./types": { "types": "./lib/types/types.d.ts", "default": "./lib/types/types.js" },
     "./typert": { "types": "./lib/typert.host.d.ts", "default": "./lib/typert.host.js" },
     "./remote": { "types": "./lib/typert.remote-client.d.ts", "default": "./lib/typert.remote-client.js" },
     "./src/*": "./src/*",
@@ -25,6 +26,7 @@
     "bundle": "tsc -p tsconfig.json && tsdown --config-loader tsx"
   },
   "dependencies": {
+    "@deepseek-ai/dsh-typert-protocol": "workspace:*",
     "@puregamma/dsh-auth": "workspace:^",
     "@puregamma/dsh-billing": "workspace:^",
     "@puregamma/dsh-notifications": "workspace:^",
@@ -32,7 +34,6 @@
     "zod": "^4.4.3"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-typert-protocol": "0.1.5-rc.2"
+    "@deepseek-ai/cordis": "^4.0.2"
   }
 }

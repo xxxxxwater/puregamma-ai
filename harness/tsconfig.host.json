@@ -1,6 +1,7 @@
 {
   "files": [],
   "references": [
+    { "path": "./packages/typert-protocol" },
     { "path": "./packages/client-gateway" }
   ]
 }

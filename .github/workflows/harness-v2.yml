@@ -65,9 +65,15 @@ jobs:
           test -f harness/plugins/brand/lib/index.js
           test -f harness/plugins/brand/lib/client.js
           test -f harness/plugins/brand/lib/types/client/index.d.ts
+          test -f harness/packages/client-gateway/lib/typert.host.js
+          test -f harness/packages/client-gateway/lib/typert.host.d.ts
+          test -f harness/packages/client-gateway/lib/typert.remote-client.js
+          test -f harness/packages/client-gateway/lib/typert.remote-client.d.ts
 
       - name: Verify migrated plugin artifacts
         run: |
+          test -f harness/packages/typert-protocol/lib/index.js
+          test -f harness/packages/typert-protocol/lib/types/index.d.ts
           test -f harness/plugins/auth/lib/index.js
           test -f harness/plugins/auth-legacy-api/lib/index.js
           test -f harness/plugins/tool-auth/lib/index.js
