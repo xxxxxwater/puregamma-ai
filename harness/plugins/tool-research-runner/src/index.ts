@@ -28,16 +28,17 @@ function runTool(ctx: Context) {
     },
     output: { schema: runSchema, render: (_args, value) => [{ type: 'text', text: `Research sandbox run queued/read at ${value.observedAt}.` }] },
     async execute(args) {
-      if (args.datasetRefs.length > 8) throw new Error('research_code_run: at most 8 dataset refs are allowed')
+      const datasetRefs = args.datasetRefs ?? []
+      if (datasetRefs.length > 8) throw new Error('research_code_run: at most 8 dataset refs are allowed')
       if (typeof args.limits !== 'object' || args.limits === null || Array.isArray(args.limits)) throw new Error('research_code_run: limits must be a JSON object')
       return ctx.pgResearchSandbox.createRun({
         code: args.code,
-        datasetRefs: args.datasetRefs,
+        datasetRefs,
         limits: args.limits,
         ...(args.idempotencyKey === undefined ? {} : { idempotencyKey: args.idempotencyKey }),
       })
     },
-    presentCall: args => ({ card: 'generic', title: 'Run isolated research code', kind: 'other', rawInput: { datasetRefs: args.datasetRefs, hasIdempotencyKey: Boolean(args.idempotencyKey) } }),
+    presentCall: args => ({ card: 'generic', title: 'Run isolated research code', kind: 'other', rawInput: { datasetRefs: args.datasetRefs ?? [], hasIdempotencyKey: Boolean(args.idempotencyKey) } }),
   })
 }
 
