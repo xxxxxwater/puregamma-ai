@@ -77,6 +77,17 @@ export interface PureGammaBillingView {
   usageHistory: PureGammaBillingUsage[]
 }
 
+export interface PureGammaBillingActionResult {
+  available: boolean
+  observedAt: string
+  source: string
+  reason?: string
+  kind: 'checkout' | 'portal' | 'cancel' | 'reactivate'
+  planName?: string
+  status?: string
+  url?: string
+}
+
 export interface PureGammaNotificationsView {
   available: boolean
   observedAt: string
