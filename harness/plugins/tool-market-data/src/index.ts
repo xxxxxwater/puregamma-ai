@@ -67,7 +67,8 @@ function marketSnapshotTool(ctx: Context) {
           : [
               `Market snapshot as of ${value.asOf}:`,
               ...value.quotes.map(quote => {
-                const price = quote.last ?? quote.mark ?? [quote.bid, quote.ask].filter(Boolean).join('/') ?? 'n/a'
+                const spread = [quote.bid, quote.ask].filter(Boolean).join('/')
+                const price = quote.last ?? quote.mark ?? spread
                 return `${quote.symbol}: ${price || 'n/a'} (${quote.source}${quote.stale ? ', stale' : ''})`
               }),
             ].join('\n'),
@@ -104,7 +105,7 @@ function marketSnapshotTool(ctx: Context) {
     presentCall: args => ({
       card: 'generic',
       title: 'Read market snapshot',
-      kind: 'read',
+      kind: 'other',
       rawInput: args.instruments,
     }),
   })
@@ -180,7 +181,7 @@ function marketNewsTool(ctx: Context) {
         })),
       }
     },
-    presentCall: args => ({ card: 'generic', title: 'Read market news', kind: 'read', rawInput: args }),
+    presentCall: args => ({ card: 'generic', title: 'Read market news', kind: 'other', rawInput: args }),
   })
 }
 
@@ -227,7 +228,7 @@ function providerHealthTool(ctx: Context) {
         })),
       }
     },
-    presentCall: () => ({ card: 'generic', title: 'Check market provider health', kind: 'read' }),
+    presentCall: () => ({ card: 'generic', title: 'Check market provider health', kind: 'other' }),
   })
 }
 
