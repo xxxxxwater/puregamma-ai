@@ -41,6 +41,16 @@
     - id: puregamma-tool-billing
       name: '@puregamma/dsh-tool-billing'
 
+    # API Gateway product state is separate from the Harness model loop and from
+    # the public OpenAI-compatible serving transport. Model tools can inspect
+    # catalog/usage/key metadata only; raw key creation/rotation, wallet top-up,
+    # provider sync and pricing policy remain explicit UI/admin actions.
+    - id: puregamma-api-gateway-provider
+      name: '@puregamma/dsh-api-gateway-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+    - id: puregamma-tool-api-gateway
+      name: '@puregamma/dsh-tool-api-gateway'
+
     # External notification delivery is a capability seam. The model can inspect
     # configuration/history, but send/verify/device mutations require service/UI
     # callers and later Harness approval integration.
