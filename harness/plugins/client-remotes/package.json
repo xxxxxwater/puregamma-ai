@@ -1,0 +1,29 @@
+{
+  "name": "@puregamma/dsh-client-remotes",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "PureGamma Harness browser Remote assembly over the native Harness Typert gateway",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./client": { "types": "./lib/types/client/index.d.ts", "default": "./lib/client.js" },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": ["@deepseek-ai/dsh-api-gateway"],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "files": ["lib/index.js", "lib/client.js", "lib/types/**/*.d.ts"],
+  "scripts": { "bundle": "tsc -p tsconfig.build.json && tsdown --config-loader tsx" },
+  "dependencies": { "@puregamma/dsh-client-gateway": "workspace:^" },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-api-gateway": "0.1.5-rc.2"
+  }
+}
