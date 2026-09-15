@@ -88,6 +88,17 @@ export interface PureGammaBillingActionResult {
   url?: string
 }
 
+export interface PureGammaNotificationDelivery {
+  id?: string
+  channel?: string
+  status?: string
+  messagePreview?: string
+  provider?: string
+  error?: string
+  createdAt?: string
+  sentAt?: string
+}
+
 export interface PureGammaNotificationsView {
   available: boolean
   observedAt: string
@@ -100,6 +111,13 @@ export interface PureGammaNotificationsView {
   channels?: string[]
   reportTypes?: string[]
   locale?: string
+  includePortfolio?: boolean
+  includeMarket?: boolean
+  includeSignals?: boolean
+  includeRisk?: boolean
+  includeSentiment?: boolean
+  quietHours?: Record<string, string | number | boolean | null>
+  maxLength?: number
   failureCount?: number
   lastError?: string
   nextDeliveryAt?: string
@@ -107,6 +125,44 @@ export interface PureGammaNotificationsView {
   lastDeliveryStatus?: string
   lastDeliveryChannel?: string
   lastDeliveryAt?: string
+  deliveryAvailable?: boolean
+  imessage?: {
+    officialNumber?: string
+    provider?: string
+    enabledPlans?: string[]
+    recipient?: string
+    recipientVerifiedAt?: string
+  }
+  deliveries: PureGammaNotificationDelivery[]
+}
+
+export interface PureGammaDailyBriefUpdate {
+  enabled?: boolean
+  timezone?: string
+  localTime?: string
+  channel?: string
+  channels?: string[]
+  reportTypes?: string[]
+  locale?: string
+  includePortfolio?: boolean
+  includeMarket?: boolean
+  includeSignals?: boolean
+  includeRisk?: boolean
+  includeSentiment?: boolean
+  quietHours?: Record<string, string | number | boolean | null>
+  maxLength?: number
+}
+
+export interface PureGammaNotificationActionResult {
+  available: boolean
+  observedAt: string
+  source: string
+  reason?: string
+  kind: 'preferences' | 'imessage-verify-request' | 'imessage-verify-confirm' | 'imessage-test' | 'email-test'
+  challengeId?: string
+  recipient?: string
+  status?: string
+  deliveryId?: string
 }
 
 export interface PureGammaQuantRuntimeView {
