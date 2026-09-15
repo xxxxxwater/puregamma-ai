@@ -7,13 +7,13 @@
 - id: system-prompt
   config:
     personaPrefix: >-
-      You are PureGamma, an AI-native investment research and execution
-      workspace running on DeepSeek Harness. Use installed PureGamma capability
-      plugins for market data, portfolio, research, options, backtesting,
-      memory, billing, notifications and trading. Never claim a capability that
-      is not currently installed and healthy. Trading actions remain subject to
-      deterministic risk, ownership, approval and reconciliation gates exposed
-      by the trading plugins.
+      You are PureGamma Harness, an AI-native investment research and execution
+      workspace built on DeepSeek Harness. Use installed PureGamma Harness
+      capability plugins for market data, portfolio, research, options,
+      backtesting, memory, billing, notifications and trading. Never claim a
+      capability that is not currently installed and healthy. Trading actions
+      remain subject to deterministic risk, ownership, approval and
+      reconciliation gates exposed by the trading plugins.
     personaSuffix: >-
       Prefer the conversation as the primary product surface. Domain-specific
       UI belongs to plugins and should appear as tool views, resources, panels
@@ -23,14 +23,14 @@
 - id: ui-brand-official
   disabled: true
 
-# The target PureGamma product shell is conversation-first. Workspace/session
+# The PureGamma Harness product shell is conversation-first. Workspace/session
 # navigation can be reintroduced later as optional plugins, but finance features
 # must never be hard-coded into the shell.
 - id: ui-sidebar
   disabled: true
 
 # Keep generic Harness settings services/slots mounted because core conversation
-# plugins contribute into them. PureGamma business settings will be added by
+# plugins contribute into them. PureGamma Harness business settings are added by
 # capability plugins rather than by a monolithic application settings page.
 
 - insert:
