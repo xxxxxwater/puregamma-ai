@@ -3,8 +3,11 @@ import path from 'node:path'
 import process from 'node:process'
 
 const root = path.resolve(process.cwd())
+const repoRoot = path.resolve(root, '..')
 const pluginsRoot = path.join(root, 'plugins')
 const profilePath = path.join(root, 'profile', 'package.json')
+const legacyRoutersRoot = path.join(repoRoot, 'apps', 'api', 'routers')
+const legacySurfaceMapPath = path.join(pluginsRoot, 'legacy-surface-map.ts')
 
 const errors = []
 
@@ -63,10 +66,26 @@ for (const name of Object.keys(profile.dependencies ?? {})) {
   }
 }
 
+// Anti-omission gate: every existing legacy FastAPI router must have an explicit
+// destination in the plugin migration ledger. This keeps "everything is a
+// plugin" mechanically complete while the monolith is being dismantled.
+const migrationMap = await fs.readFile(legacySurfaceMapPath, 'utf8')
+const routerEntries = await fs.readdir(legacyRoutersRoot, { withFileTypes: true })
+const routerFiles = routerEntries
+  .filter(entry => entry.isFile() && entry.name.endsWith('.py') && entry.name !== '__init__.py')
+  .map(entry => entry.name)
+  .sort()
+for (const router of routerFiles) {
+  const surface = `apps/api/routers/${router}`
+  if (!migrationMap.includes(`surface: '${surface}'`)) {
+    errors.push(`${surface} has no PureGamma Harness plugin owner in plugins/legacy-surface-map.ts`)
+  }
+}
+
 if (errors.length > 0) {
   console.error('PureGamma Harness architecture check failed:')
   for (const error of errors) console.error(`- ${error}`)
   process.exit(1)
 }
 
-console.log(`PureGamma Harness architecture check passed (${sourceFiles.length} source files, ${packageFiles.length} plugin packages).`)
+console.log(`PureGamma Harness architecture check passed (${sourceFiles.length} source files, ${packageFiles.length} plugin packages, ${routerFiles.length} legacy routers mapped).`)
