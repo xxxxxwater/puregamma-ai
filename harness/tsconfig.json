@@ -10,7 +10,6 @@
     "verbatimModuleSyntax": true,
     "types": ["node", "react"],
     "paths": {
-      "@deepseek-ai/dsh-typert-protocol": ["./packages/typert-protocol/src/index.ts"],
       "@puregamma/dsh-auth": ["./plugins/auth/src/index.ts"],
       "@puregamma/dsh-billing": ["./plugins/billing/src/index.ts"],
       "@puregamma/dsh-api-gateway": ["./plugins/api-gateway/src/index.ts"],
