@@ -12,6 +12,7 @@
     "paths": {
       "@puregamma/dsh-auth": ["./plugins/auth/src/index.ts"],
       "@puregamma/dsh-billing": ["./plugins/billing/src/index.ts"],
+      "@puregamma/dsh-api-gateway": ["./plugins/api-gateway/src/index.ts"],
       "@puregamma/dsh-notifications": ["./plugins/notifications/src/index.ts"],
       "@puregamma/dsh-market-data": ["./plugins/market-data/src/index.ts"],
       "@puregamma/dsh-portfolio": ["./plugins/portfolio/src/index.ts"],
