@@ -1,3 +1,8 @@
 packages:
   - profile
   - plugins/*
+
+# Keep pnpm 11 fail-closed for dependency lifecycle scripts. This is the same
+# reviewed exception present in the pinned DeepSeek Harness workspace.
+allowBuilds:
+  koffi: true
