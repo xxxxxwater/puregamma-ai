@@ -15,6 +15,7 @@
       "@puregamma/dsh-research": ["./plugins/research/src/index.ts"],
       "@puregamma/dsh-options": ["./plugins/options/src/index.ts"],
       "@puregamma/dsh-backtest": ["./plugins/backtest/src/index.ts"],
+      "@puregamma/dsh-memory": ["./plugins/memory/src/index.ts"],
       "@puregamma/dsh-trading": ["./plugins/trading/src/index.ts"],
       "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"]
     }
