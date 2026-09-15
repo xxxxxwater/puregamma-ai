@@ -28,7 +28,7 @@
     }
   },
   "scripts": {
-    "bundle": "tsc -p tsconfig.build.json && tsdown --config-loader unrun"
+    "bundle": "tsc -p tsconfig.build.json && tsdown --config-loader tsx"
   },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
