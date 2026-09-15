@@ -86,6 +86,9 @@ jobs:
           test -f harness/plugins/memory/lib/index.js
           test -f harness/plugins/memory-legacy-api/lib/index.js
           test -f harness/plugins/tool-memory/lib/index.js
+          test -f harness/plugins/secretary/lib/index.js
+          test -f harness/plugins/secretary-legacy-api/lib/index.js
+          test -f harness/plugins/tool-secretary/lib/index.js
           test -f harness/plugins/pg-tsy-runtime/lib/index.js
           test -f harness/plugins/pg-tsy-runtime-http/lib/index.js
           test -f harness/plugins/tool-pg-tsy-runtime/lib/index.js
