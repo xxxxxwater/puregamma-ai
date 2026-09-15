@@ -1,9 +1,11 @@
 import type { Context as ClientContext } from '@deepseek-ai/cordis'
+import type { ClientRemote as HarnessClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
+import type { TypertClientRemote } from '@deepseek-ai/dsh-typert-protocol'
 import pureGammaClientRemote from '@puregamma/dsh-client-gateway/remote'
-import type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
 import type {} from '@puregamma/dsh-client-gateway/remote'
 
-export type { ClientRemote } from '@deepseek-ai/dsh-api-gateway/client'
+/** PureGamma Client Remote assembly: native Harness carrier plus generated PureGamma namespaces. */
+export type ClientRemote = HarnessClientRemote & TypertClientRemote
 export type {} from '@puregamma/dsh-client-gateway/remote'
 
 declare module '@deepseek-ai/cordis' {
