@@ -74,6 +74,9 @@ jobs:
           test -f harness/plugins/ui-billing/lib/index.js
           test -f harness/plugins/ui-billing/lib/client.js
           test -f harness/plugins/ui-billing/lib/types/client/index.d.ts
+          test -f harness/plugins/ui-notifications/lib/index.js
+          test -f harness/plugins/ui-notifications/lib/client.js
+          test -f harness/plugins/ui-notifications/lib/types/client/index.d.ts
           test -f harness/packages/client-gateway/lib/typert.host.js
           test -f harness/packages/client-gateway/lib/typert.host.d.ts
           test -f harness/packages/client-gateway/lib/typert.remote-client.js
