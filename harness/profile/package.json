@@ -22,6 +22,8 @@
     "@puregamma/dsh-tool-market-data": "workspace:^",
     "@puregamma/dsh-portfolio-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-portfolio": "workspace:^",
+    "@puregamma/dsh-research-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-research": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
     "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^"
   },
