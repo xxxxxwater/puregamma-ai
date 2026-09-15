@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "PureGamma brand contribution for the DeepSeek Harness conversation hero",
+  "description": "PureGamma Harness brand contribution for the DeepSeek Harness conversation hero",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
