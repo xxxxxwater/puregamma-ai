@@ -4,10 +4,7 @@
   "private": true,
   "type": "module",
   "description": "PureGamma Harness distribution overlay for DeepSeek Harness",
-  "exports": {
-    "./cordis.patch.yml": "./cordis.patch.yml",
-    "./package.json": "./package.json"
-  },
+  "exports": { "./cordis.patch.yml": "./cordis.patch.yml", "./package.json": "./package.json" },
   "files": ["cordis.patch.yml"],
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
   "dependencies": {
@@ -28,6 +25,8 @@
     "@puregamma/dsh-tool-secretary": "workspace:^",
     "@puregamma/dsh-skills-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-skills": "workspace:^",
+    "@puregamma/dsh-research-runner-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-research-runner": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
     "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^"
   },
