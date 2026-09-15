@@ -1,0 +1,43 @@
+{
+  "name": "@puregamma/dsh-ui-billing",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "PureGamma Harness billing resource and settings surface",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./client": { "types": "./lib/types/client/index.d.ts", "default": "./lib/client.js" },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [
+        "@puregamma/dsh-client-remotes",
+        "@deepseek-ai/dsh-client-resources",
+        "@deepseek-ai/dsh-client-ui-settings",
+        "@deepseek-ai/dsh-client-locale",
+        "@deepseek-ai/dsh-client-ui-renderer"
+      ],
+      "platform": "web"
+    }
+  },
+  "files": ["lib/index.js", "lib/client.js", "lib/types/**/*.d.ts"],
+  "scripts": { "bundle": "tsc -p tsconfig.build.json && tsdown --config-loader tsx" },
+  "dependencies": {
+    "@puregamma/dsh-client-gateway": "workspace:^",
+    "@puregamma/dsh-client-remotes": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-api-gateway": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-resources": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-renderer": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-slots": "0.1.5-rc.2",
+    "react": "^18.2.0"
+  }
+}

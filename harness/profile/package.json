@@ -22,6 +22,9 @@
   },
   "dependencies": {
     "@puregamma/dsh-ui-brand": "workspace:^",
+    "@puregamma/dsh-client-remotes": "workspace:^",
+    "@puregamma/dsh-ui-account": "workspace:^",
+    "@puregamma/dsh-ui-billing": "workspace:^",
     "@puregamma/dsh-auth-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-auth": "workspace:^",
     "@puregamma/dsh-billing-legacy-api": "workspace:^",

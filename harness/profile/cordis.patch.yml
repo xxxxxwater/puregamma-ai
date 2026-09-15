@@ -13,7 +13,7 @@
     personaSuffix: >-
       Prefer conversation as the primary product surface. Domain-specific UI,
       services, tools, jobs and integrations belong to plugins and must not be
-      hard-coded into the shell.
+      be hard-coded into the shell.
 
 - id: ui-brand-official
   disabled: true
@@ -23,6 +23,15 @@
 - insert:
     - id: puregamma-ui-brand
       name: '@puregamma/dsh-ui-brand'
+
+    # Client-side capability assembly. Generated Typert Remote contributions are
+    # mounted once per Client fiber; UI plugins consume Resource/Slot seams only.
+    - id: puregamma-client-remotes
+      name: '@puregamma/dsh-client-remotes'
+    - id: puregamma-ui-account
+      name: '@puregamma/dsh-ui-account'
+    - id: puregamma-ui-billing
+      name: '@puregamma/dsh-ui-billing'
 
     # SaaS account identity only. Harness session owns conversation persistence;
     # Harness credentials owns secret material. Destructive/export actions stay

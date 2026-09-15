@@ -65,6 +65,15 @@ jobs:
           test -f harness/plugins/brand/lib/index.js
           test -f harness/plugins/brand/lib/client.js
           test -f harness/plugins/brand/lib/types/client/index.d.ts
+          test -f harness/plugins/client-remotes/lib/index.js
+          test -f harness/plugins/client-remotes/lib/client.js
+          test -f harness/plugins/client-remotes/lib/types/client/index.d.ts
+          test -f harness/plugins/ui-account/lib/index.js
+          test -f harness/plugins/ui-account/lib/client.js
+          test -f harness/plugins/ui-account/lib/types/client/index.d.ts
+          test -f harness/plugins/ui-billing/lib/index.js
+          test -f harness/plugins/ui-billing/lib/client.js
+          test -f harness/plugins/ui-billing/lib/types/client/index.d.ts
           test -f harness/packages/client-gateway/lib/typert.host.js
           test -f harness/packages/client-gateway/lib/typert.host.d.ts
           test -f harness/packages/client-gateway/lib/typert.remote-client.js
