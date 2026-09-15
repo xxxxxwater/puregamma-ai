@@ -17,19 +17,11 @@
       "@puregamma/dsh-backtest": ["./plugins/backtest/src/index.ts"],
       "@puregamma/dsh-memory": ["./plugins/memory/src/index.ts"],
       "@puregamma/dsh-secretary": ["./plugins/secretary/src/index.ts"],
+      "@puregamma/dsh-skills": ["./plugins/skills/src/index.ts"],
       "@puregamma/dsh-trading": ["./plugins/trading/src/index.ts"],
       "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"]
     }
   },
-  "include": [
-    "plugins/contracts.ts",
-    "plugins/catalog.ts",
-    "plugins/*/src/**/*.ts"
-  ],
-  "exclude": [
-    "plugins/*/tsdown.config.ts",
-    "tsdown.node.ts",
-    "../vendor/deepseek-harness/**",
-    "../vendor/pg-tsy-core-bootstrap/**"
-  ]
+  "include": ["plugins/contracts.ts", "plugins/catalog.ts", "plugins/*/src/**/*.ts"],
+  "exclude": ["plugins/*/tsdown.config.ts", "tsdown.node.ts", "../vendor/deepseek-harness/**", "../vendor/pg-tsy-core-bootstrap/**"]
 }
