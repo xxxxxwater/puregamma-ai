@@ -15,6 +15,21 @@ Everything domain-specific belongs to a plugin. The existing `apps/web`,
 `apps/api`, and Python packages remain as migration sources until a capability
 has crossed the compatibility boundary and passed parity tests.
 
+## Pinned upstream runtime
+
+The runtime/build contract is pinned as the git submodule
+`../vendor/deepseek-harness`, currently at:
+
+```text
+c291e7961a515f6d7af9304e7fd1d257929aef26
+```
+
+Do not copy Harness internals into PureGamma. Host-only PG packages use the
+local `nodePlugin()` build preset; browser plugins reuse the pinned upstream
+Harness client bundle preset so they emit the required `lib/client.js` factory
+format. A Harness upgrade is an explicit submodule bump followed by this
+workspace's compatibility build/tests.
+
 ## Target composition
 
 ```text
@@ -36,6 +51,38 @@ DeepSeek Harness
       + @puregamma/dsh-api-gateway
       + @puregamma/dsh-admin
 ```
+
+## First vertical slice
+
+Market data is the first capability crossing the boundary:
+
+```text
+Harness Agent
+  -> market_snapshot / market_news / market_provider_health
+  -> ctx.pgMarketData
+  -> @puregamma/dsh-market-data-legacy-api
+  -> existing PureGamma FastAPI /market/snapshot and /api/news
+```
+
+The FastAPI dependency is deliberately temporary and one-way. Replacing this
+provider with native exchange/vendor providers must not change the tools or
+consumers.
+
+## Build
+
+From the repository root:
+
+```bash
+git submodule update --init --recursive
+corepack enable
+pnpm --dir vendor/deepseek-harness install --frozen-lockfile --ignore-scripts
+pnpm --dir harness install --no-frozen-lockfile
+pnpm --dir harness run check
+```
+
+The branch also runs `.github/workflows/harness-v2.yml`, which verifies the
+special Harness client bundle (`brand/lib/client.js`) and the first MarketData
+service/provider/tool artifacts.
 
 ## Non-negotiable architecture rules
 
@@ -60,6 +107,7 @@ DeepSeek Harness
 
 - `profile/` — the PureGamma DeepSeek Harness profile overlay.
 - `plugins/` — target PureGamma Harness plugins and shared service contracts.
+- `../vendor/deepseek-harness` — pinned upstream runtime/build toolchain.
 - `../apps/web` — legacy/compatibility frontend while migration is in progress.
 - `../apps/api` — legacy/compatibility API while migration is in progress.
 - `../packages` — existing domain implementations to be wrapped/extracted into
