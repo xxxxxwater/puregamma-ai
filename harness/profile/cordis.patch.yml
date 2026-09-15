@@ -11,10 +11,10 @@
       workspace built on DeepSeek Harness and Cordis. Every PureGamma Harness
       capability is provided by an installed plugin: market data, portfolio,
       research, options, backtesting, memory, data sources, secretary/automation,
-      skills, billing, notifications, API gateway, administration and trading runtimes.
-      Never claim a capability that is not currently installed and healthy.
-      Trading actions remain subject to deterministic risk, ownership, approval,
-      reconciliation and venue gates exposed by the trading plugins.
+      skills, isolated research sandbox, billing, notifications, API gateway,
+      administration and trading runtimes. Never claim a capability that is not
+      currently installed and healthy. Trading actions remain subject to
+      deterministic risk, ownership, approval, reconciliation and venue gates.
     personaSuffix: >-
       Prefer conversation as the primary product surface. Domain-specific UI,
       services, tools, jobs and integrations belong to plugins and must not be
@@ -22,7 +22,6 @@
 
 - id: ui-brand-official
   disabled: true
-
 - id: ui-sidebar
   disabled: true
 
@@ -32,87 +31,67 @@
 
     - id: puregamma-market-data-provider
       name: '@puregamma/dsh-market-data-legacy-api'
-      config:
-        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
-        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
-        requestTimeoutMs: 10000
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
     - id: puregamma-tool-market-data
       name: '@puregamma/dsh-tool-market-data'
 
     - id: puregamma-portfolio-provider
       name: '@puregamma/dsh-portfolio-legacy-api'
-      config:
-        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
-        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
-        requestTimeoutMs: 10000
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
     - id: puregamma-tool-portfolio
       name: '@puregamma/dsh-tool-portfolio'
 
     - id: puregamma-research-provider
       name: '@puregamma/dsh-research-legacy-api'
-      config:
-        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
-        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
-        requestTimeoutMs: 10000
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
     - id: puregamma-tool-research
       name: '@puregamma/dsh-tool-research'
 
     - id: puregamma-options-provider
       name: '@puregamma/dsh-options-legacy-api'
-      config:
-        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
-        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
-        requestTimeoutMs: 10000
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
     - id: puregamma-tool-options
       name: '@puregamma/dsh-tool-options'
 
     - id: puregamma-backtest-provider
       name: '@puregamma/dsh-backtest-legacy-api'
-      config:
-        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
-        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
-        requestTimeoutMs: 30000
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000 }
     - id: puregamma-tool-backtest
       name: '@puregamma/dsh-tool-backtest'
 
     - id: puregamma-memory-provider
       name: '@puregamma/dsh-memory-legacy-api'
-      config:
-        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
-        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
-        requestTimeoutMs: 10000
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
     - id: puregamma-tool-memory
       name: '@puregamma/dsh-tool-memory'
 
-    # Harness owns the single conversation loop. Legacy secretary behavior is
-    # temporary transport behind pgSecretary; its model-facing tool is status-only.
+    # Harness owns the single permanent conversation loop; legacy secretary
+    # reply/TTS/STT/history are temporary providers behind pgSecretary.
     - id: puregamma-secretary-provider
       name: '@puregamma/dsh-secretary-legacy-api'
-      config:
-        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
-        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
-        requestTimeoutMs: 10000
-        voiceTimeoutMs: 120000
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000, voiceTimeoutMs: 120000 }
     - id: puregamma-tool-secretary
       name: '@puregamma/dsh-tool-secretary'
 
-    # Skills are policy-governed plugins/workflows. Import/install/uninstall stay
-    # service/UI operations; the model can list and execute only through the
-    # existing manifest, allowlist, cost and permission enforcement seam.
+    # Skills remain governed by manifest validation, tool allowlists, cost and
+    # autopilot/order-intent permissions. Model tools cannot set bypass flags.
     - id: puregamma-skills-provider
       name: '@puregamma/dsh-skills-legacy-api'
-      config:
-        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
-        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
-        requestTimeoutMs: 30000
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000 }
     - id: puregamma-tool-skills
       name: '@puregamma/dsh-tool-skills'
 
+    # User research code executes only behind pgResearchSandbox. The migration
+    # provider queues into the existing isolated worker; code is never eval'd
+    # in the Harness host. Figure bytes remain a service/resource concern.
+    - id: puregamma-research-runner-provider
+      name: '@puregamma/dsh-research-runner-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000, artifactTimeoutMs: 30000 }
+    - id: puregamma-tool-research-runner
+      name: '@puregamma/dsh-tool-research-runner'
+
     - id: puregamma-pg-tsy-runtime
       name: '@puregamma/dsh-pg-tsy-runtime-http'
-      config:
-        baseUrl: !!js process.env.PG_TSY_RUNTIME_URL ?? 'http://127.0.0.1:8080'
-        requestTimeoutMs: 5000
-        allowStrategyReload: false
+      config: { baseUrl: !!js process.env.PG_TSY_RUNTIME_URL ?? 'http://127.0.0.1:8080', requestTimeoutMs: 5000, allowStrategyReload: false }
     - id: puregamma-tool-pg-tsy-runtime
       name: '@puregamma/dsh-tool-pg-tsy-runtime'
