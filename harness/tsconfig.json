@@ -5,13 +5,25 @@
     "moduleResolution": "NodeNext",
     "strict": true,
     "noEmit": true,
-    "jsx": "react-jsx",
     "skipLibCheck": true,
     "allowImportingTsExtensions": true,
-    "verbatimModuleSyntax": true
+    "verbatimModuleSyntax": true,
+    "types": ["node", "react"],
+    "baseUrl": ".",
+    "paths": {
+      "@puregamma/dsh-market-data": ["plugins/market-data/src/index.ts"],
+      "@puregamma/dsh-portfolio": ["plugins/portfolio/src/index.ts"],
+      "@puregamma/dsh-trading": ["plugins/trading/src/index.ts"]
+    }
   },
   "include": [
-    "plugins/**/*.ts",
-    "plugins/**/*.tsx"
+    "plugins/contracts.ts",
+    "plugins/catalog.ts",
+    "plugins/*/src/**/*.ts"
+  ],
+  "exclude": [
+    "plugins/*/tsdown.config.ts",
+    "tsdown.node.ts",
+    "../vendor/deepseek-harness/**"
   ]
 }
