@@ -33,7 +33,21 @@
 # plugins contribute into them. PureGamma business settings will be added by
 # capability plugins rather than by a monolithic application settings page.
 
-# PureGamma brand is the first out-of-tree Harness client plugin.
 - insert:
+    # Brand lives in the Harness Conversation hero, not in a PG-owned navbar.
     - id: puregamma-ui-brand
       name: '@puregamma/dsh-ui-brand'
+
+    # Slice 1 compatibility provider: Harness owns the service/tool surface
+    # already, while the existing FastAPI process remains the temporary data
+    # source. PUREGAMMA_LEGACY_API_URL lets Docker/remote deployments point at
+    # the compatibility backend without changing plugin code.
+    - id: puregamma-market-data-provider
+      name: '@puregamma/dsh-market-data-legacy-api'
+      config:
+        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
+        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
+        requestTimeoutMs: 10000
+
+    - id: puregamma-tool-market-data
+      name: '@puregamma/dsh-tool-market-data'
