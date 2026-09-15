@@ -1,3 +1,3 @@
-import { clientBundle } from '../../../vendor/deepseek-harness/packages/client/tsdown.client.ts'
+import { externalClientBundle } from '../../tsdown.client-external.ts'
 
-export default clientBundle('@puregamma/dsh-ui-brand', ['lib/types/index.js'])
+export default externalClientBundle('@puregamma/dsh-ui-brand')
