@@ -29,10 +29,9 @@
 - id: ui-sidebar
   disabled: true
 
-# Keep the generic Harness conversation stack. Product/business settings move
-# behind capability plugins rather than a monolithic PureGamma settings area.
-- id: ui-settings-general
-  disabled: true
+# Keep generic Harness settings services/slots mounted because core conversation
+# plugins contribute into them. PureGamma business settings will be added by
+# capability plugins rather than by a monolithic application settings page.
 
 # PureGamma brand is the first out-of-tree Harness client plugin.
 - insert:
