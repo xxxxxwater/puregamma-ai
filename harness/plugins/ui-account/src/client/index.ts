@@ -5,7 +5,7 @@ import type { UseResource } from '@deepseek-ai/dsh-client-resources/client'
 import type {} from '@deepseek-ai/dsh-client-ui-settings/client'
 import type {} from '@deepseek-ai/dsh-client-ui-renderer/client'
 import type {} from '@deepseek-ai/dsh-client-locale/client'
-import type {} from '@deepseek-ai/dsh-api-gateway/client'
+import type {} from '@puregamma/dsh-client-remotes/client'
 import type {} from '@puregamma/dsh-client-gateway/remote'
 import type { PureGammaAccountView } from '@puregamma/dsh-client-gateway'
 
