@@ -8,6 +8,8 @@ const pluginsRoot = path.join(root, 'plugins')
 const profilePath = path.join(root, 'profile', 'package.json')
 const legacyRoutersRoot = path.join(repoRoot, 'apps', 'api', 'routers')
 const legacySurfaceMapPath = path.join(pluginsRoot, 'legacy-surface-map.ts')
+const legacyWebRoot = path.join(repoRoot, 'apps', 'web', 'app')
+const legacyWebSurfaceMapPath = path.join(pluginsRoot, 'legacy-web-surface-map.ts')
 
 const errors = []
 
@@ -71,14 +73,10 @@ if (!profile.dsh?.profile) {
   if (profile.dsh.profile.patchReload !== 'live') errors.push('PureGamma web profile must use live patch reload')
 }
 for (const name of Object.keys(profile.dependencies ?? {})) {
-  if (!name.startsWith('@puregamma/dsh-')) {
-    errors.push(`profile dependency ${name} is not a PureGamma Harness plugin`)
-  }
+  if (!name.startsWith('@puregamma/dsh-')) errors.push(`profile dependency ${name} is not a PureGamma Harness plugin`)
 }
 
-// Anti-omission gate: every existing legacy FastAPI router must have an explicit
-// destination in the plugin migration ledger. This keeps "everything is a
-// plugin" mechanically complete while the monolith is being dismantled.
+// Backend anti-omission gate: every legacy FastAPI router must have a plugin owner.
 const migrationMap = await fs.readFile(legacySurfaceMapPath, 'utf8')
 const routerEntries = await fs.readdir(legacyRoutersRoot, { withFileTypes: true })
 const routerFiles = routerEntries
@@ -87,9 +85,20 @@ const routerFiles = routerEntries
   .sort()
 for (const router of routerFiles) {
   const surface = `apps/api/routers/${router}`
-  if (!migrationMap.includes(`surface: '${surface}'`)) {
-    errors.push(`${surface} has no PureGamma Harness plugin owner in plugins/legacy-surface-map.ts`)
-  }
+  if (!migrationMap.includes(`surface: '${surface}'`)) errors.push(`${surface} has no PureGamma Harness plugin owner in plugins/legacy-surface-map.ts`)
+}
+
+// Frontend anti-omission gate: every user-addressable legacy Next.js page gets
+// an explicit owner and Harness-native destination before the monolith can be
+// deleted. Redirect-only pages are included until deletion so old URLs remain
+// intentional rather than accidental compatibility behavior.
+const webMigrationMap = await fs.readFile(legacyWebSurfaceMapPath, 'utf8')
+const webPageFiles = (await walk(legacyWebRoot))
+  .filter(file => path.basename(file) === 'page.tsx')
+  .map(file => path.relative(repoRoot, file).split(path.sep).join('/'))
+  .sort()
+for (const surface of webPageFiles) {
+  if (!webMigrationMap.includes(`surface: '${surface}'`)) errors.push(`${surface} has no Harness plugin owner in plugins/legacy-web-surface-map.ts`)
 }
 
 if (errors.length > 0) {
@@ -98,4 +107,4 @@ if (errors.length > 0) {
   process.exit(1)
 }
 
-console.log(`PureGamma Harness architecture check passed (${sourceFiles.length} source files, ${packageFiles.length} plugin packages, ${routerFiles.length} legacy routers mapped; standalone profile enforced).`)
+console.log(`PureGamma Harness architecture check passed (${sourceFiles.length} source files, ${packageFiles.length} plugin packages, ${routerFiles.length} legacy routers mapped, ${webPageFiles.length} legacy web pages mapped; standalone profile enforced).`)

@@ -1,4 +1,5 @@
 export type PureGammaCapabilityId =
+  | 'web-presence'
   | 'auth'
   | 'agent-chat'
   | 'market-data'
@@ -30,8 +31,8 @@ export type CapabilityRisk = 'read-only' | 'stateful' | 'money-movement'
  *
  * The application shell is deliberately absent from this union: it owns only
  * branding + conversation composition. Every former PureGamma.ai business
- * capability, integration and backend control surface must appear here or as a
- * provider plugin underneath one of these service definitions.
+ * capability, integration, public web surface and backend control surface must
+ * appear here or as a provider plugin underneath one of these definitions.
  */
 export interface PureGammaCapabilityDescriptor {
   id: PureGammaCapabilityId

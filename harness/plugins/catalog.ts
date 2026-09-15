@@ -9,6 +9,12 @@ import type { PureGammaCapabilityDescriptor } from './contracts.js'
  */
 export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = [
   {
+    id: 'web-presence', packageName: '@puregamma/dsh-web-presence', plane: 'dual', risk: 'read-only',
+    services: ['pgPublicContent'], tools: [],
+    ui: ['public.landing', 'public.docs', 'public.pricing', 'public.privacy', 'public.terms'],
+    legacyOwners: ['apps/web/app/[locale]/page.tsx', 'apps/web/app/[locale]/docs/page.tsx', 'apps/web/app/privacy/page.tsx', 'apps/web/app/terms/page.tsx'],
+  },
+  {
     id: 'auth', packageName: '@puregamma/dsh-auth', plane: 'dual', risk: 'stateful',
     services: ['pgAuth'], tools: ['auth_status'],
     ui: ['settings.account', 'conversation.auth-state', 'resource.account-export'],
