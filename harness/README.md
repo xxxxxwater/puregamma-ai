@@ -1,15 +1,15 @@
-# PureGamma Harness v2
+# PureGamma Harness
 
-This directory is the target runtime for the PureGamma refactor.
+PureGamma Harness is the target runtime and product identity for the PureGamma refactor.
 
-PureGamma is no longer treated as a monolithic Next.js + FastAPI product. The
-new product is a DeepSeek Harness distribution/profile with a deliberately thin
-shell:
+The product is no longer treated as a monolithic Next.js + FastAPI application.
+PureGamma Harness is a DeepSeek Harness distribution/profile with a deliberately
+thin shell:
 
-- PureGamma brand
+- PureGamma Harness brand
 - conversation surface
 - session/model/runtime primitives inherited from DeepSeek Harness
-- installable PureGamma capability plugins
+- installable PureGamma Harness capability plugins
 
 Everything domain-specific belongs to a plugin. The existing `apps/web`,
 `apps/api`, and Python packages remain as migration sources until a capability
@@ -24,7 +24,7 @@ The runtime/build contract is pinned as the git submodule
 c291e7961a515f6d7af9304e7fd1d257929aef26
 ```
 
-Do not copy Harness internals into PureGamma. Host-only PG packages use the
+Do not copy Harness internals into PureGamma Harness. Host-only packages use the
 local `nodePlugin()` build preset; browser plugins reuse the pinned upstream
 Harness client bundle preset so they emit the required `lib/client.js` factory
 format. A Harness upgrade is an explicit submodule bump followed by this
@@ -52,7 +52,7 @@ DeepSeek Harness
       + @puregamma/dsh-admin
 ```
 
-## First vertical slice
+## Migrated vertical slices
 
 Market data is the first capability crossing the boundary:
 
@@ -61,12 +61,22 @@ Harness Agent
   -> market_snapshot / market_news / market_provider_health
   -> ctx.pgMarketData
   -> @puregamma/dsh-market-data-legacy-api
-  -> existing PureGamma FastAPI /market/snapshot and /api/news
+  -> existing compatibility FastAPI /market/snapshot and /api/news
 ```
 
-The FastAPI dependency is deliberately temporary and one-way. Replacing this
-provider with native exchange/vendor providers must not change the tools or
-consumers.
+Portfolio/NAV is the next slice and follows the same dependency direction:
+
+```text
+Harness Agent
+  -> portfolio_snapshot / portfolio_positions / portfolio_nav
+  -> ctx.pgPortfolio
+  -> compatibility portfolio provider
+  -> existing authenticated FastAPI /portfolio
+```
+
+Compatibility API dependencies are deliberately temporary and one-way. Replacing
+them with native exchange/vendor providers must not change model-facing tools or
+plugin consumers.
 
 ## Build
 
@@ -80,14 +90,14 @@ pnpm --dir harness install --no-frozen-lockfile
 pnpm --dir harness run check
 ```
 
-The branch also runs `.github/workflows/harness-v2.yml`, which verifies the
-special Harness client bundle (`brand/lib/client.js`) and the first MarketData
-service/provider/tool artifacts.
+The branch also runs `.github/workflows/harness-v2.yml`, displayed in GitHub
+Actions as **PureGamma Harness**. It verifies the special Harness client bundle
+(`brand/lib/client.js`) and migrated service/provider/tool artifacts.
 
 ## Non-negotiable architecture rules
 
 1. **Harness owns the runtime.** Do not create a second browser Cordis root or a
-   second plugin loader inside PureGamma.
+   second plugin loader inside PureGamma Harness.
 2. **The shell owns no finance feature.** Portfolio, Research, Trading, Options,
    News, Backtest, Memory, Billing and Admin are plugins.
 3. **Plugins depend on service definitions, not providers.** Broker/data/vendor
@@ -101,12 +111,12 @@ service/provider/tool artifacts.
    idempotency, reconciliation, kill switches, mandate gates, ownership checks,
    or immutable audit/ledger semantics.
 7. **Legacy is temporary.** New features must land in `harness/plugins/*`; do not
-   add new business functionality to the legacy PG frontend plugin runtime.
+   add new business functionality to the legacy frontend plugin runtime.
 
 ## Directory ownership
 
-- `profile/` — the PureGamma DeepSeek Harness profile overlay.
-- `plugins/` — target PureGamma Harness plugins and shared service contracts.
+- `profile/` — the PureGamma Harness profile overlay.
+- `plugins/` — PureGamma Harness plugins and shared service contracts.
 - `../vendor/deepseek-harness` — pinned upstream runtime/build toolchain.
 - `../apps/web` — legacy/compatibility frontend while migration is in progress.
 - `../apps/api` — legacy/compatibility API while migration is in progress.
