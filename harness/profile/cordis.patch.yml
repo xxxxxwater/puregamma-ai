@@ -115,6 +115,22 @@
     - id: puregamma-tool-memory
       name: '@puregamma/dsh-tool-memory'
 
+    # Secretary is a capability plugin, not a second Agent runtime. Harness
+    # remains the only permanent conversation loop. The compatibility provider
+    # carries old history/TTS/STT/private-reply behavior until native Harness
+    # providers replace it. The model-facing tool exposes status only; binary
+    # voice, clear and compatibility reply remain explicit service/client calls.
+    - id: puregamma-secretary-provider
+      name: '@puregamma/dsh-secretary-legacy-api'
+      config:
+        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
+        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
+        requestTimeoutMs: 10000
+        voiceTimeoutMs: 120000
+
+    - id: puregamma-tool-secretary
+      name: '@puregamma/dsh-tool-secretary'
+
     # pg-tsy-core-bootstrap is an independent Rust runtime pinned under
     # vendor/pg-tsy-core-bootstrap. This provider exposes only its stable local
     # health/control seam. Installing it does not grant live-trading permission
