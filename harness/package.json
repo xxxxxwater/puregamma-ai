@@ -15,6 +15,11 @@
     "profile-check": "node scripts/profile-check.mjs",
     "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check"
   },
+  "pnpm": {
+    "overrides": {
+      "@deepseek-ai/dsh-typert-protocol": "workspace:*"
+    }
+  },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
     "@deepseek-ai/schemastery": "3.18.2",
