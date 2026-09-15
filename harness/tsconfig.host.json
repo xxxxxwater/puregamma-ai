@@ -1,0 +1,6 @@
+{
+  "files": [],
+  "references": [
+    { "path": "./plugins/client-gateway" }
+  ]
+}

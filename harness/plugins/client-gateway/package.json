@@ -1,0 +1,39 @@
+{
+  "name": "@puregamma/dsh-client-gateway",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Typed read-only Host-to-Client projection for PureGamma Harness account, billing, notification and quant-runtime state",
+  "main": "lib/index.js",
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/types/index.d.ts", "default": "./lib/index.js" },
+    "./typert": { "types": "./lib/typert.host.d.ts", "default": "./lib/typert.host.js" },
+    "./remote": { "types": "./lib/typert.remote-client.d.ts", "default": "./lib/typert.remote-client.js" },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib/index.js",
+    "lib/types/**/*.d.ts",
+    "lib/typert.host.js",
+    "lib/typert.host.d.ts",
+    "lib/typert.remote-client.js",
+    "lib/typert.remote-client.d.ts",
+    "lib/typert.remote-client.d.ts.map"
+  ],
+  "scripts": {
+    "bundle": "tsc -p tsconfig.json && tsdown --config-loader tsx"
+  },
+  "dependencies": {
+    "@puregamma/dsh-auth": "workspace:^",
+    "@puregamma/dsh-billing": "workspace:^",
+    "@puregamma/dsh-notifications": "workspace:^",
+    "@puregamma/dsh-pg-tsy-runtime": "workspace:^",
+    "zod": "^4.4.3"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-typert-protocol": "0.1.5-rc.2"
+  }
+}
