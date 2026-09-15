@@ -9,11 +9,10 @@
     "allowImportingTsExtensions": true,
     "verbatimModuleSyntax": true,
     "types": ["node", "react"],
-    "baseUrl": ".",
     "paths": {
-      "@puregamma/dsh-market-data": ["plugins/market-data/src/index.ts"],
-      "@puregamma/dsh-portfolio": ["plugins/portfolio/src/index.ts"],
-      "@puregamma/dsh-trading": ["plugins/trading/src/index.ts"]
+      "@puregamma/dsh-market-data": ["./plugins/market-data/src/index.ts"],
+      "@puregamma/dsh-portfolio": ["./plugins/portfolio/src/index.ts"],
+      "@puregamma/dsh-trading": ["./plugins/trading/src/index.ts"]
     }
   },
   "include": [
