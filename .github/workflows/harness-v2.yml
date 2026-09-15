@@ -1,0 +1,62 @@
+name: PureGamma Harness v2
+
+on:
+  push:
+    branches:
+      - refactor/harness-core-v2
+    paths:
+      - 'harness/**'
+      - 'vendor/deepseek-harness'
+      - '.gitmodules'
+      - '.github/workflows/harness-v2.yml'
+  pull_request:
+    paths:
+      - 'harness/**'
+      - 'vendor/deepseek-harness'
+      - '.gitmodules'
+      - '.github/workflows/harness-v2.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout with pinned Harness runtime
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install pinned DeepSeek Harness build toolchain
+        working-directory: vendor/deepseek-harness
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install PureGamma Harness workspace
+        working-directory: harness
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck and build PureGamma Harness plugins
+        working-directory: harness
+        run: pnpm run check
+
+      - name: Verify Harness client bundle contract
+        run: |
+          test -f harness/plugins/brand/lib/index.js
+          test -f harness/plugins/brand/lib/client.js
+          test -f harness/plugins/brand/lib/types/client/index.d.ts
+
+      - name: Verify first vertical slice artifacts
+        run: |
+          test -f harness/plugins/market-data/lib/index.js
+          test -f harness/plugins/market-data-legacy-api/lib/index.js
+          test -f harness/plugins/tool-market-data/lib/index.js
