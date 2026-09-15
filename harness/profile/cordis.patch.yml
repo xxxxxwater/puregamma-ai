@@ -100,6 +100,21 @@
     - id: puregamma-tool-backtest
       name: '@puregamma/dsh-tool-backtest'
 
+    # Memory remains user-owned. The provider preserves server-side consent,
+    # scope opt-outs, secret redaction, audit records and write-disabled
+    # namespaces. The model-facing tool package is intentionally read-only;
+    # approve/reject/delete/clear stay service/UI actions requiring explicit
+    # user control rather than implicit model authority.
+    - id: puregamma-memory-provider
+      name: '@puregamma/dsh-memory-legacy-api'
+      config:
+        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
+        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
+        requestTimeoutMs: 10000
+
+    - id: puregamma-tool-memory
+      name: '@puregamma/dsh-tool-memory'
+
     # pg-tsy-core-bootstrap is an independent Rust runtime pinned under
     # vendor/pg-tsy-core-bootstrap. This provider exposes only its stable local
     # health/control seam. Installing it does not grant live-trading permission
