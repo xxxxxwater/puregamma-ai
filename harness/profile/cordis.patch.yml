@@ -11,7 +11,7 @@
       workspace built on DeepSeek Harness and Cordis. Every PureGamma Harness
       capability is provided by an installed plugin: market data, portfolio,
       research, options, backtesting, memory, data sources, secretary/automation,
-      billing, notifications, API gateway, administration and trading runtimes.
+      skills, billing, notifications, API gateway, administration and trading runtimes.
       Never claim a capability that is not currently installed and healthy.
       Trading actions remain subject to deterministic risk, ownership, approval,
       reconciliation and venue gates exposed by the trading plugins.
@@ -20,13 +20,9 @@
       services, tools, jobs and integrations belong to plugins and must not be
       hard-coded into the shell.
 
-# Official DeepSeek branding is replaced by the PureGamma Harness brand plugin.
 - id: ui-brand-official
   disabled: true
 
-# The permanent product shell is conversation-first. Navigation and secondary
-# surfaces may themselves be installed as plugins; finance features never live
-# in the shell.
 - id: ui-sidebar
   disabled: true
 
@@ -34,92 +30,62 @@
     - id: puregamma-ui-brand
       name: '@puregamma/dsh-ui-brand'
 
-    # Migration compatibility provider. The existing PureGamma API remains a
-    # temporary implementation behind the stable pgMarketData service seam.
     - id: puregamma-market-data-provider
       name: '@puregamma/dsh-market-data-legacy-api'
       config:
         baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
         authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
         requestTimeoutMs: 10000
-
     - id: puregamma-tool-market-data
       name: '@puregamma/dsh-tool-market-data'
 
-    # Portfolio/NAV follows the same one-way compatibility pattern. The provider
-    # requires an authenticated server token and never fabricates an anonymous
-    # or zero-value portfolio when no real account snapshot exists.
     - id: puregamma-portfolio-provider
       name: '@puregamma/dsh-portfolio-legacy-api'
       config:
         baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
         authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
         requestTimeoutMs: 10000
-
     - id: puregamma-tool-portfolio
       name: '@puregamma/dsh-tool-portfolio'
 
-    # Research read models are exposed through a stable pgResearch service.
-    # The legacy FastAPI implementation is temporary transport only; source
-    # outages remain explicit degraded/empty results and never become invented
-    # market facts. Deep-research execution is intentionally a separate plugin.
     - id: puregamma-research-provider
       name: '@puregamma/dsh-research-legacy-api'
       config:
         baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
         authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
         requestTimeoutMs: 10000
-
     - id: puregamma-tool-research
       name: '@puregamma/dsh-tool-research'
 
-    # Options is a read-only research capability. The compatibility provider
-    # preserves Deribit/Polygon health and provenance while hard-coding
-    # executionEnabled=false. Order execution remains exclusively in trading
-    # plugins behind risk and approval gates.
     - id: puregamma-options-provider
       name: '@puregamma/dsh-options-legacy-api'
       config:
         baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
         authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
         requestTimeoutMs: 10000
-
     - id: puregamma-tool-options
       name: '@puregamma/dsh-tool-options'
 
-    # Backtest is stateful but never a live-trading capability. The provider
-    # owns HTTP/SSE AbortControllers through Cordis effects so plugin unload
-    # terminates in-flight compatibility requests and terminal streams.
     - id: puregamma-backtest-provider
       name: '@puregamma/dsh-backtest-legacy-api'
       config:
         baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
         authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
         requestTimeoutMs: 30000
-
     - id: puregamma-tool-backtest
       name: '@puregamma/dsh-tool-backtest'
 
-    # Memory remains user-owned. The provider preserves server-side consent,
-    # scope opt-outs, secret redaction, audit records and write-disabled
-    # namespaces. The model-facing tool package is intentionally read-only;
-    # approve/reject/delete/clear stay service/UI actions requiring explicit
-    # user control rather than implicit model authority.
     - id: puregamma-memory-provider
       name: '@puregamma/dsh-memory-legacy-api'
       config:
         baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
         authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
         requestTimeoutMs: 10000
-
     - id: puregamma-tool-memory
       name: '@puregamma/dsh-tool-memory'
 
-    # Secretary is a capability plugin, not a second Agent runtime. Harness
-    # remains the only permanent conversation loop. The compatibility provider
-    # carries old history/TTS/STT/private-reply behavior until native Harness
-    # providers replace it. The model-facing tool exposes status only; binary
-    # voice, clear and compatibility reply remain explicit service/client calls.
+    # Harness owns the single conversation loop. Legacy secretary behavior is
+    # temporary transport behind pgSecretary; its model-facing tool is status-only.
     - id: puregamma-secretary-provider
       name: '@puregamma/dsh-secretary-legacy-api'
       config:
@@ -127,20 +93,26 @@
         authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
         requestTimeoutMs: 10000
         voiceTimeoutMs: 120000
-
     - id: puregamma-tool-secretary
       name: '@puregamma/dsh-tool-secretary'
 
-    # pg-tsy-core-bootstrap is an independent Rust runtime pinned under
-    # vendor/pg-tsy-core-bootstrap. This provider exposes only its stable local
-    # health/control seam. Installing it does not grant live-trading permission
-    # and strategy reload remains disabled unless explicitly configured.
+    # Skills are policy-governed plugins/workflows. Import/install/uninstall stay
+    # service/UI operations; the model can list and execute only through the
+    # existing manifest, allowlist, cost and permission enforcement seam.
+    - id: puregamma-skills-provider
+      name: '@puregamma/dsh-skills-legacy-api'
+      config:
+        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
+        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
+        requestTimeoutMs: 30000
+    - id: puregamma-tool-skills
+      name: '@puregamma/dsh-tool-skills'
+
     - id: puregamma-pg-tsy-runtime
       name: '@puregamma/dsh-pg-tsy-runtime-http'
       config:
         baseUrl: !!js process.env.PG_TSY_RUNTIME_URL ?? 'http://127.0.0.1:8080'
         requestTimeoutMs: 5000
         allowStrategyReload: false
-
     - id: puregamma-tool-pg-tsy-runtime
       name: '@puregamma/dsh-tool-pg-tsy-runtime'
