@@ -10,7 +10,7 @@
   },
   "scripts": {
     "architecture-check": "node scripts/architecture-check.mjs",
-    "build:host": "tsc -b tsconfig.host.json && tsdown --config tsdown.host.ts --env.DSH_BUILD_FACE host",
+    "build:host": "pnpm --filter @puregamma/dsh-auth run bundle && pnpm --filter @puregamma/dsh-billing run bundle && pnpm --filter @puregamma/dsh-notifications run bundle && pnpm --filter @puregamma/dsh-pg-tsy-runtime run bundle && tsc -b tsconfig.host.json && tsdown --config tsdown.host.ts --env.DSH_BUILD_FACE host",
     "typecheck": "pnpm run build:host && tsc -p tsconfig.json",
     "build": "pnpm run build:host && pnpm -r --if-present run bundle",
     "profile-check": "node scripts/profile-check.mjs",
