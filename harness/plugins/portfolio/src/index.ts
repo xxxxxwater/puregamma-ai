@@ -5,12 +5,18 @@ export interface PortfolioAccountRef {
   provider: string
   label?: string
   baseCurrency: string
+  status?: string
+  observedAt?: string
+  stale?: boolean
 }
 
 export interface PortfolioPosition {
-  accountId: string
+  /** Omitted when the compatibility source only exposes a consolidated position. */
+  accountId?: string
   instrument: string
+  side?: 'long' | 'short' | 'flat'
   quantity: string
+  markPrice?: string
   marketValue?: string
   currency: string
   averageCost?: string
@@ -59,6 +65,8 @@ declare module '@deepseek-ai/cordis' {
 /**
  * Consolidated portfolio/NAV seam. Provider-specific credentials and APIs stay
  * behind implementations; read consumers receive explicit freshness metadata.
+ * Numeric money/quantity values cross the JavaScript boundary as decimal
+ * strings so later native providers can preserve venue precision.
  */
 export abstract class PortfolioService extends Service {
   constructor(ctx: Context) {
