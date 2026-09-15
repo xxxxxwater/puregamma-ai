@@ -33,7 +33,7 @@ function renderDocument(value: {
   provider?: string
   observedAt: string
   state: OptionsDocument['state']
-  executionEnabled: false
+  executionEnabled: boolean
   source: string
 }): string {
   const instrument = value.underlying ? ` ${value.underlying}` : ''
