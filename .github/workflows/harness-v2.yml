@@ -1,4 +1,4 @@
-name: PureGamma Harness v2
+name: PureGamma Harness
 
 on:
   push:
@@ -17,7 +17,7 @@ on:
       - '.github/workflows/harness-v2.yml'
 
 concurrency:
-  group: puregamma-harness-v2-${{ github.ref }}
+  group: puregamma-harness-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
@@ -59,7 +59,7 @@ jobs:
           test -f harness/plugins/brand/lib/client.js
           test -f harness/plugins/brand/lib/types/client/index.d.ts
 
-      - name: Verify first vertical slice artifacts
+      - name: Verify migrated vertical slice artifacts
         run: |
           test -f harness/plugins/market-data/lib/index.js
           test -f harness/plugins/market-data-legacy-api/lib/index.js
