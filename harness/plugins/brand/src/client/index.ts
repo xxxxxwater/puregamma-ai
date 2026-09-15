@@ -5,11 +5,11 @@ import type {} from '@deepseek-ai/dsh-client-ui-conversation/client'
 
 export const inject = ['slots']
 
-function PureGammaHeroBrand() {
+function PureGammaHarnessHeroBrand() {
   return createElement(
     'div',
     {
-      'aria-label': 'PureGamma',
+      'aria-label': 'PureGamma Harness',
       style: {
         display: 'inline-flex',
         alignItems: 'center',
@@ -48,13 +48,13 @@ function PureGammaHeroBrand() {
         opacity: 0.45,
       }),
     ),
-    createElement('span', null, 'PureGamma'),
+    createElement('span', null, 'PureGamma Harness'),
   )
 }
 
-/** Mount PureGamma identity into the generic Harness conversation hero. */
+/** Mount the PureGamma Harness identity into the generic Harness conversation hero. */
 export function apply(ctx: ClientContext): void {
   ctx.slots.inject('conversation.hero.brand.mark', () =>
-    ctx.slots.register({ name: 'conversation.hero.brand.mark' }, PureGammaHeroBrand),
+    ctx.slots.register({ name: 'conversation.hero.brand.mark' }, PureGammaHarnessHeroBrand),
   )
 }
