@@ -87,6 +87,19 @@
     - id: puregamma-tool-options
       name: '@puregamma/dsh-tool-options'
 
+    # Backtest is stateful but never a live-trading capability. The provider
+    # owns HTTP/SSE AbortControllers through Cordis effects so plugin unload
+    # terminates in-flight compatibility requests and terminal streams.
+    - id: puregamma-backtest-provider
+      name: '@puregamma/dsh-backtest-legacy-api'
+      config:
+        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
+        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
+        requestTimeoutMs: 30000
+
+    - id: puregamma-tool-backtest
+      name: '@puregamma/dsh-tool-backtest'
+
     # pg-tsy-core-bootstrap is an independent Rust runtime pinned under
     # vendor/pg-tsy-core-bootstrap. This provider exposes only its stable local
     # health/control seam. Installing it does not grant live-trading permission
