@@ -21,7 +21,10 @@
   },
   "files": ["lib/index.js", "lib/client.js", "lib/types/**/*.d.ts"],
   "scripts": { "bundle": "tsc -p tsconfig.build.json && tsdown --config-loader tsx" },
-  "dependencies": { "@puregamma/dsh-client-gateway": "workspace:^" },
+  "dependencies": {
+    "@deepseek-ai/dsh-typert-protocol": "workspace:*",
+    "@puregamma/dsh-client-gateway": "workspace:^"
+  },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.2",
     "@deepseek-ai/dsh-api-gateway": "0.1.5-rc.2"
