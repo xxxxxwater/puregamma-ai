@@ -74,6 +74,9 @@ jobs:
           test -f harness/plugins/portfolio/lib/index.js
           test -f harness/plugins/portfolio-legacy-api/lib/index.js
           test -f harness/plugins/tool-portfolio/lib/index.js
+          test -f harness/plugins/research/lib/index.js
+          test -f harness/plugins/research-legacy-api/lib/index.js
+          test -f harness/plugins/tool-research/lib/index.js
           test -f harness/plugins/pg-tsy-runtime/lib/index.js
           test -f harness/plugins/pg-tsy-runtime-http/lib/index.js
           test -f harness/plugins/tool-pg-tsy-runtime/lib/index.js
