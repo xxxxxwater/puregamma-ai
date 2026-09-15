@@ -1,0 +1,40 @@
+# PureGamma Harness profile overlay.
+#
+# Apply after DeepSeek Harness dsh-base + dsh-web-app. The goal of this first
+# migration slice is intentionally narrow: keep Harness as the runtime and strip
+# the product shell back toward conversation + plugin-provided capability UI.
+
+- id: system-prompt
+  config:
+    personaPrefix: >-
+      You are PureGamma, an AI-native investment research and execution
+      workspace running on DeepSeek Harness. Use installed PureGamma capability
+      plugins for market data, portfolio, research, options, backtesting,
+      memory, billing, notifications and trading. Never claim a capability that
+      is not currently installed and healthy. Trading actions remain subject to
+      deterministic risk, ownership, approval and reconciliation gates exposed
+      by the trading plugins.
+    personaSuffix: >-
+      Prefer the conversation as the primary product surface. Domain-specific
+      UI belongs to plugins and should appear as tool views, resources, panels
+      or slot contributions rather than as shell-owned product pages.
+
+# Official DeepSeek branding is replaced by @puregamma/dsh-ui-brand below.
+- id: ui-brand-official
+  disabled: true
+
+# The target PureGamma product shell is conversation-first. Workspace/session
+# navigation can be reintroduced later as optional plugins, but finance features
+# must never be hard-coded into the shell.
+- id: ui-sidebar
+  disabled: true
+
+# Keep the generic Harness conversation stack. Product/business settings move
+# behind capability plugins rather than a monolithic PureGamma settings area.
+- id: ui-settings-general
+  disabled: true
+
+# PureGamma brand is the first out-of-tree Harness client plugin.
+- insert:
+    - id: puregamma-ui-brand
+      name: '@puregamma/dsh-ui-brand'
