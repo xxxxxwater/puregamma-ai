@@ -73,6 +73,20 @@
     - id: puregamma-tool-research
       name: '@puregamma/dsh-tool-research'
 
+    # Options is a read-only research capability. The compatibility provider
+    # preserves Deribit/Polygon health and provenance while hard-coding
+    # executionEnabled=false. Order execution remains exclusively in trading
+    # plugins behind risk and approval gates.
+    - id: puregamma-options-provider
+      name: '@puregamma/dsh-options-legacy-api'
+      config:
+        baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000'
+        authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN
+        requestTimeoutMs: 10000
+
+    - id: puregamma-tool-options
+      name: '@puregamma/dsh-tool-options'
+
     # pg-tsy-core-bootstrap is an independent Rust runtime pinned under
     # vendor/pg-tsy-core-bootstrap. This provider exposes only its stable local
     # health/control seam. Installing it does not grant live-trading permission
