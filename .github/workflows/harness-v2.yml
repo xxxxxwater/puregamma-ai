@@ -7,12 +7,14 @@ on:
     paths:
       - 'harness/**'
       - 'vendor/deepseek-harness'
+      - 'vendor/pg-tsy-core-bootstrap'
       - '.gitmodules'
       - '.github/workflows/harness-v2.yml'
   pull_request:
     paths:
       - 'harness/**'
       - 'vendor/deepseek-harness'
+      - 'vendor/pg-tsy-core-bootstrap'
       - '.gitmodules'
       - '.github/workflows/harness-v2.yml'
 
@@ -28,10 +30,15 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
-      - name: Checkout with pinned Harness runtime
+      - name: Checkout pinned plugin runtimes
         uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Verify pinned runtimes
+        run: |
+          test "$(git -C vendor/deepseek-harness rev-parse HEAD)" = "c291e7961a515f6d7af9304e7fd1d257929aef26"
+          test "$(git -C vendor/pg-tsy-core-bootstrap rev-parse HEAD)" = "d7e719b0b2815a1069df9cb4e25c49946dead699"
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4
@@ -59,8 +66,14 @@ jobs:
           test -f harness/plugins/brand/lib/client.js
           test -f harness/plugins/brand/lib/types/client/index.d.ts
 
-      - name: Verify migrated vertical slice artifacts
+      - name: Verify migrated plugin artifacts
         run: |
           test -f harness/plugins/market-data/lib/index.js
           test -f harness/plugins/market-data-legacy-api/lib/index.js
           test -f harness/plugins/tool-market-data/lib/index.js
+          test -f harness/plugins/portfolio/lib/index.js
+          test -f harness/plugins/portfolio-legacy-api/lib/index.js
+          test -f harness/plugins/tool-portfolio/lib/index.js
+          test -f harness/plugins/pg-tsy-runtime/lib/index.js
+          test -f harness/plugins/pg-tsy-runtime-http/lib/index.js
+          test -f harness/plugins/tool-pg-tsy-runtime/lib/index.js
