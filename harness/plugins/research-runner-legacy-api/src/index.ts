@@ -72,12 +72,13 @@ export class LegacyApiResearchSandboxProvider extends ResearchSandboxService {
     return token
   }
 
-  private async fetchOwned(path: string, init: RequestInit, timeoutMs = this.timeoutMs): Promise<Response> {
+  private async withResponse<T>(path: string, init: RequestInit, consume: (response: Response) => Promise<T>, timeoutMs = this.timeoutMs): Promise<T> {
     const controller = new AbortController()
     this.controllers.add(controller)
     const timer = setTimeout(() => controller.abort(), timeoutMs)
     try {
-      return await fetch(new URL(`${this.baseUrl}${path}`), { ...init, signal: controller.signal })
+      const response = await fetch(new URL(`${this.baseUrl}${path}`), { ...init, signal: controller.signal })
+      return await consume(response)
     } finally {
       clearTimeout(timer)
       this.controllers.delete(controller)
@@ -85,16 +86,17 @@ export class LegacyApiResearchSandboxProvider extends ResearchSandboxService {
   }
 
   private async json(method: 'GET' | 'POST', path: string, body?: unknown): Promise<Record<string, ResearchSandboxJson>> {
-    const response = await this.fetchOwned(path, {
+    return this.withResponse(path, {
       method,
       headers: { Accept: 'application/json', Authorization: `Bearer ${this.token()}`, ...(body === undefined ? {} : { 'Content-Type': 'application/json' }) },
       ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+    }, async response => {
+      if (!response.ok) {
+        const detail = (await response.text()).slice(0, 500)
+        throw new Error(`research runner compatibility API returned HTTP ${response.status} for ${path}${detail ? `: ${detail}` : ''}`)
+      }
+      return toRecord(await response.json())
     })
-    if (!response.ok) {
-      const detail = (await response.text()).slice(0, 500)
-      throw new Error(`research runner compatibility API returned HTTP ${response.status} for ${path}${detail ? `: ${detail}` : ''}`)
-    }
-    return toRecord(await response.json())
   }
 
   private document(payload: Record<string, ResearchSandboxJson>): ResearchRunDocument {
@@ -112,24 +114,28 @@ export class LegacyApiResearchSandboxProvider extends ResearchSandboxService {
       ...(request.idempotencyKey === undefined ? {} : { idempotency_key: request.idempotencyKey }),
     }))
   }
+
   async getRun(runId: string): Promise<ResearchRunDocument> {
     return this.document(await this.json('GET', `/research/run/${encodeURIComponent(identifier(runId, 'runId'))}`))
   }
+
   async cancelRun(runId: string): Promise<ResearchRunDocument> {
     return this.document(await this.json('POST', `/research/run/${encodeURIComponent(identifier(runId, 'runId'))}/cancel`))
   }
+
   async figure(runId: string, name: string): Promise<ResearchArtifact> {
     const safeRunId = identifier(runId, 'runId')
     const safeName = figureName(name)
-    const response = await this.fetchOwned(`/research/run/${encodeURIComponent(safeRunId)}/files/${encodeURIComponent(safeName)}`, {
+    return this.withResponse(`/research/run/${encodeURIComponent(safeRunId)}/files/${encodeURIComponent(safeName)}`, {
       method: 'GET', headers: { Accept: '*/*', Authorization: `Bearer ${this.token()}` },
+    }, async response => {
+      if (!response.ok) throw new Error(`research figure API returned HTTP ${response.status}`)
+      return {
+        contentType: (response.headers.get('content-type') ?? 'application/octet-stream').split(';', 1)[0] ?? 'application/octet-stream',
+        fileName: safeName,
+        bytes: new Uint8Array(await response.arrayBuffer()),
+      }
     }, this.artifactTimeoutMs)
-    if (!response.ok) throw new Error(`research figure API returned HTTP ${response.status}`)
-    return {
-      contentType: (response.headers.get('content-type') ?? 'application/octet-stream').split(';', 1)[0] ?? 'application/octet-stream',
-      fileName: safeName,
-      bytes: new Uint8Array(await response.arrayBuffer()),
-    }
   }
 }
 
