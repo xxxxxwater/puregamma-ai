@@ -2,6 +2,9 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   PureGammaAccountView,
+  PureGammaBillingBudget,
+  PureGammaBillingReward,
+  PureGammaBillingUsage,
   PureGammaBillingView,
   PureGammaNotificationsView,
   PureGammaQuantRuntimeView,
@@ -13,6 +16,9 @@ import type {} from '@puregamma/dsh-pg-tsy-runtime'
 
 export type {
   PureGammaAccountView,
+  PureGammaBillingBudget,
+  PureGammaBillingReward,
+  PureGammaBillingUsage,
   PureGammaBillingView,
   PureGammaNotificationsView,
   PureGammaQuantRuntimeView,
@@ -51,6 +57,13 @@ function objectArray(source: Record<string, unknown> | undefined, key: string): 
   return value.map(record).filter((item): item is Record<string, unknown> => item !== undefined)
 }
 
+function booleanRecord(source: Record<string, unknown> | undefined, key: string): Record<string, boolean> | undefined {
+  const value = record(source?.[key])
+  if (value === undefined) return undefined
+  const entries = Object.entries(value).filter(([, item]) => typeof item === 'boolean')
+  return Object.fromEntries(entries) as Record<string, boolean>
+}
+
 function unavailable<T extends { available: boolean; observedAt: string; source: string; reason?: string }>(
   source: string,
   reason: string,
@@ -61,6 +74,50 @@ function unavailable<T extends { available: boolean; observedAt: string; source:
     source,
     reason,
   } as T
+}
+
+function billingBudgetRows(payload: Record<string, unknown> | undefined): PureGammaBillingBudget[] {
+  return objectArray(payload, 'budgets').flatMap((item) => {
+    const automationKey = stringValue(item, 'automation_key')
+    if (automationKey === undefined || automationKey.trim() === '') return []
+    return [{
+      automationKey,
+      dailyLimit: numberValue(item, 'daily_limit'),
+      monthlyLimit: numberValue(item, 'monthly_limit'),
+      perRunLimit: numberValue(item, 'per_run_limit'),
+      dailyUsed: numberValue(item, 'daily_used'),
+      monthlyUsed: numberValue(item, 'monthly_used'),
+      nextEstimatedCredits: numberValue(item, 'next_estimated_credits'),
+      alertThresholdPct: numberValue(item, 'alert_threshold_pct'),
+      enabled: booleanValue(item, 'enabled'),
+      paused: booleanValue(item, 'paused'),
+      pauseReason: stringValue(item, 'pause_reason'),
+    }]
+  })
+}
+
+function billingRewardRows(payload: Record<string, unknown> | undefined): PureGammaBillingReward[] {
+  return objectArray(payload, 'rewards').flatMap((item) => {
+    const id = stringValue(item, 'id')
+    if (id === undefined || id.trim() === '') return []
+    return [{
+      id,
+      rewardType: stringValue(item, 'reward_type'),
+      credits: numberValue(item, 'credits'),
+      source: stringValue(item, 'source'),
+      createdAt: stringValue(item, 'created_at'),
+    }]
+  })
+}
+
+function billingUsageRows(payload: Record<string, unknown> | undefined): PureGammaBillingUsage[] {
+  return objectArray(payload, 'usage_history').map((item) => ({
+    id: stringValue(item, 'id'),
+    action: stringValue(item, 'action'),
+    creditsDelta: numberValue(item, 'credits_delta'),
+    balanceAfter: numberValue(item, 'balance_after'),
+    createdAt: stringValue(item, 'created_at'),
+  }))
 }
 
 /**
@@ -116,9 +173,17 @@ export class PureGammaClientGateway extends TypertRemoteService {
       return unavailable<PureGammaBillingView>('cordis:pgBilling', 'billing capability is not installed')
     }
     try {
-      const [subscription, credits] = await Promise.all([service.subscription(), service.credits()])
+      const [subscription, credits, budget, rewards] = await Promise.all([
+        service.subscription(),
+        service.credits(),
+        service.budget(),
+        service.rewards(),
+      ])
       const subscriptionPayload = record(subscription.payload)
       const creditsPayload = record(credits.payload)
+      const budgetPayload = record(budget.payload)
+      const rewardsPayload = record(rewards.payload)
+      const entitlement = record(subscriptionPayload?.entitlement ?? subscriptionPayload?.entitlements)
       return {
         available: true,
         observedAt: new Date().toISOString(),
@@ -129,9 +194,20 @@ export class PureGammaClientGateway extends TypertRemoteService {
         subscriptionStatus: stringValue(subscriptionPayload, 'subscription_status'),
         currentPeriodEnd: stringValue(subscriptionPayload, 'current_period_end'),
         cancelAtPeriodEnd: booleanValue(subscriptionPayload, 'cancel_at_period_end'),
+        cancelAt: stringValue(subscriptionPayload, 'cancel_at'),
         creditBalance: numberValue(subscriptionPayload, 'credit_balance') ?? numberValue(creditsPayload, 'credit_balance'),
         billingMode: stringValue(subscriptionPayload, 'billing_mode'),
         checkoutMode: stringValue(subscriptionPayload, 'checkout_mode'),
+        paymentLinks: booleanRecord(subscriptionPayload, 'payment_links'),
+        primaryPaymentLinkConfigured: booleanValue(subscriptionPayload, 'primary_payment_link_configured'),
+        entitlement: entitlement === undefined ? undefined : {
+          notificationChannels: stringArray(entitlement, 'notification_channels'),
+          highCostTasks: booleanValue(entitlement, 'high_cost_tasks'),
+          imessage: booleanValue(entitlement, 'imessage'),
+        },
+        budgets: billingBudgetRows(budgetPayload),
+        rewards: billingRewardRows(rewardsPayload),
+        usageHistory: billingUsageRows(creditsPayload),
       }
     } catch {
       return unavailable<PureGammaBillingView>('cordis:pgBilling', 'billing data is currently unavailable')

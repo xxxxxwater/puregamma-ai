@@ -20,6 +20,36 @@ export interface PureGammaAccountView {
   locale?: string
 }
 
+export interface PureGammaBillingBudget {
+  automationKey: string
+  dailyLimit?: number
+  monthlyLimit?: number
+  perRunLimit?: number
+  dailyUsed?: number
+  monthlyUsed?: number
+  nextEstimatedCredits?: number
+  alertThresholdPct?: number
+  enabled?: boolean
+  paused?: boolean
+  pauseReason?: string
+}
+
+export interface PureGammaBillingReward {
+  id: string
+  rewardType?: string
+  credits?: number
+  source?: string
+  createdAt?: string
+}
+
+export interface PureGammaBillingUsage {
+  id?: string
+  action?: string
+  creditsDelta?: number
+  balanceAfter?: number
+  createdAt?: string
+}
+
 export interface PureGammaBillingView {
   available: boolean
   observedAt: string
@@ -31,9 +61,20 @@ export interface PureGammaBillingView {
   subscriptionStatus?: string
   currentPeriodEnd?: string
   cancelAtPeriodEnd?: boolean
+  cancelAt?: string
   creditBalance?: number
   billingMode?: string
   checkoutMode?: string
+  paymentLinks?: Record<string, boolean>
+  primaryPaymentLinkConfigured?: boolean
+  entitlement?: {
+    notificationChannels?: string[]
+    highCostTasks?: boolean
+    imessage?: boolean
+  }
+  budgets: PureGammaBillingBudget[]
+  rewards: PureGammaBillingReward[]
+  usageHistory: PureGammaBillingUsage[]
 }
 
 export interface PureGammaNotificationsView {
