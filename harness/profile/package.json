@@ -16,6 +16,9 @@
       "patch": "./cordis.patch.yml"
     }
   },
+  "dependencies": {
+    "@puregamma/dsh-ui-brand": "workspace:^"
+  },
   "peerDependencies": {
     "@deepseek-ai/dsh-web-app": ">=0.1.5-rc.2"
   }
