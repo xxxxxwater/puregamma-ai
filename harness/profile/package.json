@@ -17,7 +17,9 @@
     }
   },
   "dependencies": {
-    "@puregamma/dsh-ui-brand": "workspace:^"
+    "@puregamma/dsh-ui-brand": "workspace:^",
+    "@puregamma/dsh-market-data-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-market-data": "workspace:^"
   },
   "peerDependencies": {
     "@deepseek-ai/dsh-web-app": ">=0.1.5-rc.2"
