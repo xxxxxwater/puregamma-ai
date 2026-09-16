@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from apps.api.config import get_settings, validate_production_settings
 from apps.api.dependencies import ensure_bootstrap
-from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, custody, email_auth, frontend, gateway, google_auth, harness_runs, hyperliquid_stream, imessage_agent, internal, live_trading, market, memory, mobile, mobile_auth, news, notifications, opportunities, options, playbooks, portfolio, reports, research, research_runner, secretary, signals, skills, strategies, stripe_webhook, trading
+from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, custody, email_auth, frontend, gateway, google_auth, harness_runs, hyperliquid_stream, imessage_agent, internal, live_trading, market, memory, mobile, mobile_auth, news, notifications, opportunities, options, playbooks, portfolio, private_pm, reports, research, research_runner, secretary, signals, skills, strategies, stripe_webhook, trading
 
 
 settings = get_settings()
@@ -212,6 +212,8 @@ def metrics() -> str:
         "# HELP puregamma_uptime_seconds Process uptime.",
         "# TYPE puregamma_uptime_seconds gauge",
         f"puregamma_uptime_seconds {int(time.time() - METRICS_STARTED_AT)}",
+        "# HELP puregamma_http_requests_total Process-local HTTP request counter",
+        f"puregamma_http_requests_total {int(time.time() - METRICS_STARTED_AT)}",
         "# HELP puregamma_http_requests_total Process-local HTTP request counter.",
         "# TYPE puregamma_http_requests_total counter",
     ]
@@ -242,6 +244,7 @@ app.include_router(reports.router)
 app.include_router(backtest.router)
 app.include_router(backtest_lab.router)
 app.include_router(portfolio.router)
+app.include_router(private_pm.router)
 app.include_router(billing.router)
 app.include_router(internal.router)
 app.include_router(imessage_agent.router)
