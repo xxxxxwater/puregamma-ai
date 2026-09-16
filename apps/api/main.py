@@ -212,8 +212,6 @@ def metrics() -> str:
         "# HELP puregamma_uptime_seconds Process uptime.",
         "# TYPE puregamma_uptime_seconds gauge",
         f"puregamma_uptime_seconds {int(time.time() - METRICS_STARTED_AT)}",
-        "# HELP puregamma_http_requests_total Process-local HTTP request counter",
-        f"puregamma_http_requests_total {int(time.time() - METRICS_STARTED_AT)}",
         "# HELP puregamma_http_requests_total Process-local HTTP request counter.",
         "# TYPE puregamma_http_requests_total counter",
     ]
