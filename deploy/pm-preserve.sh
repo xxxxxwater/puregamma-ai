@@ -85,7 +85,10 @@ case "${cmd}" in
     require_tree "${TREE}" || exit 2
     install -d -m 0700 "${OUT_DIR}"
     stamp="$(date -u +%Y%m%dT%H%M%SZ)"
-    archive="${OUT_DIR}/pm-${stamp}.tar.gz"
+    # $$ keeps two backups taken in the same second from silently replacing
+    # each other -- which is exactly what happened when this ran twice inside
+    # one second over two different trees.
+    archive="${OUT_DIR}/pm-${stamp}-$$.tar.gz"
     # tar from the manifest, so a path that vanished is an error, not a
     # silently smaller archive.
     tar czf "${archive}" -C "${TREE}" "${PATHS[@]}"
