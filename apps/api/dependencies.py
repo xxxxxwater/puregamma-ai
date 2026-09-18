@@ -136,13 +136,13 @@ def require_admin(user: User) -> None:
 def require_pm_account_viewer(user: User = Depends(get_current_user)) -> User:
     """Server-side gate for the private Binance PM account.
 
-    The account belongs to two nominated people, so every route that exposes
-    its data - summary, positions, orders, history, export - must depend on
+    The account belongs to a short nominated allowlist, so every route exposing
+    its data - summary, positions and history - must depend on
     this.  Hiding a link in the UI is presentation, not authorization: a
     crafted request from any other logged-in account is rejected here.
 
     The check is by verified account email, so it keeps working before the
-    second account has even signed up, and an unset/blank allowlist denies
+    next account has even signed up, and an unset/blank allowlist denies
     everyone rather than allowing everyone.
     """
     from apps.api.services.pm_riskbot_service import allowed_emails, is_allowed_email

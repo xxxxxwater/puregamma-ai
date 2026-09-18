@@ -217,8 +217,8 @@ def get_portfolio(db: Session = Depends(get_db), user: User = Depends(get_curren
 # summing it per user would double count the same balance.
 #
 # Every route below depends on ``require_pm_account_viewer``: authorization is
-# enforced per request on the server, for the full payload, the history series
-# and the raw export alike.  A UI that hides the section is not access control.
+# enforced per request on the server, for both the full payload and the history
+# series.  A UI that hides the section is not access control.
 
 
 @router.get("/pm")

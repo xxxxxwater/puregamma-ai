@@ -57,8 +57,8 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
   const [notice, setNotice] = useState("");
   const [range, setRange] = useState<"1D" | "1W" | "1M" | "ALL">("1M");
   // Private Binance PM account (read-only). `pm` stays null until the server
-  // answers; a 403 means this signed-in user is not one of the two authorized
-  // accounts, and the panel then says so instead of showing an empty account.
+  // answers; a 403 means this signed-in user is not on the authorized
+  // allowlist, and the panel then says so instead of showing an empty account.
   const [pm, setPm] = useState<PmAccountView | null>(null);
   const [pmHistory, setPmHistory] = useState<PmNavHistory | null>(null);
   const [pmLoading, setPmLoading] = useState(true);
@@ -264,7 +264,7 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
               <span className="tabular-nums">{zh ? "可用" : "Available"}: {pmAvailable === null ? "--" : money(pmAvailable)}</span>
               {pm.stale ? <StatusBadge domain="data" value="stale" locale={locale} /> : null}
             </div>
-            <p className="mt-1 text-[10px] text-text-pg-dim">{zh ? "该账户为两位授权用户共享的单一数据源，因此不计入上方组合净值，避免同一份余额被重复累加。" : "Shared by two authorized users, so it is excluded from the aggregated NAV above to avoid double counting the same balance."}</p>
+            <p className="mt-1 text-[10px] text-text-pg-dim">{zh ? "该账户是授权用户共享的单一数据源，因此不计入上方组合净值，避免同一份余额被重复累加。" : "Shared among authorized users, so it is excluded from the aggregated NAV above to avoid double counting the same balance."}</p>
           </div>;
         })() : null}
       </div>

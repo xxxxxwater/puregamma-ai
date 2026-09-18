@@ -51,8 +51,8 @@ def normalize_email(value: str | None) -> str:
 def allowed_emails() -> tuple[str, ...]:
     """The only accounts permitted to read this PM account.
 
-    Configured through ``PM_ACCOUNT_ALLOWED_EMAILS``; the default is the two
-    accounts the owner nominated.  Empty configuration means *deny everyone* -
+    Configured through ``PM_ACCOUNT_ALLOWED_EMAILS``; the default names the
+    owner's own accounts.  Empty configuration means *deny everyone* -
     a misconfiguration must fail closed, never open.
     """
     raw = get_settings().pm_account_allowed_emails or ""
