@@ -130,6 +130,27 @@ def mobile_google_exchange(payload: MobileOAuthExchange, db: Session = Depends(g
     return {"access_token": create_access_token(user, TOKEN_TTL_SECONDS), "token_type": "bearer", "expires_in": TOKEN_TTL_SECONDS, "user": serialize_user(user)}
 
 
+def mint_web_session(db: Session, user: User, locale: str) -> str:
+    """Mint a one-time, 60-second web session handoff and return its consume path.
+
+    The caller owns the trust boundary: the web UI mints one for the user who is
+    already signed in, and the pocket relay mints one only after the tunnel PIN
+    was verified (guarded by the relay's own shared secret). The code itself is
+    useless until it is consumed, and it is single-use.
+    """
+    code = secrets.token_urlsafe(48)
+    db.query(MobileWebSession).filter(MobileWebSession.expires_at < utcnow()).delete(synchronize_session=False)
+    row = MobileWebSession(
+        code_hash=_hash(code),
+        user_id=user.id,
+        locale=locale,
+        expires_at=utcnow() + timedelta(seconds=WEB_SESSION_TTL_SECONDS),
+    )
+    db.add(row)
+    db.commit()
+    return f"/auth/mobile/web-session/consume?code={code}"
+
+
 @router.post("/web-session")
 def create_mobile_web_session(
     payload: MobileWebSessionRequest,
@@ -137,17 +158,7 @@ def create_mobile_web_session(
     user: User = Depends(get_current_user),
 ) -> dict:
     """Exchange an Android Bearer token for a short-lived, one-time web cookie handoff."""
-    code = secrets.token_urlsafe(48)
-    db.query(MobileWebSession).filter(MobileWebSession.expires_at < utcnow()).delete(synchronize_session=False)
-    row = MobileWebSession(
-        code_hash=_hash(code),
-        user_id=user.id,
-        locale=payload.locale,
-        expires_at=utcnow() + timedelta(seconds=WEB_SESSION_TTL_SECONDS),
-    )
-    db.add(row)
-    db.commit()
-    return {"handoff_path": f"/auth/mobile/web-session/consume?code={code}", "expires_in": WEB_SESSION_TTL_SECONDS}
+    return {"handoff_path": mint_web_session(db, user, payload.locale), "expires_in": WEB_SESSION_TTL_SECONDS}
 
 
 @router.get("/web-session/consume")

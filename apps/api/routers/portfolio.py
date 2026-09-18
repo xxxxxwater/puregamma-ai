@@ -20,8 +20,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
-from apps.api.dependencies import get_current_user, get_db
+from apps.api.dependencies import get_current_user, get_db, require_pm_account_viewer
 from apps.api.services.cex_connection_service import cex_connection_status, connect_cex
+from apps.api.services.pm_riskbot_service import get_reader
 from apps.api.services.portfolio_service import PlaidDataPending, PlaidRefreshRateLimited, PlaidRefreshUnsupported, PlaidWebhookVerificationError, PortfolioAccessError, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_investment_transactions, plaid_link_token, portfolio_view, process_plaid_webhook, request_plaid_investments_refresh, request_plaid_transactions_refresh, sync_account, verify_plaid_webhook
 from packages.data.cex_private import CexPermissionDenied
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
@@ -206,6 +207,44 @@ def _evm_challenge_from_payload(address: str, challenge: dict) -> tuple[str, str
 @router.get("")
 def get_portfolio(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     return portfolio_view(db, user)
+
+
+# ---------------------------------------------------------------------------
+# Private Binance Portfolio Margin account (read-only, riskbot collector)
+# ---------------------------------------------------------------------------
+# The account is a single shared data source owned by two people, so it is
+# presented as its own feed and NEVER merged into the caller's aggregated NAV -
+# summing it per user would double count the same balance.
+#
+# Every route below depends on ``require_pm_account_viewer``: authorization is
+# enforced per request on the server, for the full payload, the history series
+# and the raw export alike.  A UI that hides the section is not access control.
+
+
+@router.get("/pm")
+def get_pm_account(_user: User = Depends(require_pm_account_viewer)) -> dict:
+    """Official Binance PM figures, balances, positions and open orders.
+
+    Official exchange fields and locally derived ones are returned in separate
+    keys (``account.*`` vs ``account.*_derived``), and the real BTC quantity is
+    kept apart from BTC *equivalents* of USD figures.
+    """
+    settings = get_settings()
+    view = get_reader().account_view()
+    view["label"] = settings.pm_account_label
+    view["merged_into_portfolio_nav"] = False
+    return view
+
+
+@router.get("/pm/history")
+def get_pm_nav_history(_user: User = Depends(require_pm_account_viewer)) -> dict:
+    """NAV history built only from real snapshots.
+
+    ``sufficient`` is false until at least two observations exist; the UI must
+    show "数据不足" rather than interpolate a curve, so no point is ever
+    synthesised here.
+    """
+    return get_reader().nav_history_view()
 
 
 @router.put("/ai-context")

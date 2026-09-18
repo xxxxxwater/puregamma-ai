@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Link2, Loader2, Play, RefreshCw, Trash2, Wallet } from "lucide-react";
 import { AllocationChart, NavHistoryChart } from "@/components/charts";
+import { PmAccountPanel } from "@/components/pm-account-panel";
 import { HoldingRow, ProviderCard } from "@/components/portfolio-panels";
 import { ResearchCard } from "@/components/puregamma";
 import { StaleDataBanner } from "@/components/financial/stale-data-banner";
 import { StatusBadge } from "@/components/ocean/status-badge";
-import { connectEvmWallet, connectHyperliquid, createEvmWalletChallenge, createPlaidLinkToken, disconnectPortfolioAccount, exchangePlaidToken, getMe, getPlaidInvestmentTransactions, getPortfolioSnapshot, getTradingNav, getTradingSafetyStatus, requestPlaidInvestmentRefresh, syncPortfolioAccount, type NavSnapshot, type PortfolioHolding, type PortfolioInvestmentTransaction, type PortfolioSnapshot } from "@/lib/api";
+import { connectEvmWallet, connectHyperliquid, createEvmWalletChallenge, createPlaidLinkToken, disconnectPortfolioAccount, exchangePlaidToken, getMe, getPlaidInvestmentTransactions, getPmAccount, getPmNavHistory, getPortfolioSnapshot, requestPlaidInvestmentRefresh, syncPortfolioAccount, type PmAccountView, type PmNavHistory, type PortfolioHolding, type PortfolioInvestmentTransaction, type PortfolioSnapshot } from "@/lib/api";
 import { type Locale, withLocale } from "@/i18n/routing";
 
 declare global { interface Window { Plaid?: { create: (config: Record<string, unknown>) => { open: () => void } }; ethereum?: { request: (payload: { method: string; params?: unknown[] }) => Promise<unknown> } } }
@@ -55,11 +56,23 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [range, setRange] = useState<"1D" | "1W" | "1M" | "ALL">("1M");
-  // Control-plane trading NAV (server-computed; separate from aggregated portfolio NAV).
-  const [tradingNav, setTradingNav] = useState<NavSnapshot | null>(null);
-  const [tradingNavDaily, setTradingNavDaily] = useState<{ pnl: string | null; ret: string | null }>({ pnl: null, ret: null });
-  const [tradingNavUnavailable, setTradingNavUnavailable] = useState(false);
-  const [tradingEnv, setTradingEnv] = useState<string | null>(null);
+  // Private Binance PM account (read-only). `pm` stays null until the server
+  // answers; a 403 means this signed-in user is not one of the two authorized
+  // accounts, and the panel then says so instead of showing an empty account.
+  const [pm, setPm] = useState<PmAccountView | null>(null);
+  const [pmHistory, setPmHistory] = useState<PmNavHistory | null>(null);
+  const [pmLoading, setPmLoading] = useState(true);
+
+  const loadPm = () => {
+    void getPmAccount()
+      .then((view) => setPm(view))
+      .catch((reason: Error & { status?: number }) => {
+        setPm({ available: false, reason: reason.status === 403 ? "forbidden" : (reason.message || "unavailable") });
+        setPmHistory(null);
+      })
+      .finally(() => setPmLoading(false));
+    void getPmNavHistory().then(setPmHistory).catch(() => setPmHistory(null));
+  };
   const formatError = (reason: unknown): string => {
     const raw = (reason as Error)?.message || String(reason);
     try {
@@ -89,8 +102,7 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
     });
     void getPortfolioSnapshot(locale).then(setPortfolio);
     void getPlaidInvestmentTransactions().then(({ transactions }) => setPlaidTransactions(transactions)).catch(() => undefined);
-    void getTradingSafetyStatus().then(({ safety }) => setTradingEnv(safety.static_gate.enabled ? "LIVE" : "LIVE_DISABLED")).catch(() => setTradingEnv(null));
-    void getTradingNav().then(({ nav, daily_pnl, daily_return }) => { setTradingNav(nav); setTradingNavDaily({ pnl: daily_pnl, ret: daily_return }); }).catch(() => setTradingNavUnavailable(true));
+    loadPm();
 
     const params = new URLSearchParams(window.location.search);
     const oauthState = params.get("oauth_state_id");
@@ -116,6 +128,7 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
       if (document.visibilityState === "visible") {
         void getPortfolioSnapshot(locale).then(setPortfolio).catch(() => undefined);
         void getPlaidInvestmentTransactions().then(({ transactions }) => setPlaidTransactions(transactions)).catch(() => undefined);
+        loadPm();
       }
     }, 60_000);
     return () => window.clearInterval(timer);
@@ -222,7 +235,6 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
         <div className="flex flex-wrap items-center gap-3">
           <p className="text-xs font-semibold uppercase text-text-pg-muted">{zh ? "组合净值 NAV" : "Portfolio NAV"}</p>
           {portfolio.connected ? <StatusBadge domain="data" value={portfolio.stale ? "stale" : "fresh"} locale={locale} /> : null}
-          {tradingEnv ? <StatusBadge domain="trading" value={tradingEnv} locale={locale} /> : null}
           {portfolio.connected ? <button type="button" onClick={() => void syncAll()} disabled={busy === "all"} className="ml-auto inline-flex h-7 items-center gap-1.5 border border-border-pg px-2 text-[10px] text-text-pg-muted hover:text-text-pg disabled:opacity-40 rounded-lg">{busy === "all" ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}{zh ? "同步全部" : "Sync all"}</button> : null}
         </div>
         <div className="mt-3 flex flex-wrap items-end gap-x-4 gap-y-2">
@@ -231,11 +243,37 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
         </div>
         <div className="mt-3 flex flex-wrap gap-5 text-xs text-text-pg-muted"><span>{zh ? "可用资金" : "Available"}: {portfolio.connected ? money(portfolio.available_cash) : "--"}</span>{portfolio.unrealized_pnl !== undefined && portfolio.unrealized_pnl !== null ? <span className={portfolio.unrealized_pnl >= 0 ? "text-status-positive" : "text-status-negative"}>{zh ? "未实现盈亏" : "Unrealized PnL"}: {portfolio.unrealized_pnl >= 0 ? "+" : ""}{money(portfolio.unrealized_pnl)}</span> : null}<span>{holdings.length} {zh ? "种资产" : "assets"} · {portfolio.connections.length} {zh ? "个账户" : "accounts"}</span>{portfolio.data_as_of ? <span>{zh ? "数据截至" : "As of"}: {new Date(portfolio.data_as_of).toLocaleString(locale)}</span> : null}</div>
         <div className="mt-5 flex gap-1">{(["1D", "1W", "1M", "ALL"] as const).map((item) => <button key={item} type="button" onClick={() => setRange(item)} className={`h-7 min-w-11 px-2 font-mono text-[10px] ${range === item ? "bg-text-pg text-bg-app" : "text-text-pg-dim hover:bg-bg-panel-muted"}`}>{item}</button>)}</div>
+        {pm?.available ? (() => {
+          // The private Binance PM account is a shared, single data source, so it
+          // is surfaced here as a separate figure and never added to the
+          // aggregated NAV above (that would double count the same balance).
+          const pmAccount = pm.account ?? {};
+          const pmBtc = pm.btc ?? {};
+          const toNum = (value: unknown) => {
+            const parsed = typeof value === "number" ? value : Number(value);
+            return Number.isFinite(parsed) ? parsed : null;
+          };
+          const pmNav = toNum(pmAccount.account_equity_usd);
+          const pmAvailable = toNum(pmAccount.total_available_balance_usd);
+          const pmBtcQty = toNum(pmBtc.quantity);
+          return <div className="mt-3 border-t border-border-pg pt-3 text-xs">
+            <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+              <span className="text-[10px] uppercase tracking-wide text-text-pg-dim">{zh ? "Binance PM 统一账户（只读 · 独立展示）" : "Binance PM account (read-only, separate)"}</span>
+              <span className="font-medium tabular-nums">{zh ? "净值" : "NAV"}: {pmNav === null ? "--" : money(pmNav)}</span>
+              <span className="tabular-nums">{zh ? "BTC 持仓" : "BTC held"}: {pmBtcQty === null ? "--" : `${pmBtcQty.toLocaleString(locale, { maximumFractionDigits: 8 })} BTC`}</span>
+              <span className="tabular-nums">{zh ? "可用" : "Available"}: {pmAvailable === null ? "--" : money(pmAvailable)}</span>
+              {pm.stale ? <StatusBadge domain="data" value="stale" locale={locale} /> : null}
+            </div>
+            <p className="mt-1 text-[10px] text-text-pg-dim">{zh ? "该账户为两位授权用户共享的单一数据源，因此不计入上方组合净值，避免同一份余额被重复累加。" : "Shared by two authorized users, so it is excluded from the aggregated NAV above to avoid double counting the same balance."}</p>
+          </div>;
+        })() : null}
       </div>
       {chartData.length > 1 ? <NavHistoryChart data={chartData} /> : <div className="grid h-56 place-items-center border-t border-border-pg text-sm text-text-pg-muted">{portfolio.nav_history.length > 1 ? (zh ? "该时间范围内暂无足够快照" : "Not enough snapshots in this range") : (zh ? "至少同步两次后显示真实净值曲线" : "The real NAV curve appears after at least two syncs")}</div>}
     </ResearchCard>
 
     {portfolio.connected && portfolio.stale ? <StaleDataBanner stale updatedAt={portfolio.data_as_of} locale={locale} onRefresh={() => void syncAll()} /> : null}
+
+    <PmAccountPanel view={pm} history={pmHistory} loading={pmLoading} locale={locale} onRefresh={loadPm} />
 
     {(portfolio.positions?.length ?? 0) > 0 ? <ResearchCard className="overflow-hidden p-0">
       <div className="border-b border-border-pg p-5">
@@ -249,39 +287,6 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
         </table>
       </div>
     </ResearchCard> : null}
-
-    <ResearchCard className="overflow-hidden p-0">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border-pg p-5">
-        <div className="min-w-0">
-          <div className="text-xs font-semibold uppercase text-text-pg-muted">{zh ? "交易账户 NAV（控制面）" : "Trading account NAV (control plane)"}</div>
-          <p className="mt-2 max-w-xl text-xs leading-5 text-text-pg-muted">{zh ? "服务端逐日计算的交易账户净值，与上方组合净值分开显示、不混合。所有金额均来自后端对账账本。" : "Server-side daily NAV of the trading account, shown separately from the portfolio NAV above. All figures come from the backend reconciliation ledger."}</p>
-        </div>
-        {tradingEnv ? <StatusBadge domain="trading" value={tradingEnv} locale={locale} /> : null}
-      </div>
-      {tradingNavUnavailable ? (
-        <div className="p-5 text-sm text-text-pg-muted">{zh ? "功能暂不可用：控制面 NAV 接口尚未开放，这里不会显示任何估算或占位数据。" : "Not available yet: the control-plane NAV endpoint has not been opened, so no estimates or placeholder figures are shown here."}</div>
-      ) : tradingNav ? (
-        <div className="p-5">
-          <div className="flex flex-wrap items-end gap-x-4 gap-y-2">
-            <p className="text-3xl font-semibold tabular-nums tracking-normal">{tradingNav.nav ? money(Number(tradingNav.nav)) : "--"}</p>
-            {tradingNavDaily.pnl ? <p className={`pb-1 text-sm font-medium ${Number(tradingNavDaily.pnl) >= 0 ? "text-status-positive" : "text-status-negative"}`}>{Number(tradingNavDaily.pnl) >= 0 ? "+" : ""}{money(Number(tradingNavDaily.pnl))}{tradingNavDaily.ret ? ` (${Number(tradingNavDaily.ret) >= 0 ? "+" : ""}${(Number(tradingNavDaily.ret) * 100).toFixed(2)}%)` : ""} · {zh ? "今日" : "today"}</p> : null}
-            {tradingNav.reconciliation_status ? <StatusBadge domain="data" value={tradingNav.reconciliation_status === "ok" ? "reconciled" : "needs_review"} locale={locale} /> : null}
-          </div>
-          <div className="mt-3 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-2 lg:grid-cols-4">
-            <NavField label={zh ? "现金" : "Cash"} value={money(Number(tradingNav.cash))} />
-            <NavField label={zh ? "总敞口" : "Gross exposure"} value={money(Number(tradingNav.gross_exposure))} />
-            <NavField label={zh ? "净敞口" : "Net exposure"} value={money(Number(tradingNav.net_exposure))} />
-            <NavField label={zh ? "未实现盈亏" : "Unrealized PnL"} value={money(Number(tradingNav.unrealized_pnl))} />
-          </div>
-          <p className="mt-3 text-xs text-text-pg-dim">
-            {zh ? "计算于" : "Calculated"} {new Date(tradingNav.calculated_at).toLocaleString(locale)}
-            {tradingNav.price_timestamp ? <> · {zh ? "价格时间" : "price timestamp"} {new Date(tradingNav.price_timestamp).toLocaleString(locale)}</> : null}
-            {tradingNav.nav === null ? <> · {zh ? "价格缺失，NAV 未计算（不伪造）" : "prices missing, NAV not computed (not fabricated)"}</> : null}
-          </p>
-          {tradingNav.is_stale ? <div className="mt-3"><StaleDataBanner stale updatedAt={tradingNav.price_timestamp || tradingNav.calculated_at} locale={locale} reconciliation={tradingNav.reconciliation_status} /></div> : null}
-        </div>
-      ) : null}
-    </ResearchCard>
 
     {holdings.length ? <ResearchCard className="overflow-hidden p-0">
       <div className="flex items-center justify-between border-b border-border-pg p-5">
@@ -324,15 +329,4 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
     {portfolio.connections.length ? <ResearchCard><h2 className="font-semibold">{zh ? "同步状态" : "Sync status"}</h2><div className="mt-4 divide-y divide-border-pg">{portfolio.connections.map((connection) => { const summary = accountNav.get(connection.id); return <div key={connection.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium">{connection.name}</div><div className="mt-1 text-xs text-text-pg-dim">{connection.provider.toUpperCase()} · {connection.last_sync ? new Date(connection.last_sync).toLocaleString(locale) : (zh ? "未同步" : "Not synced")}{connection.error ? ` · ${connection.error}` : ""}</div></div>{summary ? <div className="hidden text-right sm:block"><div className="text-sm font-medium">{money(summary.nav)}</div><div className={`text-[10px] ${summary.daily_change >= 0 ? "text-status-positive" : "text-status-negative"}`}>{signedMoney(summary.daily_change)} · 24h</div></div> : null}<span className={connection.status === "CONNECTED" ? "text-xs text-status-positive" : "text-xs text-status-negative"}>{connection.status}</span>{connection.provider === "plaid" && connection.can_refresh ? <button type="button" onClick={() => void refreshPlaid(connection.id)} disabled={busy === `refresh:${connection.id}`} className="h-9 border border-border-pg px-2 text-[10px] text-text-pg-muted hover:text-text-pg disabled:opacity-40 rounded-lg" title={zh ? "请求 Plaid 投资更新" : "Request Plaid Investments Refresh"}>{busy === `refresh:${connection.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : (zh ? "更新" : "Refresh")}</button> : null}<button type="button" onClick={() => void sync(connection.id)} className="grid h-9 w-9 place-items-center border border-border-pg rounded-lg" title={zh ? "同步" : "Sync"}>{busy === connection.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</button><button type="button" onClick={() => void disconnect(connection.id)} className="grid h-9 w-9 place-items-center border border-border-pg text-status-negative rounded-lg" title={zh ? "断开账户" : "Disconnect account"}><Trash2 className="h-4 w-4" /></button></div>; })}</div></ResearchCard> : null}
   </div>;
 }
-
-function NavField({ label, value }: { label: string; value: string }) {
-  return (
-    <div className="bg-bg-panel p-3">
-      <dt className="text-[10px] uppercase tracking-wide text-text-pg-dim">{label}</dt>
-      <dd className="mt-1 text-sm font-medium tabular-nums text-text-pg">{value}</dd>
-    </div>
-  );
-}
-
-
 

@@ -5,20 +5,21 @@ import hashlib
 import hmac
 import secrets
 import socket
+import threading
+import time
 from contextlib import asynccontextmanager
-from urllib.parse import urljoin
+from urllib.parse import urlencode, urljoin
 
 import httpx
 import websockets.asyncio.client as wsclient
 from fastapi import FastAPI, Request, WebSocket
-from fastapi.responses import HTMLResponse, JSONResponse, Response, StreamingResponse
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response, StreamingResponse
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from config import settings
 from pin import (
     get_lan_pin,
     get_public_pin,
-    pin_for_host,
     pin_is_custom,
     refresh_lan_pin,
     rotate_public_pin,
@@ -30,14 +31,69 @@ from tunnel import TunnelManager, auto_recover, save_auto_start, was_auto_start
 # 会话保持：登录 cookie 绑定进程级 session key（服务重启后需重输密码，与 dsh-pocket 一致）
 SESSION_KEY = secrets.token_hex(32)
 COOKIE_NAME = "pg_pocket"
+PIN_PARAM = "pin"
 COOKIE_MAX_AGE = settings.session_ttl_days * 86400
 RESERVED_PREFIXES = ("/health", "/rpc", "/_pocket")
 
 manager = TunnelManager()
 
+# 上游客户端：必须比请求处理函数活得更久。
+#
+# 早先的实现给每个请求开一个 `async with httpx.AsyncClient(...)`。函数返回时
+# 客户端就被关闭了，而 Starlette 是在处理函数返回之后才迭代 StreamingResponse
+# 的内容——连接已经断了，Next.js 的 HTML（约 100KB）只发出去一小截就中断。
+# cloudflared 收到被截断的响应，手机看到的是 Cloudflare 520 错误页（页面上有
+# 「Host」一行），也就是用户报的「HOST 错误」。小响应（PIN 页、307 跳转）能
+# 侥幸发完，所以问题只在真实页面上暴露。
+#
+# 现在整个进程共用一个连接池客户端，流的生命周期交给 _stream_upstream。
+_client_lock = threading.Lock()
+_client: httpx.AsyncClient | None = None
+_client_loop: asyncio.AbstractEventLoop | None = None
+UPSTREAM_TIMEOUT = httpx.Timeout(connect=10, read=120, write=30, pool=10)
+
+
+def _upstream_client() -> httpx.AsyncClient:
+    """返回当前事件循环上的共享客户端（跨事件循环/已关闭时重建）。"""
+    global _client, _client_loop
+    loop = asyncio.get_running_loop()
+    with _client_lock:
+        if _client is None or _client.is_closed or _client_loop is not loop:
+            _client = httpx.AsyncClient(
+                timeout=UPSTREAM_TIMEOUT,
+                follow_redirects=False,
+                trust_env=False,
+                limits=httpx.Limits(max_connections=64, max_keepalive_connections=16),
+            )
+            _client_loop = loop
+        return _client
+
+
+async def _close_upstream_client() -> None:
+    global _client, _client_loop
+    with _client_lock:
+        client, _client, _client_loop = _client, None, None
+    if client is not None and not client.is_closed:
+        await client.aclose()
+
+
+async def _stream_upstream(upstream: httpx.Response):
+    """转发响应体，结束后把连接还回连接池。"""
+    try:
+        async for chunk in upstream.aiter_bytes():
+            yield chunk
+    finally:
+        await upstream.aclose()
+
+
+def _is_tunnel_host(host: str | None) -> bool:
+    """临时 quick tunnel 域名：随机分配，与正式站点不同源。"""
+    return bool(host and host.endswith("trycloudflare.com"))
+
 
 def _kind_for_host(host: str | None) -> str:
-    if host and host.endswith("trycloudflare.com"):
+    """按入口域名选择密码：公网（隧道或已配置的公网域名）用公网密码，其余用局域网密码。"""
+    if _is_tunnel_host(host) or (host and host in settings.public_hosts):
         return "public"
     return "lan"
 
@@ -50,20 +106,127 @@ def _cookie_value(kind: str) -> str:
     return hmac.new(SESSION_KEY.encode(), f"{kind}:{_pin_for_kind(kind)}".encode(), hashlib.sha256).hexdigest()
 
 
-def _authorized(request: Request, kind: str) -> bool:
-    cookie = request.cookies.get(COOKIE_NAME)
-    if cookie and hmac.compare_digest(cookie, _cookie_value(kind)):
-        return True
-    provided = request.query_params.get("pin", "")
+def _cookie_authorized(cookie: str | None, kind: str) -> bool:
+    return bool(cookie and hmac.compare_digest(cookie, _cookie_value(kind)))
+
+
+def _pin_matches(provided: str, kind: str) -> bool:
     return bool(provided and hmac.compare_digest(provided, _pin_for_kind(kind)))
+
+
+# ---------- PIN 失败限速 ----------
+#
+# 8 位密码是唯一的口令；一旦配置了 POCKET_HANDOFF_URL，它等同账号登录凭证，
+# 所以必须挡住在线爆破。按客户端地址计数（cloudflared 之后 socket 对端没有
+# 意义，取它写入的 CF-Connecting-IP），窗口内失败超限即拒绝，成功即清零。
+PIN_FAILURE_LIMIT = 10
+PIN_FAILURE_WINDOW_SECONDS = 900
+_pin_failures: dict[str, list[float]] = {}
+_pin_failures_lock = threading.Lock()
+
+
+def _client_ip(connection: Request | WebSocket) -> str:
+    """HTTP 与 WebSocket 都适用：两者都有 headers 与 client。"""
+    for header in ("cf-connecting-ip", "x-real-ip", "x-forwarded-for"):
+        value = connection.headers.get(header, "").strip()
+        if value:
+            return value.split(",")[0].strip()
+    return connection.client.host if connection.client else "unknown"
+
+
+def _prune_locked(ip: str, now: float) -> list[float]:
+    """窗口内的失败时间戳（必须在持有 _pin_failures_lock 时调用）。"""
+    hits = [at for at in _pin_failures.get(ip, []) if now - at < PIN_FAILURE_WINDOW_SECONDS]
+    if hits:
+        _pin_failures[ip] = hits
+    else:
+        _pin_failures.pop(ip, None)
+    return hits
+
+
+def _pin_failures_from(ip: str) -> int:
+    now = time.monotonic()
+    with _pin_failures_lock:
+        return len(_prune_locked(ip, now))
+
+
+def _record_pin_failure(ip: str) -> int:
+    now = time.monotonic()
+    with _pin_failures_lock:
+        hits = _prune_locked(ip, now)
+        hits.append(now)
+        _pin_failures[ip] = hits
+        return len(hits)
+
+
+def _clear_pin_failures(ip: str) -> None:
+    with _pin_failures_lock:
+        _pin_failures.pop(ip, None)
+
+
+def _throttled_response() -> Response:
+    minutes = max(1, PIN_FAILURE_WINDOW_SECONDS // 60)
+    body = (
+        '<!doctype html><html><head><meta charset="utf-8">'
+        '<meta name="viewport" content="width=device-width,initial-scale=1"><title>PureGamma AI 访问验证</title></head>'
+        '<body style="font-family:system-ui;display:flex;align-items:center;justify-content:center;height:100vh;margin:0;background:#101216;color:#f5f6f8">'
+        '<div style="text-align:center;max-width:22rem">'
+        '<h2 style="margin:0 0 12px;font-weight:600">尝试次数过多</h2>'
+        f'<p style="color:#a2a4a6;margin:0">密码连续输错，请约 {minutes} 分钟后重试。</p>'
+        '</div></body></html>'
+    )
+    return HTMLResponse(body, status_code=429, headers={"Retry-After": str(PIN_FAILURE_WINDOW_SECONDS)})
+
+
+async def _mint_handoff_url(request: Request) -> str | None:
+    """向 SaaS API 换一次性登录交接链接（PIN 通过后手机直接进账号）。"""
+    if not settings.handoff_url or not settings.rpc_secret:
+        return None
+    headers = {"x-pocket-rpc-token": settings.rpc_secret}
+    language = request.headers.get("accept-language")
+    if language:
+        headers["accept-language"] = language
+    try:
+        async with httpx.AsyncClient(
+            timeout=httpx.Timeout(connect=5, read=10, write=5, pool=5), trust_env=False
+        ) as client:
+            response = await client.post(settings.handoff_url, headers=headers)
+            if response.status_code != 200:
+                return None
+            url = str(response.json().get("handoff_url") or "")
+    except (httpx.HTTPError, ValueError):
+        return None
+    return url if url.startswith(("http://", "https://")) else None
+
+
+async def _app_handoff(request: Request) -> Response | None:
+    """公网入口：PIN 通过后把手机交给正式站点，而不是在隧道域名上代理整站。
+
+    隧道是随机 `*.trycloudflare.com` 域名，而正式站点把接口调用发到
+    `https://api.puregamma.ai`：从隧道域名出发的预检会被 CORS 拒绝
+    （CORS_ORIGINS 只认 https://app.puregamma.ai），会话 cookie 又带着
+    `Domain=.puregamma.ai; SameSite=Lax`——在 iOS 上属于第三方 cookie，
+    登录永远保持不住。所以隧道域名下代理出来的页面「能看不能用」。
+    把浏览器送到正式站点，手机拿到的才是完整可用的 PureGamma。
+    """
+    if not settings.app_origin:
+        return None
+    minted = await _mint_handoff_url(request)
+    if minted:
+        # 手机拿到一次性交接码 → 正式站点直接建立会话，不必再走邮箱/Google 登录
+        return RedirectResponse(minted, status_code=302)
+    query = _forwarded_query(request)
+    target = f"{settings.app_origin}{request.url.path or '/'}"
+    if query:
+        target += f"?{query}"
+    return RedirectResponse(target, status_code=302)
 
 
 def _ws_authorized(websocket: WebSocket, kind: str) -> bool:
     cookie = websocket.cookies.get(COOKIE_NAME)
     if cookie and hmac.compare_digest(cookie, _cookie_value(kind)):
         return True
-    provided = websocket.query_params.get("pin", "")
-    return bool(provided and hmac.compare_digest(provided, _pin_for_kind(kind)))
+    return _pin_matches(websocket.query_params.get(PIN_PARAM, ""), kind)
 
 
 def _private_ok(ip: str) -> bool:
@@ -104,8 +267,13 @@ def _rpc_allowed(request: Request) -> bool:
     return client in {"127.0.0.1", "::1", "localhost"}
 
 
-def _pin_gate_html(kind: str) -> str:
+def _pin_gate_html(kind: str, *, will_redirect: bool = False) -> str:
     label = "公网访问密码" if kind == "public" else "局域网访问密码"
+    hint = (
+        '<p style="color:#7f838a;margin:14px 0 0;font-size:13px">验证后将在本机浏览器打开 PureGamma 正式站点</p>'
+        if will_redirect
+        else ""
+    )
     return (
         '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">'
         '<title>PureGamma AI 访问验证</title></head>'
@@ -116,64 +284,107 @@ def _pin_gate_html(kind: str) -> str:
         '<input name="pin" inputmode="numeric" pattern="[0-9]{8}" maxlength="8" autofocus '
         'style="font-size:20px;padding:10px 14px;border-radius:10px;border:1px solid #3a3d44;background:#191c22;color:#f5f6f8;text-align:center;letter-spacing:4px" />'
         '<button type="submit" style="margin-left:10px;font-size:16px;padding:10px 18px;border-radius:10px;border:0;background:#d6b35a;color:#101216;font-weight:600;cursor:pointer">进入</button>'
+        f"{hint}"
         '</form></body></html>'
     )
 
 
+def _forwarded_query(request: Request) -> str:
+    """转发查询串，但不把访问 PIN 带进上游。
+
+    PIN 以前是原样转发的，于是它会出现在上游的访问日志、Referer 和 Next.js 的
+    跳转 Location 里（`/zh?pin=12345678`），既泄漏又无用。
+    """
+    return urlencode([(key, value) for key, value in request.query_params.multi_items() if key != PIN_PARAM])
+
+
 async def _proxy_http(request: Request) -> Response:
     target = urljoin(settings.web_target + "/", request.url.path.lstrip("/"))
-    if request.url.query:
-        target += "?" + request.url.query
+    query = _forwarded_query(request)
+    if query:
+        target += "?" + query
+    host = request.headers.get("host", "")
     headers = {
         key: value for key, value in request.headers.items()
         if key.lower() not in {"host", "content-length", "connection", "accept-encoding"}
     }
-    headers["x-forwarded-host"] = request.headers.get("host", "")
-    headers["x-forwarded-proto"] = "https" if request.headers.get("host", "").endswith("trycloudflare.com") else "http"
+    headers["x-forwarded-host"] = host
+    headers["x-forwarded-proto"] = "https" if _kind_for_host(host.split(":")[0]) == "public" else "http"
     body = await request.body()
+    client = _upstream_client()
     try:
-        async with httpx.AsyncClient(
-            timeout=httpx.Timeout(connect=10, read=120, write=30, pool=10),
-            follow_redirects=False,
-            trust_env=False,
-        ) as client:
-            upstream_request = client.build_request(request.method, target, headers=headers, content=body or None)
-            upstream = await client.send(upstream_request, stream=True)
-            resp_headers = {
-                key: value for key, value in upstream.headers.items()
-                if key.lower() not in {"content-length", "transfer-encoding", "connection", "content-encoding", "keep-alive"}
-            }
-            return StreamingResponse(upstream.aiter_bytes(), status_code=upstream.status_code, headers=resp_headers)
+        upstream_request = client.build_request(request.method, target, headers=headers, content=body or None)
+        upstream = await client.send(upstream_request, stream=True)
     except httpx.HTTPError as exc:
         return JSONResponse({"detail": "upstream unavailable", "error": str(exc)[:200]}, status_code=502)
+    resp_headers = {
+        key: value for key, value in upstream.headers.items()
+        if key.lower() not in {"content-length", "transfer-encoding", "connection", "content-encoding", "keep-alive"}
+    }
+    return StreamingResponse(_stream_upstream(upstream), status_code=upstream.status_code, headers=resp_headers)
+
+
+async def _authorized_response(request: Request, *, tunnel: bool) -> Response:
+    """已通过 PIN / 配对 cookie 的请求：隧道入口交回正式站点，其余入口代理上游。"""
+    if tunnel:
+        handoff = await _app_handoff(request)
+        if handoff is not None:
+            return handoff
+    return await _proxy_http(request)
 
 
 class ProxyMiddleware(BaseHTTPMiddleware):
-    """所有未保留路径的 HTTP 请求：先 PIN 鉴权，再反向代理到 puregamma web。"""
+    """所有未保留路径的 HTTP 请求：先 PIN 鉴权。
+
+    鉴权通过后按入口域名分流：
+    - 临时隧道域名（*.trycloudflare.com）：跳转到 POCKET_APP_ORIGIN 的正式站点，
+      因为隧道域名与正式站点不同源，代理出来的整站无法调用接口；
+    - 其他入口（局域网、已配置的稳定公网域名）：反向代理到 puregamma web。
+    """
 
     async def dispatch(self, request: Request, call_next):
         if request.url.path.startswith(RESERVED_PREFIXES):
             return await call_next(request)
         if request.method not in settings.allowed_methods:
             return JSONResponse({"detail": "method not allowed"}, status_code=405)
-        kind = _kind_for_host(request.headers.get("host", "").split(":")[0])
-        if _authorized(request, kind):
-            return await _proxy_http(request)
-        provided = request.query_params.get("pin", "")
-        if provided and hmac.compare_digest(provided, _pin_for_kind(kind)):
-            response = await _proxy_http(request)
+        host = request.headers.get("host", "").split(":")[0]
+        kind = _kind_for_host(host)
+        tunnel = _is_tunnel_host(host)
+        paired = _cookie_authorized(request.cookies.get(COOKIE_NAME), kind)
+        provided = request.query_params.get(PIN_PARAM, "")
+
+        # 已配对的手机不受限速影响：攻击者的噪声不该把主人锁在门外
+        if not paired and _pin_failures_from(_client_ip(request)) >= PIN_FAILURE_LIMIT:
+            return _throttled_response()
+
+        if paired:
+            return await _authorized_response(request, tunnel=tunnel)
+
+        # PIN 首次通过：发会话 cookie，避免每个请求都要重新带上 ?pin=（旧实现里
+        # _authorized 会先匹配 ?pin= 并直接返回，发 cookie 的分支根本到不了）。
+        if provided and _pin_matches(provided, kind):
+            _clear_pin_failures(_client_ip(request))
+            response = await _authorized_response(request, tunnel=tunnel)
             response.set_cookie(COOKIE_NAME, _cookie_value(kind), max_age=COOKIE_MAX_AGE, httponly=True, samesite="lax")
             return response
+
+        if provided:
+            _record_pin_failure(_client_ip(request))
+
         accept = request.headers.get("accept", "")
         if "text/html" in accept:
-            return HTMLResponse(_pin_gate_html(kind), status_code=401)
+            will_redirect = tunnel and bool(settings.app_origin)
+            return HTMLResponse(_pin_gate_html(kind, will_redirect=will_redirect), status_code=401)
         return JSONResponse({"detail": "PIN required"}, status_code=401)
 
 
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
     auto_recover(manager)
-    yield
+    try:
+        yield
+    finally:
+        await _close_upstream_client()
 
 
 app = FastAPI(lifespan=_lifespan, title="PureGamma Pocket Relay")
@@ -314,6 +525,8 @@ async def ws_proxy(websocket: WebSocket, path: str):
     host = websocket.headers.get("host", "").split(":")[0]
     kind = _kind_for_host(host)
     if not _ws_authorized(websocket, kind):
+        if websocket.query_params.get(PIN_PARAM, ""):
+            _record_pin_failure(_client_ip(websocket))
         await websocket.close(code=4403)
         return
     await websocket.accept()

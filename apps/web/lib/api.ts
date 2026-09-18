@@ -1093,6 +1093,171 @@ export function requestPlaidInvestmentRefresh(accountId: string) { return reques
 export function getPlaidInvestmentTransactions(accountId?: string, limit = 100) { const query = new URLSearchParams({ limit: String(limit) }); if (accountId) query.set("account_id", accountId); return requestStrict<{ transactions: PortfolioInvestmentTransaction[] }>(`/portfolio/plaid/transactions?${query.toString()}`); }
 export function disconnectPortfolioAccount(accountId: string) { return requestStrict<PortfolioSnapshot>(`/portfolio/accounts/${encodeURIComponent(accountId)}`, { method: "DELETE" }); }
 
+// ---------------------------------------------------------------------------
+// Private Binance Portfolio Margin account (read-only, collected by riskbot)
+// ---------------------------------------------------------------------------
+// All numeric fields arrive as strings because they are Decimal values on the
+// server; parse with Number() only for display. `*_btc_equivalent` fields are
+// USD figures converted at the BTC price and are NOT amounts of BTC held -
+// `btc.quantity` is the real coin balance.
+export type PmBalanceRow = {
+  asset: string;
+  net_quantity: string | null;
+  wallet_balance: string;
+  borrowed: string | null;
+  interest: string | null;
+  locked: string | null;
+  free: string | null;
+  negative_balance: string | null;
+  um_wallet: string | null;
+  um_unrealized_pnl: string | null;
+  cm_wallet: string | null;
+  cm_unrealized_pnl: string | null;
+  unrealized_pnl: string | null;
+  price_usd: string | null;
+  price_source: string;
+  price_is_approximation: boolean;
+  value_usd: string | null;
+  value_btc_equivalent: string | null;
+  is_liability: boolean;
+};
+export type PmPositionRow = {
+  product: string;
+  symbol: string;
+  side: string;
+  quantity: string;
+  quantity_unit: string;
+  base_asset: string | null;
+  base_quantity: string | null;
+  entry_price: string | null;
+  mark_price: string | null;
+  break_even_price: string | null;
+  liquidation_price: string | null;
+  has_liquidation_price: boolean;
+  liq_distance: string | null;
+  unrealized_pnl: string | null;
+  unrealized_pnl_unit: string;
+  unrealized_pnl_btc_equivalent: string | null;
+  notional_usd: string | null;
+  signed_notional_usd: string | null;
+  notional_btc_equivalent: string | null;
+  notional_source: string;
+  leverage: string | null;
+  initial_margin_usd: string | null;
+  maint_margin_usd: string | null;
+  position_mode: string | null;
+  adl_quantile: number | null;
+  update_time_ms: number | null;
+};
+export type PmOrderRow = {
+  product: string;
+  kind: string;
+  symbol: string;
+  order_id: string;
+  side: string;
+  order_type: string;
+  algo_type: string | null;
+  quantity: string | null;
+  price: string | null;
+  trigger_price: string | null;
+  activation_price: string | null;
+  close_position: boolean;
+  reduce_only: boolean;
+  working_type: string | null;
+  status: string;
+  is_live: boolean;
+  is_protective: boolean;
+  percent_from_mark: string | null;
+  create_time_ms: number | null;
+  list_id: string | null;
+};
+export type PmProtectionRow = {
+  product: string;
+  symbol: string;
+  side: string;
+  position_quantity: string;
+  protected_quantity: string;
+  covered: boolean;
+  partial: boolean;
+  coverage_known: boolean;
+  reason: string;
+  stops: Array<{ order_id?: string; order_type?: string; status?: string; trigger_price?: string | null; quantity?: string | null; close_position?: boolean; reduce_only?: boolean; working_type?: string | null }>;
+};
+export type PmPositionEventRow = {
+  captured_at: string | null;
+  captured_at_ms: number | null;
+  product: string;
+  symbol: string;
+  side: string;
+  kind: string;
+  qty_before: string | null;
+  qty_after: string | null;
+  quantity_unit: string | null;
+  notional_usd: string | null;
+  notional_btc_equivalent: string | null;
+  mark_price: string | null;
+  entry_price: string | null;
+  leverage: string | null;
+  source: string | null;
+};
+export type PmAccountView = {
+  available: boolean;
+  reason?: string;
+  stale?: boolean;
+  partial?: boolean;
+  age_seconds?: number | null;
+  stale_after_seconds?: number;
+  data_as_of?: string | null;
+  generated_at?: string | null;
+  label?: string;
+  merged_into_portfolio_nav?: boolean;
+  collector?: { name?: string; version?: string; pm_product?: string; mode?: string; read_only?: boolean };
+  source?: { collector?: string; read_only?: boolean; note?: string; venue?: string };
+  account?: Record<string, string | number | boolean | null>;
+  btc?: Record<string, string | number | boolean | null>;
+  exposure?: Record<string, string | number | boolean | null>;
+  balances?: PmBalanceRow[];
+  positions?: PmPositionRow[];
+  positions_history?: PmPositionEventRow[];
+  positions_history_meta?: { kind?: string; note?: string; limit?: number; count?: number; first_event_at?: string | null };
+  orders?: PmOrderRow[];
+  orders_meta?: { captured_at?: string | null; age_seconds?: number | null; fully_covered?: boolean; refresh_interval_seconds?: number };
+  protection?: PmProtectionRow[];
+  risk?: { firing_count?: number; firing?: Array<{ rule: string; level: string; fingerprint: string; value?: string; updated_at?: string | null }>; drawdown_peak_btc_equivalent?: string | null; drawdown_day_btc_equivalent?: string | null };
+  coverage?: { essential_ok?: boolean; orders_covered?: boolean; failures?: string[]; essential_failures?: string[] };
+  quality?: { rest_ok?: boolean; ws_connected?: boolean; mismatch?: boolean; last_error?: string | null };
+  disclaimer?: string;
+};
+export type PmNavPoint = {
+  t: number;
+  equity_usd: string | null;
+  adjusted_equity_usd?: string | null;
+  equity_btc_equivalent: string | null;
+  btc_price_usd: string | null;
+  btc_quantity: string | null;
+  btc_collateral_usd?: string | null;
+  available_usd?: string | null;
+  gross_notional_usd?: string | null;
+  net_notional_btc_equivalent?: string | null;
+  positions?: number;
+  orders?: number;
+  degraded?: number;
+};
+export type PmNavHistory = {
+  available: boolean;
+  reason?: string;
+  first_point_at?: string | null;
+  point_count?: number;
+  sufficient?: boolean;
+  window_days?: number;
+  interval_hint_seconds?: number | null;
+  sampling?: string;
+  points: PmNavPoint[];
+};
+
+export function getPmAccount() { return requestStrict<PmAccountView>("/portfolio/pm"); }
+export function getPmNavHistory() { return requestStrict<PmNavHistory>("/portfolio/pm/history"); }
+
 export function getPortfolioPositions() {
   return requestStrict<{ positions: PositionRow[]; status: string }>("/portfolio/positions");
 }

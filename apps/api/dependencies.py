@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import time
 from typing import Generator
 
@@ -14,6 +15,8 @@ from apps.api.config import get_settings
 from packages.database.models import User
 from packages.database.seed import seed_all, seed_reference_data
 from packages.database.session import SessionLocal, init_db
+
+logger = logging.getLogger(__name__)
 
 
 def _b64url(data: bytes) -> str:
@@ -128,3 +131,30 @@ def clear_session_cookie(response: Response) -> None:
 def require_admin(user: User) -> None:
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin role required")
+
+
+def require_pm_account_viewer(user: User = Depends(get_current_user)) -> User:
+    """Server-side gate for the private Binance PM account.
+
+    The account belongs to two nominated people, so every route that exposes
+    its data - summary, positions, orders, history, export - must depend on
+    this.  Hiding a link in the UI is presentation, not authorization: a
+    crafted request from any other logged-in account is rejected here.
+
+    The check is by verified account email, so it keeps working before the
+    second account has even signed up, and an unset/blank allowlist denies
+    everyone rather than allowing everyone.
+    """
+    from apps.api.services.pm_riskbot_service import allowed_emails, is_allowed_email
+
+    if not is_allowed_email(user.email):
+        logger.warning(
+            "pm_account_access_denied user=%s email=%s allowlist_size=%d",
+            user.id, user.email, len(allowed_emails()),
+        )
+        raise HTTPException(
+            status_code=403,
+            detail={"code": "PM_ACCOUNT_NOT_AUTHORIZED",
+                    "message": "This account is not authorized to view the private portfolio."},
+        )
+    return user

@@ -159,6 +159,10 @@ services:
       # Pocket relay（手机访问 / cloudflared 隧道，iMessage 备选路径）
       POCKET_RELAY_URL: http://pocket:8788
       POCKET_RPC_SECRET: ${POCKET_RPC_SECRET:-}
+      # Read-only Binance PM bundle produced by riskbot (see PM_ACCOUNT_ALLOWED_EMAILS).
+      PM_RISKBOT_EXPORT_DIR: /var/lib/puregamma/riskbot
+      PM_ACCOUNT_ALLOWED_EMAILS: ${PM_ACCOUNT_ALLOWED_EMAILS:-daigen999@gmail.com,xxxxxwater@gmail.com,perp24308@gmail.com}
+      PM_ACCOUNT_LABEL: ${PM_ACCOUNT_LABEL:-Binance Portfolio Margin}
     expose: ["8000"]
     logging:
       driver: json-file
@@ -167,6 +171,10 @@ services:
         max-file: "3"
     volumes:
       - backtest_artifacts:/var/lib/puregamma/backtests
+      # Private Binance PM account, published by riskbot. Read-only on purpose:
+      # PureGamma never holds this account's exchange credentials and must never
+      # be able to write to the collector's output.
+      - ${PM_RISKBOT_EXPORT_DIR:-/srv/riskbot-export}:/var/lib/puregamma/riskbot:ro
       # No docker.sock here: the API only probes runner availability and
       # honestly reports it as unavailable. A compromised web-facing container
       # must never reach the host docker engine (host root + all secrets).

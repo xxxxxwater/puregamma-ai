@@ -121,6 +121,23 @@ class Settings:
     hidden_risk_copilot_enabled: bool = os.getenv("HIDDEN_RISK_COPILOT_ENABLED", "false").lower() == "true"
     hidden_realtime_analytics_enabled: bool = os.getenv("HIDDEN_REALTIME_ANALYTICS_ENABLED", "false").lower() == "true"
     hidden_trading_mcp_enabled: bool = os.getenv("HIDDEN_TRADING_MCP_ENABLED", "false").lower() == "true"
+
+    # --- Private Binance Portfolio Margin account (riskbot, read-only) -----
+    # PureGamma holds no exchange credentials for this account. riskbot owns the
+    # read-only Binance key, collects the account and publishes an export bundle
+    # which is mounted here read-only. Empty PM_RISKBOT_EXPORT_DIR disables the
+    # feature entirely.
+    pm_riskbot_export_dir: str = os.getenv("PM_RISKBOT_EXPORT_DIR", "/var/lib/puregamma/riskbot")
+    # Server-side allowlist for the private account. These emails are the ONLY
+    # accounts that may read its data through any surface (REST, WebSocket,
+    # history, export). An empty value denies everyone: misconfiguration fails
+    # closed, and hiding the UI is never treated as authorization.
+    pm_account_allowed_emails: str = os.getenv(
+        "PM_ACCOUNT_ALLOWED_EMAILS",
+        "daigen999@gmail.com,xxxxxwater@gmail.com,perp24308@gmail.com",
+    )
+    # Shown in the UI so an authorized user understands the data's provenance.
+    pm_account_label: str = os.getenv("PM_ACCOUNT_LABEL", "Binance Portfolio Margin")
     credit_usage_enforced: bool = (
         os.getenv("CREDIT_USAGE_ENFORCED", "true").lower() == "true"
     )

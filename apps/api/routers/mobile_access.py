@@ -11,18 +11,24 @@ SaaS 权限模型：
 - 仅管理员：隧道开关与密码轮换/自定义（tunnel / pin 变更）。
 """
 
+import hmac
 import json
+import logging
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
 from fastapi.responses import JSONResponse
+from sqlalchemy import func
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
 from apps.api.dependencies import get_current_user, get_db, require_admin
-from packages.database.models import User
+from apps.api.i18n import resolve_locale
+from apps.api.routers.mobile_auth import WEB_SESSION_TTL_SECONDS, mint_web_session
+from packages.database.models import User, utcnow
 
 router = APIRouter(prefix="/api/mobile-access", tags=["mobile-access"])
+logger = logging.getLogger("puregamma.api")
 
 
 def _admin(user: User = Depends(get_current_user)) -> User:
@@ -94,6 +100,39 @@ async def mobile_access_pin_rotate(request: Request, _: User = Depends(_admin)) 
 @router.post("/pin/custom")
 async def mobile_access_pin_custom(request: Request, _: User = Depends(_admin)) -> Response:
     return await _forward(request, "pin/custom")
+
+
+# ---------- 手机远程访问的登录交接（中继专用） ----------
+
+def _phone_locale(request: Request) -> str:
+    """把手机浏览器的 Accept-Language 收敛成站点支持的 en/zh。"""
+    header = request.headers.get("accept-language", "").lower()
+    return "zh" if header.startswith("zh") or "zh-" in header[:24] else "en"
+
+
+@router.post("/session-handoff")
+async def mobile_access_session_handoff(request: Request, db: Session = Depends(get_db)) -> dict:
+    """PIN 通过后，为手机签发一次性登录交接（手机不再走邮箱/Google 登录）。
+
+    信任边界：只有持有 POCKET_RPC_SECRET 的中继能调用——该密钥只在 compose
+    网络内传递，公网拿不到；对接账号由 POCKET_REMOTE_EMAIL 指定。签发的交接码
+    一次性、60 秒过期，只有消费时才会写入会话 cookie。
+    """
+    settings = get_settings()
+    provided = request.headers.get("x-pocket-rpc-token", "")
+    if not settings.pocket_rpc_secret or not hmac.compare_digest(provided, settings.pocket_rpc_secret):
+        raise HTTPException(status_code=403, detail={"code": "RELAY_TOKEN_REJECTED"})
+    email = settings.pocket_remote_email
+    if not email or not settings.api_public_url:
+        raise HTTPException(status_code=503, detail={"code": "REMOTE_LOGIN_NOT_CONFIGURED"})
+    user = db.query(User).filter(func.lower(User.email) == email).one_or_none()
+    if not user or not user.email_verified_at:
+        raise HTTPException(status_code=503, detail={"code": "REMOTE_LOGIN_ACCOUNT_MISSING"})
+    path = mint_web_session(db, user, resolve_locale(header_locale=_phone_locale(request), user=user))
+    user.last_login_at = utcnow()
+    db.commit()
+    logger.info("mobile_access_session_handoff", extra={"user_id": user.id, "email": user.email})
+    return {"handoff_url": f"{settings.api_public_url}{path}", "expires_in": WEB_SESSION_TTL_SECONDS}
 
 
 @router.get("/qr")
