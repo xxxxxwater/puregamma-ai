@@ -139,3 +139,34 @@ providers:
           pricing_status: requires_usd_conversion_approval
           cache_storage: limited_time_free
         source_reference: https://bigmodel.cn/pricing
+  typesafe:
+    display_name: TypeSafe AI
+    # System One is a distinct native API, NOT /v1/chat/completions.
+    # Initial deployment is opt-in via GATEWAY_ENABLED_PROVIDERS=...,typesafe,
+    # requires GATEWAY_TYPESAFE_API_KEY and administrator price approval.
+    base_url: https://api.typesafe.ai
+    health_path: v1/models
+    models:
+      - public_id: jev-1.13.0
+        provider_model_id: jev-1.13.0
+        display_name: Jev 1.13 (System One)
+        capabilities:
+          chat: false
+          stream: false
+          system_one: true
+          typed_questions: [noul, choice, score]
+          max_context_tokens: 64000
+          text_only: true
+        metadata:
+          pricing_status: official_catalog_requires_admin_approval
+          billing_region: global
+        official_prices:
+          input:
+            usd: "0.042"
+            unit: per_million_tokens
+            description: official input tariff, verified 2026-09-19
+          output:
+            usd: "0"
+            unit: per_million_tokens
+            description: official zero-charge output tariff, verified 2026-09-19
+        source_reference: https://docs.typesafe.ai/models
