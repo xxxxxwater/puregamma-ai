@@ -77,6 +77,9 @@ jobs:
           test -f harness/plugins/ui-notifications/lib/index.js
           test -f harness/plugins/ui-notifications/lib/client.js
           test -f harness/plugins/ui-notifications/lib/types/client/index.d.ts
+          test -f harness/plugins/ui-pg-tsy-runtime/lib/index.js
+          test -f harness/plugins/ui-pg-tsy-runtime/lib/client.js
+          test -f harness/plugins/ui-pg-tsy-runtime/lib/types/client/index.d.ts
           test -f harness/packages/client-gateway/lib/typert.host.js
           test -f harness/packages/client-gateway/lib/typert.host.d.ts
           test -f harness/packages/client-gateway/lib/typert.remote-client.js
