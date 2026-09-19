@@ -4,7 +4,7 @@ import Link from "next/link";
 import Image from "next/image";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, Newspaper, Smartphone, UserRound, X, type LucideIcon } from "lucide-react";
+import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, Newspaper, Radar, Smartphone, UserRound, X, type LucideIcon } from "lucide-react";
 import { AppearanceControls } from "@/components/appearance-controls";
 import { PlanBadge, Badge } from "@/components/puregamma";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
@@ -61,6 +61,7 @@ const groups: NavGroup[] = [
     items: [
       { href: "/billing", labelKey: "common.nav.billing", icon: CreditCard },
       { href: "/gateway", labelKey: "common.nav.gateway", icon: Network },
+      { href: "/jev-trader", labelKey: "common.nav.jevTrader", icon: Radar },
       { href: "/memory", labelKey: "common.nav.memory", icon: BrainCircuit },
       { href: "/mobile-access", labelKey: "common.nav.mobileAccess", icon: Smartphone },
       { href: "/account", labelKey: "common.nav.account", icon: UserRound }

@@ -233,6 +233,20 @@ class Settings:
     gateway_typesafe_base_url: str = os.getenv(
         "GATEWAY_TYPESAFE_BASE_URL", "https://api.typesafe.ai/v1"
     )
+    # ---------------------------------------------------------------- Jev Trader
+    # The third-party live demo feed shown on /jev-trader. Read-only and
+    # unrelated to the billable gateway above: one is a public dashboard, the
+    # other is a metered API. Neither is on the other's critical path.
+    #
+    # A single process-wide upstream connection is opened for all visitors, so
+    # the host is pinned here and never taken from a request -- these routes
+    # must not be usable as a general-purpose proxy.
+    jev_trader_enabled: bool = (
+        os.getenv("JEV_TRADER_ENABLED", "true").lower() == "true"
+    )
+    jev_trader_feed_url: str = os.getenv(
+        "JEV_TRADER_FEED_URL", "https://jev-trader-production.up.railway.app"
+    )
     # Production can enable a verified subset first. Unlisted plugins stay
     # unavailable until their credential and region-specific pricing catalog
     # have both been reviewed.

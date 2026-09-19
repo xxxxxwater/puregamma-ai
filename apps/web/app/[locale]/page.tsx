@@ -5,6 +5,7 @@ import { ArrowRight } from "lucide-react";
 import { Badge } from "@/components/puregamma";
 import { LandingFooterRotator } from "@/components/landing-footer-rotator";
 import { ModelUpgradePreview } from "@/components/model-upgrade";
+import { JevTraderPreview } from "@/components/jev-trader-preview";
 import { TradingArchitecture } from "@/components/trading-architecture";
 import { getGatewayCatalog } from "@/lib/api";
 import { flashAvailability } from "@/lib/model-catalog";
@@ -60,6 +61,7 @@ export default async function LandingPage({ params }: { params: { locale: Locale
       </section>
 
       <ModelUpgradePreview locale={locale} catalog={catalog} />
+      <JevTraderPreview locale={locale} />
 
       <LandingFooterRotator slides={copy.footerSlides} />
     </div>
