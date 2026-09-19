@@ -325,19 +325,52 @@ export function ApiDocsEmbed() {
     : null;
   const availabilityIsLive = selectedCatalog?.availability === "available" && Boolean(catalog?.gateway_enabled);
 
+  // Jev has no messages, no stream and no tool calls. Copying the chat
+  // snippets for it would hand a customer a request that cannot succeed, so
+  // the template follows the capability the catalog actually advertises.
+  const isSystemOne = selectedCatalog?.capabilities?.system_one === true;
+  const systemOneQuestion = `{
+      "is_healthy": {"type": "noul", "instructions": "Does this indicate a healthy deploy?"},
+      "severity": {"type": "score", "instructions": "How serious is the failure?", "criteria": ["Cosmetic", "Degraded", "Outage"]}
+    }`;
+
   const snippets = {
     env: `# Server only — never expose this value to a browser or mobile app
 PUREGAMMA_API_KEY=sk-pg-...
 PUREGAMMA_BASE_URL=${baseUrl}
 PUREGAMMA_MODEL=${selectedId}`,
-    curl: `curl -sS $PUREGAMMA_BASE_URL/chat/completions \\
+    curl: isSystemOne
+      ? `curl -sS $PUREGAMMA_BASE_URL/systemone \\
+  -H "Authorization: Bearer $PUREGAMMA_API_KEY" \\
+  -H "Content-Type: application/json" \\
+  -d '{
+    "model": "${selectedId}",
+    "state": "The build passed and every canary is green.",
+    "questions": ${systemOneQuestion}
+  }'`
+      : `curl -sS $PUREGAMMA_BASE_URL/chat/completions \\
   -H "Authorization: Bearer $PUREGAMMA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
     "model": "${selectedId}",
     "messages": [{"role": "user", "content": "Hello from PureGamma."}]
   }'`,
-    python: `from openai import OpenAI
+    python: isSystemOne
+      ? `import os
+import httpx
+
+response = httpx.post(
+    f"{os.environ['PUREGAMMA_BASE_URL']}/systemone",
+    headers={"Authorization": f"Bearer {os.environ['PUREGAMMA_API_KEY']}"},
+    json={
+        "model": "${selectedId}",
+        "state": "The build passed and every canary is green.",
+        "questions": ${systemOneQuestion},
+    },
+)
+# Typed answers, not text: branch on these directly.
+print(response.json()["answers"]["is_healthy"]["noul"])`
+      : `from openai import OpenAI
 import os
 
 client = OpenAI(
@@ -350,7 +383,22 @@ response = client.chat.completions.create(
     messages=[{"role": "user", "content": "Hello from PureGamma."}],
 )
 print(response.choices[0].message.content)`,
-    node: `import OpenAI from "openai";
+    node: isSystemOne
+      ? `const response = await fetch(\`\${process.env.PUREGAMMA_BASE_URL}/systemone\`, {
+  method: "POST",
+  headers: {
+    Authorization: \`Bearer \${process.env.PUREGAMMA_API_KEY}\`,
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    model: "${selectedId}",
+    state: "The build passed and every canary is green.",
+    questions: ${systemOneQuestion},
+  }),
+});
+const { answers } = await response.json();
+console.log(answers.is_healthy.noul);`
+      : `import OpenAI from "openai";
 
 const client = new OpenAI({
   apiKey: process.env.PUREGAMMA_API_KEY,
@@ -630,7 +678,7 @@ PUREGAMMA_MODEL=${selectedId}
         <main className="order-2 min-w-0 max-w-full space-y-5 xl:order-1">
           <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
-              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span>{selectedAvailabilityLabel ? <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] rounded-lg ${availabilityIsLive ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{availabilityIsLive ? <Check className="h-3 w-3" /> : null}{selectedAvailabilityLabel}</span> : null}</div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
+              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span>{selectedAvailabilityLabel ? <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] rounded-lg ${availabilityIsLive ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{availabilityIsLive ? <Check className="h-3 w-3" /> : null}{selectedAvailabilityLabel}</span> : null}</div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p>{selectedCatalog?.metadata?.showcase_url ? <a href={selectedCatalog.metadata.showcase_url} target="_blank" rel="noopener noreferrer" className="mt-3 inline-flex min-h-10 items-center gap-1.5 border border-border-pg px-2.5 py-2 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ExternalLink className="h-3.5 w-3.5" />{zh ? selectedCatalog.metadata.showcase_label : selectedCatalog.metadata.showcase_label_en || selectedCatalog.metadata.showcase_label}</a> : null}</div>
               <div className="w-full border border-border-pg bg-bg-panel-muted p-3 text-left sm:w-auto sm:text-right rounded-lg"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.modelId}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg">{selectedId}</code><div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.upstream}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg-muted">{selectedCatalog?.provider_model_id || "—"}</code></div>
             </div>
             <div className="mt-5 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3 rounded-xl overflow-hidden">

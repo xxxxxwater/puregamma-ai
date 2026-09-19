@@ -244,6 +244,12 @@ providers:
           alias_target: jev-1.13.0
           rate_limit_tokens_per_second: 250000
           rate_limit_requests_per_minute: 1200
+          # A live public demo of the model doing real-time high-frequency
+          # trading. Shown on the model page so a prospective customer can see
+          # the model working before they spend anything.
+          showcase_url: https://jev-trader.vercel.app/
+          showcase_label: Jev 实时高频交易演示
+          showcase_label_en: Jev live high-frequency trading demo
         official_prices:
           # $42 per Btok (a billion tokens) == $0.042 per million. Only
           # `input` is defined because output tokens are free: usage_cost()
