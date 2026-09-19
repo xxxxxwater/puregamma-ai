@@ -52,5 +52,6 @@ def ensure_builtin_providers() -> None:
     import packages.gateway.providers.deepseek  # noqa: F401
     import packages.gateway.providers.glm  # noqa: F401
     import packages.gateway.providers.moonshot  # noqa: F401
+    import packages.gateway.providers.typesafe  # noqa: F401
 
     _loaded = True
