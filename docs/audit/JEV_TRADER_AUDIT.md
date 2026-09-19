@@ -30,6 +30,37 @@
 - `dryRun = true` → 模拟成交
 - `wallet = null` → **没有真实钱包，无真实资金**
 
+### 独立证据（四条，互相独立，均可复现）
+
+单看 `model` 字段不足以定论（字段是上游自己写的）。以下四条独立佐证：
+
+**① 概率量化。** `/history` 中 **973 条非 late 决策，100%（973/973）** 的
+`probabilities.buy` 都是 0.01 的整数倍（98 个不同取值）。
+mock 走 `1/(1+exp(-signal))`，连续取值，**不可能**产生 100% 的两位小数。
+
+**② 延迟下限。** 实测最小决策延迟 **65ms**；mock 无条件 `await Bun.sleep(80)`，
+其 `latencyMs` 恒 ≥ 80ms。实测区间 65–340ms，均值 114.9ms。
+
+**③ token 经济性（同时独立印证了我们的定价）。** 线上 `totals.jevUsd` = **$32.346402**，
+对应 524,703 次决策 = **每次约 1,468 input tokens**。
+按 TypeSafe 官方 $0.042/Mtok 计算完全吻合；而 mock 的
+`inputTokens = JSON.stringify(state).length/4`（约 200–350）只能得到 $4.41–7.71，
+**实测高出 4–7 倍**。
+
+> 这条同时是我们**目录里 $0.042/Mtok 定价的独立交叉验证** —— 一个完全独立的第三方部署
+> 在真实运行中产生的账单，反推出的单价与我们录入的价格一致。
+
+**④ 成交侧反证。** 全部 1000 条历史事件中：`simulated` 恒为 `True`、
+`txHash` 恒为 `None`、`gasMon` 与 `gasUsd` 恒为 **0**。
+没有 wallet 对象就无法签名，因此**任何真实交易在结构上都不可能发生**。
+
+### 价格数据是真实链上数据（已独立复核）
+
+不是自述，而是自己直接读链：对 `https://rpc.monad.xyz` 直接调用 Kuru 市场的
+`getL2Book()`（selector `0x46fdfbb1`）于区块 106058442 解出
+`mid 0.024622 / spreadBps 6.09`；实时 feed 两个区块后（106058444）报
+`mid 0.0246225 / spreadBps 6.09`。**价位与价差一致 → 行情确为真实链上数据。**
+
 ### ⚠️ README 已过期，不可采信
 
 仓库 README 第 15 行仍写：
@@ -63,6 +94,21 @@ README 记录的是当时的部署参数，之后被改成 `jev` 而未更新文
 ---
 
 ## 3. 接口契约（实测 + 源码一致）
+
+> ⚠️ **重要更正：线上部署的代码比仓库 HEAD 旧。**
+>
+> 本文档第 3 节的契约来自仓库 HEAD 的 `src/server.ts`，但**线上跑的不是 HEAD**。
+> 实测线上事件字段为：
+> `[bestAsk, bestBid, block, decision, fill, mid, position, spreadBps, totals, ts]`，
+> 其中 `totals = [blocks, decisions, gasMon, gasUsd, jevUsd, lateBlocks, pnlMon, pnlPct, pnlUsd, realizedUsd, trades]`。
+> 而 HEAD 的 `Totals` 用 `quotes/fills/reverted`，`BlockEvent` 有 `quote` 和 `resting`，`Fill` 有 `orderId`
+> —— **这些在线上载荷里全都不存在**。形状与每块决策节奏对应 2026-09-16T22:16–22:32Z 的若干提交
+> （`b79c8dc3a579`…`202bdcab2959`，或 `ca9fe4ad7515` 配 `DECIDE_EVERY_BLOCKS=1`）。
+>
+> **结论：不得把 README / SPEC.md / 仓库 HEAD 当作线上服务的描述。**
+> P2 展示组件必须以**实测的线上字段**为准，并且对缺字段容错（例如部分事件没有 `quote`）。
+> 另：线上未见 `ping` 事件（12s 窗口），HEAD 的 15s 心跳在旧构建中可能不存在 —— 因此
+> **不能用 `ping` 作为存活判据**，应改用事件到达时间判断新鲜度。
 
 后端 `src/server.ts`（Bun.serve），CORS 全开 `access-control-allow-origin: *`：
 
@@ -130,13 +176,51 @@ server: Vercel
 
 ---
 
-## 6. 许可证与署名
+## 6. 许可证、署名与必须展示的声明
 
-**MIT License**（`jarrodwatts/jev-trader`）。MIT 允许商用与再分发，要求保留版权声明与许可文本。
+**MIT License**，需复现的版权行原文：
+
+```
+MIT License
+Copyright (c) 2026 Jarrod Watts
+```
+
+义务边界：
+- **仅 iframe 链接线上 URL** → 不构成再分发，**不触发**许可证义务；但仍应给出来源署名。
+- **若 vendor / fork / 复用其代码或 `/events` 数据管线** → 构成再分发，
+  **必须**随附完整 MIT 文本与上述版权行。
+
 PureGamma 侧需：
-1. 在展示页与 `THIRD_PARTY_NOTICES.md` 标注来源与 MIT；
+1. 展示页与 `THIRD_PARTY_NOTICES.md` 标注来源与 MIT；
 2. 提供项目链接 https://github.com/jarrodwatts/jev-trader ；
-3. 若复用其数据契约或代码片段，保留原版权头。
+3. 若复用数据契约或代码片段，保留原版权头。
+
+### 展示页必须显示的声明（建议文案）
+
+任务书要求「有明确真实性标识」。由于线上是「真实模型 + 模拟成交」，
+**既不能标成 mock（会低估披露），也不能标成真实交易（会误导）**：
+
+> **Jev Trader — 第三方实时演示（dry-run）。**
+> AI 决策与行情均为真实（Kuru/Monad 链上数据），但**订单与成交为模拟，无真实资金、无真实交易**。
+> 不构成投资建议。来源：MIT © 2026 Jarrod Watts。
+
+英文：
+
+> **Jev Trader — third-party live demo (dry run).** AI decisions and prices are real
+> (live Kuru/Monad on-chain data), but **orders and fills are simulated — no real funds,
+> no real trades.** Not financial advice. Source: MIT © 2026 Jarrod Watts.
+
+**该声明必须由实时 `model` / `dryRun` 字段驱动渲染，不得硬编码**——
+上游一旦改回 `MODEL=mock`，硬编码的文案就会变成虚假陈述。
+
+### iframe 的致命缺陷（决定 P2 选型）
+
+iframe 技术上允许，但**被框住的整个页面无法从宿主注入任何内容** ——
+**声明只能放在 frame 之外的宿主 DOM 里**。更关键的是，iframe 内部无法读取
+`model`/`dryRun`，因此**无法做到「由真实状态驱动声明」**，只能写死。
+这与任务书「不允许硬编码已上线」「真实性标识必须真实」的要求直接冲突。
+
+**结论：P2 采用原生 React 组件**，不采用 iframe。
 
 ---
 
