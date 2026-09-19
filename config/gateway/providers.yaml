@@ -202,3 +202,55 @@ providers:
           pricing_status: requires_usd_conversion_approval
           cache_storage: limited_time_free
         source_reference: https://bigmodel.cn/pricing
+  typesafe:
+    display_name: TypeSafe AI
+    # System One endpoint. Jev does NOT speak chat-completions: a request is a
+    # `state` plus typed `questions`, and the reply is structured `answers`
+    # with probabilities. The adapter in packages/gateway/providers/typesafe
+    # implements that shape and reports every chat-shaped capability as
+    # unavailable rather than approximating one.
+    base_url: https://api.typesafe.ai/v1
+    health_path: models
+    models:
+      - public_id: jev
+        # `jev-latest` is an alias that moves when a new release ships. The
+        # response's own `model` field carries the versioned id that answered,
+        # so a stored answer can always be traced to the version behind it.
+        provider_model_id: jev-latest
+        display_name: Jev
+        capabilities:
+          # Declared false rather than omitted, so a caller gets an explicit
+          # "no" instead of assuming a default.
+          chat: false
+          stream: false
+          tool_calling: false
+          json_mode: false
+          context_cache: false
+          reasoning: false
+          vision: false
+          system_one: true
+          text_only: true
+          max_context_tokens: 65536
+        metadata:
+          # USD-native. Unlike the CNY-denominated providers above, TypeSafe
+          # publishes in USD, so no FX conversion policy gate applies.
+          official_currency: USD
+          official_price_per_btok: "42"
+          output_priced_as: free
+          # The 64k request budget covers state plus all questions; this is the
+          # ceiling for state plus the single longest question.
+          state_budget_tokens: 32768
+          input_modality: text
+          alias_target: jev-1.13.0
+          rate_limit_tokens_per_second: 250000
+          rate_limit_requests_per_minute: 1200
+        official_prices:
+          # $42 per Btok (a billion tokens) == $0.042 per million. Only
+          # `input` is defined because output tokens are free: usage_cost()
+          # charges nothing for a tariff the catalog does not carry, so this
+          # entry bills input only without needing a zero-rate special case.
+          input:
+            usd: "0.042"
+            unit: per_million_tokens
+            description: state plus questions; output tokens are free
+        source_reference: https://docs.typesafe.ai/models

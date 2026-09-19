@@ -229,9 +229,21 @@ class Settings:
     gateway_glm_base_url: str = os.getenv(
         "GATEWAY_GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"
     )
+    gateway_typesafe_api_key: str = os.getenv("GATEWAY_TYPESAFE_API_KEY", "")
+    gateway_typesafe_base_url: str = os.getenv(
+        "GATEWAY_TYPESAFE_BASE_URL", "https://api.typesafe.ai/v1"
+    )
     # Production can enable a verified subset first. Unlisted plugins stay
     # unavailable until their credential and region-specific pricing catalog
     # have both been reviewed.
+    #
+    # `typesafe` is catalogued but intentionally not listed here yet. Its
+    # credential and USD pricing are reviewed, but Jev is a System One model
+    # with no chat-completions shape, so it needs the systemOne relay route
+    # before it can serve a customer at all. Enabling it ahead of that route
+    # would offer a model whose every call fails with
+    # GATEWAY_CAPABILITY_UNAVAILABLE. Add it to GATEWAY_ENABLED_PROVIDERS in
+    # the environment once that route is live.
     gateway_enabled_providers: tuple[str, ...] = tuple(
         item.lower()
         for item in _csv(os.getenv("GATEWAY_ENABLED_PROVIDERS", "deepseek,moonshot,glm"))
