@@ -237,16 +237,16 @@ class Settings:
     # unavailable until their credential and region-specific pricing catalog
     # have both been reviewed.
     #
-    # `typesafe` is catalogued but intentionally not listed here yet. Its
-    # credential and USD pricing are reviewed, but Jev is a System One model
-    # with no chat-completions shape, so it needs the systemOne relay route
-    # before it can serve a customer at all. Enabling it ahead of that route
-    # would offer a model whose every call fails with
-    # GATEWAY_CAPABILITY_UNAVAILABLE. Add it to GATEWAY_ENABLED_PROVIDERS in
-    # the environment once that route is live.
+    # `typesafe` joined this list once POST /v1/systemone existed, which is
+    # what made Jev reachable over HTTP at all. Recall it is not a chat model:
+    # it is served by its own route and every chat-shaped capability is
+    # refused, so listing it here does not expose it through
+    # /v1/chat/completions.
     gateway_enabled_providers: tuple[str, ...] = tuple(
         item.lower()
-        for item in _csv(os.getenv("GATEWAY_ENABLED_PROVIDERS", "deepseek,moonshot,glm"))
+        for item in _csv(
+            os.getenv("GATEWAY_ENABLED_PROVIDERS", "deepseek,moonshot,glm,typesafe")
+        )
     )
     # Gateway credit is a separate USD prepaid wallet, never a conversion of
     # PureGamma subscription credits. Values are expressed in Stripe cents.

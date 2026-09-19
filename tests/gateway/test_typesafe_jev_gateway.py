@@ -315,3 +315,51 @@ def test_pricing_exposes_only_entries_that_carry_a_reviewed_price():
     adapter = _provider()
     priced = adapter.getPricing()
     assert [item.public_id for item in priced] == ["jev"]
+
+
+# --------------------------------------------------------------------------
+# The relay route
+# --------------------------------------------------------------------------
+
+
+def test_chat_shaped_providers_refuse_system_one_by_default():
+    """The base contract reports the gap rather than shipping a stub.
+
+    systemOne is deliberately not abstract, so a chat provider inherits a
+    refusal instead of an unimplemented stub that would look like a bug.
+    """
+    from packages.gateway.providers.deepseek import DeepSeekGatewayProvider
+
+    adapter = DeepSeekGatewayProvider(_settings(gateway_deepseek_api_key="k"), {})
+    with pytest.raises(GatewayCapabilityUnavailable) as excinfo:
+        adapter.systemOne("deepseek-flash", {"state": "x", "questions": {"q": {}}})
+    assert excinfo.value.code == "GATEWAY_CAPABILITY_UNAVAILABLE"
+
+
+def test_system_one_route_exists_alongside_the_chat_route():
+    from apps.api.routers.gateway import openai_router
+
+    paths = {route.path for route in openai_router.routes}
+    assert "/v1/systemone" in paths
+    # Jev is served by its own route; it must not be reachable as chat.
+    assert "/v1/chat/completions" in paths
+
+
+def test_system_one_route_model_requires_at_least_one_question():
+    from pydantic import ValidationError
+
+    from apps.api.routers.gateway import SystemOneRequest
+
+    with pytest.raises(ValidationError):
+        SystemOneRequest(model="jev", state="x", questions={})
+    parsed = SystemOneRequest(model="jev", state="x", questions={"q": {"type": "noul"}})
+    assert parsed.provider_payload()["questions"] == {"q": {"type": "noul"}}
+    # The model field is routing information, never sent upstream.
+    assert "model" not in parsed.provider_payload()
+
+
+def test_typesafe_is_in_the_enabled_provider_allow_list():
+    """The allow-list is what makes bootstrap create the provider at all."""
+    from apps.api.config import get_settings
+
+    assert "typesafe" in get_settings().gateway_enabled_providers
