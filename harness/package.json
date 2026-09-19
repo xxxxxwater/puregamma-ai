@@ -14,7 +14,8 @@
     "typecheck": "pnpm run build:host && tsc -p tsconfig.json",
     "build": "pnpm run build:host && pnpm -r --if-present run bundle",
     "profile-check": "node scripts/profile-check.mjs",
-    "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check"
+    "rsi-policy-check": "tsx --test scripts/rsi-policy.test.mjs",
+    "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
