@@ -849,7 +849,7 @@ def validate_production_settings(settings: Settings) -> None:
         if not enabled_gateway_providers:
             errors.append("GATEWAY_ENABLED_PROVIDERS must name at least one provider when GATEWAY_ENABLED=true")
         unknown_gateway_providers = sorted(
-            set(enabled_gateway_providers) - {"deepseek", "moonshot", "glm"}
+            set(enabled_gateway_providers) - {"deepseek", "moonshot", "glm", "typesafe"}
         )
         if unknown_gateway_providers:
             errors.append(
