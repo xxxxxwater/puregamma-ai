@@ -27,6 +27,8 @@
       name: '@puregamma/dsh-ui-billing'
     - id: puregamma-ui-notifications
       name: '@puregamma/dsh-ui-notifications'
+    - id: puregamma-ui-pg-tsy-runtime
+      name: '@puregamma/dsh-ui-pg-tsy-runtime'
 
     # Account, billing, gateway, ingestion and admin own separate services.
     # Explicit money/account mutations are UI/approval actions, not model tools.
