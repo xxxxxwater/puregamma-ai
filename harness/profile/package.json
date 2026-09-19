@@ -21,6 +21,7 @@
     "@puregamma/dsh-ui-account": "workspace:^",
     "@puregamma/dsh-ui-billing": "workspace:^",
     "@puregamma/dsh-ui-notifications": "workspace:^",
+    "@puregamma/dsh-ui-pg-tsy-runtime": "workspace:^",
     "@puregamma/dsh-auth-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-auth": "workspace:^",
     "@puregamma/dsh-billing-legacy-api": "workspace:^",
