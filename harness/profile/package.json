@@ -45,6 +45,7 @@
     "@puregamma/dsh-tool-backtest": "workspace:^",
     "@puregamma/dsh-memory-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-memory": "workspace:^",
+    "@puregamma/dsh-rsi-orchestrator": "workspace:^",
     "@puregamma/dsh-secretary-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-secretary": "workspace:^",
     "@puregamma/dsh-skills-legacy-api": "workspace:^",
