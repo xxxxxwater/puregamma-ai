@@ -1,0 +1,55 @@
+name: Jev Gateway
+
+on:
+  push:
+    branches:
+      - feat/jev-systemone-gateway
+      - refactor/harness-core-v2
+    paths:
+      - 'apps/api/**'
+      - 'packages/gateway/**'
+      - 'config/gateway/**'
+      - 'tests/gateway/**'
+      - '.github/workflows/jev-gateway.yml'
+  pull_request:
+    paths:
+      - 'apps/api/**'
+      - 'packages/gateway/**'
+      - 'config/gateway/**'
+      - 'tests/gateway/**'
+      - '.github/workflows/jev-gateway.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: jev-gateway-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      APP_ENV: test
+      GATEWAY_ENABLED: 'true'
+      GATEWAY_API_KEY_PEPPER: offline-ci-only-pepper
+      GATEWAY_ENABLED_PROVIDERS: deepseek,moonshot,glm
+      # Deliberately no TypeSafe credential in CI: upstream HTTP is mocked.
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: Install PureGamma API dependencies
+        run: python -m pip install -r apps/api/requirements.txt
+      - name: Reject secret literals in Jev integration
+        run: |
+          if grep -R -E 'apikey_[0-9a-f]{20,}' packages/gateway/providers/typesafe.py apps/api/routers/jev_gateway.py tests/gateway/test_gateway_jev.py config/gateway/providers.yaml; then
+            echo 'Potential TypeSafe secret literal committed' >&2
+            exit 1
+          fi
+      - name: Compile provider and route
+        run: python -m py_compile packages/gateway/providers/typesafe.py apps/api/routers/jev_gateway.py
+      - name: Run offline provider and metering tests
+        run: python -m pytest -q tests/gateway/test_gateway_jev.py
