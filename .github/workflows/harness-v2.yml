@@ -38,7 +38,7 @@ jobs:
       - name: Verify pinned runtimes
         run: |
           test "$(git -C vendor/deepseek-harness rev-parse HEAD)" = "c291e7961a515f6d7af9304e7fd1d257929aef26"
-          test "$(git -C vendor/pg-tsy-core-bootstrap rev-parse HEAD)" = "d7e719b0b2815a1069df9cb4e25c49946dead699"
+          test "$(git -C vendor/pg-tsy-core-bootstrap rev-parse HEAD)" = "0cf5135e0d5159cd8c2fde52af25c3882f24b7c1"
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4
