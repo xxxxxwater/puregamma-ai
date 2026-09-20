@@ -1,0 +1,122 @@
+# PureGamma Harness profile overlay. No duplicate root Context or legacy page shell.
+- id: system-prompt
+  config:
+    personaPrefix: >-
+      You are PureGamma Harness, an AI-native investment research and execution
+      workspace built on DeepSeek Harness and Cordis. Every PureGamma capability
+      is provided by an installed plugin. Never claim a capability that is not
+      currently installed and healthy. Trading actions remain subject to
+      deterministic risk, ownership, approval, reconciliation and venue gates.
+    personaSuffix: >-
+      Prefer conversation as the primary product surface. Domain-specific UI,
+      services, tools, jobs and integrations belong to plugins and must not be
+      hard-coded into the shell. RSI proposals never grant tool permissions.
+- id: ui-brand-official
+  disabled: true
+- id: ui-sidebar
+  disabled: true
+- insert:
+    - id: puregamma-ui-brand
+      name: '@puregamma/dsh-ui-brand'
+    # One Typert Remote assembly, Harness-native Resource/Slot clients.
+    - id: puregamma-client-remotes
+      name: '@puregamma/dsh-client-remotes'
+    - id: puregamma-ui-account
+      name: '@puregamma/dsh-ui-account'
+    - id: puregamma-ui-billing
+      name: '@puregamma/dsh-ui-billing'
+    - id: puregamma-ui-notifications
+      name: '@puregamma/dsh-ui-notifications'
+    - id: puregamma-ui-pg-tsy-runtime
+      name: '@puregamma/dsh-ui-pg-tsy-runtime'
+
+    # Account, billing, gateway, ingestion and admin own separate services.
+    # Explicit money/account mutations are UI/approval actions, not model tools.
+    - id: puregamma-auth-provider
+      name: '@puregamma/dsh-auth-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+    - id: puregamma-tool-auth
+      name: '@puregamma/dsh-tool-auth'
+    - id: puregamma-billing-provider
+      name: '@puregamma/dsh-billing-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+    - id: puregamma-tool-billing
+      name: '@puregamma/dsh-tool-billing'
+    - id: puregamma-api-gateway-provider
+      name: '@puregamma/dsh-api-gateway-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+    - id: puregamma-tool-api-gateway
+      name: '@puregamma/dsh-tool-api-gateway'
+    - id: puregamma-data-sources-provider
+      name: '@puregamma/dsh-data-sources-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000 }
+    - id: puregamma-tool-data-sources
+      name: '@puregamma/dsh-tool-data-sources'
+    - id: puregamma-admin-provider
+      name: '@puregamma/dsh-admin-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+    - id: puregamma-tool-admin
+      name: '@puregamma/dsh-tool-admin'
+
+    # Notification send, verification and devices require explicit actions.
+    - id: puregamma-notifications-provider
+      name: '@puregamma/dsh-notifications-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+    - id: puregamma-tool-notifications
+      name: '@puregamma/dsh-tool-notifications'
+    - id: puregamma-market-data-provider
+      name: '@puregamma/dsh-market-data-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+    - id: puregamma-tool-market-data
+      name: '@puregamma/dsh-tool-market-data'
+    - id: puregamma-portfolio-provider
+      name: '@puregamma/dsh-portfolio-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+    - id: puregamma-tool-portfolio
+      name: '@puregamma/dsh-tool-portfolio'
+    - id: puregamma-research-provider
+      name: '@puregamma/dsh-research-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+    - id: puregamma-tool-research
+      name: '@puregamma/dsh-tool-research'
+    - id: puregamma-options-provider
+      name: '@puregamma/dsh-options-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+    - id: puregamma-tool-options
+      name: '@puregamma/dsh-tool-options'
+    - id: puregamma-backtest-provider
+      name: '@puregamma/dsh-backtest-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000 }
+    - id: puregamma-tool-backtest
+      name: '@puregamma/dsh-tool-backtest'
+
+    # Memory is user-owned. RSI is a proposal-only Cordis service: it does not
+    # consume redacted content previews as commands and cannot dispatch tools.
+    - id: puregamma-memory-provider
+      name: '@puregamma/dsh-memory-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+    - id: puregamma-tool-memory
+      name: '@puregamma/dsh-tool-memory'
+    - id: puregamma-rsi-planner
+      name: '@puregamma/dsh-rsi-orchestrator'
+    - id: puregamma-secretary-provider
+      name: '@puregamma/dsh-secretary-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000, voiceTimeoutMs: 120000 }
+    - id: puregamma-tool-secretary
+      name: '@puregamma/dsh-tool-secretary'
+    - id: puregamma-skills-provider
+      name: '@puregamma/dsh-skills-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000 }
+    - id: puregamma-tool-skills
+      name: '@puregamma/dsh-tool-skills'
+    - id: puregamma-research-runner-provider
+      name: '@puregamma/dsh-research-runner-legacy-api'
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000, artifactTimeoutMs: 30000 }
+    - id: puregamma-tool-research-runner
+      name: '@puregamma/dsh-tool-research-runner'
+    # pg-tsy-core-bootstrap stays independent. No live trading on install.
+    - id: puregamma-pg-tsy-runtime
+      name: '@puregamma/dsh-pg-tsy-runtime-http'
+      config: { baseUrl: !!js process.env.PG_TSY_RUNTIME_URL ?? 'http://127.0.0.1:8080', requestTimeoutMs: 5000, allowStrategyReload: false }
+    - id: puregamma-tool-pg-tsy-runtime
+      name: '@puregamma/dsh-tool-pg-tsy-runtime'

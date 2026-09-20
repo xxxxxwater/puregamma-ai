@@ -1,0 +1,139 @@
+name: PureGamma Harness
+
+on:
+  push:
+    branches:
+      - refactor/harness-core-v2
+      - integration/harness-main
+      - main
+    paths:
+      - 'harness/**'
+      - 'vendor/deepseek-harness'
+      - 'vendor/pg-tsy-core-bootstrap'
+      - '.gitmodules'
+      - '.github/workflows/harness-v2.yml'
+  pull_request:
+    paths:
+      - 'harness/**'
+      - 'vendor/deepseek-harness'
+      - 'vendor/pg-tsy-core-bootstrap'
+      - '.gitmodules'
+      - '.github/workflows/harness-v2.yml'
+
+concurrency:
+  group: puregamma-harness-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - name: Checkout pinned plugin runtimes
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Verify pinned runtimes
+        run: |
+          test "$(git -C vendor/deepseek-harness rev-parse HEAD)" = "c291e7961a515f6d7af9304e7fd1d257929aef26"
+          test "$(git -C vendor/pg-tsy-core-bootstrap rev-parse HEAD)" = "0cf5135e0d5159cd8c2fde52af25c3882f24b7c1"
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+
+      - name: Enable pnpm
+        run: corepack enable
+
+      - name: Install pinned DeepSeek Harness build toolchain
+        working-directory: vendor/deepseek-harness
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      - name: Install PureGamma Harness workspace
+        working-directory: harness
+        run: pnpm install --no-frozen-lockfile
+
+      - name: Typecheck and build PureGamma Harness plugins
+        working-directory: harness
+        run: pnpm run check
+
+      - name: Verify Harness client bundle contract
+        run: |
+          test -f harness/plugins/brand/lib/index.js
+          test -f harness/plugins/brand/lib/client.js
+          test -f harness/plugins/brand/lib/types/client/index.d.ts
+          test -f harness/plugins/client-remotes/lib/index.js
+          test -f harness/plugins/client-remotes/lib/client.js
+          test -f harness/plugins/client-remotes/lib/types/client/index.d.ts
+          test -f harness/plugins/ui-account/lib/index.js
+          test -f harness/plugins/ui-account/lib/client.js
+          test -f harness/plugins/ui-account/lib/types/client/index.d.ts
+          test -f harness/plugins/ui-billing/lib/index.js
+          test -f harness/plugins/ui-billing/lib/client.js
+          test -f harness/plugins/ui-billing/lib/types/client/index.d.ts
+          test -f harness/plugins/ui-notifications/lib/index.js
+          test -f harness/plugins/ui-notifications/lib/client.js
+          test -f harness/plugins/ui-notifications/lib/types/client/index.d.ts
+          test -f harness/plugins/ui-pg-tsy-runtime/lib/index.js
+          test -f harness/plugins/ui-pg-tsy-runtime/lib/client.js
+          test -f harness/plugins/ui-pg-tsy-runtime/lib/types/client/index.d.ts
+          test -f harness/packages/client-gateway/lib/typert.host.js
+          test -f harness/packages/client-gateway/lib/typert.host.d.ts
+          test -f harness/packages/client-gateway/lib/typert.remote-client.js
+          test -f harness/packages/client-gateway/lib/typert.remote-client.d.ts
+
+      - name: Verify migrated plugin artifacts
+        run: |
+          test -f harness/plugins/auth/lib/index.js
+          test -f harness/plugins/auth-legacy-api/lib/index.js
+          test -f harness/plugins/tool-auth/lib/index.js
+          test -f harness/plugins/billing/lib/index.js
+          test -f harness/plugins/billing-legacy-api/lib/index.js
+          test -f harness/plugins/tool-billing/lib/index.js
+          test -f harness/plugins/api-gateway/lib/index.js
+          test -f harness/plugins/api-gateway-legacy-api/lib/index.js
+          test -f harness/plugins/tool-api-gateway/lib/index.js
+          test -f harness/plugins/data-sources/lib/index.js
+          test -f harness/plugins/data-sources-legacy-api/lib/index.js
+          test -f harness/plugins/tool-data-sources/lib/index.js
+          test -f harness/plugins/admin/lib/index.js
+          test -f harness/plugins/admin-legacy-api/lib/index.js
+          test -f harness/plugins/tool-admin/lib/index.js
+          test -f harness/plugins/notifications/lib/index.js
+          test -f harness/plugins/notifications-legacy-api/lib/index.js
+          test -f harness/plugins/tool-notifications/lib/index.js
+          test -f harness/plugins/market-data/lib/index.js
+          test -f harness/plugins/market-data-legacy-api/lib/index.js
+          test -f harness/plugins/tool-market-data/lib/index.js
+          test -f harness/plugins/portfolio/lib/index.js
+          test -f harness/plugins/portfolio-legacy-api/lib/index.js
+          test -f harness/plugins/tool-portfolio/lib/index.js
+          test -f harness/plugins/research/lib/index.js
+          test -f harness/plugins/research-legacy-api/lib/index.js
+          test -f harness/plugins/tool-research/lib/index.js
+          test -f harness/plugins/options/lib/index.js
+          test -f harness/plugins/options-legacy-api/lib/index.js
+          test -f harness/plugins/tool-options/lib/index.js
+          test -f harness/plugins/backtest/lib/index.js
+          test -f harness/plugins/backtest-legacy-api/lib/index.js
+          test -f harness/plugins/tool-backtest/lib/index.js
+          test -f harness/plugins/memory/lib/index.js
+          test -f harness/plugins/memory-legacy-api/lib/index.js
+          test -f harness/plugins/tool-memory/lib/index.js
+          test -f harness/plugins/secretary/lib/index.js
+          test -f harness/plugins/secretary-legacy-api/lib/index.js
+          test -f harness/plugins/tool-secretary/lib/index.js
+          test -f harness/plugins/skills/lib/index.js
+          test -f harness/plugins/skills-legacy-api/lib/index.js
+          test -f harness/plugins/tool-skills/lib/index.js
+          test -f harness/plugins/research-runner/lib/index.js
+          test -f harness/plugins/research-runner-legacy-api/lib/index.js
+          test -f harness/plugins/tool-research-runner/lib/index.js
+          test -f harness/plugins/pg-tsy-runtime/lib/index.js
+          test -f harness/plugins/pg-tsy-runtime-http/lib/index.js
+          test -f harness/plugins/tool-pg-tsy-runtime/lib/index.js

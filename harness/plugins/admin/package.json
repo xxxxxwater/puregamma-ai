@@ -1,0 +1,13 @@
+{
+  "name": "@puregamma/dsh-admin",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "PureGamma Harness read-only business operations Service Definition",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" }, "./src/*": "./src/*", "./package.json": "./package.json" },
+  "files": ["lib/index.js", "lib/index.d.ts", "lib/index.js.map"],
+  "scripts": { "bundle": "tsdown" },
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.2" }
+}

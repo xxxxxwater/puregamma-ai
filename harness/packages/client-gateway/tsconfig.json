@@ -1,0 +1,21 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "composite": true,
+    "rootDir": "src",
+    "outDir": "lib/types",
+    "declaration": true,
+    "declarationMap": true,
+    "sourceMap": true,
+    "paths": {
+      "@deepseek-ai/dsh-typert-protocol": ["./src/typert-host-protocol.d.ts"]
+    },
+    "skipLibCheck": true,
+    "verbatimModuleSyntax": true,
+    "rewriteRelativeImportExtensions": true
+  },
+  "include": ["src/**/*.ts"]
+}

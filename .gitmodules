@@ -1,0 +1,9 @@
+[submodule "vendor/deepseek-harness"]
+	path = vendor/deepseek-harness
+	url = https://github.com/xxxxxwater/deepseek-harness.git
+	branch = master
+
+[submodule "vendor/pg-tsy-core-bootstrap"]
+	path = vendor/pg-tsy-core-bootstrap
+	url = https://github.com/xxxxxwater/pg-tsy-core-bootstrap.git
+	branch = main

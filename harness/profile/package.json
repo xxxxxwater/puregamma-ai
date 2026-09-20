@@ -1,0 +1,59 @@
+{
+  "name": "@puregamma/harness-profile",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Standalone PureGamma Harness web profile on the pinned DeepSeek Harness runtime",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": ["cordis.patch.yml"],
+  "dsh": {
+    "profile": {
+      "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app"],
+      "patchReload": "live"
+    }
+  },
+  "dependencies": {
+    "@puregamma/dsh-ui-brand": "workspace:^",
+    "@puregamma/dsh-client-remotes": "workspace:^",
+    "@puregamma/dsh-ui-account": "workspace:^",
+    "@puregamma/dsh-ui-billing": "workspace:^",
+    "@puregamma/dsh-ui-notifications": "workspace:^",
+    "@puregamma/dsh-ui-pg-tsy-runtime": "workspace:^",
+    "@puregamma/dsh-auth-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-auth": "workspace:^",
+    "@puregamma/dsh-billing-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-billing": "workspace:^",
+    "@puregamma/dsh-api-gateway-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-api-gateway": "workspace:^",
+    "@puregamma/dsh-data-sources-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-data-sources": "workspace:^",
+    "@puregamma/dsh-admin-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-admin": "workspace:^",
+    "@puregamma/dsh-notifications-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-notifications": "workspace:^",
+    "@puregamma/dsh-market-data-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-market-data": "workspace:^",
+    "@puregamma/dsh-portfolio-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-portfolio": "workspace:^",
+    "@puregamma/dsh-research-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-research": "workspace:^",
+    "@puregamma/dsh-options-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-options": "workspace:^",
+    "@puregamma/dsh-backtest-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-backtest": "workspace:^",
+    "@puregamma/dsh-memory-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-memory": "workspace:^",
+    "@puregamma/dsh-rsi-orchestrator": "workspace:^",
+    "@puregamma/dsh-secretary-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-secretary": "workspace:^",
+    "@puregamma/dsh-skills-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-skills": "workspace:^",
+    "@puregamma/dsh-research-runner-legacy-api": "workspace:^",
+    "@puregamma/dsh-tool-research-runner": "workspace:^",
+    "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
+    "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^"
+  }
+}
