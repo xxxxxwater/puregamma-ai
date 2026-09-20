@@ -4,6 +4,8 @@ on:
   push:
     branches:
       - refactor/harness-core-v2
+      - integration/harness-main
+      - main
     paths:
       - 'harness/**'
       - 'vendor/deepseek-harness'
