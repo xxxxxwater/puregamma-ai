@@ -20,6 +20,7 @@ export const LEGACY_SURFACE_MIGRATIONS: readonly LegacySurfaceMigration[] = [
   { surface: 'apps/api/routers/email_auth.py', target: 'auth', disposition: 'provider', note: 'Email/password identity provider.' },
   { surface: 'apps/api/routers/google_auth.py', target: 'auth', disposition: 'provider', note: 'Google OIDC provider.' },
   { surface: 'apps/api/routers/mobile_auth.py', target: 'auth', disposition: 'provider', note: 'Mobile authentication/session provider.' },
+  { surface: 'apps/api/routers/wallet_auth.py', target: 'auth', disposition: 'provider', note: 'EIP-4361 wallet sign-in provider: single-use server nonce, signer verification and session ownership; never trading permission.' },
   { surface: 'apps/api/routers/captcha.py', target: 'auth', disposition: 'provider', note: 'Bot-abuse/captcha provider owned by auth, never shell logic.' },
   { surface: 'apps/api/routers/assets.py', target: 'market-data', disposition: 'tool', note: 'Asset metadata/read model.' },
   { surface: 'apps/api/routers/market.py', target: 'market-data', disposition: 'service', note: 'Quotes/snapshots/freshness.' },
@@ -51,6 +52,7 @@ export const LEGACY_SURFACE_MIGRATIONS: readonly LegacySurfaceMigration[] = [
   { surface: 'apps/api/routers/stripe_webhook.py', target: 'billing', disposition: 'provider', note: 'Stripe event provider/worker.' },
   { surface: 'apps/api/routers/gateway.py', target: 'api-gateway', disposition: 'service', note: 'OpenAI-compatible gateway/model router/keys/usage.' },
   { surface: 'apps/api/routers/mobile.py', target: 'mobile-api', disposition: 'service', note: 'Mobile capabilities/deep links/push contract.' },
+  { surface: 'apps/api/routers/mobile_access.py', target: 'mobile-api', disposition: 'provider', note: 'Pocket relay read-only status/QR for users and admin-gated tunnel/PIN changes; relay lifecycle and secrets stay server-side.' },
   { surface: 'apps/api/routers/frontend.py', target: 'admin', disposition: 'compatibility-only', note: 'Legacy frontend manifest/runtime endpoint retires when Harness profile is production entry.' },
   { surface: 'apps/api/routers/internal.py', target: 'admin', disposition: 'compatibility-only', note: 'Internal legacy control endpoints split into owning plugins, then removed.' },
 ] as const
