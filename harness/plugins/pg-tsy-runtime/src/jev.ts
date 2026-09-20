@@ -79,7 +79,8 @@ export function validateJevObservation(input: unknown, nowNs: string): JevAdviso
     || !probability(probabilities.neutral)) return undefined
   const total = probabilities.up + probabilities.down + probabilities.neutral
   const highest = Math.max(probabilities.up, probabilities.down, probabilities.neutral)
-  if (Math.abs(total - 1) > 0.001 || probabilities[choice] < highest - 0.001
+  const selected = choice === 'up' ? probabilities.up : choice === 'down' ? probabilities.down : probabilities.neutral
+  if (Math.abs(total - 1) > 0.001 || selected < highest - 0.001
     || !probability(data.provider_confidence)
     || !tokens(data.input_tokens) || !tokens(data.output_tokens)) return undefined
   return {
