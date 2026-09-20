@@ -1,5 +1,8 @@
 import { Context, Service } from '@deepseek-ai/cordis'
 
+export { JEV_MODEL, JEV_INSTRUMENT, JEV_MAX_TTL_NS, validateJevObservation, compareJevWithSignal } from './jev.ts'
+export type { JevChoice, JevAdvisoryObservation, JevSignalIdentity, JevAdvisoryResult } from './jev.ts'
+
 export type PgTsyRunMode = 'shadow' | 'paper' | 'live' | 'unknown'
 
 export interface PgTsyRuntimeSnapshot {
@@ -40,6 +43,8 @@ declare module '@deepseek-ai/cordis' {
  * container, Kubernetes workload or remote runtime as long as this contract is
  * preserved. Money-moving operations are deliberately NOT part of this seam;
  * those remain behind the dedicated execution/risk/approval services.
+ * JEV compatibility utilities are read-only and do not claim that the running
+ * daemon publishes observations or accepts model-based trading.
  */
 export abstract class PgTsyRuntimeService extends Service {
   constructor(ctx: Context) {
