@@ -10,6 +10,7 @@ const legacyRoutersRoot = path.join(repoRoot, 'apps', 'api', 'routers')
 const legacySurfaceMapPath = path.join(pluginsRoot, 'legacy-surface-map.ts')
 const legacyWebRoot = path.join(repoRoot, 'apps', 'web', 'app')
 const legacyWebSurfaceMapPath = path.join(pluginsRoot, 'legacy-web-surface-map.ts')
+const mainIntegrationMapPath = path.join(pluginsRoot, 'main-integration-surface-map.ts')
 
 const errors = []
 
@@ -76,8 +77,10 @@ for (const name of Object.keys(profile.dependencies ?? {})) {
   if (!name.startsWith('@puregamma/dsh-')) errors.push(`profile dependency ${name} is not a PureGamma Harness plugin`)
 }
 
-// Backend anti-omission gate: every legacy FastAPI router must have a plugin owner.
-const migrationMap = await fs.readFile(legacySurfaceMapPath, 'utf8')
+// Both ledgers are authoritative. The additive main-only ledger adds explicit
+// ownership but does not claim that the associated plugin passes parity.
+const mainIntegrationMap = await fs.readFile(mainIntegrationMapPath, 'utf8')
+const migrationMap = (await fs.readFile(legacySurfaceMapPath, 'utf8')) + '\n' + mainIntegrationMap
 const routerEntries = await fs.readdir(legacyRoutersRoot, { withFileTypes: true })
 const routerFiles = routerEntries
   .filter(entry => entry.isFile() && entry.name.endsWith('.py') && entry.name !== '__init__.py')
@@ -85,20 +88,20 @@ const routerFiles = routerEntries
   .sort()
 for (const router of routerFiles) {
   const surface = `apps/api/routers/${router}`
-  if (!migrationMap.includes(`surface: '${surface}'`)) errors.push(`${surface} has no PureGamma Harness plugin owner in plugins/legacy-surface-map.ts`)
+  if (!migrationMap.includes(`surface: '${surface}'`)) errors.push(`${surface} has no PureGamma Harness plugin owner in migration ledgers`)
 }
 
 // Frontend anti-omission gate: every user-addressable legacy Next.js page gets
 // an explicit owner and Harness-native destination before the monolith can be
 // deleted. Redirect-only pages are included until deletion so old URLs remain
 // intentional rather than accidental compatibility behavior.
-const webMigrationMap = await fs.readFile(legacyWebSurfaceMapPath, 'utf8')
+const webMigrationMap = (await fs.readFile(legacyWebSurfaceMapPath, 'utf8')) + '\n' + mainIntegrationMap
 const webPageFiles = (await walk(legacyWebRoot))
   .filter(file => path.basename(file) === 'page.tsx')
   .map(file => path.relative(repoRoot, file).split(path.sep).join('/'))
   .sort()
 for (const surface of webPageFiles) {
-  if (!webMigrationMap.includes(`surface: '${surface}'`)) errors.push(`${surface} has no Harness plugin owner in plugins/legacy-web-surface-map.ts`)
+  if (!webMigrationMap.includes(`surface: '${surface}'`)) errors.push(`${surface} has no Harness plugin owner in migration ledgers`)
 }
 
 if (errors.length > 0) {
