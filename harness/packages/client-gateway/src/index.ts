@@ -15,7 +15,8 @@ export type {
 } from './types.ts'
 
 function record(value: unknown): Record<string, unknown> | undefined { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined }
-function stringValue(source: Record<string, unknown> | undefined, key: string): string | undefined { const value = source?.[key]; return typeof value === 'string' ? value : undefined }
+// Read a structurally typed projection without requiring an unsafe index signature in the wire DTO.
+function stringValue(source: object | undefined, key: string): string | undefined { const value = record(source)?.[key]; return typeof value === 'string' ? value : undefined }
 function numberValue(source: Record<string, unknown> | undefined, key: string): number | undefined { const value = source?.[key]; return typeof value === 'number' && Number.isFinite(value) ? value : undefined }
 function booleanValue(source: Record<string, unknown> | undefined, key: string): boolean | undefined { const value = source?.[key]; return typeof value === 'boolean' ? value : undefined }
 function stringArray(source: Record<string, unknown> | undefined, key: string): string[] | undefined { const value = source?.[key]; if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) return undefined; return [...value] as string[] }
