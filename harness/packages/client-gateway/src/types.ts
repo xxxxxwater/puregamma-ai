@@ -88,6 +88,7 @@ export interface PureGammaBillingActionResult {
   url?: string
 }
 
+/** Explicit wire fields only. Missing values remain optional, never invented. */
 export interface PureGammaNotificationDelivery {
   id?: string
   channel?: string

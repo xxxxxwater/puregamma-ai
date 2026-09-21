@@ -10,6 +10,7 @@
     "declaration": true,
     "declarationMap": true,
     "sourceMap": true,
+    "types": ["node"],
     "paths": {
       "@deepseek-ai/dsh-typert-protocol": ["./src/typert-host-protocol.d.ts"]
     },
