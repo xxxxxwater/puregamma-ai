@@ -88,8 +88,8 @@ export interface PureGammaBillingActionResult {
   url?: string
 }
 
-/** Normalized delivery JSON: never expose unconstrained unknown across Typert Remote. */
-export interface PureGammaNotificationDelivery extends Record<string, string | undefined> {
+/** Explicit wire fields only. Missing values remain optional, never invented. */
+export interface PureGammaNotificationDelivery {
   id?: string
   channel?: string
   status?: string
