@@ -216,6 +216,11 @@ class Settings:
     gateway_typesafe_base_url: str = os.getenv(
         "GATEWAY_TYPESAFE_BASE_URL", "https://api.typesafe.ai/v1"
     )
+    # JEV advisory: read-only, disabled by default. It reads a validated
+    # telemetry document the runtime publishes; it never evaluates a prompt
+    # or creates a signal.
+    jev_advisory_enabled: bool = os.getenv("JEV_ADVISORY_ENABLED", "false").lower() == "true"
+    jev_advisory_telemetry_path: str = os.getenv("JEV_ADVISORY_TELEMETRY_PATH", "")
     # Production can enable a verified subset first. Unlisted plugins stay
     # unavailable until their credential and region-specific pricing catalog
     # have both been reviewed.

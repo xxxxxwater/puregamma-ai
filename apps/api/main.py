@@ -14,7 +14,7 @@ from sqlalchemy import text
 
 from apps.api.config import get_settings, validate_production_settings
 from apps.api.dependencies import ensure_bootstrap
-from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, custody, email_auth, frontend, gateway, google_auth, harness_runs, hyperliquid_stream, imessage_agent, internal, live_trading, market, memory, mobile, mobile_access, mobile_auth, news, notifications, opportunities, options, playbooks, portfolio, reports, research, research_runner, secretary, signals, skills, strategies, stripe_webhook, trading, wallet_auth
+from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, custody, email_auth, frontend, gateway, google_auth, harness_runs, hyperliquid_stream, imessage_agent, internal, jev_advisory, live_trading, market, memory, mobile, mobile_access, mobile_auth, news, notifications, opportunities, options, playbooks, portfolio, reports, research, research_runner, secretary, signals, skills, strategies, stripe_webhook, trading, wallet_auth
 
 
 settings = get_settings()
@@ -261,6 +261,7 @@ app.include_router(admin.router)
 app.include_router(gateway.router)
 app.include_router(gateway.openai_router)
 app.include_router(gateway.admin_router)
+app.include_router(jev_advisory.router)
 # Custody is always registered: the API honestly reports UNCONFIGURED when no
 # provider credentials exist rather than hiding the domain.
 app.include_router(custody.router)
