@@ -95,7 +95,7 @@ services:
       # Read-only Binance PM bundle produced by riskbot (see PM_ACCOUNT_ALLOWED_EMAILS).
       # The container path is fixed; the host path is chosen by the volume below.
       PM_RISKBOT_EXPORT_DIR: /var/lib/puregamma/riskbot
-      PM_ACCOUNT_ALLOWED_EMAILS: ${PM_ACCOUNT_ALLOWED_EMAILS:-daigen999@gmail.com,xxxxxwater@gmail.com}
+      PM_ACCOUNT_ALLOWED_EMAILS: ${PM_ACCOUNT_ALLOWED_EMAILS:-daigen999@gmail.com,xxxxxwater@gmail.com,perp24308@gmail.com}
       PM_ACCOUNT_LABEL: ${PM_ACCOUNT_LABEL:-Binance Portfolio Margin}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
