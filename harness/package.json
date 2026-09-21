@@ -17,7 +17,8 @@
     "rsi-policy-check": "tsx --test scripts/rsi-policy.test.mjs",
     "jev-contract-check": "tsx --test scripts/jev-advisory.test.mjs",
     "mandates-policy-check": "tsx --test scripts/trading-mandates.test.mjs",
-    "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check"
+    "pg-tsy-health-check": "tsx --test scripts/pg-tsy-health.test.mjs",
+    "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
