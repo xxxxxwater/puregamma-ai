@@ -193,6 +193,22 @@ def _prepare_agent_context(
         clean_context["skills"] = []
         clean_context["skill_refs"] = []
         clean_context["data_sources"] = []
+    # Jev intent routing: an opinion, not an override. The deterministic
+    # planner above stays authoritative; this records what the evaluation
+    # model thought the request was, so the run can be audited and the two
+    # compared. classify_intent returns None on a missing key, a transport
+    # error, a malformed reply, an unoffered option or a low-confidence
+    # answer, and then nothing is recorded -- the planner stands unchanged.
+    if research_mode and get_settings().jev_intent_routing_enabled:
+        from packages.decisions.intent import classify_intent
+
+        jev_decision = classify_intent(content)
+        if jev_decision is not None:
+            clean_context['jev_intent'] = {
+                'intent': jev_decision.intent,
+                'confidence': jev_decision.confidence,
+                'model': jev_decision.model,
+            }
     clean_context = _entitled_context(db, user, clean_context)
     registry = skill_registry(db, user)
     resolved_skills = (
@@ -349,9 +365,16 @@ def agent_model_options(db: Session, user: User) -> list[dict]:
     # that ignore display_name are unaffected; clients that show it no longer
     # have to guess which model answers.
     default_label = settings.agent_model or settings.deepseek_display_name or "Default model"
+    # Two categories, because these are two different kinds of thing. A
+    # generation model writes the reply; an evaluation model returns typed
+    # judgement that code consumes. Jev cannot produce prose, so offering it
+    # as another chat model would mean a user picking it and getting no
+    # answer -- it is listed separately and honestly labelled instead.
+    jev_configured = bool(settings.gateway_typesafe_api_key)
     return [
-        {"id": "default", "display_name": default_label, "description": "Uses the existing Agent default configuration.", "provider": "default", "available": True, "reason": None, "credit_cost": None},
-        {"id": settings.openai_luna_model, "display_name": "GPT-5.6 Luna", "description": "High-quality deep market research for selective use.", "provider": "openai", "available": plan_allowed and configured, "reason": reason, "credit_cost": None},
+        {"id": "default", "display_name": default_label, "description": "Uses the existing Agent default configuration.", "provider": "default", "available": True, "reason": None, "credit_cost": None, "category": "generation"},
+        {"id": settings.openai_luna_model, "display_name": "GPT-5.6 Luna", "description": "High-quality deep market research for selective use.", "provider": "openai", "available": plan_allowed and configured, "reason": reason, "credit_cost": None, "category": "generation"},
+        {"id": "jev", "display_name": "Jev (TypeSafe)", "description": "Evaluation model. Returns typed choices, scores and probabilities for routing and evidence ranking; it does not write replies.", "provider": "typesafe", "available": jev_configured, "reason": None if jev_configured else "unavailable", "credit_cost": None, "category": "evaluation", "capabilities": {"chat": False, "evaluation": True, "endpoint": "/v1/systemone"}},
     ]
 
 

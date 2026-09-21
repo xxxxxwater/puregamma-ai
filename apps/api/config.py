@@ -221,6 +221,12 @@ class Settings:
     # or creates a signal.
     jev_advisory_enabled: bool = os.getenv("JEV_ADVISORY_ENABLED", "false").lower() == "true"
     jev_advisory_telemetry_path: str = os.getenv("JEV_ADVISORY_TELEMETRY_PATH", "")
+    # Product-surface use of Jev: intent routing for the Agent and evidence
+    # reranking for research. Separate from JEV_ADVISORY_* (the read-only
+    # telemetry page) and off by default, because enabling it puts the model
+    # on a user-facing path.
+    jev_intent_routing_enabled: bool = os.getenv("JEV_INTENT_ROUTING_ENABLED", "false").lower() == "true"
+    jev_rerank_enabled: bool = os.getenv("JEV_RERANK_ENABLED", "false").lower() == "true"
     # Private Binance Portfolio Margin. Read-only: the API reads a bundle an
     # external collector writes and never holds exchange credentials.
     # An empty allowlist denies everyone.

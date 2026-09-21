@@ -958,6 +958,24 @@ class AgentToolRegistry:
             selected.append(row)
             if len(selected) >= 20:
                 break
+        # Jev reranking: the keyword filter above is recall-oriented and
+        # capped at 20, so what reaches the writer is the newest matches
+        # rather than the most relevant ones. Jev scores each candidate
+        # against the query and code keeps the strongest, which improves
+        # precision without changing what was retrieved. Fail-closed: a
+        # missing key, a transport error or a malformed reply returns None
+        # and the keyword order is left exactly as it was.
+        if selected and query and get_settings().jev_rerank_enabled:
+            from packages.decisions.rerank import rerank_evidence
+
+            candidates = [
+                (f'{row.title} {row.summary}' if row.summary else str(row.title or ''))
+                for row in selected
+            ]
+            ranked = rerank_evidence(query, candidates, limit=len(selected))
+            if ranked is not None:
+                # Index-addressed so provenance survives the reorder.
+                selected = [selected[item.index] for item in ranked.kept]
         data = [
             {
                 "provider": row.provider,
