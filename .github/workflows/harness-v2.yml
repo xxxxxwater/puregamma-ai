@@ -5,6 +5,7 @@ on:
     branches:
       - refactor/harness-core-v2
       - integration/harness-main
+      - integration/harness-full-20260921
       - main
     paths:
       - 'harness/**'
@@ -40,7 +41,7 @@ jobs:
       - name: Verify pinned runtimes
         run: |
           test "$(git -C vendor/deepseek-harness rev-parse HEAD)" = "c291e7961a515f6d7af9304e7fd1d257929aef26"
-          test "$(git -C vendor/pg-tsy-core-bootstrap rev-parse HEAD)" = "0cf5135e0d5159cd8c2fde52af25c3882f24b7c1"
+          test "$(git -C vendor/pg-tsy-core-bootstrap rev-parse HEAD)" = "f5a6382438d8a85e282da5d58d22af9fe5887ca3"
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4
@@ -64,24 +65,12 @@ jobs:
 
       - name: Verify Harness client bundle contract
         run: |
-          test -f harness/plugins/brand/lib/index.js
-          test -f harness/plugins/brand/lib/client.js
-          test -f harness/plugins/brand/lib/types/client/index.d.ts
-          test -f harness/plugins/client-remotes/lib/index.js
-          test -f harness/plugins/client-remotes/lib/client.js
-          test -f harness/plugins/client-remotes/lib/types/client/index.d.ts
-          test -f harness/plugins/ui-account/lib/index.js
-          test -f harness/plugins/ui-account/lib/client.js
-          test -f harness/plugins/ui-account/lib/types/client/index.d.ts
-          test -f harness/plugins/ui-billing/lib/index.js
-          test -f harness/plugins/ui-billing/lib/client.js
-          test -f harness/plugins/ui-billing/lib/types/client/index.d.ts
-          test -f harness/plugins/ui-notifications/lib/index.js
-          test -f harness/plugins/ui-notifications/lib/client.js
-          test -f harness/plugins/ui-notifications/lib/types/client/index.d.ts
-          test -f harness/plugins/ui-pg-tsy-runtime/lib/index.js
-          test -f harness/plugins/ui-pg-tsy-runtime/lib/client.js
-          test -f harness/plugins/ui-pg-tsy-runtime/lib/types/client/index.d.ts
+          set -euo pipefail
+          for pkg in brand client-remotes ui-account ui-billing ui-notifications ui-pg-tsy-runtime; do
+            test -f "harness/plugins/$pkg/lib/index.js"
+            test -f "harness/plugins/$pkg/lib/client.js"
+            test -f "harness/plugins/$pkg/lib/types/client/index.d.ts"
+          done
           test -f harness/packages/client-gateway/lib/typert.host.js
           test -f harness/packages/client-gateway/lib/typert.host.d.ts
           test -f harness/packages/client-gateway/lib/typert.remote-client.js
@@ -89,51 +78,44 @@ jobs:
 
       - name: Verify migrated plugin artifacts
         run: |
-          test -f harness/plugins/auth/lib/index.js
-          test -f harness/plugins/auth-legacy-api/lib/index.js
-          test -f harness/plugins/tool-auth/lib/index.js
-          test -f harness/plugins/billing/lib/index.js
-          test -f harness/plugins/billing-legacy-api/lib/index.js
-          test -f harness/plugins/tool-billing/lib/index.js
-          test -f harness/plugins/api-gateway/lib/index.js
-          test -f harness/plugins/api-gateway-legacy-api/lib/index.js
-          test -f harness/plugins/tool-api-gateway/lib/index.js
-          test -f harness/plugins/data-sources/lib/index.js
-          test -f harness/plugins/data-sources-legacy-api/lib/index.js
-          test -f harness/plugins/tool-data-sources/lib/index.js
-          test -f harness/plugins/admin/lib/index.js
-          test -f harness/plugins/admin-legacy-api/lib/index.js
-          test -f harness/plugins/tool-admin/lib/index.js
-          test -f harness/plugins/notifications/lib/index.js
-          test -f harness/plugins/notifications-legacy-api/lib/index.js
-          test -f harness/plugins/tool-notifications/lib/index.js
-          test -f harness/plugins/market-data/lib/index.js
-          test -f harness/plugins/market-data-legacy-api/lib/index.js
-          test -f harness/plugins/tool-market-data/lib/index.js
-          test -f harness/plugins/portfolio/lib/index.js
-          test -f harness/plugins/portfolio-legacy-api/lib/index.js
-          test -f harness/plugins/tool-portfolio/lib/index.js
-          test -f harness/plugins/research/lib/index.js
-          test -f harness/plugins/research-legacy-api/lib/index.js
-          test -f harness/plugins/tool-research/lib/index.js
-          test -f harness/plugins/options/lib/index.js
-          test -f harness/plugins/options-legacy-api/lib/index.js
-          test -f harness/plugins/tool-options/lib/index.js
-          test -f harness/plugins/backtest/lib/index.js
-          test -f harness/plugins/backtest-legacy-api/lib/index.js
-          test -f harness/plugins/tool-backtest/lib/index.js
-          test -f harness/plugins/memory/lib/index.js
-          test -f harness/plugins/memory-legacy-api/lib/index.js
-          test -f harness/plugins/tool-memory/lib/index.js
-          test -f harness/plugins/secretary/lib/index.js
-          test -f harness/plugins/secretary-legacy-api/lib/index.js
-          test -f harness/plugins/tool-secretary/lib/index.js
-          test -f harness/plugins/skills/lib/index.js
-          test -f harness/plugins/skills-legacy-api/lib/index.js
-          test -f harness/plugins/tool-skills/lib/index.js
-          test -f harness/plugins/research-runner/lib/index.js
-          test -f harness/plugins/research-runner-legacy-api/lib/index.js
-          test -f harness/plugins/tool-research-runner/lib/index.js
-          test -f harness/plugins/pg-tsy-runtime/lib/index.js
-          test -f harness/plugins/pg-tsy-runtime-http/lib/index.js
-          test -f harness/plugins/tool-pg-tsy-runtime/lib/index.js
+          set -euo pipefail
+          for pkg in \
+            auth auth-legacy-api tool-auth \
+            billing billing-legacy-api tool-billing \
+            api-gateway api-gateway-legacy-api tool-api-gateway \
+            data-sources data-sources-legacy-api tool-data-sources \
+            admin admin-legacy-api tool-admin \
+            notifications notifications-legacy-api tool-notifications \
+            market-data market-data-legacy-api tool-market-data \
+            portfolio portfolio-legacy-api tool-portfolio \
+            research research-legacy-api tool-research \
+            options options-legacy-api tool-options \
+            backtest backtest-legacy-api tool-backtest \
+            memory memory-legacy-api tool-memory \
+            secretary secretary-legacy-api tool-secretary \
+            skills skills-legacy-api tool-skills \
+            research-runner research-runner-legacy-api tool-research-runner \
+            pg-tsy-runtime pg-tsy-runtime-http tool-pg-tsy-runtime \
+            trading-mandates; do
+            test -f "harness/plugins/$pkg/lib/index.js"
+          done
+
+      - name: Verify main-only product sources survive the merge (inventory, not E2E acceptance)
+        run: |
+          set -euo pipefail
+          for path in \
+            packages/decisions/jev_client.py \
+            packages/decisions/intent.py \
+            packages/decisions/rerank.py \
+            apps/api/routers/jev_advisory.py \
+            apps/web/components/jev-advisory-console.tsx \
+            apps/web/components/news-feed.tsx \
+            config/rss_sources.yaml \
+            apps/web/lib/appearance.ts \
+            apps/web/components/chrono/liquid-surface.tsx \
+            apps/web/components/terminal/liquid-lens.tsx \
+            apps/web/plugins/builtin/registry.ts \
+            apps/web/components/pm-account-panel.tsx \
+            apps/pocket-relay/main.py; do
+            test -s "$path"
+          done
