@@ -129,6 +129,30 @@ def execute_chat(db: Session, public_model: str, request: dict[str, Any]) -> tup
     raise GatewayProviderError("GATEWAY_ROUTE_UNAVAILABLE", "No route is available", status_code=503)
 
 
+def execute_system_one(
+    db: Session, public_model: str, request: dict[str, Any]
+) -> tuple[dict[str, Any], GatewayRoute]:
+    """Evaluate a System One request, mirroring ``execute_chat``'s failover.
+
+    Returns the upstream body unchanged, so the gateway never rewrites an
+    answer: the caller gets the same `answers` map, the same `usage`, and the
+    versioned `model` id that produced it.
+    """
+    last_error: GatewayProviderError | None = None
+    for route in resolve_routes(db, public_model):
+        try:
+            result = route.adapter.systemOne(route.model.provider_model_id, request)
+            _record_provider_success(db, route.provider)
+            return result, route
+        except GatewayProviderError as exc:
+            _record_provider_failure(db, route.provider, exc)
+            last_error = exc
+            if not exc.retryable:
+                break
+    if last_error:
+        raise last_error
+    raise GatewayProviderError("GATEWAY_ROUTE_UNAVAILABLE", "No route is available", status_code=503)
+
 def stream_chat(db: Session, public_model: str, request: dict[str, Any]) -> GatewayStreamExecution:
     """Return a stream from the chosen route.
 

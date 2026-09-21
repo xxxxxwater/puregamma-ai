@@ -212,12 +212,16 @@ class Settings:
     gateway_glm_base_url: str = os.getenv(
         "GATEWAY_GLM_BASE_URL", "https://open.bigmodel.cn/api/paas/v4"
     )
+    gateway_typesafe_api_key: str = os.getenv("GATEWAY_TYPESAFE_API_KEY", "")
+    gateway_typesafe_base_url: str = os.getenv(
+        "GATEWAY_TYPESAFE_BASE_URL", "https://api.typesafe.ai/v1"
+    )
     # Production can enable a verified subset first. Unlisted plugins stay
     # unavailable until their credential and region-specific pricing catalog
     # have both been reviewed.
     gateway_enabled_providers: tuple[str, ...] = tuple(
         item.lower()
-        for item in _csv(os.getenv("GATEWAY_ENABLED_PROVIDERS", "deepseek,moonshot,glm"))
+        for item in _csv(os.getenv("GATEWAY_ENABLED_PROVIDERS", "deepseek,moonshot,glm,typesafe"))
     )
     # Gateway credit is a separate USD prepaid wallet, never a conversion of
     # PureGamma subscription credits. Values are expressed in Stripe cents.
@@ -806,7 +810,7 @@ def validate_production_settings(settings: Settings) -> None:
         if not enabled_gateway_providers:
             errors.append("GATEWAY_ENABLED_PROVIDERS must name at least one provider when GATEWAY_ENABLED=true")
         unknown_gateway_providers = sorted(
-            set(enabled_gateway_providers) - {"deepseek", "moonshot", "glm"}
+            set(enabled_gateway_providers) - {"deepseek", "moonshot", "glm", "typesafe"}
         )
         if unknown_gateway_providers:
             errors.append(

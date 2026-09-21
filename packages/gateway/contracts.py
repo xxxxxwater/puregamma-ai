@@ -91,6 +91,18 @@ class GatewayProvider(ABC):
     def rerank(self, model: str, request: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
+    def systemOne(self, model: str, request: dict[str, Any]) -> dict[str, Any]:
+        """Evaluate typed questions against a state (TypeSafe System One).
+
+        Deliberately *not* abstract. Every provider that existed before this
+        is chat-shaped and has no equivalent operation, so making it abstract
+        would force three stub implementations and turn "this provider does
+        not do that" into "someone forgot to write the method". The default
+        reports the gap as a capability error, which is what it is.
+        """
+        raise GatewayCapabilityUnavailable("system_one")
+
+
     @abstractmethod
     def healthCheck(self) -> dict[str, Any]:
         raise NotImplementedError

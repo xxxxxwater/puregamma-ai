@@ -53,6 +53,7 @@ from packages.gateway.service import (
     assert_gateway_account_available,
     elapsed_ms,
     execute_chat,
+    execute_system_one,
     gateway_account,
     model_list,
     record_request,
@@ -107,6 +108,24 @@ class GatewayTopupRequest(BaseModel):
     amount_usd: Decimal = Field(gt=0)
     locale: Literal["zh", "en"] = "en"
 
+
+class SystemOneRequest(BaseModel):
+    """TypeSafe System One request: a state and a map of typed questions.
+
+    Not an OpenAI-compatible shape, so it gets its own model rather than being
+    forced through ChatCompletionsRequest. Jev answers typed questions; there
+    are no messages and no stream, and accepting those fields would imply
+    behaviour the model does not have.
+    """
+
+    model_config = ConfigDict(extra="allow")
+
+    model: str = Field(min_length=1, max_length=160)
+    state: Any = None
+    questions: dict[str, Any] = Field(min_length=1, max_length=128)
+
+    def provider_payload(self) -> dict[str, Any]:
+        return self.model_dump(exclude_none=True, exclude={"model"})
 
 class ChatCompletionsRequest(BaseModel):
     """OpenAI-compatible subset with forward-compatible request fields."""
@@ -516,6 +535,79 @@ def chat_completions(
             db.rollback()
         return _openai_error(exc, request_id)
 
+
+@openai_router.post("/systemone")
+def system_one(
+    payload: SystemOneRequest,
+    request: Request,
+    api_key: GatewayApiKey = Depends(_gateway_key),
+    db: Session = Depends(get_db),
+):
+    """TypeSafe System One relay.
+
+    Returns the upstream `answers` map unchanged. The gateway deliberately does
+    not reshape it: caller code branches on the `choice`, `score` and `noul`
+    values, so rewriting them here would make a customer's contract depend on
+    which relay hop served the request.
+
+    Billing follows the catalog, which carries an input tariff only -- Jev does
+    not charge for output tokens, so `usage_cost` charges nothing for them
+    without needing a zero-rate special case.
+    """
+    request_id = request.headers.get("x-request-id", "")[:128] or f"sysone_{uuid.uuid4().hex}"
+    started = time.perf_counter()
+    route = None
+    try:
+        assert_gateway_account_available(db, api_key.user_id)
+        body, route = execute_system_one(db, payload.model, payload.provider_payload())
+        # Metered through the adapter so the ledger sees what the provider
+        # actually reported, including output tokens we do not bill for.
+        usage = route.adapter.tokenUsage(body)
+        record_request(
+            db,
+            request_id=request_id,
+            api_key=api_key,
+            route=route,
+            public_model=payload.model,
+            usage=usage,
+            status="success",
+            http_status=200,
+            latency_ms=elapsed_ms(started),
+            ip_address=client_ip(request),
+        )
+        return JSONResponse(
+            content={
+                "id": request_id,
+                # The versioned id that answered, not the alias that was asked
+                # for: `jev-latest` moves, so a stored answer has to record
+                # which version produced it.
+                "model": body.get("model") or payload.model,
+                "answers": body.get("answers") or {},
+                "usage": {
+                    "input_tokens": usage.input_tokens,
+                    "output_tokens": usage.output_tokens,
+                },
+            },
+            headers={"X-Request-ID": request_id},
+        )
+    except GatewayProviderError as exc:
+        try:
+            record_request(
+                db,
+                request_id=request_id,
+                api_key=api_key,
+                route=route,
+                public_model=payload.model,
+                usage=None,
+                status="error",
+                http_status=exc.status_code,
+                latency_ms=elapsed_ms(started),
+                ip_address=client_ip(request),
+                error_code=exc.code,
+            )
+        except Exception:
+            db.rollback()
+        return _openai_error(exc, request_id)
 
 def _streaming_response(execution, public_model: str, request_id: str, api_key: GatewayApiKey, ip_address: str, db: Session, started: float) -> StreamingResponse:
     created = int(time.time())

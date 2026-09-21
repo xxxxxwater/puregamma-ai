@@ -232,6 +232,19 @@ def public_model_catalog(db: Session, *, markup_bps: int) -> list[dict[str, Any]
                             "compatibility_alias",
                             "retirement_scheduled",
                             "retirement_note",
+                            # Jev: billed on input only, so the page can say so
+                            # plainly instead of leaving customers to infer it
+                            # from an absent output row. `alias_target` names the
+                            # version the moving `jev-latest` alias points at.
+                            "output_priced_as",
+                            "official_price_per_btok",
+                            "state_budget_tokens",
+                            "alias_target",
+                            # A live, public demonstration of the model, shown
+                            # on the model page when a provider publishes one.
+                            "showcase_url",
+                            "showcase_label",
+                            "showcase_label_en",
                         }
                     },
                     "availability": availability,
