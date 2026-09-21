@@ -15,10 +15,12 @@ export interface ExecutionReservation {
   recordedAt: string
 }
 
-/** Untrusted request shape: deliberately excludes approval, mandate, risk evidence and clock.
- * The durable provider MUST load all four from server-owned sources atomically.
+/** Untrusted selectors and intent. Never accept approval, mandate, risk evidence
+ * or clock objects from callers. IDs only select server-owned records for reload.
  */
 export interface ExecutionReservationRequest {
+  mandateId: string
+  approvalId: string
   accountId: string
   venue: string
   instrument: string
@@ -35,16 +37,16 @@ declare module '@deepseek-ai/cordis' {
 }
 
 /** Contract only; importing this package installs NO persistent provider.
- * evaluate() is an advisory calculation, never an order authorization.
+ * evaluate() is advisory only, never an order authorization.
  * reserve() MUST authenticate the requester, derive server clock and fresh risk
- * evidence itself, then load mandate + independently granted approval and write
- * reservation + one-time approval consumption in ONE durable transaction keyed by
- * clientOrderId and exact intent hash. A browser, model or strategy can never pass
- * approval status, permission revisions, risk evidence or timestamps to reserve().
- * Repeated same-hash requests return the existing reservation. Different hashes
- * MUST be rejected. Ambiguous commits return UNKNOWN and recover by lookup,
- * NEVER create a second reservation. Pause/revoke prevents new reservations,
- * but does not hide submitted orders from query/cancel/reconciliation.
+ * evidence itself, then load mandate + independently granted approval BY ID and
+ * write reservation + one-time approval consumption in ONE durable transaction
+ * keyed by clientOrderId and exact intent hash. Browser/model/strategy can pass
+ * selectors but never approval status, permission revision, trusted risk evidence
+ * or timestamp. Repeated same-hash requests return the existing reservation.
+ * Different hashes MUST be rejected. Ambiguous commits return UNKNOWN and
+ * recover by lookup, NEVER create a second reservation. Pause/revoke prevents
+ * new reservations but not query/cancel/reconciliation for existing orders.
  * This service never sends orders; model self-approval is prohibited.
  */
 export abstract class TradingMandatesService extends Service {
