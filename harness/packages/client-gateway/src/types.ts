@@ -88,8 +88,8 @@ export interface PureGammaBillingActionResult {
   url?: string
 }
 
-/** A normalized JSON record; typed fields remain optional rather than synthesizing delivery state. */
-export interface PureGammaNotificationDelivery extends Record<string, unknown> {
+/** Normalized delivery JSON: never expose unconstrained unknown across Typert Remote. */
+export interface PureGammaNotificationDelivery extends Record<string, string | undefined> {
   id?: string
   channel?: string
   status?: string
