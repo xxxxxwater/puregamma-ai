@@ -16,7 +16,8 @@
     "profile-check": "node scripts/profile-check.mjs",
     "rsi-policy-check": "tsx --test scripts/rsi-policy.test.mjs",
     "jev-contract-check": "tsx --test scripts/jev-advisory.test.mjs",
-    "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check"
+    "mandates-policy-check": "tsx --test scripts/trading-mandates.test.mjs",
+    "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",
