@@ -2581,3 +2581,23 @@ export function approveAgentTool(id: string, decision: "approved" | "denied") {
 export function getChatWorkspaceCapabilities() {
   return requestStrict<{max_file_bytes: number; max_files: number; file_types: string[]}>("/api/agent/workspace-capabilities");
 }
+
+export type JevAdvisoryStatus = {
+  available: boolean;
+  status: "fresh" | "disabled" | "unavailable" | "invalid" | "invalid_or_stale";
+  reason?: string;
+  mode: "ADVISORY_ONLY";
+  execution: "DISABLED";
+  model?: string;
+  instrument?: string;
+  choice?: "up" | "down" | "neutral";
+  probabilities?: { up: number; down: number; neutral: number };
+  provider_confidence?: number;
+  age_ms?: number;
+  ttl_ms?: number;
+  input_tokens?: number;
+  output_tokens?: number;
+};
+export function getJevAdvisoryStatus() {
+  return requestStrict<JevAdvisoryStatus>("/jev-trader/status");
+}
