@@ -221,6 +221,12 @@ class Settings:
     # or creates a signal.
     jev_advisory_enabled: bool = os.getenv("JEV_ADVISORY_ENABLED", "false").lower() == "true"
     jev_advisory_telemetry_path: str = os.getenv("JEV_ADVISORY_TELEMETRY_PATH", "")
+    # Private Binance Portfolio Margin. Read-only: the API reads a bundle an
+    # external collector writes and never holds exchange credentials.
+    # An empty allowlist denies everyone.
+    pm_riskbot_export_dir: str = os.getenv("PM_RISKBOT_EXPORT_DIR", "/var/lib/puregamma/riskbot")
+    pm_account_allowed_emails: str = os.getenv("PM_ACCOUNT_ALLOWED_EMAILS", "")
+    pm_account_label: str = os.getenv("PM_ACCOUNT_LABEL", "Binance Portfolio Margin")
     # Production can enable a verified subset first. Unlisted plugins stay
     # unavailable until their credential and region-specific pricing catalog
     # have both been reviewed.
@@ -924,6 +930,3 @@ def validate_production_settings(settings: Settings) -> None:
             errors.append(f"{name} must use https in production")
     if errors:
         raise RuntimeError("Invalid production configuration: " + "; ".join(errors))
-    pm_riskbot_export_dir: str = os.getenv("PM_RISKBOT_EXPORT_DIR", "/var/lib/puregamma/riskbot")
-    pm_account_allowed_emails: str = os.getenv("PM_ACCOUNT_ALLOWED_EMAILS", "")
-    pm_account_label: str = os.getenv("PM_ACCOUNT_LABEL", "Binance Portfolio Margin")
