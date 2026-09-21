@@ -4,11 +4,12 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { Building2, Link2, Loader2, Play, RefreshCw, Trash2, Wallet } from "lucide-react";
 import { AllocationChart, NavHistoryChart } from "@/components/charts";
+import { PmAccountPanel } from "@/components/pm-account-panel";
 import { HoldingRow, ProviderCard } from "@/components/portfolio-panels";
 import { ResearchCard } from "@/components/puregamma";
 import { StaleDataBanner } from "@/components/financial/stale-data-banner";
 import { StatusBadge } from "@/components/ocean/status-badge";
-import { connectEvmWallet, connectHyperliquid, createEvmWalletChallenge, createPlaidLinkToken, disconnectPortfolioAccount, exchangePlaidToken, getMe, getPlaidInvestmentTransactions, getPortfolioSnapshot, getTradingNav, getTradingSafetyStatus, requestPlaidInvestmentRefresh, syncPortfolioAccount, type NavSnapshot, type PortfolioHolding, type PortfolioInvestmentTransaction, type PortfolioSnapshot } from "@/lib/api";
+import { connectEvmWallet, connectHyperliquid, createEvmWalletChallenge, createPlaidLinkToken, disconnectPortfolioAccount, exchangePlaidToken, getMe, getPlaidInvestmentTransactions, getPortfolioSnapshot, getTradingNav, getTradingSafetyStatus, requestPlaidInvestmentRefresh, syncPortfolioAccount, type NavSnapshot, type PortfolioHolding, type PortfolioInvestmentTransaction, type PortfolioSnapshot, getPmAccount, getPmNavHistory, type PmAccountView, type PmNavHistory } from "@/lib/api";
 import { type Locale, withLocale } from "@/i18n/routing";
 
 declare global { interface Window { Plaid?: { create: (config: Record<string, unknown>) => { open: () => void } }; ethereum?: { request: (payload: { method: string; params?: unknown[] }) => Promise<unknown> } } }
@@ -54,6 +55,20 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
   const [busy, setBusy] = useState("");
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
+  const [pm, setPm] = useState<PmAccountView | null>(null);
+  const [pmHistory, setPmHistory] = useState<PmNavHistory | null>(null);
+  const [pmLoading, setPmLoading] = useState(true);
+  const loadPm = () => {
+    void getPmAccount()
+      .then(setPm)
+      .catch((reason: Error & { status?: number }) => {
+        // Do not reveal the existence of this account to unauthorised users.
+        setPm({ available: false, reason: reason.status === 403 ? "forbidden" : "unavailable" });
+        setPmHistory(null);
+      })
+      .finally(() => setPmLoading(false));
+    void getPmNavHistory().then(setPmHistory).catch(() => setPmHistory(null));
+  };
   const [range, setRange] = useState<"1D" | "1W" | "1M" | "ALL">("1M");
   // Control-plane trading NAV (server-computed; separate from aggregated portfolio NAV).
   const [tradingNav, setTradingNav] = useState<NavSnapshot | null>(null);
@@ -89,6 +104,7 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
     });
     void getPortfolioSnapshot(locale).then(setPortfolio);
     void getPlaidInvestmentTransactions().then(({ transactions }) => setPlaidTransactions(transactions)).catch(() => undefined);
+    loadPm();
     void getTradingSafetyStatus().then(({ safety }) => setTradingEnv(safety.static_gate.enabled ? "LIVE" : "LIVE_DISABLED")).catch(() => setTradingEnv(null));
     void getTradingNav().then(({ nav, daily_pnl, daily_return }) => { setTradingNav(nav); setTradingNavDaily({ pnl: daily_pnl, ret: daily_return }); }).catch(() => setTradingNavUnavailable(true));
 
@@ -322,6 +338,8 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
     {notice ? <div className="border border-status-positive p-3 text-sm text-status-positive rounded-lg">{notice}</div> : null}
     {error ? <div className="border border-status-negative p-3 text-sm text-status-negative rounded-lg">{error}</div> : null}
     {portfolio.connections.length ? <ResearchCard><h2 className="font-semibold">{zh ? "同步状态" : "Sync status"}</h2><div className="mt-4 divide-y divide-border-pg">{portfolio.connections.map((connection) => { const summary = accountNav.get(connection.id); return <div key={connection.id} className="flex items-center gap-3 py-3 text-sm"><div className="min-w-0 flex-1"><div className="font-medium">{connection.name}</div><div className="mt-1 text-xs text-text-pg-dim">{connection.provider.toUpperCase()} · {connection.last_sync ? new Date(connection.last_sync).toLocaleString(locale) : (zh ? "未同步" : "Not synced")}{connection.error ? ` · ${connection.error}` : ""}</div></div>{summary ? <div className="hidden text-right sm:block"><div className="text-sm font-medium">{money(summary.nav)}</div><div className={`text-[10px] ${summary.daily_change >= 0 ? "text-status-positive" : "text-status-negative"}`}>{signedMoney(summary.daily_change)} · 24h</div></div> : null}<span className={connection.status === "CONNECTED" ? "text-xs text-status-positive" : "text-xs text-status-negative"}>{connection.status}</span>{connection.provider === "plaid" && connection.can_refresh ? <button type="button" onClick={() => void refreshPlaid(connection.id)} disabled={busy === `refresh:${connection.id}`} className="h-9 border border-border-pg px-2 text-[10px] text-text-pg-muted hover:text-text-pg disabled:opacity-40 rounded-lg" title={zh ? "请求 Plaid 投资更新" : "Request Plaid Investments Refresh"}>{busy === `refresh:${connection.id}` ? <Loader2 className="h-4 w-4 animate-spin" /> : (zh ? "更新" : "Refresh")}</button> : null}<button type="button" onClick={() => void sync(connection.id)} className="grid h-9 w-9 place-items-center border border-border-pg rounded-lg" title={zh ? "同步" : "Sync"}>{busy === connection.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}</button><button type="button" onClick={() => void disconnect(connection.id)} className="grid h-9 w-9 place-items-center border border-border-pg text-status-negative rounded-lg" title={zh ? "断开账户" : "Disconnect account"}><Trash2 className="h-4 w-4" /></button></div>; })}</div></ResearchCard> : null}
+    <PmAccountPanel view={pm} history={pmHistory} loading={pmLoading} locale={locale} onRefresh={loadPm} />
+
   </div>;
 }
 

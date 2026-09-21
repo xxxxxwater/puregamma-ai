@@ -92,6 +92,11 @@ services:
       GATEWAY_DEEPSEEK_API_KEY: ${GATEWAY_DEEPSEEK_API_KEY:-}
       GATEWAY_MOONSHOT_API_KEY: ${GATEWAY_MOONSHOT_API_KEY:-}
       GATEWAY_GLM_API_KEY: ${GATEWAY_GLM_API_KEY:-}
+      # Read-only Binance PM bundle produced by riskbot (see PM_ACCOUNT_ALLOWED_EMAILS).
+      # The container path is fixed; the host path is chosen by the volume below.
+      PM_RISKBOT_EXPORT_DIR: /var/lib/puregamma/riskbot
+      PM_ACCOUNT_ALLOWED_EMAILS: ${PM_ACCOUNT_ALLOWED_EMAILS:-daigen999@gmail.com,xxxxxwater@gmail.com}
+      PM_ACCOUNT_LABEL: ${PM_ACCOUNT_LABEL:-Binance Portfolio Margin}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-}
       OPENAI_LUNA_ENABLED: ${OPENAI_LUNA_ENABLED:-false}
@@ -167,6 +172,9 @@ services:
         max-file: "3"
     volumes:
       - backtest_artifacts:/var/lib/puregamma/backtests
+      # Read-only: the API reads a bundle riskbot writes. PureGamma holds no
+      # exchange credentials for this account and cannot place orders on it.
+      - ${PM_RISKBOT_EXPORT_DIR:-/srv/riskbot-export}:/var/lib/puregamma/riskbot:ro
       # No docker.sock here: the API only probes runner availability and
       # honestly reports it as unavailable. A compromised web-facing container
       # must never reach the host docker engine (host root + all secrets).

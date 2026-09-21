@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import json
+import logging
 import time
 from typing import Generator
 
@@ -15,6 +16,8 @@ from packages.database.models import User
 from packages.database.seed import seed_all, seed_reference_data
 from packages.database.session import SessionLocal, init_db
 
+
+logger = logging.getLogger(__name__)
 
 def _b64url(data: bytes) -> str:
     return base64.urlsafe_b64encode(data).rstrip(b"=").decode()
@@ -128,3 +131,27 @@ def clear_session_cookie(response: Response) -> None:
 def require_admin(user: User) -> None:
     if user.role != "admin":
         raise HTTPException(status_code=403, detail="Admin role required")
+
+def require_pm_account_viewer(user: User = Depends(get_current_user)) -> User:
+    """Authorize access to the separately published private PM account.
+
+    Visibility in the web client is deliberately not an authorization control.
+    The allowlist is evaluated on every request and a missing configuration
+    fails closed.
+    """
+    from apps.api.services.pm_riskbot_service import allowed_emails, is_allowed_email
+
+    if not is_allowed_email(user.email):
+        logger.warning(
+            "pm_account_access_denied user=%s allowlist_size=%d",
+            user.id,
+            len(allowed_emails()),
+        )
+        raise HTTPException(
+            status_code=403,
+            detail={
+                "code": "PM_ACCOUNT_NOT_AUTHORIZED",
+                "message": "This account is not authorized to view the private portfolio.",
+            },
+        )
+    return user

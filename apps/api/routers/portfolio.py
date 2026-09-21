@@ -20,9 +20,10 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.config import get_settings
-from apps.api.dependencies import get_current_user, get_db
+from apps.api.dependencies import get_current_user, get_db, require_pm_account_viewer
 from apps.api.services.cex_connection_service import cex_connection_status, connect_cex
 from apps.api.services.portfolio_service import PlaidDataPending, PlaidRefreshRateLimited, PlaidRefreshUnsupported, PlaidWebhookVerificationError, PortfolioAccessError, connect_evm_wallet, connect_hyperliquid, connect_ibkr_token, connect_plaid, disconnect_account, plaid_investment_transactions, plaid_link_token, portfolio_view, process_plaid_webhook, request_plaid_investments_refresh, request_plaid_transactions_refresh, sync_account, verify_plaid_webhook
+from apps.api.services.pm_riskbot_service import get_reader
 from packages.data.cex_private import CexPermissionDenied
 from packages.database.models import MobileOAuthSession, TradingAccount, User, UserPreference, utcnow
 
@@ -207,6 +208,23 @@ def _evm_challenge_from_payload(address: str, challenge: dict) -> tuple[str, str
 def get_portfolio(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     return portfolio_view(db, user)
 
+
+# Private Binance Portfolio Margin is an independent, read-only feed. It must
+# never be included in a user's aggregated NAV because that would both reveal
+# private data and double count one shared account across authorised viewers.
+@router.get("/pm")
+def get_pm_account(_user: User = Depends(require_pm_account_viewer)) -> dict:
+    settings = get_settings()
+    view = get_reader().account_view()
+    view["label"] = settings.pm_account_label
+    view["merged_into_portfolio_nav"] = False
+    return view
+
+
+@router.get("/pm/history")
+def get_pm_nav_history(_user: User = Depends(require_pm_account_viewer)) -> dict:
+    """Return only observations written by the read-only collector."""
+    return get_reader().nav_history_view()
 
 @router.put("/ai-context")
 def update_ai_context(payload: PortfolioPrivacyRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
