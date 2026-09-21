@@ -88,7 +88,8 @@ export interface PureGammaBillingActionResult {
   url?: string
 }
 
-export interface PureGammaNotificationDelivery {
+/** A normalized JSON record; typed fields remain optional rather than synthesizing delivery state. */
+export interface PureGammaNotificationDelivery extends Record<string, unknown> {
   id?: string
   channel?: string
   status?: string
