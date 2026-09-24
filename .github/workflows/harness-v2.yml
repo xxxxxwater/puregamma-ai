@@ -59,6 +59,7 @@ jobs:
         run: |
           set -euo pipefail
           python3 -m py_compile packages/skills/dsh_migration.py
+          python3 -m py_compile packages/decisions/redaction.py
           python3 - <<'PY'
           import runpy
           migration = runpy.run_path("packages/skills/dsh_migration.py")
@@ -142,6 +143,7 @@ jobs:
           set -euo pipefail
           for path in \
             packages/decisions/jev_client.py \
+            packages/decisions/redaction.py \
             packages/decisions/intent.py \
             packages/decisions/rerank.py \
             apps/api/routers/jev_advisory.py \
