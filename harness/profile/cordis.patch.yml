@@ -168,3 +168,29 @@
         name: '@deepseek-ai/dsh-tool-todo'
         config:
           allowParallelInProgress: true
+
+
+# Host/browser surface hardening for the public multi-user website. Upstream Web
+# exposes coding-workspace surfaces that are appropriate for a trusted local
+# coding agent but not for PureGamma users. Generic file uploads are also
+# disabled because dsh-v0.1.7-rc.1 resolves uploaded files through the model
+# filesystem tools, and the shipped local filesystem backend is not a
+# containment boundary. Image attachments remain handled by the DSH attachment
+# store/provider adapter and do not require the general host filesystem tool.
+- id: file-upload
+  disabled: true
+
+- id: terminal-controller
+  disabled: true
+
+- id: workspace-files
+  disabled: true
+
+- id: ui-sidebar-terminal
+  disabled: true
+
+- id: ui-sidebar-files
+  disabled: true
+
+- id: ui-plugin-manager
+  disabled: true
