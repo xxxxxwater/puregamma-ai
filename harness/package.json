@@ -10,7 +10,7 @@
   },
   "scripts": {
     "architecture-check": "node scripts/architecture-check.mjs",
-    "build:host": "pnpm --filter @puregamma/dsh-auth run bundle && pnpm --filter @puregamma/dsh-billing run bundle && pnpm --filter @puregamma/dsh-notifications run bundle && pnpm --filter @puregamma/dsh-pg-tsy-runtime run bundle && tsc -b tsconfig.host.json && tsdown --config tsdown.host.ts --env.DSH_BUILD_FACE host",
+    "build:host": "pnpm --filter @puregamma/dsh-auth run bundle && pnpm --filter @puregamma/dsh-billing run bundle && pnpm --filter @puregamma/dsh-notifications run bundle && pnpm --filter @puregamma/dsh-pg-tsy-runtime run bundle && pnpm --filter @puregamma/dsh-pm-nav run bundle && tsc -b tsconfig.host.json && tsdown --config tsdown.host.ts --env.DSH_BUILD_FACE host",
     "typecheck": "pnpm run build:host && tsc -p tsconfig.json",
     "build": "pnpm run build:host && pnpm -r --if-present run bundle",
     "profile-check": "node scripts/profile-check.mjs",
@@ -18,8 +18,12 @@
     "jev-contract-check": "tsx --test scripts/jev-advisory.test.mjs",
     "mandates-policy-check": "tsx --test scripts/trading-mandates.test.mjs",
     "pg-tsy-health-check": "tsx --test scripts/pg-tsy-health.test.mjs",
+    "pm-nav-check": "tsx --test scripts/pm-nav.test.mjs",
+    "mobile-access-check": "tsx --test scripts/mobile-access.test.mjs",
+    "wallet-auth-check": "tsx --test scripts/wallet-auth.test.mjs",
+    "chat-workspace-check": "tsx --test scripts/chat-workspace.test.mjs",
     "release-boundary-check": "node --test scripts/release-boundary.test.mjs",
-    "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run release-boundary-check"
+    "check": "pnpm run architecture-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run pm-nav-check && pnpm run mobile-access-check && pnpm run wallet-auth-check && pnpm run chat-workspace-check && pnpm run release-boundary-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.2",

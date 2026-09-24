@@ -23,6 +23,10 @@ test('the mounted profile cannot implicitly activate real trading or runtime rel
 })
 
 test('the browser Remote only exposes reviewed account/billing/notification/health commands', async () => {
+  // Every entry is a read or an explicitly reviewed action. pmAccount and
+  // pmNavHistory are read-only projections of the private PM account: the
+  // server resolves the requester from the authenticated session and applies
+  // the allowlist itself, so exposing them grants no authorization.
   const gateway = await read('packages/client-gateway/src/index.ts')
   const exposed = [...gateway.matchAll(/@Remote\(['"]([^'"]+)['"]\)/g)].map(match => match[1]).sort()
   const reviewed = [
@@ -30,6 +34,7 @@ test('the browser Remote only exposes reviewed account/billing/notification/heal
     'billingCancel', 'billingReactivate', 'notifications', 'notificationsUpdateDailyBrief',
     'notificationsRequestImessageVerification', 'notificationsConfirmImessageVerification',
     'notificationsTestImessage', 'notificationsTestEmail', 'quantRuntime',
+    'pmAccount', 'pmNavHistory',
   ].sort()
   assert.deepEqual(exposed, reviewed)
   assert.doesNotMatch(gateway, /@Remote\(['"](?:submit|placeOrder|flatten|emergencyExit|reloadStrategies)['"]\)/)

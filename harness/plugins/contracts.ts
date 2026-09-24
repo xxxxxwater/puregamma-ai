@@ -21,6 +21,8 @@ export type PureGammaCapabilityId =
   | 'billing'
   | 'api-gateway'
   | 'mobile-api'
+  | 'mobile-access'
+  | 'pm-nav'
   | 'admin'
 
 export type CapabilityPlane = 'host' | 'client' | 'dual'

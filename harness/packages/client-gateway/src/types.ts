@@ -184,3 +184,83 @@ export interface PureGammaQuantRuntimeView {
   blockingGates?: string[]
   lastError?: string
 }
+
+/** Provider field bags stay provider-keyed: only flat scalar values cross to the browser. */
+export type PmBag = Record<string, string | number | boolean | null>
+
+/**
+ * Private Binance Portfolio Margin account, read-only.
+ *
+ * The server filesystem path of the bundle is deliberately absent: it is a
+ * server-side diagnostic, not browser data.
+ */
+export interface PureGammaPmAccountView {
+  available: boolean
+  observedAt: string
+  source: string
+  reason?: string
+  label?: string
+  /** Always false. This private account is never merged into a user's aggregate NAV. */
+  mergedIntoPortfolioNav?: boolean
+  venue?: string
+  sourceNote?: string
+  stale?: boolean
+  partial?: boolean
+  ageSeconds?: number | null
+  staleAfterSeconds?: number
+  dataAsOf?: string | null
+  generatedAt?: string | null
+  collector?: PmBag
+  account?: PmBag
+  btc?: PmBag
+  exposure?: PmBag
+  balances?: PmBag[]
+  positions?: PmBag[]
+  orders?: PmBag[]
+  ordersMeta?: {
+    capturedAt?: string | null
+    ageSeconds?: number | null
+    fullyCovered?: boolean | null
+    refreshIntervalSeconds?: number | null
+  }
+  risk?: {
+    firingCount?: number
+    firing?: PmBag[]
+    drawdownPeakBtcEquivalent?: string | number | null
+    drawdownDayBtcEquivalent?: string | number | null
+  }
+  coverage?: {
+    essentialOk?: boolean | null
+    ordersCovered?: boolean | null
+    failures?: string[]
+    essentialFailures?: string[]
+  }
+  quality?: {
+    restOk?: boolean | null
+    wsConnected?: boolean | null
+    mismatch?: boolean | null
+    lastError?: string | null
+  }
+  disclaimer?: string
+}
+
+export interface PmNavPoint {
+  t: number
+  adjustedEquityUsd?: string | number | null
+  btcPriceUsd?: string | number | null
+}
+
+export interface PureGammaPmNavHistoryView {
+  available: boolean
+  observedAt: string
+  source: string
+  reason?: string
+  firstPointAt?: string | null
+  pointCount?: number
+  /** False with fewer than two observations: the UI says so instead of drawing a line. */
+  sufficient?: boolean
+  windowDays?: number
+  intervalHintSeconds?: number | null
+  sampling?: string
+  points: PmNavPoint[]
+}

@@ -19,6 +19,7 @@ export interface LegacyWebSurfaceOwner {
  * public route disappears accidentally.
  */
 export const LEGACY_WEB_SURFACES: readonly LegacyWebSurfaceOwner[] = [
+  { surface: 'apps/web/app/[locale]/jev-trader/page.tsx', owner: 'research', target: 'settings.jev-advisory', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/(auth)/forgot-password/page.tsx', owner: 'auth', target: 'settings.account.recovery', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/(auth)/login/page.tsx', owner: 'auth', target: 'conversation.auth.login', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/(auth)/reset-password/page.tsx', owner: 'auth', target: 'settings.account.recovery', disposition: 'plugin-ui' },

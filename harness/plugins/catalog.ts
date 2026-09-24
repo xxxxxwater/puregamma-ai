@@ -77,6 +77,15 @@ export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = 
     legacyOwners: ['packages/portfolio', 'packages/notifications', 'apps/api/services/*portfolio*'],
   },
   {
+    // The private Binance PM account is deliberately NOT part of 'portfolio':
+    // it is never merged into a user's aggregate NAV, only an allowlisted
+    // subset may read it, and it exposes no model tool at all.
+    id: 'pm-nav', packageName: '@puregamma/dsh-pm-nav', plane: 'dual', risk: 'read-only',
+    services: ['pgPmNav'], tools: [],
+    ui: ['settings.pm-nav'],
+    legacyOwners: ['apps/api/services/pm_riskbot_service.py', 'apps/api/routers/portfolio.py', 'apps/web/components/pm-account-panel.tsx'],
+  },
+  {
     id: 'options', packageName: '@puregamma/dsh-options', plane: 'dual', risk: 'read-only',
     services: ['pgOptions'], tools: ['options_chain', 'options_long_gamma', 'options_surface', 'options_surface_tickers', 'options_earnings_gamma'],
     ui: ['tool.options-chain', 'tool.options-surface'],
@@ -140,6 +149,14 @@ export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = 
     id: 'mobile-api', packageName: '@puregamma/dsh-mobile-api', plane: 'host', risk: 'stateful',
     services: ['pgMobileCapabilities', 'pgDeepLinks', 'pgPushRouting'], tools: [], ui: [],
     legacyOwners: ['apps/ios', 'apps/android', 'docs/mobile/MOBILE_API_CONTRACT.md'],
+  },
+  {
+    // Distinct from 'mobile-api' (the native iOS/Android clients): this is the
+    // self-hosted pocket-relay access surface. Reads are open to signed-in
+    // users; tunnel and PIN changes are admin-only.
+    id: 'mobile-access', packageName: '@puregamma/dsh-mobile-access', plane: 'host', risk: 'stateful',
+    services: ['pgMobileAccess'], tools: [], ui: [],
+    legacyOwners: ['apps/api/routers/mobile_access.py', 'apps/web/app/[locale]/mobile-access/page.tsx', 'apps/web/components/mobile-access-panel.tsx', 'apps/pocket-relay'],
   },
   {
     id: 'admin', packageName: '@puregamma/dsh-admin', plane: 'dual', risk: 'stateful',

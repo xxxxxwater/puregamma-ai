@@ -1,0 +1,24 @@
+{
+  "name": "@puregamma/dsh-chat-workspace",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Tenant-owned durable attachments and per-conversation execution permissions, with a pure fail-closed permission policy",
+  "main": "lib/index.js",
+  "types": "lib/index.d.ts",
+  "exports": {
+    ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" },
+    "./policy": { "types": "./lib/policy.d.ts", "default": "./lib/policy.js" },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "files": ["lib/index.js", "lib/index.d.ts", "lib/index.js.map", "lib/policy.js", "lib/policy.d.ts", "lib/policy.js.map"],
+  "scripts": { "bundle": "tsdown" },
+  "dependencies": {
+    "@puregamma/dsh-auth": "workspace:^"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/schemastery": "^3.18.2"
+  }
+}

@@ -2,16 +2,19 @@ import type { Context } from '@deepseek-ai/cordis'
 import { Remote, TypertRemoteService } from '@deepseek-ai/dsh-typert-protocol'
 import type {
   PureGammaAccountView, PureGammaBillingActionResult, PureGammaBillingBudget, PureGammaBillingReward, PureGammaBillingUsage, PureGammaBillingView,
-  PureGammaDailyBriefUpdate, PureGammaNotificationActionResult, PureGammaNotificationDelivery, PureGammaNotificationsView, PureGammaQuantRuntimeView,
+  PureGammaDailyBriefUpdate, PureGammaNotificationActionResult, PureGammaNotificationDelivery, PureGammaNotificationsView,
+  PureGammaPmAccountView, PureGammaPmNavHistoryView, PureGammaQuantRuntimeView, PmBag, PmNavPoint,
 } from './types.ts'
 import type {} from '@puregamma/dsh-auth'
 import type {} from '@puregamma/dsh-billing'
 import type {} from '@puregamma/dsh-notifications'
 import type {} from '@puregamma/dsh-pg-tsy-runtime'
+import type {} from '@puregamma/dsh-pm-nav'
 
 export type {
   PureGammaAccountView, PureGammaBillingActionResult, PureGammaBillingBudget, PureGammaBillingReward, PureGammaBillingUsage, PureGammaBillingView,
-  PureGammaDailyBriefUpdate, PureGammaNotificationActionResult, PureGammaNotificationDelivery, PureGammaNotificationsView, PureGammaQuantRuntimeView,
+  PureGammaDailyBriefUpdate, PureGammaNotificationActionResult, PureGammaNotificationDelivery, PureGammaNotificationsView,
+  PureGammaPmAccountView, PureGammaPmNavHistoryView, PureGammaQuantRuntimeView, PmBag, PmNavPoint,
 } from './types.ts'
 
 function record(value: unknown): Record<string, unknown> | undefined { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined }
@@ -22,6 +25,17 @@ function booleanValue(source: Record<string, unknown> | undefined, key: string):
 function stringArray(source: Record<string, unknown> | undefined, key: string): string[] | undefined { const value = source?.[key]; if (!Array.isArray(value) || value.some(item => typeof item !== 'string')) return undefined; return [...value] as string[] }
 function objectArray(source: Record<string, unknown> | undefined, key: string): Record<string, unknown>[] { const value = source?.[key]; if (!Array.isArray(value)) return []; return value.map(record).filter((item): item is Record<string, unknown> => item !== undefined) }
 function booleanRecord(source: Record<string, unknown> | undefined, key: string): Record<string, boolean> | undefined { const value = record(source?.[key]); if (value === undefined) return undefined; return Object.fromEntries(Object.entries(value).filter(([, item]) => typeof item === 'boolean')) as Record<string, boolean> }
+function pmScalar(value: unknown): string | number | boolean | null { return typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean' ? value : null }
+// A provider row is a flat scalar bag. Keys whose value is not a scalar are
+// omitted rather than flattened into a misleading null.
+function pmBag(value: unknown): PmBag | undefined { const source = record(value); if (source === undefined) return undefined; const bag: PmBag = {}; for (const [key, item] of Object.entries(source)) { const scalar = pmScalar(item); if (scalar !== null || item === null) bag[key] = scalar } return bag }
+function pmBags(value: unknown): PmBag[] { if (!Array.isArray(value)) return []; return value.flatMap(item => { const bag = pmBag(item); return bag === undefined ? [] : [bag] }) }
+function pmStringList(value: unknown): string[] { return Array.isArray(value) ? value.filter((item): item is string => typeof item === 'string') : [] }
+function pmNullableBool(value: unknown): boolean | null { return typeof value === 'boolean' ? value : null }
+function pmNullableNumber(value: unknown): number | null { return typeof value === 'number' && Number.isFinite(value) ? value : null }
+/** Decimal strings and finite numbers only; a boolean is never a money figure. */
+function pmDecimal(value: unknown): string | number | null { return typeof value === 'string' || (typeof value === 'number' && Number.isFinite(value)) ? value : null }
+function pmNullableText(value: unknown): string | null { return typeof value === 'string' && value.trim().length > 0 ? value : null }
 function unavailable<T extends { available: boolean; observedAt: string; source: string; reason?: string }>(source: string, reason: string): T { return { available: false, observedAt: new Date().toISOString(), source, reason } as T }
 function safeText(value: string, max: number): string { const normalized = value.trim(); if (!normalized || normalized.length > max) throw new Error('invalid text'); return normalized }
 function normalizePlanName(value: string): string { return safeText(value, 80) }
@@ -64,6 +78,103 @@ export class PureGammaClientGateway extends TypertRemoteService {
   async notificationsTestEmail(): Promise<PureGammaNotificationActionResult> { const service = this.ctx.get('pgNotifications'); if (service === undefined) return notificationActionUnavailable('email-test', 'notifications capability is not installed'); try { const idempotencyKey = `ui-test:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`; return notificationAction(await service.send({ channel: 'email', message: 'PureGamma AI test notification.', idempotencyKey }), 'email-test') } catch { return notificationActionUnavailable('email-test', 'email test delivery is currently unavailable') } }
   @Remote('quantRuntime')
   async quantRuntime(): Promise<PureGammaQuantRuntimeView> { const service = this.ctx.get('pgTsyRuntime'); if (service === undefined) return unavailable<PureGammaQuantRuntimeView>('cordis:pgTsyRuntime', 'pg-tsy runtime capability is not installed'); try { const snapshot = await service.health(); return { available: true, observedAt: snapshot.observedAt, source: snapshot.source, processHealthy: snapshot.processHealthy, ready: snapshot.ready, mode: snapshot.mode, leaseHealthy: snapshot.leaseHealthy, feedsTotal: snapshot.feedsTotal, feedsConnected: snapshot.feedsConnected, eventsTotal: snapshot.eventsTotal, policyDecisionsTotal: snapshot.policyDecisionsTotal, openOrders: snapshot.openOrders, ordersJournaledTotal: snapshot.ordersJournaledTotal, blockingGates: [...snapshot.blockingGates], lastError: snapshot.lastError } } catch { return unavailable<PureGammaQuantRuntimeView>('cordis:pgTsyRuntime', 'quant runtime health is currently unavailable') } }
+
+  /**
+   * Private Binance PM account. The allowlist is enforced inside the host
+   * service from the authenticated session; this projection never accepts an
+   * identity from the browser, and a refusal arrives as `available: false` with
+   * no account data attached.
+   */
+  @Remote('pmAccount')
+  async pmAccount(): Promise<PureGammaPmAccountView> {
+    const service = this.ctx.get('pgPmNav')
+    if (service === undefined) return unavailable<PureGammaPmAccountView>('cordis:pgPmNav', 'private PM account capability is not installed')
+    try {
+      const view = await service.account()
+      const risk = view.risk
+      const coverage = view.coverage
+      const quality = view.quality
+      const ordersMeta = view.ordersMeta
+      return {
+        available: view.available,
+        observedAt: new Date().toISOString(),
+        source: 'cordis:pgPmNav',
+        ...(view.reason === undefined ? {} : { reason: view.reason }),
+        label: view.label,
+        mergedIntoPortfolioNav: view.mergedIntoPortfolioNav,
+        venue: view.source.venue,
+        sourceNote: view.source.note,
+        ...(view.stale === undefined ? {} : { stale: view.stale }),
+        ...(view.partial === undefined ? {} : { partial: view.partial }),
+        ...(view.ageSeconds === undefined ? {} : { ageSeconds: view.ageSeconds }),
+        ...(view.staleAfterSeconds === undefined ? {} : { staleAfterSeconds: view.staleAfterSeconds }),
+        ...(view.dataAsOf === undefined ? {} : { dataAsOf: view.dataAsOf }),
+        ...(view.generatedAt === undefined ? {} : { generatedAt: view.generatedAt }),
+        ...(view.disclaimer === undefined ? {} : { disclaimer: view.disclaimer }),
+        ...(view.available ? {
+          collector: pmBag(view.collector),
+          account: pmBag(view.account),
+          btc: pmBag(view.btc),
+          exposure: pmBag(view.exposure),
+          balances: pmBags(view.balances),
+          positions: pmBags(view.positions),
+          orders: pmBags(view.orders),
+          ordersMeta: {
+            capturedAt: pmNullableText(ordersMeta?.capturedAt),
+            ageSeconds: pmNullableNumber(ordersMeta?.ageSeconds),
+            fullyCovered: pmNullableBool(ordersMeta?.fullyCovered),
+            refreshIntervalSeconds: pmNullableNumber(ordersMeta?.refreshIntervalSeconds),
+          },
+          risk: {
+            firingCount: pmNullableNumber(risk?.firingCount) ?? 0,
+            firing: pmBags(risk?.firing),
+            drawdownPeakBtcEquivalent: pmDecimal(risk?.drawdownPeakBtcEquivalent),
+            drawdownDayBtcEquivalent: pmDecimal(risk?.drawdownDayBtcEquivalent),
+          },
+          coverage: {
+            essentialOk: pmNullableBool(coverage?.essentialOk),
+            ordersCovered: pmNullableBool(coverage?.ordersCovered),
+            failures: pmStringList(coverage?.failures),
+            essentialFailures: pmStringList(coverage?.essentialFailures),
+          },
+          quality: {
+            restOk: pmNullableBool(quality?.restOk),
+            wsConnected: pmNullableBool(quality?.wsConnected),
+            mismatch: pmNullableBool(quality?.mismatch),
+            lastError: pmNullableText(quality?.lastError),
+          },
+        } : {}),
+      }
+    } catch { return unavailable<PureGammaPmAccountView>('cordis:pgPmNav', 'private PM account data is currently unavailable') }
+  }
+
+  /** Observations written by the read-only collector only; gaps are kept. */
+  @Remote('pmNavHistory')
+  async pmNavHistory(): Promise<PureGammaPmNavHistoryView> {
+    const service = this.ctx.get('pgPmNav')
+    if (service === undefined) return { ...unavailable<PureGammaPmNavHistoryView>('cordis:pgPmNav', 'private PM account capability is not installed'), points: [] }
+    try {
+      const view = await service.navHistory()
+      return {
+        available: view.available,
+        observedAt: new Date().toISOString(),
+        source: 'cordis:pgPmNav',
+        ...(view.reason === undefined ? {} : { reason: view.reason }),
+        ...(view.firstPointAt === undefined ? {} : { firstPointAt: view.firstPointAt }),
+        ...(view.pointCount === undefined ? {} : { pointCount: view.pointCount }),
+        ...(view.sufficient === undefined ? {} : { sufficient: view.sufficient }),
+        ...(view.windowDays === undefined ? {} : { windowDays: view.windowDays }),
+        ...(view.intervalHintSeconds === undefined ? {} : { intervalHintSeconds: view.intervalHintSeconds }),
+        ...(view.sampling === undefined ? {} : { sampling: typeof view.sampling === 'string' ? view.sampling : undefined }),
+        points: view.points.flatMap(point => {
+          const row = record(point)
+          const t = pmNullableNumber(row?.t)
+          if (t === null) return []
+          return [{ t, adjustedEquityUsd: pmDecimal(row?.adjusted_equity_usd), btcPriceUsd: pmDecimal(row?.btc_price_usd) }]
+        }),
+      }
+    } catch { return { ...unavailable<PureGammaPmNavHistoryView>('cordis:pgPmNav', 'private PM NAV history is currently unavailable'), points: [] } }
+  }
 }
 
 export default PureGammaClientGateway

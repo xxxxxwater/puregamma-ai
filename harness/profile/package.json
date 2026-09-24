@@ -54,6 +54,11 @@
     "@puregamma/dsh-research-runner-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-research-runner": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
-    "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^"
+    "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^",
+    "@puregamma/dsh-pm-nav": "workspace:^",
+    "@puregamma/dsh-ui-pm-nav": "workspace:^",
+    "@puregamma/dsh-mobile-access": "workspace:^",
+    "@puregamma/dsh-wallet-auth": "workspace:^",
+    "@puregamma/dsh-chat-workspace": "workspace:^"
   }
 }

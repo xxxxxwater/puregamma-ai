@@ -55,6 +55,7 @@ export const LEGACY_SURFACE_MIGRATIONS: readonly LegacySurfaceMigration[] = [
   { surface: 'apps/api/routers/mobile_access.py', target: 'mobile-api', disposition: 'provider', note: 'Pocket relay read-only status/QR for users and admin-gated tunnel/PIN changes; relay lifecycle and secrets stay server-side.' },
   { surface: 'apps/api/routers/frontend.py', target: 'admin', disposition: 'compatibility-only', note: 'Legacy frontend manifest/runtime endpoint retires when Harness profile is production entry.' },
   { surface: 'apps/api/routers/internal.py', target: 'admin', disposition: 'compatibility-only', note: 'Internal legacy control endpoints split into owning plugins, then removed.' },
+  { surface: 'apps/api/routers/jev_advisory.py', target: 'research', disposition: 'provider', note: 'Read-only, fail-closed projection of runtime-published JEV advisory telemetry; never evaluates prompts, creates a signal or sends an order. Owner mapping is a judgment call and must be reviewed before the route is retired.' },
 ] as const
 
 export function migrationsFor(target: PureGammaCapabilityId): readonly LegacySurfaceMigration[] {

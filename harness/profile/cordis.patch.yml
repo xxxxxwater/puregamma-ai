@@ -29,6 +29,8 @@
       name: '@puregamma/dsh-ui-notifications'
     - id: puregamma-ui-pg-tsy-runtime
       name: '@puregamma/dsh-ui-pg-tsy-runtime'
+    - id: puregamma-ui-pm-nav
+      name: '@puregamma/dsh-ui-pm-nav'
 
     # Account, billing, gateway, ingestion and admin own separate services.
     # Explicit money/account mutations are UI/approval actions, not model tools.
@@ -120,3 +122,36 @@
       config: { baseUrl: !!js process.env.PG_TSY_RUNTIME_URL ?? 'http://127.0.0.1:8080', requestTimeoutMs: 5000, allowStrategyReload: false }
     - id: puregamma-tool-pg-tsy-runtime
       name: '@puregamma/dsh-tool-pg-tsy-runtime'
+
+    # Private Binance Portfolio Margin NAV. Read-only over the riskbot export
+    # bundle (mounted :ro); the allowlist is evaluated server-side from the
+    # authenticated session and an empty configuration denies everyone. This
+    # account is never merged into a user's aggregate NAV, and no model tool is
+    # registered: the private account stays a UI-only surface, as it was before.
+    # Self-hosted pocket-relay mobile access. A signed-in user may read status
+    # and the public QR; starting/stopping the tunnel and changing the PIN are
+    # admin-only and resolved server-side from the authenticated session. The
+    # relay RPC secret stays in the server environment and is never echoed back.
+    - id: puregamma-mobile-access
+      name: '@puregamma/dsh-mobile-access'
+      config: { relayUrl: !!js process.env.POCKET_RELAY_URL ?? '', rpcSecretEnv: POCKET_RPC_SECRET, requestTimeoutMs: 30000 }
+    # Wallet sign-in (SIWE / EIP-4361). The message is built and stored
+    # server-side and read back single-use, so a client cannot re-bind the
+    # domain, chain, statement or nonce. Signer recovery and the single-use
+    # nonce store are provider-runtime capabilities; while they are absent every
+    # call REFUSES (SIGNER_RECOVERY_UNAVAILABLE / AUTH_SERVICE_UNAVAILABLE)
+    # rather than accepting an unverifiable signature.
+    - id: puregamma-wallet-auth
+      name: '@puregamma/dsh-wallet-auth'
+      config: { siteUrl: !!js process.env.SITE_URL ?? '', appEnvironment: !!js process.env.APP_ENV ?? 'production' }
+    # Conversation attachments and per-conversation execution permissions. The
+    # permission table is fail-closed: an unclassified tool is denied in both
+    # read-only and workspace-write, and allowed only in full-access. The
+    # tenant-scoped attachment store is a provider port; while it is absent the
+    # provider throws WORKSPACE_STORE_UNAVAILABLE instead of degrading.
+    - id: puregamma-chat-workspace
+      name: '@puregamma/dsh-chat-workspace'
+      config: { maxFileBytes: !!js Number(process.env.AGENT_ATTACHMENT_MAX_BYTES ?? 10485760), maxUserBytes: !!js Number(process.env.AGENT_ATTACHMENT_USER_BYTES ?? 104857600), maxFiles: 8, maxContextChars: 50000 }
+    - id: puregamma-pm-nav
+      name: '@puregamma/dsh-pm-nav'
+      config: { riskbotExportDir: !!js process.env.PM_RISKBOT_EXPORT_DIR ?? '/var/lib/puregamma/riskbot', allowedEmails: !!js process.env.PM_ACCOUNT_ALLOWED_EMAILS ?? '', accountLabel: !!js process.env.PM_ACCOUNT_LABEL ?? 'Binance Portfolio Margin' }

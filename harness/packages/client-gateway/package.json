@@ -23,13 +23,14 @@
     "lib/typert.remote-client.d.ts"
   ],
   "scripts": {
-    "bundle": "tsc -p tsconfig.json && tsdown --config-loader tsx"
+    "bundle": "tsc -p tsconfig.json && tsdown"
   },
   "dependencies": {
     "@puregamma/dsh-auth": "workspace:^",
     "@puregamma/dsh-billing": "workspace:^",
     "@puregamma/dsh-notifications": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime": "workspace:^",
+    "@puregamma/dsh-pm-nav": "workspace:^",
     "zod": "^4.4.3"
   },
   "peerDependencies": {

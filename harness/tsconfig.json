@@ -27,7 +27,11 @@
       "@puregamma/dsh-skills": ["./plugins/skills/src/index.ts"],
       "@puregamma/dsh-research-runner": ["./plugins/research-runner/src/index.ts"],
       "@puregamma/dsh-trading": ["./plugins/trading/src/index.ts"],
-      "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"]
+      "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"],
+      "@puregamma/dsh-pm-nav": ["./plugins/pm-nav/src/index.ts"],
+      "@puregamma/dsh-mobile-access": ["./plugins/mobile-access/src/index.ts"],
+      "@puregamma/dsh-wallet-auth": ["./plugins/wallet-auth/src/index.ts"],
+      "@puregamma/dsh-chat-workspace": ["./plugins/chat-workspace/src/index.ts"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "plugins/contracts.ts", "plugins/catalog.ts", "plugins/*/src/**/*.ts"],
