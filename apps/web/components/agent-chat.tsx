@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FormEvent, useEffect, useRef, useState } from "react";
+import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { Bot, CheckCircle2, CircleAlert, Compass, Database, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, RefreshCw, SearchCheck, ShieldCheck, Target, Trash2, Wrench, X } from "lucide-react";
 import { ChatWorkspaceComposer, AttachmentCards } from "@/components/chat-workspace-composer";
 import { setAgentPermission, approveAgentTool, type AgentPermissionMode } from "@/lib/api";
@@ -12,7 +12,7 @@ import { AgentStageIndicator, nextAgentStage, type AgentStage } from "@/componen
 import { OceanShell } from "@/components/ocean/ocean-shell";
 import { RippleEffect } from "@/components/ocean/ripple-effect";
 import { type Locale, withLocale } from "@/i18n/routing";
-import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentSource, SkillContextRef, SkillSummary, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getGatewayCatalog, getMe, streamAgentMessage } from "@/lib/api";
+import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentPluginEntry, AgentSource, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getGatewayCatalog, getMe, streamAgentMessage } from "@/lib/api";
 import { billingNotice, describeChatFailure, type ChatFailure } from "@/lib/chat-errors";
 import { FLASH_ALIAS_ID, FLASH_MODEL_ID, flashAvailability, platformDefaultModelName } from "@/lib/model-catalog";
 import { getMessageNamespace } from "@/lib/translations";
@@ -50,12 +50,21 @@ type ModelUpgradeCopy = ReturnType<typeof getMessageNamespace<"model-upgrade">>;
  * by another provider must never be relabelled as the platform default, so only
  * the ids that really resolve to the upgraded model are mapped.
  */
-function bylineModelLabel(model: string | null | undefined, copy: ModelUpgradeCopy, catalogName: string | null) {
+function bylineModelLabel(
+  model: string | null | undefined,
+  copy: ModelUpgradeCopy,
+  catalogName: string | null,
+  catalog: ReadonlyMap<string, string>,
+) {
   const id = (model || "").trim();
   const platformName = catalogName || copy.chat.badgeLive;
   if (!id || id === "default" || id === FLASH_MODEL_ID || id === FLASH_ALIAS_ID) return platformName;
+  // The label comes from the server's catalog, so retiring or renaming a model
+  // needs no client release and the byline can never name a model the server
+  // would refuse.
+  const known = catalog.get(id);
+  if (known) return known;
   if (id === "deepseek-v4-pro") return "DeepSeek V4 Pro";
-  if (id === "gpt-5.6-luna") return "GPT-5.6 Luna · OpenAI";
   return id;
 }
 
@@ -76,6 +85,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [quota, setQuota] = useState<{ remaining: number | null; limit: number | null; credit_balance: number } | null>(null);
   const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
   const [models, setModels] = useState<AgentModelOption[]>([]);
+  // Built-in capability inventory, straight from `/agent/capabilities`.
+  const [plugins, setPlugins] = useState<AgentPluginEntry[]>([]);
+  const [pluginCounts, setPluginCounts] = useState<{ total: number; enabled: number; tools: number } | null>(null);
   const [selectedModel, setSelectedModel] = useState("default");
   const [dataSources, setDataSources] = useState<string[]>([]);
   /* Small-screen conversation history. The aside is `hidden` below `lg`, so
@@ -85,8 +97,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [mobileHistoryOpen, setMobileHistoryOpen] = useState(false);
   const historyPanelRef = useRef<HTMLElement | null>(null);
   const historyTriggerRef = useRef<HTMLButtonElement | null>(null);
-  const [skillCatalog, setSkillCatalog] = useState<SkillSummary[]>([]);
-  const [skills, setSkills] = useState<string[]>([]);
+  // id -> display name, straight from `GET /agent/capabilities`.
+  const modelLabels = useMemo(() => new Map(models.map((model) => [model.id, model.display_name])), [models]);
   const [customPrompt, setCustomPrompt] = useState("");
   const [researchMode, setResearchMode] = useState(true);
   const [permission, setPermission] = useState<AgentPermissionMode>("workspace-write");
@@ -193,12 +205,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       .then(async ([, rows, access]) => {
         if (!active) return;
         // `Array.isArray` rather than trusting the field: a capabilities payload
-        // that omits `models` or `skills` must degrade to an empty selector, not
+        // that omits `models` must degrade to an empty selector, not
         // throw during render and take the whole chat surface down with it.
         setQuota(access.quota);
         setCapabilities(access.capabilities);
         setModels(Array.isArray(access.models) ? access.models : []);
-        setSkillCatalog(Array.isArray(access.skills) ? access.skills : []);
         const target = initialConversationId || rows[0]?.id;
         if (target) await openConversation(target);
       })
@@ -286,8 +297,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       await setAgentPermission(id, permission, permission === "full-access");
       setInput("");
       const now = new Date().toISOString();
-      const skillRefs: SkillContextRef[] = skillCatalog.filter((skill) => skills.includes(skill.skill_id)).map((skill) => ({ skill_id: skill.skill_id, slug: skill.slug, version: skill.current_version, installation_id: skill.installation_id }));
-      const context = { research_mode: researchMode, data_sources: researchMode ? dataSources : [], skills: researchMode ? skillRefs : [], skill_refs: researchMode ? skillRefs : [], custom_prompt: researchMode ? customPrompt : "", attachments: outgoing, model: selectedModel, permission_mode: permission };
+      // Capabilities are built-in plugins now: the Agent picks its own sources and
+      // tools from the goal. The request carries no skill selection at all.
+      const context = { research_mode: researchMode, data_sources: researchMode ? dataSources : [], custom_prompt: researchMode ? customPrompt : "", attachments: outgoing, model: selectedModel, permission_mode: permission };
       setMessages((current) => [...current, { id: `local-${Date.now()}`, conversation_id: id, role: "user", content, status: "completed", input_tokens: 0, output_tokens: 0, created_at: now, context, sources: [] }]);
       const controller = new AbortController();
       controllerRef.current = controller;
@@ -426,14 +438,13 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       setCreditQuote(null);
       return;
     }
-    const skillRefs: SkillContextRef[] = skillCatalog.filter((skill) => skills.includes(skill.skill_id)).map((skill) => ({ skill_id: skill.skill_id, slug: skill.slug, version: skill.current_version, installation_id: skill.installation_id }));
     const timer = window.setTimeout(() => {
-      getAgentQuote({ content: input, research_mode: researchMode, data_sources: researchMode ? dataSources : [], skill_refs: researchMode ? skillRefs : [], custom_prompt: researchMode ? customPrompt : "", attachments, model: selectedModel })
+      getAgentQuote({ content: input, research_mode: researchMode, data_sources: researchMode ? dataSources : [], custom_prompt: researchMode ? customPrompt : "", attachments, model: selectedModel })
         .then(setCreditQuote)
         .catch(() => setCreditQuote({ estimated_min: 0, estimated_max: 0, unavailable: true }));
     }, 250);
     return () => window.clearTimeout(timer);
-  }, [selectedModel, dataSources, skills, skillCatalog, attachments, input, customPrompt, researchMode]);
+  }, [selectedModel, dataSources, attachments, input, customPrompt, researchMode]);
   const estimatedCredits = creditQuote
     ? creditQuote.estimated_min === creditQuote.estimated_max
       ? String(creditQuote.estimated_min)
@@ -530,7 +541,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div> : null}
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[min(85%,42rem)] break-words rounded-lg border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "min-w-0 max-w-full overflow-x-auto border-l border-border-pg pl-4"}>
-              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => { const slug = typeof item === "string" ? item : item.slug; const version = typeof item === "string" ? null : item.version; return <span key={typeof item === "string" ? item : `${item.skill_id}-${item.version}`} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{slug.replaceAll("_", " ")}{version ? ` · v${version}` : ""}</span>; })}{message.context.attachments?.length ? <AttachmentCards files={message.context.attachments} locale={locale} /> : null}</div> : null}</>}
+              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName, modelLabels)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => typeof item === "string" ? <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item.replaceAll("_", " ")}</span> : null)}{message.context.attachments?.length ? <AttachmentCards files={message.context.attachments} locale={locale} /> : null}</div> : null}</>}
               {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
               {message.role === "assistant" && message.credits_refunded ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "Credits 已退款" : "Credits refunded"}</div> : null}
@@ -566,7 +577,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             onPermission={async (mode, acknowledged) => { if (conversationId) await setAgentPermission(conversationId, mode, acknowledged); setPermission(mode); }}
             researchMode={researchMode} onResearch={setResearchMode} onTextarea={node => { composerRef.current = node; }}
             modelControl={<select id="agent-model" aria-label={zh ? "模型" : "Model"} value={selectedModel} onChange={event => setSelectedModel(event.target.value)} disabled={busy} className="min-h-10 max-w-[220px] rounded-md bg-transparent text-xs text-text-pg focus-visible:ring-2">{models.map(model => <option key={model.id} value={model.id} disabled={!model.available}>{agentModelLabel(model, modelCopy, defaultModelName)}</option>)}</select>}
-            settings={<ContextControls locale={locale} dataSources={dataSources} skills={skills} skillCatalog={skillCatalog} customPrompt={customPrompt} attachments={[]} allowedSources={capabilities?.allowed_data_sources || []} onToggleSource={value => toggle(value, dataSources, setDataSources)} onToggleSkill={value => toggle(value, skills, setSkills)} onPrompt={setCustomPrompt} onRemoveFile={() => undefined} />} />
+            settings={<ContextControls locale={locale} plugins={plugins} pluginCounts={pluginCounts} customPrompt={customPrompt} attachments={[]} onPrompt={setCustomPrompt} onRemoveFile={() => undefined} />} />
           {input.trim() && creditQuote && !creditQuote.unavailable ? <p className="mx-auto mt-2 max-w-3xl text-right text-xs text-text-pg-muted">{zh ? "预计" : "Estimated"} {estimatedCredits} Credits</p> : null}
           {failure ? (
             <div className="mx-auto mt-2 max-w-3xl border border-status-negative px-3 py-2 text-xs text-status-negative rounded-lg" role="alert" data-testid="chat-error">

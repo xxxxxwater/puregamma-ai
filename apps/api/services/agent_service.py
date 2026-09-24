@@ -339,14 +339,16 @@ def _resolve_agent_model(db: Session, user: User, selected_model: str | None) ->
         route = ModelRouter(settings).route_for_task("agent_chat")
         model = settings.agent_model or route.model or settings.deepseek_effective_model
         return selection, model
-    if selection != settings.openai_luna_model:
+    # Every advertised model is accepted: an id the selector offers but the
+    # server refuses is a model the user can pick and never run.
+    if selection not in {identifier for identifier, _ in settings.openai_agent_models}:
         raise AgentModelInvalidError("AGENT_MODEL_INVALID")
     plan = get_user_entitlement(db, user.id)["plan"]
     if plan.lower() not in {item.lower() for item in settings.openai_luna_allowed_plans}:
         raise AgentModelPlanError("AGENT_MODEL_PLAN_REQUIRED")
     if not settings.openai_luna_enabled or not settings.openai_api_key:
         raise AgentModelUnavailableError("AGENT_MODEL_UNAVAILABLE")
-    return selection, settings.openai_luna_model
+    return selection, selection
 
 
 def agent_model_options(db: Session, user: User) -> list[dict]:
@@ -373,7 +375,19 @@ def agent_model_options(db: Session, user: User) -> list[dict]:
     jev_configured = bool(settings.gateway_typesafe_api_key)
     return [
         {"id": "default", "display_name": default_label, "description": "Uses the existing Agent default configuration.", "provider": "default", "available": True, "reason": None, "credit_cost": None, "category": "generation"},
-        {"id": settings.openai_luna_model, "display_name": "GPT-5.6 Luna", "description": "High-quality deep market research for selective use.", "provider": "openai", "available": plan_allowed and configured, "reason": reason, "credit_cost": None, "category": "generation"},
+        *[
+            {
+                "id": identifier,
+                "display_name": f"GPT-6 {label} · OpenAI",
+                "description": "High-quality deep market research for selective use.",
+                "provider": "openai",
+                "available": plan_allowed and configured,
+                "reason": reason,
+                "credit_cost": None,
+                "category": "generation",
+            }
+            for identifier, label in settings.openai_agent_models
+        ],
         {"id": "jev", "display_name": "Jev (TypeSafe)", "description": "Evaluation model. Returns typed choices, scores and probabilities for routing and evidence ranking; it does not write replies.", "provider": "typesafe", "available": jev_configured, "reason": None if jev_configured else "unavailable", "credit_cost": None, "category": "evaluation", "capabilities": {"chat": False, "evaluation": True, "endpoint": "/v1/systemone"}},
     ]
 

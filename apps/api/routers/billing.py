@@ -122,10 +122,11 @@ def quote(
         raise HTTPException(status_code=400, detail={"code": "BILLING_TASK_INVALID"})
     settings = get_settings()
     requested_model = payload.requested_model or "default"
-    if requested_model not in {"default", settings.openai_luna_model}:
+    offered = {identifier for identifier, _ in settings.openai_agent_models}
+    if requested_model != "default" and requested_model not in offered:
         raise HTTPException(status_code=400, detail={"code": "AGENT_MODEL_INVALID"})
     entitlement = get_user_entitlement(db, user.id)
-    if requested_model == settings.openai_luna_model:
+    if requested_model in offered:
         allowed_plans = {name.lower() for name in settings.openai_luna_allowed_plans}
         if entitlement["plan"].lower() not in allowed_plans:
             raise HTTPException(status_code=403, detail={"code": "AGENT_MODEL_PLAN_REQUIRED"})

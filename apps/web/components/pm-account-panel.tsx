@@ -65,15 +65,31 @@ function fmtBare(value: unknown, locale: Locale, digits = 2): string {
   return parsed.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-function compactUsd(value: number): string {
+/**
+ * Axis labels must stay readable at the resolution the domain actually has.
+ * Two fixed decimals at the million scale collapse a tight range into identical
+ * tick labels, so the vertical axis stops carrying the amount.
+ */
+function compactUsd(value: number, span?: number | null): string {
   const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
-  return `$${value.toFixed(0)}`;
+  const width = span && span > 0 ? span : null;
+  if (abs >= 1_000_000) {
+    const digits = width === null ? 2 : width >= 200_000 ? 2 : width >= 20_000 ? 3 : 4;
+    return `$${(value / 1_000_000).toFixed(digits)}M`;
+  }
+  if (abs >= 1_000) {
+    const digits = width === null ? 0 : width >= 2_000 ? 0 : width >= 200 ? 1 : 2;
+    return `$${(value / 1_000).toFixed(digits)}K`;
+  }
+  const digits = width === null ? 0 : width >= 20 ? 0 : width >= 2 ? 1 : 2;
+  return `$${value.toFixed(digits)}`;
 }
 
-function compactBtc(value: number): string {
-  return value.toFixed(value >= 100 ? 0 : 2);
+function compactBtc(value: number, span?: number | null): string {
+  const width = span && span > 0 ? span : null;
+  if (value >= 100) return value.toFixed(0);
+  const digits = width === null ? 2 : width >= 1 ? 2 : width >= 0.1 ? 3 : width >= 0.01 ? 4 : 6;
+  return value.toFixed(digits);
 }
 
 function signed(value: number, formatter: (input: number) => string): string {
@@ -126,24 +142,15 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
   );
 }
 
-/** One of the three BTC figures, always carrying its own definition. */
-function BtcCell({ title, value, source, accent }: { title: string; value: string; source: string; accent?: boolean }) {
+/** One of the three BTC figures. The title alone carries the distinction. */
+function BtcCell({ title, value, accent }: { title: string; value: string; accent?: boolean }) {
   return (
     <div className="bg-bg-panel px-3 py-2">
       <div className="text-[10px] uppercase tracking-wide text-text-pg-dim">{title}</div>
       <div className={`mt-0.5 text-sm tabular-nums ${accent ? "font-semibold text-text-pg" : "font-medium text-text-pg"}`}>{value}</div>
-      <div className="mt-0.5 text-[10px] leading-4 text-text-pg-dim">{source}</div>
     </div>
   );
 }
-
-const CHANGE_LABEL: Record<string, { zh: string; en: string; tone: string }> = {
-  ENTRY: { zh: "开仓", en: "Open", tone: "text-status-positive" },
-  INCREASE: { zh: "加仓", en: "Increase", tone: "text-status-positive" },
-  REDUCE: { zh: "减仓", en: "Reduce", tone: "text-status-negative" },
-  EXIT: { zh: "平仓", en: "Close", tone: "text-status-negative" },
-  FLIP: { zh: "翻向", en: "Flip", tone: "text-status-warning" }
-};
 
 export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   view: PmAccountView | null;
@@ -196,6 +203,11 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   const accent = rising ? "var(--positive)" : "var(--negative)";
   const gradientId = `pm-nav-${currency.toLowerCase()}`;
 
+  // A curve that ends days ago must never pass for the current NAV: the API
+  // reports the newest OBSERVATION time and judges freshness with its own clock.
+  const historyStale = Boolean(history?.stale);
+  const lastPointAt = history?.latest_point_at ? new Date(history.latest_point_at) : null;
+
   const yValues = usable.map(valueOf).filter((value): value is number => value !== null);
   let yDomain: [number, number] | undefined;
   if (yValues.length > 1) {
@@ -204,6 +216,9 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
     const pad = (max - min) * 0.08 || Math.abs(max) * 0.001 || 1;
     yDomain = [min - pad, max + pad];
   }
+
+  // The resolution the axis really has, handed to the tick formatter.
+  const ySpan = yDomain ? yDomain[1] - yDomain[0] : null;
 
   const ageSeconds = useMemo(() => {
     const stamp = view?.generated_at ?? view?.data_as_of;
@@ -231,8 +246,6 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   const exposure = view.exposure ?? {};
   const balances = view.balances ?? [];
   const positions = view.positions ?? [];
-  const positionHistory = view.positions_history ?? [];
-  const historyMeta = view.positions_history_meta ?? {};
 
   const equityUsd = num(account.account_equity_usd);
   const adjustedUsd = num(account.adjusted_equity_usd);
@@ -258,10 +271,6 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   const heroValue = currency === "USD" ? equityUsd : equityBtc;
   const heroText = currency === "USD" ? fmtUsd(heroValue, locale) : fmtBtc(heroValue, locale, 8);
   const heroLabel = zh ? "账户净值 · Binance accountEquity" : "Account NAV · Binance accountEquity";
-  const heroSub = currency === "USD"
-    ? (zh ? `调整后权益 ${fmtUsd(adjustedUsd, locale)} · 市值 − 负债实测 ${fmtUsd(netWorthUsd, locale)}` : `adjusted equity ${fmtUsd(adjustedUsd, locale)} · derived market value − liabilities ${fmtUsd(netWorthUsd, locale)}`)
-    : (zh ? `调整后权益 ${fmtBtc(adjustedBtc, locale, 8)} · 市值 − 负债实测 ${fmtBtc(netWorthBtc, locale, 8)}` : `adjusted equity ${fmtBtc(adjustedBtc, locale, 8)} · derived market value − liabilities ${fmtBtc(netWorthBtc, locale, 8)}`);
-
   return <>
     <ResearchCard className="overflow-hidden p-0">
       {/* ------------------------------------------------ hero */}
@@ -286,7 +295,6 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
 
         <p className="mt-1 text-xs text-text-pg-muted">{heroLabel}</p>
         <p className={`mt-1 text-4xl font-semibold tracking-normal tabular-nums sm:text-5xl ${rising ? "text-status-positive" : "text-status-negative"}`}>{heroText}</p>
-        {heroSub ? <p className="mt-1 text-xs text-text-pg-muted tabular-nums">{heroSub}</p> : null}
 
         {/* The three BTC figures, each with the field it comes from. */}
         <div className="mt-4 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3">
@@ -297,17 +305,14 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
             accent
             title={zh ? "钱包与抵押资产" : "Wallet / collateral"}
             value={fmtBtc(walletBtc, locale, 8)}
-            source={zh ? `官方 totalWalletBalance · 按 ${fmtUsd(btcPrice, locale)} 折算 ${fmtUsd(btc.collateral_value_usd, locale)}` : `official totalWalletBalance · ${fmtUsd(btc.collateral_value_usd, locale)} at ${fmtUsd(btcPrice, locale)}`}
           />
           <BtcCell
             title={zh ? "购买力基准（保证金/杠杆）" : "Buying-power basis (margin/leverage)"}
             value={fmtBtc(equityBtc, locale, 8)}
-            source={zh ? "官方 accountEquity ÷ BTCUSDT" : "official accountEquity ÷ BTCUSDT"}
           />
           <BtcCell
             title={zh ? "负债（使其低于持币）" : "Liabilities"}
             value={fmtUsd(liabilityUsd, locale)}
-            source={zh ? "逐币种净余额为负者之和" : "sum of negative net balances"}
           />
         </div>
 
@@ -346,7 +351,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
                 />
                 <YAxis
                   domain={yDomain}
-                  tickFormatter={(value: number) => (currency === "USD" ? compactUsd(value) : compactBtc(value))}
+                  tickFormatter={(value: number) => (currency === "USD" ? compactUsd(value, ySpan) : compactBtc(value, ySpan))}
                   tick={{ fill: "var(--muted-2)", fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
@@ -380,15 +385,14 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
                 </span>
               ) : <span className="text-text-pg-muted">{zh ? "区间净值变化: --" : "Change over range: --"}</span>}
             </div>
-            <span className="text-[10px] text-text-pg-dim tabular-nums">
-              {zh ? `真实快照 ${history?.point_count ?? 0} 点` : `${history?.point_count ?? 0} real snapshots`}
-            </span>
           </div>
-          <p className="px-5 pb-4 text-[10px] leading-4 text-text-pg-dim">
-            {zh
-              ? "曲线与上方主数字统一读取 Binance 官方 accountEquity。调整后权益与逐币种市值减负债仅作为独立诊断口径展示。"
-              : "The curve and hero use the same trusted field: Binance accountEquity. Adjusted equity and the balance-derived market-value-minus-liabilities figure are diagnostics shown separately."}
-          </p>
+          {historyStale ? (
+            <p className="mx-5 mb-4 border border-status-warning px-3 py-2 text-[11px] leading-4 text-status-warning rounded-lg">
+              {zh
+                ? `曲线已陈旧：最新真实观测是 ${lastPointAt ? lastPointAt.toLocaleString(locale) : "--"}，不是当前净值。此处不会用估算值补齐，请先确认 riskbot 采集与导出是否正常。`
+                : `The curve is stale: its newest real observation is ${lastPointAt ? lastPointAt.toLocaleString(locale) : "--"}, so it is not the current NAV. No estimate is substituted - check the riskbot collector and exporter first.`}
+            </p>
+          ) : null}
         </>
       ) : (
         <div className="mx-5 mb-4 grid h-32 place-items-center border border-border-pg text-sm text-text-pg-muted">
@@ -466,7 +470,6 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
     <ResearchCard className="overflow-hidden p-0">
       <div className="border-b border-border-pg p-5">
         <div className="text-xs font-semibold uppercase text-text-pg-muted">{zh ? "实时仓位" : "Live positions"}</div>
-        <p className="mt-2 text-xs leading-5 text-text-pg-muted">{zh ? `共 ${positions.length} 笔。notional 取自交易所字段；清算距离按标记价计算。` : `${positions.length} position(s). Notional comes from the exchange; liquidation distance is measured from the mark price.`}</p>
       </div>
       {positions.length ? <div className="overflow-x-auto">
         <table className="w-full min-w-[940px] text-xs">
@@ -498,44 +501,5 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
       </div> : <div className="p-5 text-sm text-text-pg-muted">{zh ? "当前无持仓。" : "No open positions."}</div>}
     </ResearchCard>
 
-    <ResearchCard className="overflow-hidden p-0">
-      <div className="flex flex-wrap items-start justify-between gap-3 border-b border-border-pg p-5">
-        <div>
-          <div className="text-xs font-semibold uppercase text-text-pg-muted">{zh ? "历史仓位" : "Position history"}</div>
-          <p className="mt-2 text-xs leading-5 text-text-pg-muted">
-            {zh
-              ? `共 ${historyMeta.count ?? positionHistory.length} 条仓位变更${historyMeta.first_event_at ? `，自 ${new Date(historyMeta.first_event_at).toLocaleString(locale)} 起记录` : ""}。由相邻快照差分得到，不是成交明细。`
-              : `${historyMeta.count ?? positionHistory.length} position changes${historyMeta.first_event_at ? ` since ${new Date(historyMeta.first_event_at).toLocaleString(locale)}` : ""}. Derived from snapshot diffs, not fills.`}
-          </p>
-        </div>
-      </div>
-      {positionHistory.length ? <div className="max-h-96 overflow-auto">
-        <table className="w-full min-w-[820px] text-xs">
-          <thead><tr className="border-b border-border-pg text-left text-[10px] uppercase text-text-pg-dim">
-            <th className="px-4 py-3 font-medium">{zh ? "时间" : "Time"}</th>
-            <th className="px-3 py-3 font-medium">{zh ? "合约" : "Symbol"}</th>
-            <th className="px-3 py-3 font-medium">{zh ? "方向" : "Side"}</th>
-            <th className="px-3 py-3 font-medium">{zh ? "事件" : "Event"}</th>
-            <th className="px-3 py-3 text-right font-medium">{zh ? "数量变化" : "Size"}</th>
-            <th className="px-3 py-3 text-right font-medium">{zh ? "名义价值" : "Notional"}</th>
-            <th className="px-4 py-3 text-right font-medium">{zh ? "标记价" : "Mark"}</th>
-          </tr></thead>
-          <tbody className="divide-y divide-border-pg">{positionHistory.map((row, index) => {
-            const label = CHANGE_LABEL[row.kind] ?? { zh: row.kind, en: row.kind, tone: "text-text-pg" };
-            return <tr key={`${row.captured_at_ms ?? index}-${row.product}-${row.symbol}-${row.kind}`}>
-              <td className="px-4 py-3 text-text-pg-muted tabular-nums">{row.captured_at ? new Date(row.captured_at).toLocaleString(locale) : "--"}</td>
-              <td className="px-3 py-3 font-medium">{row.symbol}<span className="ml-2 text-[10px] uppercase text-text-pg-dim">{row.product}</span></td>
-              <td className={`px-3 py-3 ${row.side === "LONG" ? "text-status-positive" : "text-status-negative"}`}>{row.side}</td>
-              <td className={`px-3 py-3 font-medium ${label.tone}`}>{zh ? label.zh : label.en}</td>
-              <td className="px-3 py-3 text-right tabular-nums">{fmtBare(row.qty_before, locale, 6)} → {fmtBare(row.qty_after, locale, 6)}</td>
-              <td className="px-3 py-3 text-right tabular-nums">{row.notional_usd ? fmtUsd(row.notional_usd, locale) : "--"}</td>
-              <td className="px-4 py-3 text-right tabular-nums">{fmtBare(row.mark_price, locale, 2)}</td>
-            </tr>;
-          })}</tbody>
-        </table>
-      </div> : <div className="p-5 text-sm text-text-pg-muted">
-        {zh ? "尚无仓位变更记录；下一次开仓/加减仓/平仓后开始记录。" : "No position changes recorded yet; recording starts with the next open, resize or close."}
-      </div>}
-    </ResearchCard>
   </>;
 }

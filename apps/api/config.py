@@ -13,6 +13,20 @@ if "pytest" not in sys.modules:
     load_dotenv()
 
 
+#: The Agent's generation models, `id:Label`. Kept as data so a provider rename
+#: is an env change, not a release.
+DEFAULT_OPENAI_AGENT_MODELS = "gpt-6-luna:Luna,gpt-6-sol:Sol,gpt-6-astra:Astra"
+
+
+def _model_label(value: str) -> tuple[str, str] | None:
+    """Parse one ``id:Label`` entry, refusing anything that is not both parts."""
+    identifier, _, label = value.partition(":")
+    identifier, label = identifier.strip(), label.strip()
+    if not identifier or not label:
+        return None
+    return identifier, label
+
+
 def _csv(value: str) -> list[str]:
     return [item.strip() for item in value.split(",") if item.strip()]
 
@@ -142,7 +156,20 @@ class Settings:
     openai_luna_enabled: bool = (
         os.getenv("OPENAI_LUNA_ENABLED", "false").lower() == "true"
     )
-    openai_luna_model: str = os.getenv("OPENAI_LUNA_MODEL", "gpt-5.6-luna")
+    openai_luna_model: str = os.getenv("OPENAI_LUNA_MODEL", "gpt-6-luna")
+    # The Agent's generation models, `id:Label`. Data, not code: the provider
+    # retires and renames faster than a release, and a wrong id in application
+    # code is a silent outage. Default = the current GPT-6 line, verified against
+    # the provider's own GET /v1/models with this deployment's credential
+    # (astra 2026-08-27, luna and sol 2026-09-14).
+    openai_agent_models: tuple[tuple[str, str], ...] = tuple(
+        parsed
+        for parsed in (
+            _model_label(item)
+            for item in _csv(os.getenv("OPENAI_AGENT_MODELS", DEFAULT_OPENAI_AGENT_MODELS))
+        )
+        if parsed is not None
+    )
     openai_luna_allowed_plans: tuple[str, ...] = tuple(
         _csv(os.getenv("OPENAI_LUNA_ALLOWED_PLANS", "Max,Enterprise"))
     )

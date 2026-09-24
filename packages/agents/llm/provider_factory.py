@@ -34,13 +34,13 @@ def get_agent_llm_provider(selected_model: str | None = None, settings: Settings
     settings = settings or get_settings()
     if not selected_model or selected_model == "default":
         return get_llm_provider(settings)
-    if selected_model != settings.openai_luna_model:
+    if selected_model not in {identifier for identifier, _ in settings.openai_agent_models}:
         raise ValueError("AGENT_MODEL_INVALID")
     if not settings.openai_luna_enabled or not settings.openai_api_key:
         raise RuntimeError("AGENT_MODEL_UNAVAILABLE")
     return OpenAIProvider(
         settings,
-        model=settings.openai_luna_model,
+        model=selected_model,
         timeout_seconds=settings.openai_luna_timeout_seconds,
         reasoning_effort=settings.openai_luna_reasoning_effort,
     )

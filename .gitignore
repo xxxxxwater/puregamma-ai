@@ -66,3 +66,8 @@ docker-compose.*.bak*
 tests/e2e/.auth/
 **/storageState*.json
 
+
+# PureGamma Harness build output. `pnpm --dir harness run check` emits lib/ for
+# every plugin/package; none of it is source.
+harness/**/lib/
+harness/pnpm-lock.yaml

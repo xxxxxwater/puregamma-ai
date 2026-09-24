@@ -42,6 +42,12 @@ SERIES_SCHEMA = "puregamma.pm_nav_series.v1"
 MAX_CACHE_SECONDS = 5.0
 #: Bundles older than this are reported as stale (riskbot reconciles every 60s).
 STALE_AFTER_SECONDS = 180.0
+#: The series is sampled from real snapshots every ~30s. A series whose newest
+#: point is older than this is NOT current, and the UI must say so instead of
+#: drawing an old amount scale under a live headline. (Production showed
+#: exactly that: a freshly written bundle whose points stopped 6.8 days earlier,
+#: because the collector's query returned the OLDEST rows of its window.)
+SERIES_STALE_AFTER_SECONDS = 600.0
 
 
 def normalize_email(value: str | None) -> str:
@@ -233,11 +239,27 @@ class PmAccountReader:
             }
         payload = series.data
         points = payload.get("points") or []
+        # The bundle's ``generated_at`` only says when the file was written, so it
+        # can look fresh while the curve is days old. Judge freshness from the
+        # newest real observation, with this process's clock.
+        latest_at: float | None = None
+        for point in points:
+            stamp = point.get("t") if isinstance(point, dict) else None
+            if isinstance(stamp, (int, float)):
+                latest_at = float(stamp)
+        age_seconds = None if latest_at is None else max(0.0, time.time() - latest_at)
         return {
             "available": True,
             "schema": payload.get("schema"),
             "generated_at": payload.get("generated_at"),
             "first_point_at": payload.get("first_point_at"),
+            "latest_point_at": (
+                None if latest_at is None
+                else time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime(latest_at))
+            ),
+            "age_seconds": age_seconds,
+            "stale": age_seconds is not None and age_seconds > SERIES_STALE_AFTER_SECONDS,
+            "stale_after_seconds": SERIES_STALE_AFTER_SECONDS,
             "point_count": payload.get("point_count", len(points)),
             # Reported so the UI can say "数据不足" instead of drawing one dot.
             "sufficient": len(points) >= 2,

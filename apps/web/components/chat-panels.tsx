@@ -1,16 +1,30 @@
-import { Database, FilePlus2, Sparkles, X } from "lucide-react";
+import { Boxes, FilePlus2, X } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
-import type { AgentAttachment, SkillSummary } from "@/lib/api";
+import type { AgentAttachment, AgentPluginEntry } from "@/lib/api";
 
-const DATA_SOURCES = ["market", "rss", "fintwit", "x-twitter", "bloomberg", "portfolio", "options"] as const;
-
-export function ContextControls({ locale, dataSources, skills, skillCatalog, customPrompt, attachments, allowedSources, onToggleSource, onToggleSkill, onPrompt, onRemoveFile }: { locale: Locale; dataSources: string[]; skills: string[]; skillCatalog: SkillSummary[]; customPrompt: string; attachments: AgentAttachment[]; allowedSources: string[]; onToggleSource: (value: string) => void; onToggleSkill: (value: string) => void; onPrompt: (value: string) => void; onRemoveFile: (name: string) => void }) {
+/**
+ * Response preferences and files - and nothing else.
+ *
+ * The data-source grid and the skill picker are gone on purpose. Capabilities
+ * are built-in plugins (the Agent chooses its sources and tools from the goal),
+ * so a per-message switch is a way to configure a worse answer, not a feature.
+ * See docs/architecture/DSH_0_1_7_RC1_AGENT_SKILL_NAVPM_UPGRADE.md.
+ */
+export function ContextControls({ locale, plugins, pluginCounts, customPrompt, attachments, onPrompt, onRemoveFile }: { locale: Locale; plugins: AgentPluginEntry[]; pluginCounts: { total: number; enabled: number; tools: number } | null; customPrompt: string; attachments: AgentAttachment[]; onPrompt: (value: string) => void; onRemoveFile: (name: string) => void }) {
   const zh = locale === "zh";
-  const sourceLabels: Record<string, string> = { market: zh ? "实时行情" : "Live market", rss: "RSS", fintwit: "FinTwit", "x-twitter": "X / Twitter", bloomberg: "Bloomberg", portfolio: zh ? "账户数据" : "Portfolio", options: zh ? "期权" : "Options" };
-  const skillLabels: Record<string, string> = { market_research: zh ? "市场研究" : "Market research", news_research: zh ? "新闻检索" : "News research", portfolio_review: zh ? "组合复核" : "Portfolio review", options_analysis: zh ? "期权分析" : "Options analysis", source_check: zh ? "来源核验" : "Source verification", deep_research: zh ? "深度研究" : "Deep research" };
   return <div className="space-y-6">
-    <section><div className="mb-1 flex items-center gap-2 text-xs font-semibold"><Database className="h-3.5 w-3.5" />{zh ? "数据范围" : "Data scope"}<span className="ml-auto font-normal text-text-pg-dim">{dataSources.length ? (zh ? "手动" : "Manual") : "Auto"}</span></div><p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "不选择时由 Agent 根据目标自动决定。" : "When blank, the Agent selects sources from the goal."}</p><div className="grid grid-cols-2 gap-2">{DATA_SOURCES.map((item) => { const allowed = allowedSources.includes("all") || allowedSources.includes(item) || (item === "x-twitter" && allowedSources.includes("x")); return <button key={item} type="button" disabled={!allowed} onClick={() => onToggleSource(item)} title={!allowed ? (zh ? "当前套餐不可用" : "Upgrade required") : sourceLabels[item]} className={`min-h-9 border px-2 text-left text-[11px] disabled:cursor-not-allowed disabled:opacity-35  rounded-lg ${dataSources.includes(item) ? "border-border-pg-strong bg-bg-panel text-text-pg" : "border-border-pg text-text-pg-dim hover:text-text-pg-muted"}`}>{sourceLabels[item]}{!allowed ? " · Locked" : ""}</button>; })}</div></section>
-    <section><div className="mb-1 flex items-center gap-2 text-xs font-semibold"><Sparkles className="h-3.5 w-3.5" />{zh ? "指定 Skills" : "Pinned Skills"}<span className="ml-auto font-normal text-text-pg-dim">{skills.length ? (zh ? "手动" : "Manual") : "Auto"}</span></div><p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "仅在你需要固定研究方法时选择。" : "Select only when you need a specific research contract."}</p><div className="space-y-1.5">{skillCatalog.map((item) => <label key={item.skill_id} title={item.description} className="flex cursor-pointer items-start gap-2 border border-border-pg px-2.5 py-2 text-xs rounded-lg"><input type="checkbox" checked={skills.includes(item.skill_id)} onChange={() => onToggleSkill(item.skill_id)} className="mt-0.5 accent-[var(--foreground)]" /><span className="min-w-0 flex-1"><span className="block">{skillLabels[item.slug] || item.name}</span><span className="mt-0.5 block truncate text-[10px] text-text-pg-dim">v{item.current_version} · {item.scope} · {item.risk_level}</span></span></label>)}</div></section>
+    {/* Built-in capabilities. Read-only on purpose: capability is installed by
+        the platform, not toggled per message, so there is nothing here for a
+        user to switch off into a worse answer. */}
+    <section data-testid="agent-plugins">
+      <div className="mb-1 flex items-center gap-2 text-xs font-semibold"><Boxes className="h-3.5 w-3.5" />{zh ? "内置插件" : "Built-in plugins"}<span className="ml-auto font-normal text-text-pg-dim">{pluginCounts ? `${pluginCounts.enabled}/${pluginCounts.total} · ${pluginCounts.tools} ${zh ? "工具" : "tools"}` : "--"}</span></div>
+      <p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "能力由平台内置插件提供，Agent 根据目标自行调用；不需要在每条消息里选择。" : "Capabilities come from built-in plugins and the Agent picks what to call from the goal; nothing is selected per message."}</p>
+      <div className="space-y-1.5">{plugins.map((plugin) => <div key={plugin.id} className="border border-border-pg px-2.5 py-2 text-xs rounded-lg">
+        <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate">{plugin.name}</span><span className={`shrink-0 border px-1.5 py-0.5 text-[10px] rounded-lg ${plugin.enabled ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-dim"}`}>{plugin.enabled ? (zh ? "已启用" : "Enabled") : (plugin.reason === "plan_required" ? (zh ? "套餐不含" : "Plan") : (zh ? "不可用" : "Unavailable"))}</span></div>
+        <span className="mt-1 block leading-4 text-text-pg-dim">{plugin.description}</span>
+        <span className="mt-1 block truncate font-mono text-[10px] text-text-pg-dim">{plugin.service}{plugin.tools.length ? ` · ${plugin.tools.length} ${zh ? "个工具" : "tools"}` : ""}</span>
+      </div>)}</div>
+    </section>
     <section><label className="mb-1 block text-xs font-semibold">{zh ? "回答偏好" : "Response preferences"}</label><p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "只控制表达方式，不改变事实、权限或风险规则。" : "Controls presentation only, not evidence, permissions, or risk rules."}</p><textarea value={customPrompt} onChange={(event) => onPrompt(event.target.value.slice(0, 2000))} rows={4} placeholder={zh ? "例如：使用简洁中文，先结论后证据，列出反方观点。" : "Example: concise answer, conclusion first, include counter-evidence."} className="w-full resize-y border border-border-pg bg-bg-panel p-2 text-xs leading-5 outline-none focus:border-border-pg-strong rounded-lg" /><div className="mt-1 text-right text-[10px] text-text-pg-dim">{customPrompt.length}/2000</div></section>
     <section><div className="mb-2 flex items-center gap-2 text-xs font-semibold"><FilePlus2 className="h-3.5 w-3.5" />{zh ? "文件" : "Files"}<span className="ml-auto font-normal text-text-pg-dim">{attachments.length}/5</span></div>{attachments.length ? <div className="space-y-1.5">{attachments.map((file) => <div key={file.name} className="flex items-center gap-2 border border-border-pg bg-bg-panel px-2 py-2 text-xs rounded-lg"><span className="min-w-0 flex-1 truncate">{file.name}</span><button type="button" onClick={() => onRemoveFile(file.name)} title={zh ? "移除" : "Remove"}><X className="h-3.5 w-3.5" /></button></div>)}</div> : <p className="text-[11px] leading-5 text-text-pg-dim">{zh ? "支持 TXT、MD、CSV、JSON；单文件 20KB，总计 50KB。" : "TXT, MD, CSV, JSON; 20KB each and 50KB total."}</p>}</section>
   </div>;

@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.agent_service import AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
 from apps.api.services.credit_service import InsufficientCreditsError, refund_task
+from apps.api.services.agent_plugins import inventory as agent_plugin_inventory
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.skill_service import skill_registry
 from packages.billing.metering import CreditReservation
@@ -66,9 +67,21 @@ def get_quota(db: Session = Depends(get_db), user: User = Depends(get_current_us
 
 
 @router.get("/capabilities")
-def capabilities(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+def capabilities(request: Request, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     entitlement = get_user_entitlement(db, user.id)
-    return {"capabilities": entitlement, "quota": quota_state(db, user), "models": agent_model_options(db, user), "skills": skill_registry(db, user).list_visible()}
+    locale = "zh" if (request.headers.get("accept-language") or "").lower().startswith("zh") else "en"
+    inventory = agent_plugin_inventory(db, user, locale=locale)
+    return {
+        "capabilities": entitlement,
+        "quota": quota_state(db, user),
+        "models": agent_model_options(db, user),
+        # The capabilities the Agent actually has, as built-in plugins. The
+        # legacy skill catalogue is still returned for older clients, but the
+        # conversation no longer selects skills: see agent_plugins.py.
+        "plugins": inventory["plugins"],
+        "plugin_counts": inventory["counts"],
+        "skills": skill_registry(db, user).list_visible(),
+    }
 
 
 @router.post("/quote")

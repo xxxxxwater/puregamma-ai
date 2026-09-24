@@ -1218,6 +1218,13 @@ export type PmNavHistory = {
   available: boolean;
   reason?: string;
   first_point_at?: string | null;
+  /** Observation time of the newest real point — not the bundle write time. */
+  latest_point_at?: string | null;
+  /** Age of that observation, measured by the API's own clock. */
+  age_seconds?: number | null;
+  /** True when the newest observation is older than stale_after_seconds. */
+  stale?: boolean;
+  stale_after_seconds?: number;
   point_count?: number;
   sufficient?: boolean;
   window_days?: number;
@@ -1316,6 +1323,23 @@ export type AgentConversation = { permission_mode?: AgentPermissionMode; id: str
 export type AgentSource = { id?: string; provider: string; title: string; url?: string | null; published_at?: string | null; source_timestamp?: string | null; fetched_at: string; citation_index: number };
 export type AgentPermissionMode = "read-only" | "workspace-write" | "full-access";
 export type AgentAttachment = { id?: string; name: string; content: string; mime: string; size?: number; kind?: string; url?: string; sha256?: string; removed?: boolean };
+/**
+ * One built-in Agent capability, as the API reports it. `enabled` and `reason`
+ * come from the caller's entitlement, so the surface cannot advertise a
+ * capability the run would refuse.
+ */
+export type AgentPluginEntry = {
+  id: string;
+  name: string;
+  description: string;
+  service: string;
+  tools: string[];
+  requires: string[];
+  enabled: boolean;
+  reason: string | null;
+  kind: "infrastructure" | "provider";
+};
+
 export type SkillContextRef = { skill_id: string; slug: string; version: string; installation_id?: string | null };
 export type AgentRuntimePlan = {
   intent: string;
@@ -1353,7 +1377,9 @@ export type SkillSummary = {
   installed: boolean;
   enabled: boolean;
 };
-export type AgentContext = { permission_mode?: AgentPermissionMode; research_mode?: boolean; data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
+// `skills` holds names a run may still report; the client no longer sends a
+// skill selection - capabilities are built-in plugins.
+export type AgentContext = { permission_mode?: AgentPermissionMode; research_mode?: boolean; data_sources: string[]; skills?: string[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type SecretaryMessage = { id: string; role: "user" | "assistant"; content: string; created_at: string };
@@ -1682,11 +1708,11 @@ export type AgentCapabilities = { plan: string; allowed_data_sources: string[]; 
 export type AgentModelOption = { id: string; display_name: string; description: string; provider: string; available: boolean; reason?: "plan_required" | "unavailable" | null; credit_cost?: number | null };
 
 export function getAgentCapabilities() {
-  return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; skills: SkillSummary[]; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
+  return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; skills: SkillSummary[]; plugins: AgentPluginEntry[]; plugin_counts: { total: number; enabled: number; tools: number }; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
 }
 
 export type AgentQuoteResponse = CreditQuoteResponse & { task_type: string; planned_tools: string[]; plan: AgentRuntimePlan };
-export function getAgentQuote(payload: { content: string; research_mode?: boolean; data_sources: string[]; skill_refs: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model: string }) {
+export function getAgentQuote(payload: { content: string; research_mode?: boolean; data_sources: string[]; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model: string }) {
   return requestStrict<AgentQuoteResponse>("/api/agent/quote", { method: "POST", body: JSON.stringify(payload) });
 }
 
@@ -2107,7 +2133,6 @@ export async function streamAgentMessage(
       research_mode: context?.research_mode !== false,
       data_sources: context?.data_sources || [],
       skills: (context?.skills || []).filter((item): item is string => typeof item === "string"),
-      skill_refs: context?.skill_refs || (context?.skills || []).filter((item): item is SkillContextRef => typeof item !== "string"),
       custom_prompt: context?.custom_prompt || "",
       attachments: context?.attachments || [],
       model: context?.model || "default",
