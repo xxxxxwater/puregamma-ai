@@ -299,7 +299,47 @@ latest.json: 正常更新（当日）
 
 ---
 
-## 9. 本轮交付切片（如实标注）
+## 9. 本轮交付切片与上线记录
 
-已实施并验证的切片、以及**未实施**的部分（不得当作已上线能力），在最终交付报告中逐条列出；
-未实施项保留经典实现，不做"先删后建"。
+### 9.1 已实施并在生产验证
+
+| 切片 | 证据 |
+| --- | --- |
+| Skill 机制换成 DSH 默认设计（发现/格式/目录/`/name`） | `apps/api/services/agent_skills.py` + 7 个 `apps/api/skills/*/SKILL.md`；生产容器内 `capabilities` 返回上游 `skills/list` 形状；`/market-research` 请求 → `task_type=agent_market_research`、`planned_tools=['get_market_quote','search_source_documents']` |
+| 对话入口移除自研 Skill 选择 | 请求体不再携带技能选择；旧字段接受但**忽略**（`_sanitize_context` 不读），缓存页面不会 422 |
+| 其它消费者保留 | `/api/skills`、`packages/skills/*`、六张表、backtest/reports/strategies 未改；`skill_runs` 审计继续写（`legacy_slug` 映射） |
+| NAV PM 金额根因修复 | riskbot 导出窗口 + API 新鲜度 + 前端刻度精度；生产实测曲线末点 == 主数字，跨度 8 天→当前 |
+| Cordis 插件化 cutover 收尾 | 5 个插件 + `pnpm run check` 全绿 |
+| 红边界修复 | 恢复 `packages/decisions/redaction.py`（另一条线独有），已跟踪的红action 测试重新可跑 |
+
+### 9.2 未实施（不得当作已上线能力，经典实现保留）
+
+| 未实施项 | 原因 / 阻塞点 |
+| --- | --- |
+| 模型侧 `skill` 工具（DSH 的 model-invoked 入口） | PG 的 Agent 运行时是**服务端确定性工具计划**，LLM 不选择工具（无工具调用循环）。用户侧 `/name` 入口已上线；目录文案已按实情编写，**不会**告诉模型存在该工具 |
+| 会话事件日志（`turn/start`、`tool/call`… 带 `seq`）+ 断线按 `after=seq` 无缺口续传 | 需要新表 + 迁移 + 前端续传；本轮未在预算内完成，因此**不部署半成品**。现有行为：消息在生成前落库，刷新可恢复历史；实时流的缺口续传仍为经典实现 |
+| 压缩（`compaction/*`）、会话 fork、子代理、todo 面板 | 同理，未实施亦未展示入口 |
+| DSH Web 作为对话入口 | 设计上不采用（§1.2）；`vendor/deepseek-harness` 契约基准保留在仓库内，未新增对外监听 |
+| `vendor/deepseek-harness` 从 `0.1.5-rc.2` 升到 `dsh-v0.1.7-rc.1` | **未执行**：升级会触及 `SlotScopeAdapter.resolve → bindingSource`、`code-runtime → ptc-runtime`、profile manifest 移除 `patchReload` 等契约，需与 60+ 插件逐项对齐后单独验证。本轮采用"语义对齐 + 产品内实现"，未改 pin |
+
+### 9.3 上线记录（2026-09-24）
+
+```
+源码 commit   : 5bf2887d93eac1212dc720b829ceda86b86fbe7a (branch cutover/harness-full, 已推送)
+镜像          : puregamma-ai-api:agent-20260924b / puregamma-ai-web:agent-20260924b
+部署方式      : release-pin 只改 api/web 两行 -> up -d --no-build --no-deps api web
+数据库        : alembic 0032_chat_workspace（未新增迁移）；users/trading_accounts/gateway_* = 21/1/11/8（与部署前一致）
+riskbot       : /opt/riskbot 重新构建并重启（导出查询修复）
+回滚点        : /var/backups/puregamma/pre-agent-20260924T032854Z.dump
+                /puregamma/app/{.env,docker-compose.release-pin.yml}.before-agent-20260924T032854Z
+                /opt/riskbot/app/{services/export.py,storage/repositories.py}.before-series-window-fix-20260924T030750Z
+守卫          : freqtrade / pm-loop / 3x-ui 未动；worker / scheduler / postgres / redis / caddy / pocket / nautilus 未重建
+```
+
+### 9.4 已知遗留
+
+1. `series.json` 由 37 KB 增至约 3.0 MB（真实观测更多）。私有面板仅 3 个授权邮箱、每次打开拉取一次，
+   Caddy 压缩后约数百 KB；如需更小可调粗窗口分层（不改口径）。
+2. 另一条线（`server/pm-live-20260916`）的 Jev Trader 后端/控制台与生产 `/zh/jev-trader`（advisory 口径）
+   是**同一路由上的两套实现**，未合并；该分支已推送保全，取舍留给产品决定。
+3. `origin/main` 未合并本分支：`main` 领先 4 个提交、本分支领先 2 个（合并需人工确认）。
