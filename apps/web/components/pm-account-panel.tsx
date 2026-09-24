@@ -244,8 +244,8 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   const availableUsd = num(account.total_available_balance_usd);
   const availableBtc = num(account.available_btc_equivalent);
 
-  // 市值 − 负债：the user-facing definition of what the account is worth, kept
-  // separate from the exchange's stricter accountEquity.
+  // 市值 − 负债：逐币种余额派生出的诊断口径。它与交易所官方
+  // accountEquity 分开展示，不能互换标签或替代 NAV 主数字。
   const liabilityUsd = balances.reduce((total, row) => total + (row.is_liability ? Math.abs(num(row.value_usd) ?? 0) : 0), 0);
   const assetUsd = balances.reduce((total, row) => total + (row.is_liability ? 0 : (num(row.value_usd) ?? 0)), 0);
   const netWorthUsd = assetUsd - liabilityUsd;
@@ -386,8 +386,8 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
           </div>
           <p className="px-5 pb-4 text-[10px] leading-4 text-text-pg-dim">
             {zh
-              ? "曲线与上方主数字读同一个字段：官方 actualEquity（市值 − 负债）。主数字下方标注的「市值 − 负债 实测」与「accountEquity」是另外两个口径。"
-              : "The curve and the hero above are the same field: official actualEquity (market value − liabilities). The derived figure and accountEquity shown under it are different measures."}
+              ? "曲线与上方主数字统一读取 Binance 官方 accountEquity。调整后权益与逐币种市值减负债仅作为独立诊断口径展示。"
+              : "The curve and hero use the same trusted field: Binance accountEquity. Adjusted equity and the balance-derived market-value-minus-liabilities figure are diagnostics shown separately."}
           </p>
         </>
       ) : (
