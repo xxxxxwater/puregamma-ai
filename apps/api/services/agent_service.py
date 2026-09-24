@@ -27,7 +27,7 @@ from packages.agents.llm.provider_factory import get_agent_llm_provider
 from packages.agents.llm.schemas import ChatMessage
 from packages.agents.prompts import build_prompt_bundle, prompt_references
 from packages.agents.runtime import plan_agent_request
-from packages.database.models import AgentAttachmentRecord, AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentToolCall, UsageEvent, User, utcnow
+from packages.database.models import AgentAttachmentRecord, AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentRunEvent, AgentToolCall, UsageEvent, User, utcnow
 from packages.data.evidence import EvidencePack, EvidenceRequirement
 from packages.data.online_research_provider import online_research_enabled, online_search_candidate
 from packages.skills.registry import invocation_input_summary, update_skill_runs
@@ -463,6 +463,68 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
 
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
+
+
+#: Frames that are stream noise rather than transcript. Upstream keeps the same
+#: split between durable session events and `assistant-stream` frames, so a
+#: replay never re-emits a token and this table holds one row per real step.
+EPHEMERAL_STREAM_EVENTS = frozenset({"message.delta"})
+
+#: A replay is bounded so one pathological run cannot return an unbounded body.
+RUN_EVENT_PAGE_LIMIT = 500
+
+
+def _parse_sse(frame: str) -> tuple[str, object] | None:
+    """Split one ``event:``/``data:`` frame, or None when it is not one."""
+    lines = frame.split("\n")
+    if not lines or not lines[0].startswith("event: "):
+        return None
+    name = lines[0][len("event: "):].strip()
+    line = next((item for item in lines[1:] if item.startswith("data: ")), None)
+    if not name or line is None:
+        return None
+    try:
+        return name, json.loads(line[len("data: "):])
+    except ValueError:
+        return None
+
+
+def _persist_run_event(run_id: str, seq: int, event: str, data: dict) -> None:
+    """Store one transcript row in its own session.
+
+    Best effort by design. The transcript is a recovery aid, not the answer: a
+    write failure must never break, slow or roll back the turn the user is
+    waiting for, so it gets a separate connection and swallows its own errors.
+    """
+    from packages.database.session import SessionLocal
+
+    try:
+        with SessionLocal() as session:
+            session.add(AgentRunEvent(run_id=run_id, seq=seq, type=event, data_json=data))
+            session.commit()
+    except Exception:  # pragma: no cover - deliberately never fatal
+        logger.warning("run event %s#%s (%s) could not be stored", run_id, seq, event, exc_info=True)
+
+
+def with_run_events(frames: Generator[str, None, None], run_id: str, *, persist=_persist_run_event) -> Generator[str, None, None]:
+    """Stamp every frame with a monotonic ``seq`` and record the durable ones.
+
+    Wrapping the generator (rather than editing ~30 yield sites) is what makes
+    this a single seam every path - including the fast path - goes through.
+    """
+    seq = 0
+    for frame in frames:
+        parsed = _parse_sse(frame)
+        if parsed is None:
+            yield frame
+            continue
+        event, data = parsed
+        seq += 1
+        payload = data if isinstance(data, dict) else {"value": data}
+        payload = {**payload, "seq": seq}
+        if event not in EPHEMERAL_STREAM_EVENTS:
+            persist(run_id, seq, event, payload)
+        yield _sse(event, payload)
 
 
 def _source_key(source: ToolSource) -> tuple:

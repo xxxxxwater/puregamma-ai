@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
-from apps.api.services.agent_service import AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from apps.api.services.agent_service import RUN_EVENT_PAGE_LIMIT, with_run_events, AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
 from apps.api.services.credit_service import InsufficientCreditsError, refund_task
 from apps.api.services.agent_plugins import inventory as agent_plugin_inventory
 from apps.api.services.entitlement_service import get_user_entitlement
@@ -132,7 +132,18 @@ def conversation(conversation_id: str, db: Session = Depends(get_db), user: User
         AgentRun.conversation_id == row.id, AgentRun.user_id == user.id, AgentRun.status == "running",
         AgentToolCall.status == "awaiting_approval", AgentToolCall.approval.is_(None),
         AgentToolCall.approval_expires_at > utcnow()).all()
+    # The run a reloaded page should reattach to. Without it, a client whose
+    # response body died mid-stream has no way back to the transcript of the
+    # answer the server is still producing.
+    active = (
+        db.query(AgentRun)
+        .filter(AgentRun.conversation_id == row.id, AgentRun.user_id == user.id, AgentRun.status.in_(["pending", "running"]))
+        .order_by(AgentRun.started_at.desc())
+        .first()
+    )
     return {"conversation": serialize_conversation(row), "messages": [serialize_message(db, item) for item in messages],
+            "active_run_id": active.id if active else None,
+            "active_run_message_id": active.assistant_message_id if active else None,
             "pending_approvals": [{"toolCallId": call.id, "tool": call.tool_name, "arguments": call.arguments_json, "expiresAt": call.approval_expires_at.isoformat()} for call in pending]}
 
 
@@ -219,7 +230,7 @@ def send_message(conversation_id: str, payload: MessageRequest, db: Session = De
         raise HTTPException(status_code=400, detail=str(exc)) from exc
     except InsufficientCreditsError as exc:
         raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_CREDITS"}) from exc
-    return StreamingResponse(stream_run(db, user, run.id, payload.locale), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(with_run_events(stream_run(db, user, run.id, payload.locale), run.id), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 
 @router.post("/messages/{message_id}/regenerate")
@@ -247,7 +258,40 @@ def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(g
         raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_CREDITS"}) from exc
     except SkillResolutionError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
-    return StreamingResponse(stream_run(db, user, run.id, payload.locale), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+    return StreamingResponse(with_run_events(stream_run(db, user, run.id, payload.locale), run.id), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
+
+
+@router.get("/runs/{run_id}/events")
+def run_events(run_id: str, after: int = 0, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    """Every durable event after ``after``, for a client that lost the stream.
+
+    Ownership is checked on the run itself, so a run id belonging to someone
+    else is a 404 rather than an empty page - the difference matters, because an
+    empty page would confirm the id exists.
+
+    ``status`` is what lets a caller decide: a finished run means the answer is
+    already persisted and the client should reload the conversation; a running
+    one means keep asking.
+    """
+    row = db.query(AgentRun).filter_by(id=run_id, user_id=user.id).one_or_none()
+    if not row:
+        raise HTTPException(status_code=404, detail="Run not found")
+    rows = (
+        db.query(AgentRunEvent)
+        .filter(AgentRunEvent.run_id == run_id, AgentRunEvent.seq > max(0, after))
+        .order_by(AgentRunEvent.seq.asc())
+        .limit(RUN_EVENT_PAGE_LIMIT)
+        .all()
+    )
+    return {
+        "runId": row.id,
+        "status": row.status,
+        "messageId": row.assistant_message_id,
+        "conversationId": row.conversation_id,
+        "lastSeq": rows[-1].seq if rows else max(0, after),
+        "truncated": len(rows) >= RUN_EVENT_PAGE_LIMIT,
+        "events": [{"seq": item.seq, "type": item.type, "data": item.data_json} for item in rows],
+    }
 
 
 @router.post("/runs/{run_id}/cancel")

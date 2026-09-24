@@ -1697,7 +1697,34 @@ export function deleteAllAgentConversations() {
 }
 
 export function getAgentConversation(id: string) {
-  return requestStrict<{ conversation: AgentConversation; messages: AgentMessage[]; pending_approvals?: {toolCallId: string; tool: string; arguments: Record<string, unknown>}[] }>(`/api/agent/conversations/${encodeURIComponent(id)}`);
+  return requestStrict<{
+    conversation: AgentConversation;
+    messages: AgentMessage[];
+    /** The run a reloaded page should reattach to, when one is still going. */
+    active_run_id?: string | null;
+    active_run_message_id?: string | null;
+    pending_approvals?: {toolCallId: string; tool: string; arguments: Record<string, unknown>}[];
+  }>(`/api/agent/conversations/${encodeURIComponent(id)}`);
+}
+
+/**
+ * The durable events of one run after `after` — the DeepSeek Harness resume
+ * primitive. A client that lost the response body asks for everything past the
+ * last sequence it holds instead of showing a dead-end error over an answer the
+ * server already finished.
+ */
+export type AgentRunEventPage = {
+  runId: string;
+  status: string;
+  messageId: string;
+  conversationId: string;
+  lastSeq: number;
+  truncated: boolean;
+  events: Array<{ seq: number; type: string; data: Record<string, unknown> }>;
+};
+
+export function getAgentRunEvents(runId: string, after = 0) {
+  return requestStrict<AgentRunEventPage>(`/api/agent/runs/${encodeURIComponent(runId)}/events?after=${Math.max(0, Math.floor(after))}`);
 }
 
 export function getAgentQuota() {

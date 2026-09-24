@@ -12,7 +12,7 @@ import { AgentStageIndicator, nextAgentStage, type AgentStage } from "@/componen
 import { OceanShell } from "@/components/ocean/ocean-shell";
 import { RippleEffect } from "@/components/ocean/ripple-effect";
 import { type Locale, withLocale } from "@/i18n/routing";
-import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentPluginEntry, AgentSource, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getGatewayCatalog, getMe, streamAgentMessage } from "@/lib/api";
+import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentPluginEntry, AgentSource, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getAgentRunEvents, getGatewayCatalog, getMe, streamAgentMessage } from "@/lib/api";
 import { billingNotice, describeChatFailure, type ChatFailure } from "@/lib/chat-errors";
 import { FLASH_ALIAS_ID, FLASH_MODEL_ID, flashAvailability, platformDefaultModelName } from "@/lib/model-catalog";
 import { getMessageNamespace } from "@/lib/translations";
@@ -79,6 +79,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(true);
   const [failure, setFailure] = useState<ChatFailure | null>(null);
+  // Set when a lost response body was replayed from the durable transcript.
+  const [recovered, setRecovered] = useState(false);
   const [toolStatus, setToolStatus] = useState<Array<{ id: string; tool: string; status: string }>>([]);
   const [toolResults, setToolResults] = useState<Array<{ tool: string; data: Record<string, unknown> }>>([]);
   const [stage, setStage] = useState<AgentStage | null>(null);
@@ -166,6 +168,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     historyTriggerRef.current?.focus();
   };
   const activeRunRef = useRef("");
+  // Highest durable sequence this client has applied. A reconnect asks for
+  // everything after it, so the gap is replayed instead of guessed.
+  const lastSeqRef = useRef(0);
   /** Guards against a double submit (Enter plus click, or a slow network) firing two runs. */
   const sendingRef = useRef(false);
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -287,6 +292,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     setEvidenceStatus(null);
     setStage(null);
     followRef.current = true;
+    // Declared outside the try: the recovery path in `catch` needs the
+    // conversation even when the request itself never produced a stream.
+    let conversationId = "";
     let assistantId = "";
     let assistantContent = "";
     let completed = false;
@@ -294,6 +302,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     let failureReported = false;
     try {
       const id = await ensureConversation();
+      conversationId = id;
       await setAgentPermission(id, permission, permission === "full-access");
       setInput("");
       const now = new Date().toISOString();
@@ -303,7 +312,10 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       setMessages((current) => [...current, { id: `local-${Date.now()}`, conversation_id: id, role: "user", content, status: "completed", input_tokens: 0, output_tokens: 0, created_at: now, context, sources: [] }]);
       const controller = new AbortController();
       controllerRef.current = controller;
+      lastSeqRef.current = 0;
+      setRecovered(false);
       await streamAgentMessage(id, content, locale, controller.signal, ({ event: eventName, data }) => {
+        if (typeof data.seq === "number" && data.seq > lastSeqRef.current) lastSeqRef.current = Number(data.seq);
         if (eventName === "run.started") {
           activeRunRef.current = String(data.runId || "");
           assistantId = String(data.messageId || `assistant-${Date.now()}`);
@@ -384,12 +396,17 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         // proxy cut the body without an error. The backend settles what was
         // produced in that case, so state nothing about billing and point at
         // the usage record.
-        setMessages((current) => current.map((message) => message.id === assistantId && message.status === "streaming" ? { ...message, status: "failed" } : message));
-        setFailure(describeChatFailure(locale, null, {
-          kind: "stream_interrupted",
-          refunded: settled?.credits_refunded === true,
-          settled: settled?.credits_refunded === false,
-        }));
+        const healed = await recoverInterruptedTurn(id, assistantId);
+        if (healed) {
+          setRecovered(true);
+        } else {
+          setMessages((current) => current.map((message) => message.id === assistantId && message.status === "streaming" ? { ...message, status: "failed" } : message));
+          setFailure(describeChatFailure(locale, null, {
+            kind: "stream_interrupted",
+            refunded: settled?.credits_refunded === true,
+            settled: settled?.credits_refunded === false,
+          }));
+        }
       }
       await loadConversations();
       const refreshedQuota = await getAgentQuota();
@@ -399,13 +416,26 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       if ((reason as Error).name === "AbortError") {
         // The user stopped the run; that is a normal outcome, not an error.
       } else if (assistantId && !completed) {
-        // The response body died mid-stream. The backend *settles* the tokens
-        // already produced on a client disconnect, so this states no billing
-        // outcome and points at the usage record instead.
-        setMessages((current) => current.map((message) => message.id === assistantId && message.status === "streaming" ? { ...message, status: "failed" } : message));
-        setFailure(describeChatFailure(locale, reason, { kind: "stream_interrupted" }));
+        // The response body died mid-stream. The run is still going server-side,
+        // so try to replay the gap from the durable transcript before reporting
+        // anything: the answer the user asked for may be arriving right now.
+        const healed = await recoverInterruptedTurn(conversationId, assistantId);
+        if (healed) {
+          setRecovered(true);
+        } else {
+          setMessages((current) => current.map((message) => message.id === assistantId && message.status === "streaming" ? { ...message, status: "failed" } : message));
+          setFailure(describeChatFailure(locale, reason, { kind: "stream_interrupted" }));
+        }
       } else {
-        setFailure(describeChatFailure(locale, reason));
+        // The request itself never produced a stream - a proxy or a restart in
+        // front of the API, which is exactly how "network interrupted" happens.
+        // The run may still exist, so ask the conversation before giving up.
+        const healed = conversationId ? await recoverInterruptedTurn(conversationId, assistantId) : false;
+        if (healed) {
+          setRecovered(true);
+        } else {
+          setFailure(describeChatFailure(locale, reason));
+        }
       }
     } finally {
       setApproval(null);
@@ -415,6 +445,51 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       controllerRef.current = null;
       sendingRef.current = false;
     }
+  };
+
+  /**
+   * Recover a turn whose response body died.
+   *
+   * The run keeps going on the server, so the honest state is "reconnecting",
+   * not "failed": ask the conversation which run is still active, then poll the
+   * durable events past this client's own cursor until the run leaves
+   * pending/running, and reload the persisted messages. A bounded wait keeps a
+   * genuinely dead run from looking like a hang.
+   */
+  const recoverInterruptedTurn = async (conversationId: string, assistantMessageId: string) => {
+    const deadline = Date.now() + 45_000;
+    while (Date.now() < deadline) {
+      let activeRunId: string | null = null;
+      try {
+        const snapshot = await getAgentConversation(conversationId);
+        activeRunId = snapshot.active_run_id || null;
+        if (!activeRunId) {
+          // Finished while we were away: the answer is persisted already.
+          setMessages(snapshot.messages);
+          setFailure(null);
+          return true;
+        }
+      } catch {
+        // Still offline; keep waiting rather than declaring a failure.
+        await new Promise((resolve) => window.setTimeout(resolve, 2_500));
+        continue;
+      }
+      try {
+        const page = await getAgentRunEvents(activeRunId, lastSeqRef.current);
+        if (page.lastSeq > lastSeqRef.current) lastSeqRef.current = page.lastSeq;
+        if (page.status !== "pending" && page.status !== "running") {
+          const snapshot = await getAgentConversation(conversationId);
+          setMessages(snapshot.messages);
+          setFailure(null);
+          return true;
+        }
+      } catch {
+        // A failed poll is not a failed run.
+      }
+      await new Promise((resolve) => window.setTimeout(resolve, 2_500));
+    }
+    void assistantMessageId;
+    return false;
   };
 
   const stop = async () => {
@@ -573,6 +648,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             <details className="mt-2 text-xs"><summary>{zh ? "查看参数" : "View arguments"}</summary><pre className="max-h-40 overflow-auto whitespace-pre-wrap">{JSON.stringify(approval.arguments, null, 2)}</pre></details>
             <div className="mt-3 flex gap-2">{(["denied", "approved"] as const).map(decision => <button key={decision} type="button" disabled={approving} className="min-h-10 rounded-md border border-[var(--pg-border-default)] px-4 text-sm" onClick={async () => { setApproving(true); try { await approveAgentTool(approval.toolCallId, decision); setApproval(null); } catch { setFailure({kind: "generic", message: zh ? "确认已过期或无法提交，请刷新会话。" : "Approval expired or could not be submitted. Refresh the conversation."}); } finally { setApproving(false); } }}>{decision === "approved" ? (zh ? "允许此次操作" : "Allow once") : (zh ? "拒绝" : "Deny")}</button>)}</div>
           </div> : null}
+          {recovered ? (
+            <div className="mx-auto mb-2 max-w-3xl border border-status-positive px-3 py-2 text-xs text-status-positive rounded-lg" data-testid="chat-recovered">
+              {zh ? "连接曾中断，已从服务端事件日志恢复这一轮。" : "The connection dropped; this turn was restored from the server's event log."}
+            </div>
+          ) : null}
           <ChatWorkspaceComposer locale={locale} input={input} onInput={setInput} busy={busy} onSend={() => void send()} onStop={() => void stop()} attachments={attachments} onAttachments={setAttachments} permission={permission} onUploading={setUploading}
             onPermission={async (mode, acknowledged) => { if (conversationId) await setAgentPermission(conversationId, mode, acknowledged); setPermission(mode); }}
             researchMode={researchMode} onResearch={setResearchMode} onTextarea={node => { composerRef.current = node; }}

@@ -1111,6 +1111,33 @@ class AgentRun(Base):
     queue_priority = Column(Integer, nullable=False, default=0)
 
 
+class AgentRunEvent(Base):
+    """Append-only, sequence-numbered events for one Agent run.
+
+    The DeepSeek Harness session model, in PureGamma's own storage: a run's
+    transcript is a durable event stream rather than only a final message, so a
+    client that loses the connection can ask for everything after the last
+    sequence it holds and reconstruct the turn instead of showing "network
+    interrupted" over an answer the server did finish.
+
+    ``(run_id, seq)`` is unique: a sequence number is never reused, and a replay
+    is idempotent because the reader filters ``seq >`` its own cursor. Ephemeral
+    frames (``message.delta``) are deliberately NOT stored - upstream keeps the
+    same split between durable events and assistant-stream frames - so this table
+    holds one row per meaningful step, not one per token.
+    """
+
+    __tablename__ = "agent_run_events"
+    __table_args__ = (UniqueConstraint("run_id", "seq", name="uq_agent_run_event_seq"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    run_id = Column(String, ForeignKey("agent_runs.id", ondelete="CASCADE"), nullable=False, index=True)
+    seq = Column(Integer, nullable=False)
+    type = Column(String, nullable=False, index=True)
+    data_json = Column(JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
 class AgentToolCall(Base):
     approval = Column(String, nullable=True)
     approval_expires_at = Column(DateTime(timezone=True), nullable=True)
