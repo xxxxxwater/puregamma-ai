@@ -5,6 +5,7 @@ on:
     branches:
       - refactor/harness-core-v2
       - main
+      - 'upgrade/**'
     paths:
       - 'harness/**'
       - 'vendor/deepseek-harness'
