@@ -42,6 +42,16 @@ jobs:
           test "$(git -C vendor/deepseek-harness rev-parse HEAD)" = "46a7f68b0922371ce7144b668b90e377d8e799f4"
           test "$(git -C vendor/pg-tsy-core-bootstrap rev-parse HEAD)" = "f5a6382438d8a85e282da5d58d22af9fe5887ca3"
 
+      - name: Verify PureGamma web-agent safety profile
+        run: |
+          set -euo pipefail
+          ! grep -q "@puregamma/dsh-skills-legacy-api" harness/profile/package.json
+          ! grep -q "@puregamma/dsh-tool-skills" harness/profile/package.json
+          grep -q "includeDefaultRoots: false" harness/profile/cordis.patch.yml
+          grep -q "@deepseek-ai/dsh-tool-skill" harness/profile/cordis.patch.yml
+          test -z "$(grep -E "name: '@deepseek-ai/dsh-tool-(bash|pwsh|fs|fs-search|jobs|subagent)'" harness/profile/cordis.patch.yml || true)"
+          test -z "$(grep -E "name: '@deepseek-ai/dsh-plugin-manager" harness/profile/cordis.patch.yml || true)"
+
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
