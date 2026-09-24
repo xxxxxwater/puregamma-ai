@@ -1,7 +1,6 @@
 [submodule "vendor/deepseek-harness"]
 	path = vendor/deepseek-harness
-	url = https://github.com/xxxxxwater/deepseek-harness.git
-	branch = master
+	url = https://github.com/deepseek-ai/deepseek-harness.git
 
 [submodule "vendor/pg-tsy-core-bootstrap"]
 	path = vendor/pg-tsy-core-bootstrap
