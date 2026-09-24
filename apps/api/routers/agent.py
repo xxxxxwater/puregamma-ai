@@ -14,8 +14,8 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_current_user, get_db
 from apps.api.services.agent_service import AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
 from apps.api.services.credit_service import InsufficientCreditsError, refund_task
+from apps.api.services.agent_skills import agent_skill_catalog
 from apps.api.services.entitlement_service import get_user_entitlement
-from apps.api.services.skill_service import skill_registry
 from packages.billing.metering import CreditReservation
 from packages.database.models import AgentConversation, AgentMessage, AgentRun, AgentToolCall, User, utcnow
 from packages.skills.registry import SkillResolutionError, update_skill_runs
@@ -40,8 +40,11 @@ class MessageRequest(BaseModel):
     locale: str = "en"
     research_mode: bool = True
     data_sources: list[str] = Field(default_factory=list)
-    skills: list[str] = Field(default_factory=list)
-    skill_refs: list[dict] = Field(default_factory=list, max_length=8)
+    # Skills are no longer selected by the client: they follow the DeepSeek
+    # Harness default design and are discovered from SKILL.md bundles.  An older
+    # client that still sends these fields is ignored, never honoured.
+    skills: list[str] = Field(default_factory=list, max_length=0)
+    skill_refs: list[dict] = Field(default_factory=list, max_length=0)
     custom_prompt: str = ""
     attachments: list[dict] = Field(default_factory=list)
     model: str | None = None
@@ -68,7 +71,14 @@ def get_quota(db: Session = Depends(get_db), user: User = Depends(get_current_us
 @router.get("/capabilities")
 def capabilities(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     entitlement = get_user_entitlement(db, user.id)
-    return {"capabilities": entitlement, "quota": quota_state(db, user), "models": agent_model_options(db, user), "skills": skill_registry(db, user).list_visible()}
+    return {
+        "capabilities": entitlement,
+        "quota": quota_state(db, user),
+        "models": agent_model_options(db, user),
+        # The skill catalog, in the shape the DeepSeek Harness client asks for
+        # (`skills/list`): name, description and the two invocation flags.
+        "skills": agent_skill_catalog(),
+    }
 
 
 @router.post("/quote")

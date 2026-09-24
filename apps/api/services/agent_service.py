@@ -20,14 +20,14 @@ from apps.api.services.credit_service import (
     settle_task,
 )
 from packages.billing.metering import CreditReservation, CreditSettlement
+from apps.api.services import agent_skills
 from apps.api.services.entitlement_service import get_user_entitlement
-from apps.api.services.skill_service import skill_registry
 from packages.agents.chat.tools import AgentToolRegistry, ToolSource
 from packages.agents.llm.provider_factory import get_agent_llm_provider
 from packages.agents.llm.schemas import ChatMessage
 from packages.agents.prompts import build_prompt_bundle, prompt_references
 from packages.agents.runtime import plan_agent_request
-from packages.database.models import AgentAttachmentRecord, AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentToolCall, UsageEvent, User, utcnow
+from packages.database.models import AgentAttachmentRecord, AgentConversation, AgentMessage, AgentMessageSource, AgentRun, AgentToolCall, Skill, SkillRun, SkillVersion, UsageEvent, User, utcnow
 from packages.data.evidence import EvidencePack, EvidenceRequirement
 from packages.data.online_research_provider import online_research_enabled, online_search_candidate
 from packages.skills.registry import invocation_input_summary, update_skill_runs
@@ -107,13 +107,13 @@ def _sanitize_context(context: dict | None) -> dict:
     attachments = context.get("attachments", [])
     if not isinstance(attachments, list):
         raise ValueError("ATTACHMENT_INVALID")
-    legacy_skills = [value for value in context.get("skills", []) if isinstance(value, str) and value in LEGACY_SKILLS]
-    skill_refs = [value for value in context.get("skill_refs", []) if isinstance(value, dict)][:8]
-    skill_refs.extend(value for value in context.get("skills", []) if isinstance(value, dict))
+    # Skills are no longer selected in the request.  They follow the DeepSeek
+    # Harness default design: discovered from SKILL.md bundles and loaded either
+    # by the session catalog or by a `/name` gesture in the user's own message.
+    # `skills`/`skill_refs` from an older client are ignored rather than
+    # honoured, so a stale bundle cannot widen what a run may do.
     return {
         "data_sources": [value for value in context.get("data_sources", []) if value in ALLOWED_DATA_SOURCES],
-        "skills": legacy_skills,
-        "skill_refs": skill_refs[:8],
         "custom_prompt": str(context.get("custom_prompt", ""))[:2_000],
         "attachments": attachments,
         "permission_mode": permission_mode(context.get("permission_mode")),
@@ -123,20 +123,87 @@ def _sanitize_context(context: dict | None) -> dict:
 
 
 def _skill_slugs(context: dict) -> set[str]:
-    return {
+    """The registry slugs a run is metered and planned as.
+
+    The chat path now carries DeepSeek Harness skill names (kebab-case), while
+    metering keys, the tool planner's allowlists and every historical row speak
+    the original registry slug.  The migrated PureGamma skills keep that slug in
+    their frontmatter metadata, so both vocabularies stay reconcilable.
+    """
+    values = {
         str(item.get("slug")) if isinstance(item, dict) else str(item)
         for item in context.get("skills", [])
         if item
     }
+    agent_skills = context.get("agent_skills") or {}
+    values.update(str(value) for value in agent_skills.get("legacy_slugs", []) if value)
+    return {value for value in values if value}
 
 
-def _requested_skill_slugs(context: dict) -> list[str]:
-    values: list[str] = []
-    for item in [*context.get("skills", []), *context.get("skill_refs", [])]:
-        slug = str(item.get("slug") or "").strip() if isinstance(item, dict) else str(item).strip()
-        if slug and slug not in values:
-            values.append(slug)
-    return values
+def _record_skill_audit(
+    db: Session,
+    user: User,
+    context: dict,
+    *,
+    agent_run_id: str,
+    trace_id: str,
+    content: str,
+    credits_reserved: int,
+) -> None:
+    """Keep the ``skill_runs`` audit trail the chat path has always produced.
+
+    The Agent now loads SKILL.md bundles instead of resolving registry objects,
+    so the registry is out of the path.  A migrated PureGamma skill carries its
+    original ``legacy_slug`` in frontmatter metadata, which lets an audit row
+    point at exactly the ``skills`` row a historical run would have used, with no
+    policy re-check and no new gate.  Deliberately best-effort: an audit failure
+    must never fail or block a run.
+    """
+    slugs = [
+        str(value)
+        for value in (context.get("agent_skills") or {}).get("legacy_slugs", [])
+        if value
+    ]
+    if not slugs:
+        return
+    try:
+        summary = invocation_input_summary(content, context.get("data_sources", []))
+        for slug in slugs:
+            skill = (
+                db.query(Skill)
+                .filter(Skill.slug == slug, Skill.scope == "official")
+                .one_or_none()
+            )
+            if skill is None:
+                continue
+            version = (
+                db.query(SkillVersion)
+                .filter(
+                    SkillVersion.skill_id == skill.id,
+                    SkillVersion.version == skill.current_version,
+                )
+                .one_or_none()
+            )
+            if version is None:
+                continue
+            db.add(
+                SkillRun(
+                    skill_id=skill.id,
+                    skill_version_id=version.id,
+                    user_id=user.id,
+                    agent_run_id=agent_run_id,
+                    trigger_source="agent_chat",
+                    status="reserved",
+                    input_summary_json=summary,
+                    evidence_json={"mechanism": "dsh-skill"},
+                    usage_json={},
+                    credits_reserved=credits_reserved,
+                    trace_id=trace_id,
+                    idempotency_key=f"agent-chat:{agent_run_id}:{skill.id}",
+                )
+            )
+    except Exception:  # pragma: no cover - audit must never block a run
+        logger.warning("skill audit write failed for run %s", agent_run_id, exc_info=True)
 
 
 def _online_research_plan(content: str) -> dict:
@@ -169,29 +236,29 @@ def _prepare_agent_context(
     content: str,
     context: dict | None,
     *,
-    enforce_skill_rate_limit: bool,
-) -> tuple[dict, list, str, str, list[str]]:
+    enforce_skill_rate_limit: bool = False,
+) -> tuple[dict, tuple, str, str, list[str]]:
+    # `enforce_skill_rate_limit` is retained for callers, but the legacy skill
+    # rate limiter is no longer part of the chat path: a Harness-style skill is
+    # text, and the run's own quota/billing still applies.
+    del enforce_skill_rate_limit
     clean_context = _sanitize_context(context)
     clean_context["attachments"] = resolve_attachments(db, user.id, clean_context["attachments"])
     research_mode = bool(clean_context.get("research_mode", True))
-    explicit_skill_slugs = _requested_skill_slugs(clean_context) if research_mode else []
     if research_mode:
+        # No skill is requested by the client any more, so the planner decides
+        # the goal and the data sources on its own.
         runtime_plan = plan_agent_request(
             content,
-            requested_skill_slugs=explicit_skill_slugs,
+            requested_skill_slugs=[],
             requested_data_sources=clean_context.get("data_sources", []),
         )
         auto_execute_plan = not runtime_plan.clarification_recommended
-        if not explicit_skill_slugs and auto_execute_plan:
-            clean_context["skills"] = list(runtime_plan.skill_slugs)
         if not clean_context.get("data_sources") and auto_execute_plan:
             clean_context["data_sources"] = list(runtime_plan.data_sources)
     else:
-        # 联网模式: bypass internal skills and the data pipeline, answer from
-        # public web search directly.
+        # 联网模式: bypass the data pipeline and answer from public web search.
         runtime_plan = _online_research_plan(content)
-        clean_context["skills"] = []
-        clean_context["skill_refs"] = []
         clean_context["data_sources"] = []
     # Jev intent routing: an opinion, not an override. The deterministic
     # planner above stays authoritative; this records what the evaluation
@@ -210,32 +277,24 @@ def _prepare_agent_context(
                 'model': jev_decision.model,
             }
     clean_context = _entitled_context(db, user, clean_context)
-    registry = skill_registry(db, user)
-    resolved_skills = (
-        registry.resolve_many(
-            clean_context.get("skill_refs", []),
-            legacy_slugs=clean_context.get("skills", []),
-            trigger_source="agent_chat",
-            enforce_rate_limit=enforce_skill_rate_limit,
-        )
-        if research_mode
-        else []
-    )
-    if research_mode:
-        registry.validate_chat_contract(resolved_skills, content)
-    if resolved_skills:
-        allowed_by_skills = set().union(*(set(item.manifest.data_sources) for item in resolved_skills))
-        denied_by_skill = [source for source in clean_context.get("data_sources", []) if source not in allowed_by_skills]
-        clean_context["data_sources"] = [source for source in clean_context.get("data_sources", []) if source in allowed_by_skills]
-        clean_context["denied_data_sources"] = [
-            *(clean_context.get("denied_data_sources", [])),
-            *({"provider": source, "reason": "skill_not_allowed"} for source in denied_by_skill),
-        ]
-    clean_context["skills"] = [item.context_ref() for item in resolved_skills]
+    # Agent skills use the DeepSeek Harness default design (dsh-v0.1.7-rc.1):
+    # SKILL.md bundles discovered from disk, a session catalog, and `/name`
+    # invocation from the user's own message.  The legacy SkillRegistry no longer
+    # gates or narrows the chat path - it still serves backtests, reports and
+    # strategies.  Loading a skill grants nothing: entitlement, quota, billing
+    # and the data-source allowlist below are unchanged.
+    entries = agent_skills.catalog() if research_mode else ()
+    loaded_skills = agent_skills.load_user_skills(entries, content) if research_mode else ()
+    clean_context["skills"] = [entry.name for entry in loaded_skills]
+    clean_context["agent_skills"] = {
+        "catalog": [entry.as_catalog_entry() for entry in agent_skills.model_catalog(entries)],
+        "loaded": [entry.name for entry in loaded_skills],
+        "legacy_slugs": [value for value in (entry.legacy_slug for entry in loaded_skills) if value],
+    }
     clean_context.pop("skill_refs", None)
     clean_context["runtime"] = {
         **(runtime_plan.as_dict() if research_mode else runtime_plan),
-        "auto_selected_skills": not bool(explicit_skill_slugs) and bool(resolved_skills),
+        "auto_selected_skills": False,
         "prompt_refs": prompt_references(),
     }
     selection, model = _resolve_agent_model(db, user, clean_context.get("model"))
@@ -243,22 +302,25 @@ def _prepare_agent_context(
     if any(item.get("kind") == "image" for item in clean_context["attachments"]) and model != get_settings().deepseek_effective_model:
         raise ValueError("ATTACHMENT_IMAGE_MODEL_UNSUPPORTED")
     tool_registry = AgentToolRegistry(db, user.id)
-    skill_tools = registry.allowed_tools(resolved_skills) if resolved_skills else set()
+    # The planner keys its allowlists on registry slugs; it only narrows when
+    # every loaded skill maps to one, so a new skill cannot silently empty the
+    # plan.  An empty list means "checked by entitlement, not by skill".
+    planner_slugs = [entry.legacy_slug for entry in loaded_skills]
+    planner_skills = sorted(value for value in planner_slugs if value) if all(planner_slugs) else []
     if research_mode:
         clarification_recommended = runtime_plan.clarification_recommended
         tool_plan = [] if clarification_recommended else tool_registry.plan(
             content,
-            skills=sorted(_skill_slugs(clean_context)),
+            skills=planner_skills,
             data_sources=clean_context.get("data_sources", []),
-            skill_tool_allowlist=skill_tools if resolved_skills else None,
         )
         tool_names = [name for name, _ in tool_plan]
         if not clarification_recommended and _online_fallback_allowed(
             content,
             clean_context["runtime"],
             allowed_data_sources=tool_registry.allowed_data_sources,
-            skill_tools=skill_tools,
-            has_selected_skills=bool(resolved_skills),
+            skill_tools=set(),
+            has_selected_skills=bool(planner_skills),
         ) and "search_online_sources" not in tool_names:
             # Reserve for the possible fallback. Settlement refunds the difference
             # when synchronized pipeline evidence was already sufficient.
@@ -266,19 +328,18 @@ def _prepare_agent_context(
     else:
         # 联网模式: web search is the only tool.
         tool_names = ["search_online_sources"]
-    return clean_context, resolved_skills, selection, model, tool_names
+    return clean_context, loaded_skills, selection, model, tool_names
 
 
 def quote_agent_run(db: Session, user: User, content: str, context: dict | None = None) -> dict:
     content = content.strip()
     if len(content) > 12_000:
         raise ValueError("Message must contain at most 12000 characters")
-    clean_context, resolved_skills, selection, model, tool_names = _prepare_agent_context(
+    clean_context, loaded_skills, selection, model, tool_names = _prepare_agent_context(
         db,
         user,
         content or "Research request",
         context,
-        enforce_skill_rate_limit=False,
     )
     quote = quote_task(
         task_type=_metering_action(clean_context),
@@ -289,7 +350,6 @@ def quote_agent_run(db: Session, user: User, content: str, context: dict | None 
         selected_data_sources=clean_context.get("data_sources", []),
         tool_calls=tool_names,
     )
-    skill_registry(db, user).assert_cost(resolved_skills, quote.credits)
     return {
         "estimated_min": quote.credits,
         "estimated_max": quote.credits,
@@ -401,21 +461,18 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
         db.execute(text("SELECT pg_advisory_xact_lock(73002001)"))
     user = db.query(User).filter(User.id == user.id).with_for_update().one()
     assert_quota(db, user)
-    clean_context, resolved_skills, selection, model, tool_names = _prepare_agent_context(
+    clean_context, loaded_skills, selection, model, tool_names = _prepare_agent_context(
         db,
         user,
         content,
         context,
-        enforce_skill_rate_limit=True,
     )
-    registry = skill_registry(db, user)
     action = _metering_action(clean_context)
     quote = quote_task(task_type=action, requested_model=selection, resolved_model=model,
                        input_tokens=max(1, len(content) // 4), selected_data_sources=clean_context.get("data_sources", []),
                        attachment_bytes=sum(len(item.get("content", "").encode()) for item in clean_context.get("attachments", [])),
                        tool_calls=tool_names)
     credit_cost = quote.credits
-    registry.assert_cost(resolved_skills, credit_cost)
     run_id = str(uuid.uuid4())
     reserve_task(
         db,
@@ -431,12 +488,13 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
     entitlement = get_user_entitlement(db, user.id)
     run = AgentRun(id=run_id, conversation_id=conversation.id, user_message_id=user_message.id, assistant_message_id=assistant.id, user_id=user.id, model=model, status="pending", trace_id=str(uuid.uuid4()), credit_cost=credit_cost, queue_priority=entitlement["queue_priority"])
     db.add(run)
-    registry.record_runs(
-        resolved_skills,
+    _record_skill_audit(
+        db,
+        user,
+        clean_context,
         agent_run_id=run.id,
         trace_id=run.trace_id,
-        trigger_source="agent_chat",
-        input_summary=invocation_input_summary(content, clean_context.get("data_sources", [])),
+        content=content,
         credits_reserved=credit_cost,
     )
     if conversation.title == "New research":
@@ -490,16 +548,12 @@ def _settle_agent_run(
         tool_calls=actual_tools,
         selected_data_sources=run_context.get("data_sources", []),
     )
-    selected_skills = skill_registry(db, user).resolve_many(
-        run_context.get("skills", []),
-        trigger_source="agent_chat",
-        enforce_rate_limit=False,
-    )
-    skill_cap = min(
-        (item.manifest.runtime.max_credits_per_run for item in selected_skills),
-        default=actual_quote.credits,
-    )
-    settled_credits = min(actual_quote.credits, skill_cap)
+    # A Harness-style skill carries no runtime credit cap of its own (it is
+    # text), so settlement is bounded by the run's own quote.  The historical
+    # `skill_cost_cap` fields stay in the metadata shape, reporting "no cap",
+    # so older readers keep working.
+    skill_cap = actual_quote.credits
+    settled_credits = actual_quote.credits
     settlement = settle_task(
         db,
         user.id,
@@ -758,14 +812,12 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                     runtime_plan=runtime_plan,
                 )
                 return
-        selected_skills = skill_registry(db, user).resolve_many(
-            run_context.get("skills", []),
-            trigger_source="agent_chat",
-            enforce_rate_limit=False,
+        entries = agent_skills.catalog()
+        loaded_skill_entries = agent_skills.resolve_loaded(run_context, entries)
+        skill_prompt = agent_skills.skill_prompt(agent_skills.model_catalog(entries), loaded_skill_entries)
+        skill_timeout_seconds = (
+            get_settings().agent_skill_timeout_seconds if loaded_skill_entries else 90
         )
-        skill_tools = skill_registry(db, user).allowed_tools(selected_skills)
-        skill_prompt = skill_registry(db, user).prompt_instructions(selected_skills)
-        skill_timeout_seconds = min((item.manifest.runtime.timeout_seconds for item in selected_skills), default=90)
         skill_deadline = started + skill_timeout_seconds
         evidence_pack = EvidencePack([
             EvidenceRequirement(str(kind))
@@ -778,7 +830,6 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 user_message.content,
                 skills=sorted(_skill_slugs(run_context)),
                 data_sources=run_context.get("data_sources", []),
-                skill_tool_allowlist=skill_tools if selected_skills else None,
             )
         else:
             # 联网模式: direct web search only.
@@ -874,8 +925,8 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 user_message.content,
                 runtime_plan,
                 allowed_data_sources=registry.allowed_data_sources,
-                skill_tools=skill_tools,
-                has_selected_skills=bool(selected_skills),
+                skill_tools=set(),
+                has_selected_skills=bool(loaded_skill_entries),
             )
         ):
             if time.perf_counter() > skill_deadline:

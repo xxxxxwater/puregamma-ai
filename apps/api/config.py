@@ -233,6 +233,13 @@ class Settings:
     pm_riskbot_export_dir: str = os.getenv("PM_RISKBOT_EXPORT_DIR", "/var/lib/puregamma/riskbot")
     pm_account_allowed_emails: str = os.getenv("PM_ACCOUNT_ALLOWED_EMAILS", "")
     pm_account_label: str = os.getenv("PM_ACCOUNT_LABEL", "Binance Portfolio Margin")
+    # Agent skills follow the DeepSeek Harness default design: SKILL.md bundles
+    # discovered from a directory (apps/api/services/agent_skills.py). Empty
+    # means the packaged apps/api/skills directory.
+    agent_skills_dir: str = os.getenv("AGENT_SKILLS_DIR", "")
+    # A skill carries no runtime limits of its own any more; this is the budget
+    # for one Agent turn that loaded at least one skill.
+    agent_skill_timeout_seconds: int = int(os.getenv("AGENT_SKILL_TIMEOUT_SECONDS", "90") or 90)
     # Production can enable a verified subset first. Unlisted plugins stay
     # unavailable until their credential and region-specific pricing catalog
     # have both been reviewed.

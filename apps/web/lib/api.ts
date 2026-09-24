@@ -1324,6 +1324,19 @@ export type AgentSource = { id?: string; provider: string; title: string; url?: 
 export type AgentPermissionMode = "read-only" | "workspace-write" | "full-access";
 export type AgentAttachment = { id?: string; name: string; content: string; mime: string; size?: number; kind?: string; url?: string; sha256?: string; removed?: boolean };
 export type SkillContextRef = { skill_id: string; slug: string; version: string; installation_id?: string | null };
+
+/**
+ * One entry of the Agent skill catalog, in the DeepSeek Harness shape
+ * (`skills/list`). Skills are no longer selected by the client: the catalog is
+ * offered as `/` suggestions and the server resolves what the user typed.
+ */
+export type AgentSkillEntry = {
+  name: string;
+  description: string;
+  whenToUse: string | null;
+  modelInvocable: boolean;
+  userInvocable: boolean;
+};
 export type AgentRuntimePlan = {
   intent: string;
   goal?: string;
@@ -1360,7 +1373,10 @@ export type SkillSummary = {
   installed: boolean;
   enabled: boolean;
 };
-export type AgentContext = { permission_mode?: AgentPermissionMode; research_mode?: boolean; data_sources: string[]; skills: Array<string | SkillContextRef>; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
+// `skills` holds the names of skills this run loaded (a `/name` gesture in the
+// user's own message); the client never sends a skill selection, and `skill_refs`
+// is gone with the self-built registry.
+export type AgentContext = { permission_mode?: AgentPermissionMode; research_mode?: boolean; data_sources: string[]; skills?: string[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type SecretaryMessage = { id: string; role: "user" | "assistant"; content: string; created_at: string };
@@ -1689,11 +1705,11 @@ export type AgentCapabilities = { plan: string; allowed_data_sources: string[]; 
 export type AgentModelOption = { id: string; display_name: string; description: string; provider: string; available: boolean; reason?: "plan_required" | "unavailable" | null; credit_cost?: number | null };
 
 export function getAgentCapabilities() {
-  return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; skills: SkillSummary[]; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
+  return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; skills: AgentSkillEntry[]; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
 }
 
 export type AgentQuoteResponse = CreditQuoteResponse & { task_type: string; planned_tools: string[]; plan: AgentRuntimePlan };
-export function getAgentQuote(payload: { content: string; research_mode?: boolean; data_sources: string[]; skill_refs: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model: string }) {
+export function getAgentQuote(payload: { content: string; research_mode?: boolean; data_sources: string[]; skill_refs?: SkillContextRef[]; custom_prompt: string; attachments: AgentAttachment[]; model: string }) {
   return requestStrict<AgentQuoteResponse>("/api/agent/quote", { method: "POST", body: JSON.stringify(payload) });
 }
 
@@ -2114,7 +2130,6 @@ export async function streamAgentMessage(
       research_mode: context?.research_mode !== false,
       data_sources: context?.data_sources || [],
       skills: (context?.skills || []).filter((item): item is string => typeof item === "string"),
-      skill_refs: context?.skill_refs || (context?.skills || []).filter((item): item is SkillContextRef => typeof item !== "string"),
       custom_prompt: context?.custom_prompt || "",
       attachments: context?.attachments || [],
       model: context?.model || "default",
