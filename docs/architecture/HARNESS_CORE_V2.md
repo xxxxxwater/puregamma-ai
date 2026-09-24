@@ -1,6 +1,10 @@
 # PureGamma Harness — Everything Is a Plugin
 
-Status: **active refactor branch** (`refactor/harness-core-v2`)
+Status: **the trunk, work in progress.** `refactor/harness-core-v2` is the
+repository default branch and is currently identical to `main` (`5d0cdea`). The
+migration below is not finished — legacy FastAPI routers still serve traffic and
+`harness/` is the migration target, not yet the only path. Verified against
+`5d0cdea`.
 
 ## Architectural decision
 
@@ -108,6 +112,37 @@ Plaid, IBKR, Hyperliquid, Binance, EVM/Moralis, Deribit, Polygon, ChainCatcher,
 RSS, X, Bloomberg, CoinGecko, Coinglass, Glassnode, DefiLlama, Stripe, Telegram,
 Slack, APNs, iMessage/Photon, Nautilus, and pg-tsy.
 
+## Plugin tree shape as built
+
+The families above are the target taxonomy. The tree on disk
+(`harness/plugins/`, 58 packages at `5d0cdea`) is organized in four layers, which
+is worth knowing before reading the directory:
+
+| Layer | Count | Naming | Role |
+| --- | ---: | --- | --- |
+| Service / feature | 23 | `<domain>` | Cordis service definitions and their implementations |
+| Legacy compatibility | 15 | `<domain>-legacy-api` | one-way bridges to the FastAPI routers being retired |
+| Model-facing tools | 16 | `tool-<domain>` | permission- and entitlement-gated tools the Agent may call |
+| Client / UI | 4 | `ui-<domain>` | UI contributions mounted by plugins, not by the shell |
+
+The 23 service/feature plugins are: `admin`, `api-gateway`, `auth`, `backtest`,
+`billing`, `brand`, `client-remotes`, `data-sources`, `market-data`, `memory`,
+`notifications`, `options`, `pg-tsy-runtime`, `pg-tsy-runtime-http`, `portfolio`,
+`research`, `research-runner`, `rsi-orchestrator`, `secretary`, `skills`,
+`trading`, `trading-mandates`, `trading-observation`.
+
+Two of those are not yet represented as families in the table above:
+
+- **`rsi-orchestrator`** — RSI memory orchestration, see
+  [rsi-memory-orchestration.md](../../harness/docs/rsi-memory-orchestration.md).
+- **`trading-observation`** — the read-only trading observation contract,
+  deliberately isolated from execution so an observation path can never reach
+  order submission. See
+  [JEV_INTEGRATION.md](../../harness/docs/JEV_INTEGRATION.md).
+
+`brand` and `client-remotes` are shell-level plugins rather than capability
+families.
+
 ## Runtime composition
 
 ```text
@@ -138,11 +173,12 @@ and transitions out when its required service disappears.
 
 ## pg-tsy-core-bootstrap as a first-class plugin runtime
 
-`xxxxxwater/pg-tsy-core-bootstrap` is pinned in this branch as:
+`xxxxxwater/pg-tsy-core-bootstrap` is pinned as a git submodule (see
+`.gitmodules`) at:
 
 ```text
 vendor/pg-tsy-core-bootstrap
-commit d7e719b0b2815a1069df9cb4e25c49946dead699
+commit f5a6382438d8a85e282da5d58d22af9fe5887ca3
 ```
 
 It remains an independent Rust runtime. PureGamma Harness does **not** copy its
