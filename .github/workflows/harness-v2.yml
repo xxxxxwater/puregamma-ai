@@ -71,6 +71,15 @@ jobs:
           assert "const netUsd = num(point.adjusted_equity_usd);" not in source
           PY
 
+      - name: Verify packaged DSH Skill catalog
+        run: |
+          set -euo pipefail
+          grep -q '"skills"' harness/profile/package.json
+          for skill in market-research news-research portfolio-review options-analysis source-check deep-research; do
+            test -s "harness/profile/skills/$skill/SKILL.md"
+            grep -q "^name: $skill$" "harness/profile/skills/$skill/SKILL.md"
+          done
+
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
