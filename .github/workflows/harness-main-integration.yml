@@ -1,0 +1,78 @@
+name: PureGamma Harness main integration
+
+on:
+  push:
+    branches:
+      - integration/harness-full-20260921
+    paths:
+      - '.github/workflows/harness-main-integration.yml'
+      - '.github/workflows/harness-v2.yml'
+      - 'harness/**'
+      - 'apps/api/routers/trading.py'
+      - 'apps/api/services/trading_service.py'
+      - 'tests/integration/test_harness_trading_read_boundary.py'
+      - 'tests/integration/test_execution_chain.py'
+      - 'tests/integration/test_nautilus_api.py'
+      - 'services/nautilus-runtime/**'
+      - 'packages/database/**'
+      - 'packages/trading/**'
+  pull_request:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/harness-main-integration.yml'
+      - 'harness/**'
+      - 'apps/api/routers/trading.py'
+      - 'apps/api/services/trading_service.py'
+      - 'tests/integration/test_harness_trading_read_boundary.py'
+      - 'tests/integration/test_execution_chain.py'
+      - 'tests/integration/test_nautilus_api.py'
+      - 'services/nautilus-runtime/**'
+      - 'packages/database/**'
+      - 'packages/trading/**'
+
+concurrency:
+  group: puregamma-main-integration-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  authenticated-observation-and-nautilus:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - name: Checkout complete integration history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Require main ancestry, not a stale refactor-only green build
+        run: |
+          set -euo pipefail
+          git fetch origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor origin/main HEAD
+          echo "Integrated HEAD contains current main: $(git rev-parse origin/main)"
+
+      - name: Use Python 3.12
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install production API and test dependencies
+        run: python -m pip install -r apps/api/requirements.txt
+
+      - name: Run authenticated observation, Nautilus execution and API integration tests
+        env:
+          PYTHONPATH: .
+          ENABLE_MOCK_MARKET_DATA: 'true'
+          LIVE_TRADING_ENABLED: 'false'
+          LIVE_TRADING_DEPLOYMENT_APPROVED: 'false'
+        run: |
+          python -m pytest -q -rx \
+            tests/integration/test_harness_trading_read_boundary.py \
+            tests/integration/test_execution_chain.py \
+            tests/integration/test_nautilus_api.py
