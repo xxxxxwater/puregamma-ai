@@ -27,7 +27,7 @@ class HarnessVersions:
 # Placeholder pins: updated in Phase 2 when the real SDK/runtime-bin are
 # vendored into the runner image. The mock adapter does not need them.
 PINNED_HARNESS_VERSIONS = HarnessVersions(
-    sdk_version="deepseek-harness-sdk==0.0.0-placeholder",
+    sdk_version="deepseek-harness@dsh-v0.1.7-rc.1",
     runtime_bin_version="runtime-bin==0.0.0-placeholder",
     cordis_config_hash="sha256:0000000000000000000000000000000000000000000000000000000000000000",
     plugin_lock_hash="sha256:0000000000000000000000000000000000000000000000000000000000000000",
