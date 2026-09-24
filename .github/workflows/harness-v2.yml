@@ -60,7 +60,9 @@ jobs:
           set -euo pipefail
           python3 -m py_compile packages/skills/dsh_migration.py
           python3 - <<'PY'
-          from packages.skills.dsh_migration import legacy_slug_to_dsh_name
+          import runpy
+          migration = runpy.run_path("packages/skills/dsh_migration.py")
+          legacy_slug_to_dsh_name = migration["legacy_slug_to_dsh_name"]
           assert legacy_slug_to_dsh_name("market_research") == "market-research"
           assert legacy_slug_to_dsh_name("portfolio_review") == "portfolio-review"
           source = open("apps/web/components/pm-account-panel.tsx", encoding="utf-8").read()
