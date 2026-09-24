@@ -8,10 +8,15 @@
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./package.json": "./package.json"
   },
-  "files": ["cordis.patch.yml"],
+  "files": [
+    "cordis.patch.yml"
+  ],
   "dsh": {
     "profile": {
-      "bundles": ["@deepseek-ai/dsh-base", "@deepseek-ai/dsh-web-app"],
+      "bundles": [
+        "@deepseek-ai/dsh-base",
+        "@deepseek-ai/dsh-web-app"
+      ],
       "patchReload": "live"
     }
   },
@@ -49,8 +54,6 @@
     "@puregamma/dsh-rsi-orchestrator": "workspace:^",
     "@puregamma/dsh-secretary-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-secretary": "workspace:^",
-    "@puregamma/dsh-skills-legacy-api": "workspace:^",
-    "@puregamma/dsh-tool-skills": "workspace:^",
     "@puregamma/dsh-research-runner-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-research-runner": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
