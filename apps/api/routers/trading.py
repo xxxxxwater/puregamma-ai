@@ -13,6 +13,7 @@ from apps.api.services.trading_service import (
     list_accounts,
     list_orders,
     list_positions,
+    owned_account,
     preview_order,
     reconcile_account,
     serialize_order,
@@ -20,7 +21,7 @@ from apps.api.services.trading_service import (
 )
 from apps.api.services.credit_service import InsufficientCreditsError
 from apps.api.services.runtime_sync_service import sync_runtime_account
-from packages.database.models import StrategyRun, TradingAccount, User
+from packages.database.models import OrderJournal, StrategyRun, TradingAccount, User, utcnow
 from packages.trading.policies.safety import LiveExecutionDenied
 from packages.trading.runtime_client import NautilusRuntimeClient, RuntimeUnavailable
 
@@ -79,7 +80,10 @@ def positions(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    return {"positions": list_positions(db, user.id, account_id)}
+    try:
+        return {"positions": list_positions(db, user.id, account_id)}
+    except Exception as exc:
+        raise control_error(exc) from exc
 
 
 @router.get("/performance")
@@ -100,7 +104,75 @@ def orders(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    return {"orders": list_orders(db, user.id, account_id)}
+    try:
+        return {"orders": list_orders(db, user.id, account_id)}
+    except Exception as exc:
+        raise control_error(exc) from exc
+
+
+@router.get("/observations/{account_id}")
+def trading_observation(
+    account_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Authenticated database evidence, NOT a venue-complete or live-safe snapshot.
+
+    This endpoint is deliberately not mounted as a shared Harness Host Remote:
+    the future provider must bind the actual end-user session independently.
+    No caller-controlled user identity or authorization token is accepted.
+    """
+    try:
+        account = owned_account(db, user.id, account_id)
+        positions_data = list_positions(db, user.id, account.id)
+        orders_data = list_orders(db, user.id, account.id)
+        return {
+            "account_id": account.id,
+            "state": "stale",
+            "source": "historical-trading-database",
+            "observed_at": utcnow().isoformat(),
+            "complete": False,
+            "venue_verified": False,
+            "reason": "Journal and snapshots are bounded historical records; exchange reconciliation and freshness are not proven.",
+            "positions": positions_data,
+            "orders": orders_data,
+        }
+    except Exception as exc:
+        raise control_error(exc) from exc
+
+
+@router.get("/orders/by-client-id/{client_order_id}")
+def order_by_client_id(
+    client_order_id: str,
+    account_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Find an order including terminal history directly by account and client ID.
+
+    The bounded /orders list is NOT used for lookup: old FILLED/CANCELLED rows
+    must remain queryable after many newer journal entries. A selector never
+    conveys authorization; ownership is resolved with the authenticated user.
+    """
+    try:
+        if not 1 <= len(client_order_id) <= 128:
+            raise ValueError("Invalid client order ID")
+        account = owned_account(db, user.id, account_id)
+        row = (
+            db.query(OrderJournal)
+            .filter_by(user_id=user.id, account_id=account.id, client_order_id=client_order_id)
+            .order_by(OrderJournal.sequence.desc(), OrderJournal.created_at.desc())
+            .first()
+        )
+        if row is None:
+            raise LookupError("Order not found")
+        return {
+            "order": serialize_order(row),
+            "source": "historical-trading-database",
+            "venue_verified": False,
+        }
+    except Exception as exc:
+        raise control_error(exc) from exc
 
 
 @router.post("/orders/preview")
