@@ -4,8 +4,6 @@ on:
   push:
     branches:
       - refactor/harness-core-v2
-      - integration/harness-main
-      - integration/harness-full-20260921
       - main
     paths:
       - 'harness/**'
@@ -40,7 +38,7 @@ jobs:
 
       - name: Verify pinned runtimes
         run: |
-          test "$(git -C vendor/deepseek-harness rev-parse HEAD)" = "c291e7961a515f6d7af9304e7fd1d257929aef26"
+          test "$(git -C vendor/deepseek-harness rev-parse HEAD)" = "46a7f68b0922371ce7144b668b90e377d8e799f4"
           test "$(git -C vendor/pg-tsy-core-bootstrap rev-parse HEAD)" = "f5a6382438d8a85e282da5d58d22af9fe5887ca3"
 
       - name: Use Node.js 22
