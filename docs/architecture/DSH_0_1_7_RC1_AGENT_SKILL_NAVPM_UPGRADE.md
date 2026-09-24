@@ -73,6 +73,18 @@ PureGamma profile 对该 preset 做完整覆盖：
 
 这样普通用户不会因 UI 升级获得生产服务器高权限。
 
+
+### 附件与 coding-workspace UI
+
+固定 DSH 版本的通用文件上传会把文件保存为只读附件路径，并依赖现有文件工具让模型读取。该版本自带的 local filesystem provider 明确不把 `cwd` 当作安全 containment boundary。因此多用户 PureGamma Web 在没有独立沙箱文件 provider 前：
+
+- 保留图片附件（由 DSH attachment store / 模型 provider adapter 处理）；
+- 暂不开放通用文件附件；
+- 关闭 Terminal、Workspace Files 与 Plugin Manager UI/host surface；
+- 前端不得展示普通用户实际不可用或不应拥有的文件/终端能力。
+
+未来如恢复通用文件附件，必须先提供会话级、只读、路径封闭的 attachment filesystem provider，并做跨用户路径逃逸测试。
+
 ## 6. NAV PM 口径与错误根因
 
 可信数据源是 riskbot 的只读 export bundle，PureGamma Web/API 不持有该 PM 账户的交易密钥。
