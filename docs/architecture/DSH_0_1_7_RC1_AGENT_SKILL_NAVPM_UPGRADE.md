@@ -67,7 +67,7 @@ PureGamma profile 对该 preset 做完整覆盖：
 - 不挂载 plugin-manager；
 - 不挂载 subagent / workflow / ralph；
 - Skill filesystem 使用 `includeDefaultRoots=false`；
-- 只扫描受控 bundled Skill 目录；
+- 只扫描 profile 内受控 `skills/` bundled Skill 目录；
 - Skill 文本不能提升工具权限；
 - 业务工具继续由 PureGamma 的 auth / entitlement / approval / risk gate 控制。
 
@@ -119,7 +119,7 @@ PureGamma profile 对该 preset 做完整覆盖：
 
 1. 记录现网镜像、配置与数据库版本并备份；
 2. 构建固定 DSH submodule 的新 Harness；
-3. 在隔离环境设置 `PUREGAMMA_DSH_SKILL_DIR` 并检查 Skill catalog；
+3. 默认从 `profileContext.dir/skills` 读取 bundled Skill；若部署布局需要覆盖，再显式设置 `PUREGAMMA_DSH_SKILL_DIR` 并检查 catalog；
 4. 用非生产 DB 副本验证旧会话/历史读取；
 5. 对三个 allowlist 用户逐一验证 PM 页面，其他用户验证 403；
 6. 验证 headline 与 history 最后一笔的 `equity_usd` 同口径；
