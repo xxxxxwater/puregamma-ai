@@ -9,7 +9,8 @@
     "./package.json": "./package.json"
   },
   "files": [
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "skills"
   ],
   "dsh": {
     "profile": {
