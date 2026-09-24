@@ -18,7 +18,7 @@ from apps.api.services.agent_plugins import inventory as agent_plugin_inventory
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.skill_service import skill_registry
 from packages.billing.metering import CreditReservation
-from packages.database.models import AgentConversation, AgentMessage, AgentRun, AgentToolCall, User, utcnow
+from packages.database.models import AgentConversation, AgentMessage, AgentRun, AgentRunEvent, AgentToolCall, User, utcnow
 from packages.skills.registry import SkillResolutionError, update_skill_runs
 
 
