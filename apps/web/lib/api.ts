@@ -1218,6 +1218,13 @@ export type PmNavHistory = {
   available: boolean;
   reason?: string;
   first_point_at?: string | null;
+  /** Observation time of the newest real point — not the bundle write time. */
+  latest_point_at?: string | null;
+  /** Age of that observation, measured by the API's own clock. */
+  age_seconds?: number | null;
+  /** True when the newest observation is older than stale_after_seconds. */
+  stale?: boolean;
+  stale_after_seconds?: number;
   point_count?: number;
   sufficient?: boolean;
   window_days?: number;

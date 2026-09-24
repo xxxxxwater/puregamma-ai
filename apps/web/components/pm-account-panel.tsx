@@ -71,15 +71,35 @@ function fmtBare(value: unknown, locale: Locale, digits = 2): string {
   return parsed.toLocaleString(locale, { minimumFractionDigits: digits, maximumFractionDigits: digits });
 }
 
-function compactUsd(value: number): string {
+/**
+ * Axis labels must stay readable at the resolution the domain actually has.
+ *
+ * A fixed "$1.76M" (two decimals at the million scale) collapses a tight NAV
+ * range into identical tick labels, so the vertical axis stops carrying any
+ * information - the user reads it as "the amounts are wrong". The number of
+ * decimals is therefore chosen from the tick span, keeping neighbouring labels
+ * distinguishable while never inventing precision the data does not have.
+ */
+function compactUsd(value: number, span?: number | null): string {
   const abs = Math.abs(value);
-  if (abs >= 1_000_000) return `$${(value / 1_000_000).toFixed(2)}M`;
-  if (abs >= 1_000) return `$${(value / 1_000).toFixed(0)}K`;
-  return `$${value.toFixed(0)}`;
+  const width = span && span > 0 ? span : null;
+  if (abs >= 1_000_000) {
+    const digits = width === null ? 2 : width >= 200_000 ? 2 : width >= 20_000 ? 3 : 4;
+    return `$${(value / 1_000_000).toFixed(digits)}M`;
+  }
+  if (abs >= 1_000) {
+    const digits = width === null ? 0 : width >= 2_000 ? 0 : width >= 200 ? 1 : 2;
+    return `$${(value / 1_000).toFixed(digits)}K`;
+  }
+  const digits = width === null ? 0 : width >= 20 ? 0 : width >= 2 ? 1 : 2;
+  return `$${value.toFixed(digits)}`;
 }
 
-function compactBtc(value: number): string {
-  return value.toFixed(value >= 100 ? 0 : 2);
+function compactBtc(value: number, span?: number | null): string {
+  const width = span && span > 0 ? span : null;
+  if (value >= 100) return value.toFixed(0);
+  const digits = width === null ? 2 : width >= 1 ? 2 : width >= 0.1 ? 3 : width >= 0.01 ? 4 : 6;
+  return value.toFixed(digits);
 }
 
 function signed(value: number, formatter: (input: number) => string): string {
@@ -211,6 +231,16 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
     const pad = (max - min) * 0.08 || Math.abs(max) * 0.001 || 1;
     yDomain = [min - pad, max + pad];
   }
+  // The resolution the axis really has, handed to the tick formatter so a tight
+  // range does not render every label as the same rounded amount.
+  const ySpan = yDomain ? yDomain[1] - yDomain[0] : null;
+
+  // A curve that ends days ago must never be presented as the current NAV: the
+  // API reports the newest *observation* time and the reader judges freshness
+  // with the server clock, not with the bundle's write time.
+  const historyStale = Boolean(history?.stale);
+  const lastPointAt = history?.latest_point_at ? new Date(history.latest_point_at) : null;
+  const firstPointAt = history?.first_point_at ? new Date(history.first_point_at) : null;
 
   const ageSeconds = useMemo(() => {
     const stamp = view?.generated_at ?? view?.data_as_of;
@@ -359,7 +389,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
                 />
                 <YAxis
                   domain={yDomain}
-                  tickFormatter={(value: number) => (currency === "USD" ? compactUsd(value) : compactBtc(value))}
+                  tickFormatter={(value: number) => (currency === "USD" ? compactUsd(value, ySpan) : compactBtc(value, ySpan))}
                   tick={{ fill: "var(--muted-2)", fontSize: 10 }}
                   axisLine={false}
                   tickLine={false}
@@ -395,8 +425,16 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
             </div>
             <span className="text-[10px] text-text-pg-dim tabular-nums">
               {zh ? `真实快照 ${history?.point_count ?? 0} 点` : `${history?.point_count ?? 0} real snapshots`}
+              {firstPointAt && lastPointAt ? ` · ${firstPointAt.toLocaleString(locale)} → ${lastPointAt.toLocaleString(locale)}` : ""}
             </span>
           </div>
+          {historyStale ? (
+            <p className="mx-5 mb-4 border border-status-warning px-3 py-2 text-[11px] leading-4 text-status-warning rounded-lg">
+              {zh
+                ? `曲线已陈旧：最新真实观测是 ${lastPointAt ? lastPointAt.toLocaleString(locale) : "--"}，不是当前净值。此处不会用估算值补齐，请先确认 riskbot 采集与导出是否正常。`
+                : `The curve is stale: its newest real observation is ${lastPointAt ? lastPointAt.toLocaleString(locale) : "--"}, so it is not the current NAV. No estimate is substituted — check the riskbot collector and exporter first.`}
+            </p>
+          ) : null}
           <p className="px-5 pb-4 text-[10px] leading-4 text-text-pg-dim">
             {zh
               ? "曲线与上方主数字读同一个字段：官方 actualEquity（市值 − 负债）。主数字下方标注的「市值 − 负债 实测」与「accountEquity」是另外两个口径。"
