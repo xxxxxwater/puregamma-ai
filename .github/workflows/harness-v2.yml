@@ -51,6 +51,9 @@ jobs:
           grep -q "@deepseek-ai/dsh-tool-skill" harness/profile/cordis.patch.yml
           test -z "$(grep -E "name: '@deepseek-ai/dsh-tool-(bash|pwsh|fs|fs-search|jobs|subagent)'" harness/profile/cordis.patch.yml || true)"
           test -z "$(grep -E "name: '@deepseek-ai/dsh-plugin-manager" harness/profile/cordis.patch.yml || true)"
+          for id in file-upload terminal-controller workspace-files ui-sidebar-terminal ui-sidebar-files ui-plugin-manager; do
+            grep -A2 "^- id: $id$" harness/profile/cordis.patch.yml | grep -q "disabled: true"
+          done
 
       - name: Use Node.js 22
         uses: actions/setup-node@v4
