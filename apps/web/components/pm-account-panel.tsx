@@ -10,19 +10,13 @@ import type { Locale } from "@/i18n/routing";
 /**
  * Private Binance Portfolio Margin account, collected read-only by riskbot.
  *
- * The hero and the curve read the SAME field — the exchange's adjusted equity
- * (actualEquity) = market value minus liabilities — so the last point of the
- * curve always equals the hero figure. The two other figures are shown next to
- * it rather than being conflated with it:
+ * The headline and NAV curve use Binance Portfolio Margin's official
+ * accountEquity field. This is the exact read-only account NAV/margin figure
+ * exported by riskbot and the stable field persisted in the historical series.
  *
- *   hero / curve      official actualEquity      = 市值 − 负债（币安口径）
- *   sub-line (derived) 逐币种余额实测的 市值 − 负债（与官方差 <0.2%，估值方法差异）
- *   sub-line (margin)  official accountEquity    = 保证金/uniMMR 口径，约低 5%
- *
- * accountEquity must never be the headline: it is the stricter margin basis, not
- * what the account is worth. The three cells below the hero carry the facts the
- * hero does not: the coin actually held (official totalWalletBalance), that same
- * accountEquity expressed in BTC, and the liabilities.
+ * adjusted/actual equity and a balance-derived market-value-minus-liabilities
+ * calculation remain useful diagnostics, but they are separate measures and
+ * must never replace accountEquity under the NAV label.
  *
  * Never show one of these numbers under another's label, and never call a
  * derived figure "official".
@@ -171,12 +165,11 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   }, []);
 
   const points = history?.points ?? [];
-  // The curve MUST measure the same thing as the hero. It plots the exchange's
-  // adjusted equity (actualEquity), i.e. market value minus liabilities - the
-  // same definition as the hero figure - rather than accountEquity, which is the
-  // stricter margin basis and about 5% lower.
+  // The curve and hero share the same trusted source field: accountEquity.
+  // Historical rows expose it as equity_usd. adjusted_equity_usd is diagnostic
+  // only and may legitimately be absent.
   const allPoints = useMemo<ChartPoint[]>(() => points.map((point: PmNavPoint) => {
-    const netUsd = num(point.adjusted_equity_usd);
+    const netUsd = num(point.equity_usd);
     const price = num(point.btc_price_usd);
     return {
       t: point.t,
@@ -242,9 +235,11 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   const historyMeta = view.positions_history_meta ?? {};
 
   const equityUsd = num(account.account_equity_usd);
-  const equityBtc = num(account.equity_btc_equivalent);
   const adjustedUsd = num(account.adjusted_equity_usd);
   const btcPrice = num(btc.price_usd);
+  const equityBtc = num(account.equity_btc_equivalent)
+    ?? num(btc.equity_btc_equivalent)
+    ?? (equityUsd !== null && btcPrice && btcPrice > 0 ? equityUsd / btcPrice : null);
   const walletBtc = num(btc.quantity);
   const availableUsd = num(account.total_available_balance_usd);
   const availableBtc = num(account.available_btc_equivalent);
@@ -259,21 +254,13 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   const upnlSum = balances.reduce((total, row) => total + (num(row.unrealized_pnl) ?? 0), 0);
   const upnlValue = num(account.total_unrealized_pnl_usd) ?? upnlSum;
 
-  // Hero AND curve read the SAME field: the exchange's adjusted equity
-  // (actualEquity), i.e. market value minus liabilities. They must not diverge -
-  // an earlier version showed a per-asset derived figure in the hero and
-  // accountEquity in the curve, and the two disagreed by design.
-  //
-  // accountEquity is a DIFFERENT (stricter) figure Binance uses for margin and
-  // uniMMR, roughly 5% lower, so it is shown separately and never used as the
-  // headline.
   const adjustedBtc = adjustedUsd !== null && btcPrice && btcPrice > 0 ? adjustedUsd / btcPrice : null;
-  const heroValue = currency === "USD" ? adjustedUsd : adjustedBtc;
+  const heroValue = currency === "USD" ? equityUsd : equityBtc;
   const heroText = currency === "USD" ? fmtUsd(heroValue, locale) : fmtBtc(heroValue, locale, 8);
-  const heroLabel = zh ? "账户权益 · Equity (market value − liabilities)" : "Equity · market value − liabilities";
+  const heroLabel = zh ? "账户净值 · Binance accountEquity" : "Account NAV · Binance accountEquity";
   const heroSub = currency === "USD"
-    ? (zh ? `市值 − 负债 实测 ${fmtUsd(netWorthUsd, locale)} · 官方 accountEquity（保证金口径）${fmtUsd(equityUsd, locale)}` : `derived market value − liabilities ${fmtUsd(netWorthUsd, locale)} · official accountEquity (margin basis) ${fmtUsd(equityUsd, locale)}`)
-    : (zh ? `市值 − 负债 实测 ${fmtBtc(netWorthBtc, locale, 8)} · 官方 accountEquity（保证金口径）${fmtBtc(equityBtc, locale, 8)}` : `derived market value − liabilities ${fmtBtc(netWorthBtc, locale, 8)} · official accountEquity (margin basis) ${fmtBtc(equityBtc, locale, 8)}`);
+    ? (zh ? `调整后权益 ${fmtUsd(adjustedUsd, locale)} · 市值 − 负债实测 ${fmtUsd(netWorthUsd, locale)}` : `adjusted equity ${fmtUsd(adjustedUsd, locale)} · derived market value − liabilities ${fmtUsd(netWorthUsd, locale)}`)
+    : (zh ? `调整后权益 ${fmtBtc(adjustedBtc, locale, 8)} · 市值 − 负债实测 ${fmtBtc(netWorthBtc, locale, 8)}` : `adjusted equity ${fmtBtc(adjustedBtc, locale, 8)} · derived market value − liabilities ${fmtBtc(netWorthBtc, locale, 8)}`);
 
   return <>
     <ResearchCard className="overflow-hidden p-0">
