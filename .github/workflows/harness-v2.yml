@@ -55,6 +55,20 @@ jobs:
             grep -A2 "^- id: $id$" harness/profile/cordis.patch.yml | grep -q "disabled: true"
           done
 
+      - name: Verify Skill migration and PM NAV source contract
+        run: |
+          set -euo pipefail
+          python3 -m py_compile packages/skills/dsh_migration.py
+          python3 - <<'PY'
+          from packages.skills.dsh_migration import legacy_slug_to_dsh_name
+          assert legacy_slug_to_dsh_name("market_research") == "market-research"
+          assert legacy_slug_to_dsh_name("portfolio_review") == "portfolio-review"
+          source = open("apps/web/components/pm-account-panel.tsx", encoding="utf-8").read()
+          assert "const netUsd = num(point.equity_usd);" in source
+          assert 'const heroValue = currency === "USD" ? equityUsd : equityBtc;' in source
+          assert "const netUsd = num(point.adjusted_equity_usd);" not in source
+          PY
+
       - name: Use Node.js 22
         uses: actions/setup-node@v4
         with:
