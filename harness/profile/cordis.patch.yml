@@ -141,7 +141,7 @@
         name: '@deepseek-ai/dsh-skill-filesystem'
         config:
           includeDefaultRoots: false
-          bundledSkillDir: !!js process.env.PUREGAMMA_DSH_SKILL_DIR ?? (process.cwd() + '/.dsh/skills')
+          bundledSkillDir: !!js process.env.PUREGAMMA_DSH_SKILL_DIR ?? (ctx.get('profileContext')?.dir + '/skills')
           watch: false
       - id: tool-skill
         name: '@deepseek-ai/dsh-tool-skill'
