@@ -97,14 +97,19 @@ class BacktestEngine:
         assert_live_trading_disabled()
         params = params or {}
         lookback = int(params.get("lookback_days", 90))
+        timeframe = str(params.get("timeframe", "1h")).strip().lower()
         symbols = [asset.upper()]
 
         # ── Build DataCatalog ──
         if use_real_data and db is not None:
-            catalog = catalog_from_db(db, symbols, lookback_days=lookback)
+            catalog = catalog_from_db(
+                db, symbols, lookback_days=lookback, timeframe=timeframe
+            )
         else:
             _assert_no_mock_catalog_in_production("nautilus mock catalog")
-            catalog = mock_catalog(symbols, bar_count=lookback * 24)
+            catalog = mock_catalog(
+                symbols, bar_count=lookback * 24, timeframe=timeframe
+            )
 
         if _in_production() and (catalog.get("bar_count", 0) <= 0 or catalog.get("data_freshness") == "mock"):
             raise RuntimeError(
@@ -366,4 +371,81 @@ def run_backtest_for_agent(
         "data_freshness": result.get("data_freshness", "unknown"),
         "bar_count": result.get("bar_count", 0),
         "disclaimer": result.get("disclaimer", ""),
+    }
+
+
+
+def run_parameter_sweep_for_agent(
+    db: Any,
+    asset: str,
+    parameter_sets: list[dict],
+    *,
+    timeframe: str = "1h",
+    lookback_days: int = 90,
+) -> dict:
+    """Evaluate a bounded parameter family on one shared research catalog."""
+    assert_live_trading_disabled()
+    symbol = asset.upper()
+    catalog = catalog_from_db(
+        db, [symbol], lookback_days=lookback_days, timeframe=timeframe
+    )
+    if not catalog.get("bar_count"):
+        if _in_production():
+            raise RuntimeError(
+                "REAL_BACKTEST_DATA_UNAVAILABLE_IN_PRODUCTION: no synchronized "
+                f"{timeframe} observations for {symbol}"
+            )
+        from packages.nautilus.data_adapter import timeframe_minutes
+
+        bars_per_day = max(1, int(1440 / timeframe_minutes(timeframe)))
+        catalog = mock_catalog(
+            [symbol],
+            bar_count=max(30, lookback_days * bars_per_day),
+            timeframe=timeframe,
+        )
+
+    close_prices = [
+        float(value["close"])
+        for values in catalog.get("bars", {}).values()
+        for value in values
+    ]
+    if len(close_prices) < 3:
+        raise RuntimeError("BACKTEST_SERIES_TOO_SHORT")
+
+    candidates = []
+    for raw in parameter_sets[:12]:
+        params = {
+            "fast_window": max(2, int(raw.get("fast_window", 12))),
+            "slow_window": max(3, int(raw.get("slow_window", 24))),
+            "fee_bps": max(0.0, float(raw.get("fee_bps", 10.0))),
+            "lookback_days": int(lookback_days),
+            "timeframe": timeframe,
+        }
+        if params["slow_window"] <= params["fast_window"]:
+            params["slow_window"] = params["fast_window"] + 1
+        metrics = _strategy_metrics(close_prices, params)
+        candidates.append(
+            {
+                "params": params,
+                "total_return": metrics.get("total_return", 0.0),
+                "sharpe_ratio": metrics.get("sharpe", 0.0),
+                "max_drawdown": metrics.get("max_drawdown", 0.0),
+                "win_rate": metrics.get("win_rate", 0.0),
+                "trade_count": metrics.get("trade_count", 0),
+                "turnover": metrics.get("turnover", 0.0),
+            }
+        )
+
+    return {
+        "asset": symbol,
+        "timeframe": timeframe,
+        "lookback_days": lookback_days,
+        "candidates": candidates,
+        "bar_count": catalog.get("bar_count", 0),
+        "coverage_ratio": catalog.get("coverage_ratio", 0.0),
+        "data_freshness": catalog.get("data_freshness", "unknown"),
+        "bar_construction": catalog.get("bar_construction"),
+        "engine": "puregamma_parameter_sweep_on_nautilus_catalog",
+        "mode": "research",
+        "live_trading": False,
     }

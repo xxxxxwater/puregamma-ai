@@ -51,7 +51,7 @@ SKILL_TOOL_ALLOWLISTS: dict[str, set[str]] = {
     "portfolio_review": {"get_account_snapshot", "get_position_snapshot", "get_open_orders"},
     "options_analysis": {"get_options_context", "get_earnings_gamma"},
     "source_check": {"get_data_source_status", "search_source_documents", "search_online_sources"},
-    "deep_research": {"get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance"},
+    "deep_research": {"get_market_quote", "get_market_history", "search_source_documents", "search_online_sources", "get_defi_protocol_metrics", "get_chain_metrics", "get_data_source_status", "get_account_snapshot", "get_position_snapshot", "get_options_context", "list_research_strategies", "run_nautilus_backtest", "get_strategy_performance", "run_dream_strategy_search"},
 }
 
 
@@ -86,6 +86,7 @@ class AgentToolRegistry:
             "get_data_source_status": self.get_data_source_status,
             # ── NautilusTrader strategy research tools ──
             "run_nautilus_backtest": self.run_nautilus_backtest,
+            "run_dream_strategy_search": self.run_dream_strategy_search,
             "list_research_strategies": self.list_research_strategies,
             "get_strategy_performance": self.get_strategy_performance,
             "get_sentiment_context": self.get_sentiment_context,
@@ -116,6 +117,7 @@ class AgentToolRegistry:
         required_source = {
             "get_market_quote": "market",
             "get_market_history": "market",
+            "run_dream_strategy_search": "market",
             "get_defi_protocol_metrics": "onchain",
             "get_chain_metrics": "onchain",
             "get_onchain_snapshot": "onchain",
@@ -143,7 +145,13 @@ class AgentToolRegistry:
         confirmation = query.strip()
         if confirmation.startswith("CONFIRM STRATEGY "):
             return permitted([("activate_strategy", {"confirmation": confirmation})])
-        strategy_words = any(word in lowered for word in ("strategy", "策略"))
+        strategy_words = any(word in lowered for word in ("strategy", "策略", "交易系统"))
+        from packages.dream_rsi import is_dream_strategy_request
+
+        if is_dream_strategy_request(query):
+            return permitted([
+                ("run_dream_strategy_search", {"request": query})
+            ])
         if strategy_words and any(
             word in lowered
             for word in ("create", "design", "draft", "创建", "设计", "生成")
@@ -298,6 +306,21 @@ class AgentToolRegistry:
         if "options" in selected_sources and not any(name == "get_options_context" for name, _ in calls):
             calls.append(("get_options_context", {"currency": "ETH" if "ETH" in symbols else "BTC"}))
         return permitted(calls)
+
+    def run_dream_strategy_search(self, request: str) -> ToolResult:
+        from packages.dream_rsi import run_dream_strategy_search
+
+        payload = run_dream_strategy_search(self.db, request)
+        best = payload.get("best_candidate") or {}
+        metrics = best.get("metrics") or {}
+        summary = (
+            f"Dream-RSI {payload.get('status', 'best_effort')}: "
+            f"{payload['goal']['symbol']} {payload['goal']['timeframe']}, "
+            f"Sharpe {metrics.get('sharpe_ratio', 0):.2f}, "
+            f"max drawdown {abs(float(metrics.get('max_drawdown', 0))) * 100:.2f}%, "
+            f"{payload['compute']['evaluations']} evaluations; research-only"
+        )
+        return ToolResult("run_dream_strategy_search", payload, summary, [])
 
     def get_options_context(self, currency: str = "BTC") -> ToolResult:
         from apps.api.services.options_service import get_option_chain

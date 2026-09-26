@@ -44,6 +44,8 @@ _INTENT_SKILLS = {
     "options_analysis": ("options_analysis",),
     "source_check": ("source_check",),
     "deep_research": ("deep_research",),
+    "strategy_research": (),
+    "strategy_backtest": (),
 }
 
 _INTENT_SOURCES = {
@@ -53,6 +55,8 @@ _INTENT_SOURCES = {
     "options_analysis": ("options", "market"),
     "source_check": ("rss",),
     "deep_research": ("market", "rss"),
+    "strategy_research": ("market",),
+    "strategy_backtest": ("market",),
 }
 
 _NEXT_ACTIONS = {
@@ -61,6 +65,7 @@ _NEXT_ACTIONS = {
     "portfolio_review": ("stress_test", "review_concentration", "schedule_brief"),
     "options_analysis": ("compare_expiries", "review_liquidity", "save_research"),
     "strategy_backtest": ("adjust_assumptions", "compare_periods", "paper_preview"),
+    "strategy_research": ("review_dream_tree", "compare_candidate", "save_research"),
     "general_research": ("deepen_research", "save_research"),
 }
 

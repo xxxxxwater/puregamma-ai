@@ -176,6 +176,16 @@ PLUGIN_SPECS: tuple[AgentPluginSpec, ...] = (
         ),
     ),
     AgentPluginSpec(
+        id="dream-rsi",
+        name_zh="Dream-RSI 策略发现",
+        name_en="Dream-RSI strategy discovery",
+        description_zh="把自然语言收益/回撤目标变成研究约束，运行有界策略探索树，并在历史节点上回放探索策略；只做研究，不创建订单。",
+        description_en="Turns natural-language return/risk goals into bounded strategy discovery and replays exploration policies over observed history. Research-only; never creates orders.",
+        service="packages.dream_rsi.control_plane",
+        tools=("run_dream_strategy_search",),
+        requires=("market",),
+    ),
+    AgentPluginSpec(
         id="data-health",
         name_zh="数据源健康",
         name_en="Data-source health",
