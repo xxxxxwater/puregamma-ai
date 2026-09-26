@@ -13,7 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from packages.backtest.metrics import calculate_metrics
-from packages.nautilus.data_adapter import catalog_from_db, mock_catalog
+from packages.nautilus.data_adapter import catalog_from_db, mock_catalog, timeframe_minutes
 from packages.nautilus.guards import assert_live_trading_disabled, live_trading_status
 from packages.nautilus.result_parser import standardize_backtest_result
 
@@ -51,7 +51,13 @@ def _strategy_metrics(close_prices: list[float], params: dict) -> dict:
         strategy_returns.append(previous_position * asset_return - change * fee_bps / 10_000)
         positions.append(previous_position)
         previous_position = position
-    metrics = calculate_metrics(strategy_returns)
+    periods_per_year = 365.0 * 24.0 * 60.0 / timeframe_minutes(
+        str(params.get("timeframe", "1h"))
+    )
+    metrics = calculate_metrics(
+        strategy_returns,
+        periods_per_year=periods_per_year,
+    )
     metrics["trade_count"] = trades
     metrics["turnover"] = round(turnover, 4)
     metrics["exposure_time"] = round(sum(positions) / len(positions), 4) if positions else 0.0
@@ -409,11 +415,28 @@ def run_parameter_sweep_for_agent(
         for values in catalog.get("bars", {}).values()
         for value in values
     ]
-    if len(close_prices) < 3:
-        raise RuntimeError("BACKTEST_SERIES_TOO_SHORT")
+    requested = list(parameter_sets[:12])
+    max_slow = max(
+        (max(3, int(item.get("slow_window", 24))) for item in requested),
+        default=24,
+    )
+    # Each side of the chronological split must contain enough bars for the
+    # slowest candidate to warm up and still have an evaluation window.
+    min_segment = max(20, max_slow * 2)
+    if len(close_prices) < min_segment * 2:
+        raise RuntimeError(
+            f"BACKTEST_SERIES_TOO_SHORT_FOR_OOS: need at least {min_segment * 2} "
+            f"{timeframe} bars, got {len(close_prices)}"
+        )
+    split_index = min(
+        max(int(len(close_prices) * 0.70), min_segment),
+        len(close_prices) - min_segment,
+    )
+    in_sample_prices = close_prices[:split_index]
+    out_of_sample_prices = close_prices[split_index:]
 
     candidates = []
-    for raw in parameter_sets[:12]:
+    for raw in requested:
         params = {
             "fast_window": max(2, int(raw.get("fast_window", 12))),
             "slow_window": max(3, int(raw.get("slow_window", 24))),
@@ -423,16 +446,21 @@ def run_parameter_sweep_for_agent(
         }
         if params["slow_window"] <= params["fast_window"]:
             params["slow_window"] = params["fast_window"] + 1
-        metrics = _strategy_metrics(close_prices, params)
+        in_sample = _strategy_metrics(in_sample_prices, params)
+        out_of_sample = _strategy_metrics(out_of_sample_prices, params)
+        # The top-level metrics are deliberately OOS: Dream-RSI ranks and checks
+        # constraints on unseen chronological data, not on the sample it searched.
         candidates.append(
             {
                 "params": params,
-                "total_return": metrics.get("total_return", 0.0),
-                "sharpe_ratio": metrics.get("sharpe", 0.0),
-                "max_drawdown": metrics.get("max_drawdown", 0.0),
-                "win_rate": metrics.get("win_rate", 0.0),
-                "trade_count": metrics.get("trade_count", 0),
-                "turnover": metrics.get("turnover", 0.0),
+                "total_return": out_of_sample.get("total_return", 0.0),
+                "sharpe_ratio": out_of_sample.get("sharpe", 0.0),
+                "max_drawdown": out_of_sample.get("max_drawdown", 0.0),
+                "win_rate": out_of_sample.get("win_rate", 0.0),
+                "trade_count": out_of_sample.get("trade_count", 0),
+                "turnover": out_of_sample.get("turnover", 0.0),
+                "in_sample": in_sample,
+                "out_of_sample": out_of_sample,
             }
         )
 
@@ -445,6 +473,14 @@ def run_parameter_sweep_for_agent(
         "coverage_ratio": catalog.get("coverage_ratio", 0.0),
         "data_freshness": catalog.get("data_freshness", "unknown"),
         "bar_construction": catalog.get("bar_construction"),
+        "validation": {
+            "method": "chronological_holdout",
+            "in_sample_ratio": round(split_index / len(close_prices), 4),
+            "out_of_sample_ratio": round(len(out_of_sample_prices) / len(close_prices), 4),
+            "in_sample_bars": len(in_sample_prices),
+            "out_of_sample_bars": len(out_of_sample_prices),
+            "constraint_metrics": "out_of_sample",
+        },
         "engine": "puregamma_parameter_sweep_on_nautilus_catalog",
         "mode": "research",
         "live_trading": False,

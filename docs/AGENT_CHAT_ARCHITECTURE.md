@@ -18,7 +18,7 @@ The engineering boundaries and compatibility policy are defined in [AGENT_PLATFO
 - `get_defi_protocol_metrics` reads normalized DefiLlama metrics.
 - `get_chain_metrics` and `get_onchain_snapshot` read synchronized RPC/subgraph metrics.
 - `get_data_source_status` reads persisted provider health.
-- `run_dream_strategy_search` is a research-only Dream-RSI control-plane tool: it parses strategy constraints, explores a bounded parameter tree on the backtest catalog, replays traversal policies over observed nodes, and persists the bounded result in the assistant message context. It never creates orders or activates a strategy.
+- `run_dream_strategy_search` is a research-only Dream-RSI control-plane tool: it parses strategy constraints, explores a bounded parameter tree on the backtest catalog, evaluates constraints on a chronological 30% out-of-sample holdout with timeframe-correct crypto Sharpe annualization, replays traversal policies over observed nodes, and persists the bounded result in the assistant message context. It never creates orders or activates a strategy.
 There is no arbitrary URL, SQL, GraphQL, RPC, shell, order, withdrawal, signing, or transaction tool.
 ## Reliability and security
 Conversation IDs are UUIDs and every query includes `user_id`. Runs and assistant messages persist before generation. Failures preserve the user message and mark the run/message failed without recording successful product usage. Browser disconnects mark a run interrupted; stale pending/running rows are recovered after ten minutes.

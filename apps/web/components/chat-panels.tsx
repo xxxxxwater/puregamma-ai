@@ -72,7 +72,7 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
   const totalReturn = numeric(metrics.total_return) * 100;
   const coveragePct = numeric(coverage.coverage_ratio) * 100;
   const status = String(data.status || "best_effort");
-  const matched = Boolean(best.meets_constraints);
+  const matched = status === "constraint_satisfied" && Boolean(best.meets_constraints) && Boolean(coverage.coverage_verified);
   const targetSharpe = goal.min_sharpe == null ? "-" : `≥ ${numeric(goal.min_sharpe).toFixed(2)}`;
   const targetDrawdown = goal.max_drawdown_pct == null ? "-" : `< ${numeric(goal.max_drawdown_pct).toFixed(1)}%`;
 
@@ -86,8 +86,8 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
       <span className={`border px-2 py-1 text-xs rounded-lg ${matched ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{status.replaceAll("_", " ")}</span>
     </div>
     <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <ToolMetric label="Sharpe" value={sharpe.toFixed(2)} />
-      <ToolMetric label={zh ? "最大回撤" : "Max drawdown"} value={`${maxDrawdown.toFixed(2)}%`} />
+      <ToolMetric label={zh ? "OOS Sharpe" : "OOS Sharpe"} value={sharpe.toFixed(2)} />
+      <ToolMetric label={zh ? "OOS 最大回撤" : "OOS max drawdown"} value={`${maxDrawdown.toFixed(2)}%`} />
       <ToolMetric label={zh ? "总收益" : "Total return"} value={`${totalReturn.toFixed(2)}%`} />
       <ToolMetric label={zh ? "数据覆盖" : "Coverage"} value={`${coveragePct.toFixed(1)}%`} />
     </div>
@@ -100,6 +100,7 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
       <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "代数" : "Generations"} {String(compute.generations ?? "-")}</span>
       <span className="border border-border-pg px-2 py-1 rounded-lg">Replay · {String(replay.selected_policy || "-")}</span>
       <span className="border border-border-pg px-2 py-1 rounded-lg">{String(coverage.data_freshness || "unknown")}</span>
+      <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "约束口径" : "Constraint basis"} · OOS</span>
     </div>
     <details className="mt-3 border-t border-border-pg pt-3 text-xs">
       <summary className="cursor-pointer text-text-pg-muted">{zh ? `查看 Discovery Tree（${nodes.length} 个节点）` : `View Discovery Tree (${nodes.length} nodes)`}</summary>

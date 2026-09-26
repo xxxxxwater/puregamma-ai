@@ -139,6 +139,10 @@ def _node(result: dict[str, Any], goal: DreamGoal, *, node_id: str, generation: 
         "parent_id": parent_id,
         "params": dict(result.get("params") or {}),
         "metrics": metrics,
+        "validation": {
+            "in_sample": dict(result.get("in_sample") or {}),
+            "out_of_sample": dict(result.get("out_of_sample") or {}),
+        },
         "meets_constraints": _meets(metrics, goal),
         "score": _score(metrics, goal),
     }
@@ -263,8 +267,11 @@ def run_dream_strategy_search(db: Session, query: str) -> dict[str, Any]:
         float((second or first).get("coverage_ratio") or 0.0),
     )
     coverage_verified = coverage >= 0.70
+    data_freshness = str(first.get("data_freshness") or "unknown")
     status = (
-        "timeframe_coverage_insufficient"
+        "development_mock_only"
+        if data_freshness == "mock"
+        else "timeframe_coverage_insufficient"
         if not coverage_verified
         else "constraint_satisfied"
         if matches
@@ -284,8 +291,9 @@ def run_dream_strategy_search(db: Session, query: str) -> dict[str, Any]:
             "timeframe": first.get("timeframe"),
             "coverage_ratio": round(coverage, 4),
             "coverage_verified": coverage_verified,
-            "data_freshness": first.get("data_freshness"),
+            "data_freshness": data_freshness,
             "bar_construction": first.get("bar_construction"),
+            "validation": first.get("validation"),
         },
         "compute": {
             "evaluations": len(nodes),

@@ -5,7 +5,7 @@ from math import sqrt
 from packages.risk.drawdown import max_drawdown
 
 
-def calculate_metrics(returns: list[float]) -> dict:
+def calculate_metrics(returns: list[float], *, periods_per_year: float = 365.0) -> dict:
     if not returns:
         return {
             "total_return": 0.0,
@@ -22,7 +22,8 @@ def calculate_metrics(returns: list[float]) -> dict:
         total *= 1 + item
     avg = sum(returns) / len(returns)
     variance = sum((item - avg) ** 2 for item in returns) / len(returns)
-    sharpe = (avg / sqrt(variance) * sqrt(365)) if variance else 0.0
+    annualization = max(1.0, float(periods_per_year))
+    sharpe = (avg / sqrt(variance) * sqrt(annualization)) if variance else 0.0
     equity = []
     value = 1.0
     for item in returns:

@@ -951,6 +951,12 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 run.tool_calls_count += 1
                 if tool_name == "run_dream_strategy_search" and isinstance(result.data, dict):
                     dream_tool_results.append({"tool": tool_name, "data": result.data})
+                    assistant.context_json = {
+                        **(assistant.context_json or {}),
+                        "runtime": runtime_plan,
+                        "tool_results": dream_tool_results,
+                    }
+                    db.commit()
                     yield _sse(
                         "dream.completed",
                         {
@@ -1020,6 +1026,12 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 run.tool_calls_count += 1
                 if tool_name == "run_dream_strategy_search" and isinstance(result.data, dict):
                     dream_tool_results.append({"tool": tool_name, "data": result.data})
+                    assistant.context_json = {
+                        **(assistant.context_json or {}),
+                        "runtime": runtime_plan,
+                        "tool_results": dream_tool_results,
+                    }
+                    db.commit()
                     yield _sse(
                         "dream.completed",
                         {

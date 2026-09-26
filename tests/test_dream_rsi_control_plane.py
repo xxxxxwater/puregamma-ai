@@ -6,6 +6,7 @@ from packages.dream_rsi.control_plane import (
     replay_history,
 )
 from packages.nautilus.data_adapter import timeframe_minutes
+from packages.backtest.metrics import calculate_metrics
 from apps.api.services.chat_workspace import tool_permission
 
 
@@ -56,3 +57,11 @@ def test_timeframe_parser():
 def test_dream_search_is_read_only_in_agent_workspace():
     assert tool_permission("read-only", "run_dream_strategy_search") == "allow"
     assert tool_permission("workspace-write", "run_dream_strategy_search") == "allow"
+
+
+
+def test_sharpe_annualization_respects_bar_frequency():
+    returns = [0.01, -0.004, 0.006, -0.002, 0.008, -0.003] * 20
+    daily = calculate_metrics(returns, periods_per_year=365)["sharpe"]
+    hourly = calculate_metrics(returns, periods_per_year=365 * 24)["sharpe"]
+    assert hourly > daily
