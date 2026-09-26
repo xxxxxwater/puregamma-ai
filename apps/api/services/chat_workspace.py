@@ -32,7 +32,7 @@ READ_TOOLS = frozenset({
     # PREVIEW changes no state, and the research plan's market-data backtest runs
     # on stored data. Prompting for these only teaches the user to click through
     # the card without reading it.
-    "generate_order_preview", "run_nautilus_backtest",
+    "generate_order_preview", "run_nautilus_backtest", "run_dream_strategy_search",
 })
 
 # Requires confirmation in "workspace-write". Empty today because no tool in the

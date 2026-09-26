@@ -1379,7 +1379,8 @@ export type SkillSummary = {
 };
 // `skills` holds names a run may still report; the client no longer sends a
 // skill selection - capabilities are built-in plugins.
-export type AgentContext = { permission_mode?: AgentPermissionMode; research_mode?: boolean; data_sources: string[]; skills?: string[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary };
+export type AgentToolResult = { tool: string; data: Record<string, unknown> };
+export type AgentContext = { permission_mode?: AgentPermissionMode; research_mode?: boolean; data_sources: string[]; skills?: string[]; custom_prompt: string; attachments: AgentAttachment[]; model?: string; runtime?: AgentRuntimePlan; evidence?: AgentEvidenceSummary; tool_results?: AgentToolResult[] };
 export type AgentMessage = { id: string; conversation_id: string; role: "user" | "assistant"; content: string; status: string; model?: string | null; input_tokens: number; output_tokens: number; credits_used?: number | null; credits_refunded?: boolean; error_code?: string | null; error_message?: string | null; created_at: string; context?: AgentContext; sources: AgentSource[] };
 export type AgentStreamEvent = { event: string; data: Record<string, unknown> };
 export type SecretaryMessage = { id: string; role: "user" | "assistant"; content: string; created_at: string };

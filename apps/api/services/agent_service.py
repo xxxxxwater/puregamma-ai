@@ -849,6 +849,11 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         ])
         unique_sources: list[ToolSource] = []
         source_keys = set()
+        # Dream-RSI results are small bounded trees (currently <= 6 nodes).
+        # Persist them on the assistant message so a reload shows the same
+        # research artifact the live stream showed. Other generic tool payloads
+        # stay ephemeral/evidence-only to avoid bloating message rows.
+        dream_tool_results: list[dict] = []
         if research_mode:
             planned_calls = [] if runtime_plan.get("clarification_recommended") else registry.plan(
                 user_message.content,
@@ -914,6 +919,15 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 call.status = "running"
                 db.commit()
             yield _sse("tool.started", {"toolCallId": call.id, "tool": tool_name})
+            if tool_name == "run_dream_strategy_search":
+                yield _sse(
+                    "dream.started",
+                    {
+                        "toolCallId": call.id,
+                        "runId": run.id,
+                        "request": str(arguments.get("request") or "")[:500],
+                    },
+                )
             tool_started = time.perf_counter()
             try:
                 if not research_mode and tool_name == "search_online_sources":
@@ -935,6 +949,21 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                         source_keys.add(key)
                         unique_sources.append(source)
                 run.tool_calls_count += 1
+                if tool_name == "run_dream_strategy_search" and isinstance(result.data, dict):
+                    dream_tool_results.append({"tool": tool_name, "data": result.data})
+                    yield _sse(
+                        "dream.completed",
+                        {
+                            "toolCallId": call.id,
+                            "runId": run.id,
+                            "status": result.data.get("status"),
+                            "goal": result.data.get("goal"),
+                            "compute": result.data.get("compute"),
+                            "data": result.data.get("data"),
+                            "bestCandidate": result.data.get("best_candidate"),
+                            "selectedPolicy": (result.data.get("history_replay") or {}).get("selected_policy"),
+                        },
+                    )
                 db.commit()
                 yield _sse("tool.completed", {"toolCallId": call.id, "tool": tool_name, "summary": result.summary, "data": result.data})
             except Exception as exc:
@@ -967,6 +996,15 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             db.add(call)
             db.commit()
             yield _sse("tool.started", {"toolCallId": call.id, "tool": tool_name})
+            if tool_name == "run_dream_strategy_search":
+                yield _sse(
+                    "dream.started",
+                    {
+                        "toolCallId": call.id,
+                        "runId": run.id,
+                        "request": str(arguments.get("request") or "")[:500],
+                    },
+                )
             tool_started = time.perf_counter()
             try:
                 result = registry.call(tool_name, arguments)
@@ -980,6 +1018,21 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                         source_keys.add(key)
                         unique_sources.append(source)
                 run.tool_calls_count += 1
+                if tool_name == "run_dream_strategy_search" and isinstance(result.data, dict):
+                    dream_tool_results.append({"tool": tool_name, "data": result.data})
+                    yield _sse(
+                        "dream.completed",
+                        {
+                            "toolCallId": call.id,
+                            "runId": run.id,
+                            "status": result.data.get("status"),
+                            "goal": result.data.get("goal"),
+                            "compute": result.data.get("compute"),
+                            "data": result.data.get("data"),
+                            "bestCandidate": result.data.get("best_candidate"),
+                            "selectedPolicy": (result.data.get("history_replay") or {}).get("selected_policy"),
+                        },
+                    )
                 db.commit()
                 yield _sse(
                     "tool.completed",
@@ -1004,6 +1057,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
         assistant.context_json = {
             "runtime": runtime_plan,
             "evidence": evidence_summary,
+            "tool_results": dream_tool_results,
         }
         yield _sse("evidence.ready", evidence_summary)
 

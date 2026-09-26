@@ -10,7 +10,7 @@ Chat UI -> authenticated POST/SSE -> conversation ownership + quota
         -> SSE deltas/citations/status
         -> persisted answer, evidence, prompt refs, usage, and settlement
 ```
-SSE events are `run.started`, `plan.ready`, `tool.started`, `tool.completed`, `evidence.ready`, `citation`, `message.delta`, `message.completed`, `run.failed`, and `run.canceled`. The two planning/evidence events are additive and safe for older clients to ignore.
+SSE events are `run.started`, `plan.ready`, `tool.started`, `tool.completed`, `dream.started`, `dream.completed`, `evidence.ready`, `citation`, `message.delta`, `message.completed`, `run.failed`, and `run.canceled`. The two planning/evidence events are additive and safe for older clients to ignore.
 The engineering boundaries and compatibility policy are defined in [AGENT_PLATFORM_BOUNDARIES.md](./AGENT_PLATFORM_BOUNDARIES.md).
 ## Read-only tools
 - `get_market_quote` and `get_market_history` read persisted normalized market quotes.
@@ -18,6 +18,7 @@ The engineering boundaries and compatibility policy are defined in [AGENT_PLATFO
 - `get_defi_protocol_metrics` reads normalized DefiLlama metrics.
 - `get_chain_metrics` and `get_onchain_snapshot` read synchronized RPC/subgraph metrics.
 - `get_data_source_status` reads persisted provider health.
+- `run_dream_strategy_search` is a research-only Dream-RSI control-plane tool: it parses strategy constraints, explores a bounded parameter tree on the backtest catalog, replays traversal policies over observed nodes, and persists the bounded result in the assistant message context. It never creates orders or activates a strategy.
 There is no arbitrary URL, SQL, GraphQL, RPC, shell, order, withdrawal, signing, or transaction tool.
 ## Reliability and security
 Conversation IDs are UUIDs and every query includes `user_id`. Runs and assistant messages persist before generation. Failures preserve the user message and mark the run/message failed without recording successful product usage. Browser disconnects mark a run interrupted; stale pending/running rows are recovered after ten minutes.

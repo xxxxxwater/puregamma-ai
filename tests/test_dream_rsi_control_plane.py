@@ -6,6 +6,7 @@ from packages.dream_rsi.control_plane import (
     replay_history,
 )
 from packages.nautilus.data_adapter import timeframe_minutes
+from apps.api.services.chat_workspace import tool_permission
 
 
 def test_parse_chinese_dream_goal():
@@ -49,3 +50,9 @@ def test_timeframe_parser():
     assert timeframe_minutes("15m") == 15
     assert timeframe_minutes("4h") == 240
     assert timeframe_minutes("1d") == 1440
+
+
+
+def test_dream_search_is_read_only_in_agent_workspace():
+    assert tool_permission("read-only", "run_dream_strategy_search") == "allow"
+    assert tool_permission("workspace-write", "run_dream_strategy_search") == "allow"

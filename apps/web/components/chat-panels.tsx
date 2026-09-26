@@ -37,6 +37,7 @@ export function nextActionLabel(action: string, zh: boolean) {
     review_concentration: ["检查集中度", "Review concentration"], schedule_brief: ["生成每日简报", "Schedule a brief"], compare_expiries: ["比较到期日", "Compare expiries"],
     review_liquidity: ["检查流动性", "Review liquidity"], save_research: ["整理研究结论", "Save research"], adjust_assumptions: ["调整假设", "Adjust assumptions"],
     compare_periods: ["比较不同周期", "Compare periods"], paper_preview: ["预览 PAPER", "Preview PAPER"], deepen_research: ["继续深挖", "Deepen research"],
+    review_dream_tree: ["查看 Dream Tree", "Review Dream Tree"], compare_candidate: ["比较候选策略", "Compare candidates"],
   };
   return labels[action]?.[zh ? 0 : 1] || action.replaceAll("_", " ");
 }
@@ -46,7 +47,79 @@ export function nextActionPrompt(action: string, zh: boolean) {
   return zh ? `基于刚才的研究继续：${label}。先说明需要补充的证据，再给出可执行的下一步。` : `Continue from the previous research: ${label}. State any additional evidence needed, then give the next actionable step.`;
 }
 
+function asRecord(value: unknown): Record<string, unknown> {
+  return value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, unknown> : {};
+}
+
+function numeric(value: unknown, fallback = 0) {
+  const parsed = Number(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; locale: Locale }) {
+  const zh = locale === "zh";
+  const goal = asRecord(data.goal);
+  const best = asRecord(data.best_candidate);
+  const metrics = asRecord(best.metrics);
+  const params = asRecord(best.params);
+  const coverage = asRecord(data.data);
+  const compute = asRecord(data.compute);
+  const replay = asRecord(data.history_replay);
+  const tree = asRecord(data.discovery_tree);
+  const nodes = Array.isArray(tree.nodes) ? tree.nodes : [];
+  const sharpe = numeric(metrics.sharpe_ratio);
+  const maxDrawdown = Math.abs(numeric(metrics.max_drawdown)) * 100;
+  const totalReturn = numeric(metrics.total_return) * 100;
+  const coveragePct = numeric(coverage.coverage_ratio) * 100;
+  const status = String(data.status || "best_effort");
+  const matched = Boolean(best.meets_constraints);
+  const targetSharpe = goal.min_sharpe == null ? "-" : `≥ ${numeric(goal.min_sharpe).toFixed(2)}`;
+  const targetDrawdown = goal.max_drawdown_pct == null ? "-" : `< ${numeric(goal.max_drawdown_pct).toFixed(1)}%`;
+
+  return <section className="mt-3 border border-border-pg-strong bg-bg-panel p-4 text-sm rounded-xl" data-testid="dream-rsi-result">
+    <div className="flex flex-wrap items-start justify-between gap-3">
+      <div>
+        <p className="text-[10px] uppercase tracking-[0.14em] text-text-pg-dim">Dream-RSI Control Plane</p>
+        <h3 className="mt-1 font-semibold">{String(goal.symbol || "-")} · {String(goal.timeframe || "-")} {zh ? "策略发现" : "strategy discovery"}</h3>
+        <p className="mt-1 text-xs text-text-pg-muted">{zh ? "历史探索树作为 replay world；仅研究，不创建订单。" : "The observed discovery tree is the replay world; research-only, no orders."}</p>
+      </div>
+      <span className={`border px-2 py-1 text-xs rounded-lg ${matched ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{status.replaceAll("_", " ")}</span>
+    </div>
+    <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <ToolMetric label="Sharpe" value={sharpe.toFixed(2)} />
+      <ToolMetric label={zh ? "最大回撤" : "Max drawdown"} value={`${maxDrawdown.toFixed(2)}%`} />
+      <ToolMetric label={zh ? "总收益" : "Total return"} value={`${totalReturn.toFixed(2)}%`} />
+      <ToolMetric label={zh ? "数据覆盖" : "Coverage"} value={`${coveragePct.toFixed(1)}%`} />
+    </div>
+    <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
+      <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "目标约束" : "Goal constraints"}</span><p className="mt-1">Sharpe {targetSharpe} · MaxDD {targetDrawdown}</p></div>
+      <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "当前策略参数" : "Candidate parameters"}</span><p className="mt-1">fast {String(params.fast_window ?? "-")} · slow {String(params.slow_window ?? "-")} · fee {String(params.fee_bps ?? "-")} bps</p></div>
+    </div>
+    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-text-pg-muted">
+      <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "探索" : "Evaluations"} {String(compute.evaluations ?? nodes.length)}</span>
+      <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "代数" : "Generations"} {String(compute.generations ?? "-")}</span>
+      <span className="border border-border-pg px-2 py-1 rounded-lg">Replay · {String(replay.selected_policy || "-")}</span>
+      <span className="border border-border-pg px-2 py-1 rounded-lg">{String(coverage.data_freshness || "unknown")}</span>
+    </div>
+    <details className="mt-3 border-t border-border-pg pt-3 text-xs">
+      <summary className="cursor-pointer text-text-pg-muted">{zh ? `查看 Discovery Tree（${nodes.length} 个节点）` : `View Discovery Tree (${nodes.length} nodes)`}</summary>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {nodes.slice(0, 8).map((raw, index) => {
+          const node = asRecord(raw);
+          const nodeMetrics = asRecord(node.metrics);
+          const nodeParams = asRecord(node.params);
+          return <div key={String(node.id || index)} className="border border-border-pg bg-bg-panel-muted p-2 rounded-lg">
+            <div className="flex items-center justify-between gap-2"><span className="font-mono text-[10px]">{String(node.id || `node-${index + 1}`)}</span><span>{Boolean(node.meets_constraints) ? "✓" : "·"}</span></div>
+            <p className="mt-1">S {numeric(nodeMetrics.sharpe_ratio).toFixed(2)} · DD {(Math.abs(numeric(nodeMetrics.max_drawdown)) * 100).toFixed(1)}%</p>
+            <p className="mt-1 text-text-pg-dim">fast {String(nodeParams.fast_window ?? "-")} · slow {String(nodeParams.slow_window ?? "-")}</p>
+          </div>;
+        })}
+      </div>
+    </details>
+  </section>;
+}
 export function StrategyToolResult({ result, locale }: { result: { tool: string; data: Record<string, unknown> }; locale: Locale }) {
+  if (result.tool === "run_dream_strategy_search") return <DreamRsiToolResult data={result.data} locale={locale} />;
   if (!result.tool.includes("strategy") && !result.tool.includes("activation") && !result.tool.includes("order_preview")) return null;
   const zh = locale === "zh";
   const data = result.data;

@@ -83,6 +83,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [recovered, setRecovered] = useState(false);
   const [toolStatus, setToolStatus] = useState<Array<{ id: string; tool: string; status: string }>>([]);
   const [toolResults, setToolResults] = useState<Array<{ tool: string; data: Record<string, unknown> }>>([]);
+  const [dreamProgress, setDreamProgress] = useState<{ status: string; evaluations?: number } | null>(null);
   const [stage, setStage] = useState<AgentStage | null>(null);
   const [quota, setQuota] = useState<{ remaining: number | null; limit: number | null; credit_balance: number } | null>(null);
   const [capabilities, setCapabilities] = useState<AgentCapabilities | null>(null);
@@ -192,6 +193,11 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     setConversationId(id);
     setPermission(result.conversation.permission_mode || "workspace-write");
     setMessages(result.messages);
+    setToolStatus([]);
+    setToolResults([]);
+    setDreamProgress(null);
+    setRuntimePlan(null);
+    setEvidenceStatus(null);
     setFailure(null);
   };
 
@@ -288,6 +294,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     setFailure(null);
     setToolStatus([]);
     setToolResults([]);
+    setDreamProgress(null);
     setRuntimePlan(null);
     setEvidenceStatus(null);
     setStage(null);
@@ -344,6 +351,12 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           const callId = String(data.toolCallId || "");
           setToolStatus((current) => current.map((item) => (item.id === callId || (!callId && item.tool === String(data.tool)) ? { ...item, status: data.error ? (zh ? "失败" : "failed") : (zh ? "完成" : "complete") } : item)));
           if (data.data && typeof data.data === "object") setToolResults((current) => [...current, { tool: String(data.tool), data: data.data as Record<string, unknown> }]);
+        } else if (eventName === "dream.started") {
+          setStage((current) => nextAgentStage(current, "collecting"));
+          setDreamProgress({ status: "exploring" });
+        } else if (eventName === "dream.completed") {
+          const compute = data.compute && typeof data.compute === "object" ? data.compute as Record<string, unknown> : {};
+          setDreamProgress({ status: String(data.status || "completed"), evaluations: Number(compute.evaluations || 0) });
         } else if (eventName === "citation") {
           const source: AgentSource = { provider: String(data.provider), title: String(data.title), url: data.url ? String(data.url) : null, published_at: data.publishedAt ? String(data.publishedAt) : null, source_timestamp: data.sourceTimestamp ? String(data.sourceTimestamp) : null, fetched_at: String(data.fetchedAt), citation_index: Number(data.index) };
           setMessages((current) => current.map((message) => message.id === assistantId ? { ...message, sources: [...message.sources, source] } : message));
@@ -529,12 +542,12 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     { title: "BTC 当前市场", body: "结合最新报价和可追溯新闻，分析 BTC 当前市场状态、主要驱动与风险。" },
     { title: "我的组合风险", body: "检查我的组合集中度、主要风险敞口和需要优先关注的变化。" },
     { title: "本周催化剂", body: "梳理未来一周加密与美股最重要的市场催化剂，并区分事实与市场观点。" },
-    { title: "策略研究", body: "为 BTC 设计一个 PAPER-first 的研究策略，先说明假设、风险和回测要求。" },
+    { title: "Dream-RSI 策略发现", body: "找一个 BTC 15m，最大回撤 < 12%，Sharpe > 1.8 的策略。" },
   ] : [
     { title: "BTC market now", body: "Use a fresh quote and traceable sources to assess BTC's current market regime, drivers, and risks." },
     { title: "My portfolio risk", body: "Review my portfolio concentration, major exposures, and the changes I should watch first." },
     { title: "This week's catalysts", body: "Map the most important crypto and US equity catalysts for the next week, separating facts from market opinion." },
-    { title: "Strategy research", body: "Design a PAPER-first BTC research strategy and state its assumptions, risks, and backtest requirements first." },
+    { title: "Dream-RSI discovery", body: "Find a BTC 15m strategy with max drawdown < 12% and Sharpe > 1.8." },
   ];
   const latestAssistantId = [...messages].reverse().find((message) => message.role === "assistant" && message.status === "completed")?.id;
   const choosePrompt = (value: string) => {
@@ -616,7 +629,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           </div> : null}
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((message) => <div key={message.id} className={message.role === "user" ? "ml-auto max-w-[min(85%,42rem)] break-words rounded-lg border border-border-pg-strong bg-bg-panel-muted p-3 text-sm" : "min-w-0 max-w-full overflow-x-auto border-l border-border-pg pl-4"}>
-              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName, modelLabels)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} /></> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => typeof item === "string" ? <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item.replaceAll("_", " ")}</span> : null)}{message.context.attachments?.length ? <AttachmentCards files={message.context.attachments} locale={locale} /> : null}</div> : null}</>}
+              {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-[10px] uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName, modelLabels)}</span>{message.context?.runtime?.intent ? <span className="border border-border-pg px-1.5 py-0.5 normal-case rounded-lg">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 normal-case rounded-lg ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}{message.sources.length ? <span className="inline-flex items-center gap-1 border border-border-pg px-1.5 py-0.5 normal-case rounded-lg"><Database className="h-3 w-3" />{zh ? "数据" : "Data"} · {message.sources.length} {zh ? "来源" : "sources"}</span> : null}</div><ReportMarkdown content={message.content || (message.status === "streaming" ? (zh ? "正在分析..." : "Analyzing...") : "")} locale={locale} />{message.context?.tool_results?.map((result, index) => <StrategyToolResult key={`${message.id}-${result.tool}-${index}`} result={result} locale={locale} />)}</> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-[10px] text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item}</span>)}{message.context.skills?.map((item) => typeof item === "string" ? <span key={item} className="border border-border-pg px-1.5 py-0.5 rounded-lg">{item.replaceAll("_", " ")}</span> : null)}{message.context.attachments?.length ? <AttachmentCards files={message.context.attachments} locale={locale} /> : null}</div> : null}</>}
               {message.status === "failed" ? <div className="mt-3 border border-status-negative p-3 text-sm text-status-negative rounded-lg"><p>{message.error_message}</p><button type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); }} className="mt-2 inline-flex items-center gap-2 border border-border-pg px-2 py-1 rounded-lg"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重试" : "Retry"}</button></div> : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
               {message.role === "assistant" && message.credits_refunded ? <div className="mt-3 text-right text-[10px] text-text-pg-dim">{zh ? "Credits 已退款" : "Credits refunded"}</div> : null}
@@ -633,8 +646,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             </div>)}
             {busy && runtimePlan ? <div className="flex flex-wrap items-center gap-2 border border-border-pg bg-bg-app px-3 py-2 text-xs text-text-pg-muted rounded-lg"><Target className="h-3.5 w-3.5" /><span>{zh ? "已理解" : "Understood"}: {runtimePlan.intent.replaceAll("_", " ")}</span>{runtimePlan.assets.length ? <span className="text-text-pg-dim">· {runtimePlan.assets.join(", ")}</span> : null}{evidenceStatus ? <span className={evidenceStatus.sufficient ? "ml-auto text-text-pg-muted" : "ml-auto text-status-warning"}>{evidenceStatus.sufficient ? (zh ? "证据已就绪" : "Evidence ready") : (zh ? "证据存在缺口" : "Evidence gaps found")}</span> : <span className="ml-auto text-text-pg-dim">{zh ? "正在构建证据包" : "Building evidence pack"}</span>}</div> : null}
             <AgentStageIndicator stage={stage} locale={locale} />
+            {busy && dreamProgress ? <div className="flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-3 py-2 text-xs text-text-pg-muted rounded-lg" data-testid="dream-rsi-progress"><span className="h-2 w-2 animate-pulse rounded-full bg-current" /><span>Dream-RSI · {dreamProgress.status.replaceAll("_", " ")}</span>{dreamProgress.evaluations ? <span className="ml-auto">{dreamProgress.evaluations} {zh ? "次评估" : "evaluations"}</span> : null}</div> : null}
             {toolStatus.length ? <div className="flex flex-wrap gap-2">{toolStatus.map((item) => <span key={item.id} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-xs text-text-pg-muted rounded-lg"><Wrench className="h-3 w-3" />{item.tool} · {item.status}</span>)}</div> : null}
-            {toolResults.map((result, index) => <StrategyToolResult key={`${result.tool}-${index}`} result={result} locale={locale} />)}
+            {busy ? toolResults.map((result, index) => <StrategyToolResult key={`${result.tool}-${index}`} result={result} locale={locale} />) : null}
           </div>
         </div>
         <div className="shrink-0 border-t border-border-pg bg-bg-app p-3 md:p-4">
