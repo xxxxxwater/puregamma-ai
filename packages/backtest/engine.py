@@ -13,6 +13,7 @@ from __future__ import annotations
 from typing import Any
 
 from packages.backtest.metrics import calculate_metrics
+from packages.backtest.family_research import evaluate_family_candidate, max_candidate_warmup
 from packages.nautilus.data_adapter import catalog_from_db, mock_catalog, timeframe_minutes
 from packages.nautilus.guards import assert_live_trading_disabled, live_trading_status
 from packages.nautilus.result_parser import standardize_backtest_result
@@ -482,6 +483,75 @@ def run_parameter_sweep_for_agent(
             "constraint_metrics": "out_of_sample",
         },
         "engine": "puregamma_parameter_sweep_on_nautilus_catalog",
+        "mode": "research",
+        "live_trading": False,
+    }
+
+
+
+def run_strategy_family_sweep_for_agent(
+    db: Any,
+    asset: str,
+    candidates: list[dict],
+    *,
+    timeframe: str = "1h",
+    lookback_days: int = 90,
+    minimum_factor_coverage: float = 0.70,
+) -> dict:
+    """Evaluate heterogeneous strategy families on one shared causal catalog."""
+    assert_live_trading_disabled()
+    symbol = asset.upper()
+    catalog = catalog_from_db(db, [symbol], lookback_days=lookback_days, timeframe=timeframe)
+    if not catalog.get("bar_count"):
+        if _in_production():
+            raise RuntimeError(
+                "REAL_BACKTEST_DATA_UNAVAILABLE_IN_PRODUCTION: no synchronized "
+                f"{timeframe} observations for {symbol}"
+            )
+        bars_per_day = max(1, int(1440 / timeframe_minutes(timeframe)))
+        catalog = mock_catalog([symbol], bar_count=max(120, lookback_days * bars_per_day), timeframe=timeframe)
+
+    bars = [value for values in catalog.get("bars", {}).values() for value in values]
+    requested = list(candidates[:32])
+    warmup = max_candidate_warmup(requested)
+    min_segment = max(30, warmup * 2)
+    if len(bars) < min_segment * 2:
+        raise RuntimeError(
+            f"BACKTEST_SERIES_TOO_SHORT_FOR_FAMILY_OOS: need at least {min_segment * 2} "
+            f"{timeframe} bars, got {len(bars)}"
+        )
+    split_index = min(max(int(len(bars) * 0.70), min_segment), len(bars) - min_segment)
+
+    evaluated, skipped = [], []
+    for candidate in requested:
+        result = evaluate_family_candidate(
+            bars, candidate, timeframe=timeframe, split_index=split_index,
+            minimum_factor_coverage=minimum_factor_coverage,
+        )
+        (evaluated if result.get("available") else skipped).append(result)
+
+    return {
+        "asset": symbol,
+        "timeframe": timeframe,
+        "lookback_days": lookback_days,
+        "candidates": evaluated,
+        "skipped_families": skipped,
+        "bar_count": catalog.get("bar_count", 0),
+        "coverage_ratio": catalog.get("coverage_ratio", 0.0),
+        "factor_coverage": catalog.get("factor_coverage", {}),
+        "factor_quality": catalog.get("factor_quality", {}),
+        "data_freshness": catalog.get("data_freshness", "unknown"),
+        "bar_construction": catalog.get("bar_construction"),
+        "validation": {
+            "method": "chronological_holdout",
+            "in_sample_ratio": round(split_index / len(bars), 4),
+            "out_of_sample_ratio": round((len(bars) - split_index) / len(bars), 4),
+            "in_sample_bars": split_index,
+            "out_of_sample_bars": len(bars) - split_index,
+            "constraint_metrics": "out_of_sample",
+            "minimum_factor_coverage": minimum_factor_coverage,
+        },
+        "engine": "puregamma_family_research_on_nautilus_catalog",
         "mode": "research",
         "live_trading": False,
     }

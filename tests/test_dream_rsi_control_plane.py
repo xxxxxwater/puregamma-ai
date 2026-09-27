@@ -7,6 +7,12 @@ from packages.dream_rsi.control_plane import (
 )
 from packages.nautilus.data_adapter import timeframe_minutes
 from packages.backtest.metrics import calculate_metrics
+from packages.backtest.family_research import (
+    FAMILY_ORDER,
+    allocate_family_compute,
+    evaluate_family_candidate,
+    initial_family_candidates,
+)
 from apps.api.services.chat_workspace import tool_permission
 
 
@@ -65,3 +71,33 @@ def test_sharpe_annualization_respects_bar_frequency():
     daily = calculate_metrics(returns, periods_per_year=365)["sharpe"]
     hourly = calculate_metrics(returns, periods_per_year=365 * 24)["sharpe"]
     assert hourly > daily
+
+
+
+def test_family_seed_covers_the_six_dream_roots():
+    seeds = initial_family_candidates()
+    assert [item["family"] for item in seeds] == list(FAMILY_ORDER)
+
+
+def test_family_budget_rewards_better_oos_family_without_starving_exploration():
+    nodes = [
+        {"id": "m", "family": "momentum", "score": 2.0, "meets_constraints": True, "params": {"family": "momentum", "factor_variant": "ma_cross", "fast_window": 6, "slow_window": 24}},
+        {"id": "v", "family": "vwap", "score": 1.0, "meets_constraints": False, "params": {"family": "vwap", "factor_variant": "vwap_reclaim", "vwap_window": 24}},
+        {"id": "o", "family": "orderflow", "score": 0.4, "meets_constraints": False, "params": {"family": "orderflow", "factor_variant": "signed_volume_pressure", "pressure_window": 12}},
+    ]
+    allocation = allocate_family_compute(nodes, remaining=8)["allocation"]
+    assert allocation["momentum"] >= allocation["vwap"] >= 1
+    assert allocation["orderflow"] >= 1
+
+
+def test_funding_oi_family_fails_closed_without_real_factor_series():
+    bars = [
+        {"open": 100 + i, "high": 101 + i, "low": 99 + i, "close": 100 + i,
+         "volume": 1000, "bid": 99.9 + i, "ask": 100.1 + i,
+         "funding_rate": None, "open_interest": None}
+        for i in range(220)
+    ]
+    candidate = next(item for item in initial_family_candidates() if item["family"] == "funding_oi")
+    result = evaluate_family_candidate(bars, candidate, timeframe="15m", split_index=154)
+    assert result["available"] is False
+    assert set(result["missing_factors"]) == {"funding_rate", "open_interest"}

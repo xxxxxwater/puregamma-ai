@@ -61,12 +61,18 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
         return self._with_futures_metrics(quote, binance_symbol)
 
     def _with_futures_metrics(self, quote: MarketQuote, source_symbol: str) -> MarketQuote:
-        """Attach perpetual funding rate and open interest from public futures endpoints.
+        snapshot = self._futures_snapshot(source_symbol)
+        if not snapshot:
+            return quote
+        return replace(
+            quote,
+            funding_rate=float(snapshot.get("funding_rate") or 0.0),
+            open_interest=float(snapshot.get("open_interest") or 0.0),
+            open_interest_usd=snapshot.get("open_interest_usd"),
+        )
 
-        These endpoints need no API key. Any failure leaves the spot quote
-        unchanged (funding/OI stay 0) so spot data is never blocked by a
-        futures outage.
-        """
+    def _futures_snapshot(self, source_symbol: str) -> dict[str, float] | None:
+        """Public perpetual snapshot; futures failure never blocks spot data."""
         try:
             premium = httpx.get(
                 f"{self.futures_base_url}/fapi/v1/premiumIndex",
@@ -75,30 +81,25 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
             )
             premium.raise_for_status()
             premium_payload = premium.json()
+            mark_price = _float(premium_payload.get("markPrice"))
             funding_rate = _float(premium_payload.get("lastFundingRate"))
-            mark_price = _float(premium_payload.get("markPrice")) or quote.price
-            open_interest = 0.0
-            open_interest_usd: float | None = None
             oi = httpx.get(
                 f"{self.futures_base_url}/fapi/v1/openInterest",
                 params={"symbol": source_symbol},
                 timeout=self.timeout_seconds,
             )
             oi.raise_for_status()
-            oi_payload = oi.json()
-            open_interest = _float(oi_payload.get("openInterest"))
-            if open_interest and mark_price:
-                open_interest_usd = round(open_interest * mark_price, 2)
-            if not (funding_rate or open_interest):
-                return quote
-            return replace(
-                quote,
-                funding_rate=funding_rate,
-                open_interest=open_interest,
-                open_interest_usd=open_interest_usd,
-            )
+            open_interest = _float(oi.json().get("openInterest"))
+            if not (open_interest or funding_rate):
+                return None
+            return {
+                "funding_rate": funding_rate,
+                "open_interest": open_interest,
+                "open_interest_usd": round(open_interest * mark_price, 2) if open_interest and mark_price else None,
+                "mark_price": mark_price,
+            }
         except Exception:
-            return quote
+            return None
 
     def _get_json(self, path: str, params: dict | None = None) -> Any:
         try:
@@ -209,6 +210,15 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
                     if payload.get("closeTime")
                     else fetched_at
                 )
+                provenance = DataProvenance(
+                    provider="binance",
+                    source_url=f"{self.base_url}/api/v3/ticker/24hr",
+                    source_timestamp=source_time,
+                    fetched_at=fetched_at,
+                ).as_dict()
+                derivatives = self._futures_snapshot(source_symbol)
+                if derivatives:
+                    provenance["derivatives"] = derivatives
                 records.append(
                     {
                         "symbol": source_symbol,
@@ -230,12 +240,7 @@ class BinanceProvider(MarketDataProvider, DataSourceProvider):
                         "ask": _decimal_or_none(payload.get("askPrice")),
                         "source_timestamp": source_time,
                         "fetched_at": fetched_at,
-                        "provenance_json": DataProvenance(
-                            provider="binance",
-                            source_url=f"{self.base_url}/api/v3/ticker/24hr",
-                            source_timestamp=source_time,
-                            fetched_at=fetched_at,
-                        ).as_dict(),
+                        "provenance_json": provenance,
                     }
                 )
             except Exception as exc:

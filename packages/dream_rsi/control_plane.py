@@ -1,15 +1,4 @@
-"""Dream-RSI control plane for research-only strategy discovery.
-
-It optimizes the Agent's exploration policy, not model weights or trading
-permissions. A chat goal such as:
-
-    找一个 BTC 15m，最大回撤 < 12%，Sharpe > 1.8 的策略
-
-becomes an auditable research goal. PureGamma evaluates a bounded discovery
-tree on its existing historical catalog, then replays alternative traversal
-policies over the observed nodes. No order or strategy activation path exists
-in this module.
-"""
+"""Dream-RSI control plane for research-only strategy-family discovery."""
 from __future__ import annotations
 
 from dataclasses import asdict, dataclass
@@ -18,7 +7,11 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from packages.backtest.engine import run_parameter_sweep_for_agent
+from packages.backtest.engine import run_strategy_family_sweep_for_agent
+from packages.backtest.family_research import (
+    FAMILY_LABELS, FAMILY_ORDER, allocate_family_compute, family_candidate_library,
+    initial_family_candidates, next_family_candidates,
+)
 from packages.data.lexicon import understand_query
 
 
@@ -45,7 +38,7 @@ class DreamGoal:
     min_sharpe: float | None = None
     max_drawdown: float | None = None
     lookback_days: int = 90
-    max_evaluations: int = 6
+    max_evaluations: int = 16
 
     def as_dict(self) -> dict[str, Any]:
         payload = asdict(self)
@@ -69,22 +62,17 @@ def parse_dream_goal(query: str) -> DreamGoal:
     if not understanding.assets:
         raise ValueError("DREAM_RSI_ASSET_REQUIRED")
     timeframe_match = _TIMEFRAME_RE.search(query)
-    timeframe = (
-        _normalize_timeframe(timeframe_match.group(1), timeframe_match.group(2))
-        if timeframe_match
-        else "1h"
-    )
+    timeframe = _normalize_timeframe(timeframe_match.group(1), timeframe_match.group(2)) if timeframe_match else "1h"
     drawdown_match = _DRAWDOWN_RE.search(query)
-    max_drawdown: float | None = None
+    max_drawdown = None
     if drawdown_match:
         raw = float(drawdown_match.group(1))
         max_drawdown = raw / 100.0 if drawdown_match.group(2) or raw > 1 else raw
     sharpe_match = _SHARPE_RE.search(query)
-    min_sharpe = float(sharpe_match.group(1)) if sharpe_match else None
     return DreamGoal(
         symbol=understanding.assets[0],
         timeframe=timeframe,
-        min_sharpe=min_sharpe,
+        min_sharpe=float(sharpe_match.group(1)) if sharpe_match else None,
         max_drawdown=max_drawdown,
     )
 
@@ -92,15 +80,11 @@ def parse_dream_goal(query: str) -> DreamGoal:
 def is_dream_strategy_request(query: str) -> bool:
     lowered = " ".join(query.lower().split())
     strategy = any(term in lowered for term in ("strategy", "策略", "交易系统", "alpha"))
-    exploration = any(
-        term in lowered
-        for term in (
-            "find", "search", "discover", "optimize", "explore",
-            "寻找", "找一个", "找出", "搜索", "发现", "筛选", "优化", "探索",
-        )
-    )
-    objective = bool(_SHARPE_RE.search(query) or _DRAWDOWN_RE.search(query))
-    return strategy and (exploration or objective)
+    exploration = any(term in lowered for term in (
+        "find", "search", "discover", "optimize", "explore",
+        "寻找", "找一个", "找出", "搜索", "发现", "筛选", "优化", "探索",
+    ))
+    return strategy and (exploration or bool(_SHARPE_RE.search(query) or _DRAWDOWN_RE.search(query)))
 
 
 def _score(metrics: dict[str, Any], goal: DreamGoal) -> float:
@@ -118,11 +102,10 @@ def _score(metrics: dict[str, Any], goal: DreamGoal) -> float:
 def _meets(metrics: dict[str, Any], goal: DreamGoal) -> bool:
     sharpe = float(metrics.get("sharpe_ratio") or 0.0)
     drawdown = abs(float(metrics.get("max_drawdown") or 0.0))
-    if goal.min_sharpe is not None and sharpe < goal.min_sharpe:
-        return False
-    if goal.max_drawdown is not None and drawdown > goal.max_drawdown:
-        return False
-    return True
+    return not (
+        goal.min_sharpe is not None and sharpe < goal.min_sharpe
+        or goal.max_drawdown is not None and drawdown > goal.max_drawdown
+    )
 
 
 def _node(result: dict[str, Any], goal: DreamGoal, *, node_id: str, generation: int, parent_id: str) -> dict[str, Any]:
@@ -133,177 +116,158 @@ def _node(result: dict[str, Any], goal: DreamGoal, *, node_id: str, generation: 
         "win_rate": float(result.get("win_rate") or 0.0),
         "trade_count": int(result.get("trade_count") or 0),
     }
+    params = dict(result.get("params") or {})
+    family = str(result.get("family") or params.get("family") or "unknown")
     return {
-        "id": node_id,
-        "generation": generation,
-        "parent_id": parent_id,
-        "params": dict(result.get("params") or {}),
-        "metrics": metrics,
-        "validation": {
-            "in_sample": dict(result.get("in_sample") or {}),
-            "out_of_sample": dict(result.get("out_of_sample") or {}),
-        },
-        "meets_constraints": _meets(metrics, goal),
-        "score": _score(metrics, goal),
+        "id": node_id, "generation": generation, "parent_id": parent_id,
+        "family": family, "family_label": FAMILY_LABELS.get(family, family),
+        "factor_variant": str(result.get("factor_variant") or params.get("factor_variant") or "unknown"),
+        "factor_quality": result.get("factor_quality"),
+        "factor_coverage": dict(result.get("factor_coverage") or {}),
+        "params": params, "metrics": metrics,
+        "validation": {"in_sample": dict(result.get("in_sample") or {}), "out_of_sample": dict(result.get("out_of_sample") or {})},
+        "meets_constraints": _meets(metrics, goal), "score": _score(metrics, goal),
     }
 
 
-def _initial_candidates(goal: DreamGoal) -> list[dict[str, Any]]:
-    return [
-        {"fast_window": 4, "slow_window": 12, "fee_bps": 5.0},
-        {"fast_window": 6, "slow_window": 18, "fee_bps": 5.0},
-        {"fast_window": 8, "slow_window": 24, "fee_bps": 10.0},
-        {"fast_window": 12, "slow_window": 36, "fee_bps": 10.0},
-    ][: max(1, min(4, goal.max_evaluations))]
-
-
-def _mutations(seed: dict[str, Any], remaining: int) -> list[dict[str, Any]]:
-    fast = max(2, int(seed.get("fast_window", 6)))
-    slow = max(fast + 1, int(seed.get("slow_window", 18)))
-    fee = max(0.0, float(seed.get("fee_bps", 10.0)))
-    candidates = [
-        {"fast_window": max(2, fast - 2), "slow_window": max(fast + 2, slow - 4), "fee_bps": fee},
-        {"fast_window": fast + 2, "slow_window": max(fast + 4, slow + 4), "fee_bps": fee},
-        {"fast_window": fast, "slow_window": max(fast + 2, slow - 2), "fee_bps": max(0.0, fee - 2.5)},
-        {"fast_window": fast, "slow_window": slow + 6, "fee_bps": fee + 2.5},
-    ]
-    unique: list[dict[str, Any]] = []
-    seen: set[tuple[int, int, float]] = set()
-    for item in candidates:
-        key = (int(item["fast_window"]), int(item["slow_window"]), float(item["fee_bps"]))
-        if item["slow_window"] <= item["fast_window"] or key in seen:
-            continue
-        seen.add(key)
-        unique.append(item)
-        if len(unique) >= remaining:
-            break
-    return unique
-
-
 def replay_history(nodes: list[dict[str, Any]]) -> dict[str, Any]:
-    """Replay alternative traversal policies without re-running backtests."""
     if not nodes:
         return {"selected_policy": "observed_order", "policies": []}
     policies = {
         "observed_order": list(nodes),
-        "sharpe_first": sorted(
-            nodes,
-            key=lambda n: (
-                float(n["metrics"].get("sharpe_ratio") or 0.0),
-                -abs(float(n["metrics"].get("max_drawdown") or 0.0)),
-            ),
-            reverse=True,
-        ),
-        "drawdown_first": sorted(
-            nodes,
-            key=lambda n: (
-                abs(float(n["metrics"].get("max_drawdown") or 0.0)),
-                -float(n["metrics"].get("sharpe_ratio") or 0.0),
-            ),
-        ),
-        "constraint_first": sorted(
-            nodes,
-            key=lambda n: (bool(n.get("meets_constraints")), float(n.get("score") or 0.0)),
-            reverse=True,
-        ),
+        "sharpe_first": sorted(nodes, key=lambda n: (float(n["metrics"].get("sharpe_ratio") or 0.0), -abs(float(n["metrics"].get("max_drawdown") or 0.0))), reverse=True),
+        "drawdown_first": sorted(nodes, key=lambda n: (abs(float(n["metrics"].get("max_drawdown") or 0.0)), -float(n["metrics"].get("sharpe_ratio") or 0.0))),
+        "constraint_first": sorted(nodes, key=lambda n: (bool(n.get("meets_constraints")), float(n.get("score") or 0.0)), reverse=True),
+        "family_best_first": sorted(nodes, key=lambda n: (float(n.get("score") or 0.0), -int(n.get("generation") or 0)), reverse=True),
     }
-    scored: list[dict[str, Any]] = []
+    scored = []
     for name, ordered in policies.items():
-        observed: list[dict[str, Any]] = []
+        observed = []
         for node in ordered:
             observed.append(node)
             if node.get("meets_constraints"):
                 break
         best = max(observed, key=lambda n: float(n.get("score") or 0.0))
-        visited = len(observed)
-        scored.append(
-            {
-                "policy": name,
-                "visited_nodes": visited,
-                "best_node_id": best["id"],
-                "found_constraint_match": any(bool(n.get("meets_constraints")) for n in observed),
-                "replay_objective": round(float(best.get("score") or 0.0) - 0.02 * visited, 6),
-            }
-        )
+        scored.append({
+            "policy": name, "visited_nodes": len(observed), "best_node_id": best["id"],
+            "best_family": best.get("family"),
+            "found_constraint_match": any(bool(n.get("meets_constraints")) for n in observed),
+            "replay_objective": round(float(best.get("score") or 0.0) - 0.02 * len(observed), 6),
+        })
     selected = max(scored, key=lambda item: item["replay_objective"])
     return {"selected_policy": selected["policy"], "policies": scored}
 
 
+def _dedupe_unavailable(rows: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged = {}
+    for row in rows:
+        family = str(row.get("family") or "unknown")
+        existing = merged.get(family)
+        if existing is None:
+            merged[family] = {
+                "family": family, "label": FAMILY_LABELS.get(family, family),
+                "reason": row.get("reason") or "factor_unavailable",
+                "missing_factors": list(row.get("missing_factors") or []),
+                "factor_coverage": dict(row.get("factor_coverage") or {}),
+                "factor_quality": row.get("factor_quality"),
+            }
+        else:
+            existing["missing_factors"] = sorted(set(existing["missing_factors"]).union(row.get("missing_factors") or []))
+    return list(merged.values())
+
+
+def _family_tree(nodes: list[dict[str, Any]], policy: dict[str, Any], unavailable: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    unavailable_map = {str(row.get("family")): row for row in unavailable}
+    allocation = dict(policy.get("allocation") or {})
+    families = []
+    for family in FAMILY_ORDER:
+        rows = [node for node in nodes if node.get("family") == family]
+        best = max(rows, key=lambda row: float(row.get("score") or 0.0)) if rows else None
+        missing = unavailable_map.get(family)
+        families.append({
+            "id": f"family:{family}", "family": family, "label": FAMILY_LABELS[family],
+            "status": "factor_unavailable" if missing and not rows else "evaluated",
+            "evaluations": len(rows), "generation_1_budget": int(allocation.get(family, 0)),
+            "best_node_id": best.get("id") if best else None,
+            "best_oos_score": float(best.get("score") or 0.0) if best else None,
+            "constraint_matches": sum(1 for row in rows if row.get("meets_constraints")),
+            "factor_quality": best.get("factor_quality") if best else missing.get("factor_quality") if missing else None,
+            "missing_factors": list(missing.get("missing_factors") or []) if missing else [],
+        })
+    return families
+
+
 def run_dream_strategy_search(db: Session, query: str) -> dict[str, Any]:
     goal = parse_dream_goal(query)
-    first = run_parameter_sweep_for_agent(
-        db,
-        asset=goal.symbol,
-        parameter_sets=_initial_candidates(goal),
-        timeframe=goal.timeframe,
-        lookback_days=goal.lookback_days,
+    first = run_strategy_family_sweep_for_agent(
+        db, asset=goal.symbol, candidates=initial_family_candidates(),
+        timeframe=goal.timeframe, lookback_days=goal.lookback_days,
     )
-    nodes = [
-        _node(result, goal, node_id=f"g0-{index + 1}", generation=0, parent_id="root")
+    initial_nodes = [
+        _node(result, goal, node_id=f"g0-{result.get('family')}-{index + 1}",
+              generation=0, parent_id=f"family:{result.get('family')}")
         for index, result in enumerate(first["candidates"])
     ]
-    seed = max(nodes, key=lambda item: float(item["score"]))
-    remaining = max(0, goal.max_evaluations - len(nodes))
-    mutations = _mutations(seed["params"], min(2, remaining))
+    unavailable = _dedupe_unavailable(list(first.get("skipped_families") or []))
+    policy = allocate_family_compute(initial_nodes, max(0, goal.max_evaluations - len(initial_nodes)), unavailable)
+    second_candidates = next_family_candidates(initial_nodes, dict(policy.get("allocation") or {}))
+    nodes = list(initial_nodes)
     second = None
-    if mutations:
-        second = run_parameter_sweep_for_agent(
-            db,
-            asset=goal.symbol,
-            parameter_sets=mutations,
-            timeframe=goal.timeframe,
-            lookback_days=goal.lookback_days,
+    if second_candidates:
+        second = run_strategy_family_sweep_for_agent(
+            db, asset=goal.symbol, candidates=second_candidates,
+            timeframe=goal.timeframe, lookback_days=goal.lookback_days,
         )
-        nodes.extend(
-            _node(result, goal, node_id=f"g1-{index + 1}", generation=1, parent_id=seed["id"])
-            for index, result in enumerate(second["candidates"])
-        )
+        parent_by_family = {}
+        for family in FAMILY_ORDER:
+            rows = [node for node in initial_nodes if node.get("family") == family]
+            if rows:
+                parent_by_family[family] = max(rows, key=lambda row: float(row.get("score") or 0.0))["id"]
+        for index, result in enumerate(second["candidates"]):
+            family = str(result.get("family") or "unknown")
+            nodes.append(_node(
+                result, goal, node_id=f"g1-{family}-{index + 1}", generation=1,
+                parent_id=parent_by_family.get(family, f"family:{family}"),
+            ))
+        unavailable = _dedupe_unavailable(unavailable + list(second.get("skipped_families") or []))
 
-    matches = [item for item in nodes if item["meets_constraints"]]
-    best = max(matches or nodes, key=lambda item: float(item["score"]))
     replay = replay_history(nodes)
-    coverage = min(
-        float(first.get("coverage_ratio") or 0.0),
-        float((second or first).get("coverage_ratio") or 0.0),
-    )
+    coverage = min(float(first.get("coverage_ratio") or 0.0), float((second or first).get("coverage_ratio") or 0.0))
     coverage_verified = coverage >= 0.70
     data_freshness = str(first.get("data_freshness") or "unknown")
+    matches = [item for item in nodes if item["meets_constraints"]]
+    best = max(matches or nodes, key=lambda item: float(item["score"])) if nodes else None
     status = (
-        "development_mock_only"
-        if data_freshness == "mock"
-        else "timeframe_coverage_insufficient"
-        if not coverage_verified
-        else "constraint_satisfied"
-        if matches
-        else "best_effort"
+        "no_evaluable_families" if not nodes else
+        "development_mock_only" if data_freshness == "mock" else
+        "timeframe_coverage_insufficient" if not coverage_verified else
+        "constraint_satisfied" if matches else "best_effort"
     )
     return {
-        "kind": "dream_rsi_strategy_discovery",
-        "version": "0.1",
-        "status": status,
-        "goal": goal.as_dict(),
+        "kind": "dream_rsi_strategy_family_discovery", "version": "0.2",
+        "status": status, "goal": goal.as_dict(),
+        "strategy_space": {
+            "families": [FAMILY_LABELS[family] for family in FAMILY_ORDER],
+            "candidate_capacity": sum(len(values) for values in family_candidate_library().values()),
+        },
         "best_candidate": best,
-        "discovery_tree": {"root": {"id": "root", "goal": goal.as_dict()}, "nodes": nodes},
-        "history_replay": replay,
+        "discovery_tree": {
+            "root": {"id": "root", "goal": goal.as_dict(), "children": [f"family:{family}" for family in FAMILY_ORDER]},
+            "families": _family_tree(nodes, policy, unavailable), "nodes": nodes,
+            "unavailable_families": unavailable,
+        },
+        "exploration_policy": policy, "history_replay": replay,
         "data": {
-            "engine": first.get("engine"),
-            "bar_count": first.get("bar_count"),
-            "timeframe": first.get("timeframe"),
-            "coverage_ratio": round(coverage, 4),
-            "coverage_verified": coverage_verified,
-            "data_freshness": data_freshness,
-            "bar_construction": first.get("bar_construction"),
-            "validation": first.get("validation"),
+            "engine": first.get("engine"), "bar_count": first.get("bar_count"),
+            "timeframe": first.get("timeframe"), "coverage_ratio": round(coverage, 4),
+            "coverage_verified": coverage_verified, "factor_coverage": first.get("factor_coverage", {}),
+            "factor_quality": first.get("factor_quality", {}), "data_freshness": data_freshness,
+            "bar_construction": first.get("bar_construction"), "validation": first.get("validation"),
         },
         "compute": {
-            "evaluations": len(nodes),
-            "generations": 2 if second else 1,
+            "evaluations": len(nodes), "generations": 2 if second else 1,
             "replayed_policies": len(replay.get("policies", [])),
+            "generation_1_family_budget": policy.get("allocation", {}),
         },
-        "safety": {
-            "research_only": True,
-            "creates_orders": False,
-            "activates_strategy": False,
-            "live_trading": False,
-        },
+        "safety": {"research_only": True, "creates_orders": False, "activates_strategy": False, "live_trading": False},
     }
