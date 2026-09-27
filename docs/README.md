@@ -3,8 +3,8 @@
 This is the complete index of the PureGamma AI documentation set. It is written
 for users, developers, administrators, operators, and enterprise customers.
 
-Verified against `5d0cdea` (`main` = `refactor/harness-core-v2`). If a document
-contradicts the code, the code wins — please fix the document.
+The canonical source is `main`; retained refactor branches may lag it. If a
+document contradicts the code, the code wins — please fix the document.
 
 - Project overview and quickstart: [../README.md](../README.md)
 - Architectural decision behind the current refactor:
@@ -30,6 +30,7 @@ contradicts the code, the code wins — please fix the document.
 | Auth: Google OIDC, Apple, email/password, mobile sessions, mock login | Implemented |
 | Reports, signals, playbooks | Implemented |
 | Agent chat + Private Secretary | Implemented |
+| Dream-RSI strategy-family Control Plane | Implemented for research-only family search, OOS evaluation, replay, and bounded family compute allocation |
 | Options research (Deribit / Polygon) | Implemented |
 | Backtest Lab + executable strategy specs and compiler | Implemented |
 | Research Runner sandbox | Implemented |
@@ -57,6 +58,7 @@ contradicts the code, the code wins — please fix the document.
 - [DSH v0.1.7-rc.1 Agent / Skill / NAV PM upgrade design](./architecture/DSH_0_1_7_RC1_AGENT_SKILL_NAVPM_UPGRADE.md) **[zh]**
 - [Target Architecture](./review/TARGET_ARCHITECTURE.md)
 - [Agent Chat Architecture](./AGENT_CHAT_ARCHITECTURE.md)
+- [Dream-RSI Control Plane](./DREAM_RSI_CONTROL_PLANE.md)
 - [Agent Platform Boundaries](./AGENT_PLATFORM_BOUNDARIES.md)
 - [Agent Data Pipeline](./AGENT_DATA_PIPELINE.md)
 - [Agent controlled online research](./AGENT_ONLINE_RESEARCH.md)
@@ -139,6 +141,7 @@ contradicts the code, the code wins — please fix the document.
 - [Risk Model](./quant/RISK_MODEL.md)
 - [Signal Confidence Framework](./quant/SIGNAL_CONFIDENCE_FRAMEWORK.md)
 - [Strategy Research Framework](./quant/STRATEGY_RESEARCH_FRAMEWORK.md)
+- [Dream-RSI Control Plane](./DREAM_RSI_CONTROL_PLANE.md)
 - [Strategy Catalog](./quant/STRATEGY_CATALOG.md)
 - [Strategy Validation Checklist](./quant/STRATEGY_VALIDATION_CHECKLIST.md)
 - [Agent Strategy Output Rules](./quant/AGENT_STRATEGY_OUTPUT_RULES.md)

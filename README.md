@@ -2,7 +2,7 @@
 PureGamma AI is an AI-native investment research and decision-support platform for crypto and equity-aware portfolios. It combines market intelligence, portfolio NAV context, agent-based research, DeepSeek Harness deep research, a user-owned memory service, options surface analysis, strategy playbooks, simulated backtests, a trading-mandate foundation (PAPER/SHADOW live today), a gated **LIVE trading control plane** (spot-only, feature-flagged, default disabled), server-computed NAV, billing entitlements, an OpenAI-compatible API gateway, iOS/Android apps, and notification delivery into one research console.
 The versioned declarative Skills Library is documented in
 [`docs/SKILLS_LIBRARY.md`](docs/SKILLS_LIBRARY.md).
-Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [Harness research](docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md), [Memory service](docs/developer/MEMORY_ARCHITECTURE.md), [Automated trading foundation](docs/developer/AUTOMATED_TRADING_FOUNDATION.md), [LIVE trading + NAV](docs/live-trading/ARCHITECTURE.md), [LIVE feature flags](docs/live-trading/FEATURE_FLAGS.md), [LIVE rollout status](docs/live-trading/STATUS.md), [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), [implementation report](docs/IMPLEMENTATION_REPORT.md), and [AI API gateway](docs/AI_API_GATEWAY.md).
+Implementation references: [public data sources](docs/PUBLIC_DATA_SOURCES.md), [Google auth](docs/GOOGLE_AUTH.md), [Agent chat](docs/AGENT_CHAT_ARCHITECTURE.md), [Dream-RSI Control Plane](docs/DREAM_RSI_CONTROL_PLANE.md), [Harness research](docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md), [Memory service](docs/developer/MEMORY_ARCHITECTURE.md), [Automated trading foundation](docs/developer/AUTOMATED_TRADING_FOUNDATION.md), [LIVE trading + NAV](docs/live-trading/ARCHITECTURE.md), [LIVE feature flags](docs/live-trading/FEATURE_FLAGS.md), [LIVE rollout status](docs/live-trading/STATUS.md), [Mobile API contract](docs/mobile/MOBILE_API_CONTRACT.md), [deployment checklist](docs/DEPLOYMENT_CHECKLIST.md), [implementation report](docs/IMPLEMENTATION_REPORT.md), and [AI API gateway](docs/AI_API_GATEWAY.md).
 Start with the full documentation index: [docs/README.md](./docs/README.md).
 For the previous upgrade's added capabilities and rollout boundaries, see
 [MVP Upgrade — 2026-07-24](./docs/release/MVP_20260724_UPGRADE.md). That document
@@ -10,9 +10,10 @@ is a point-in-time record, not the current state.
 
 ## Current state
 
-This README describes the trunk: `main`, currently identical to
-`refactor/harness-core-v2`. It is a source release candidate, **not a
-production-deployment claim**. Enabling optional providers, Harness/Memory,
+This README describes the canonical trunk: `main`. The retained
+`refactor/harness-core-v2` branch is a refactor reference and may lag the
+trunk; branch equality is not a release invariant. `main` is a source release
+candidate, **not a production-deployment claim**. Enabling optional providers, Harness/Memory,
 broker connectivity, or LIVE trading remains subject to environment
 configuration, explicit feature gates, approvals, and the deployment runbooks.
 
@@ -30,7 +31,12 @@ What the trunk contains today:
   stale-state handling, and accessible reduced-motion behavior.
 - **Research and personalization**: Harness deep research with evidence
   snapshots, user-owned consent-gated memory, executable strategy specs,
-  compiled backtests, and a sandboxed Research Runner.
+  compiled backtests, a sandboxed Research Runner, and the **Dream-RSI
+  strategy-family control plane**. Dream-RSI searches Momentum / VWAP /
+  Orderflow / Funding+OI / Mean Reversion / Hybrid families, evaluates user
+  constraints on chronological OOS data, replays the observed discovery tree,
+  and reallocates the next bounded generation toward stronger families without
+  granting any trading permission.
 - **Market Wire / 新闻流**: a ChainCatcher RSS + REST provider with attributed
   short summaries, multilingual repair/backfill, independent health monitoring,
   RSS-plan entitlement inheritance, cursor pagination, explicit language
@@ -43,7 +49,7 @@ What the trunk contains today:
   Android, and asynchronous Photon iMessage inbound handling alongside existing
   notification channels.
 
-- **Persistence**: 33 Alembic migrations, head `0032_chat_workspace`.
+- **Persistence**: the migration chain includes durable Agent run events through `0033_agent_run_events`.
 
 ## What is PureGamma AI?
 PureGamma AI is an AI decision-support system for individual secondary-market investors. It helps users answer three daily questions:
@@ -60,6 +66,7 @@ Research and decision support:
 - **Private Secretary**: voice-based secretary interaction with iMessage verification (Max/Enterprise) and user-scoped memory policy.
 - **Options research**: read-only Deribit BTC/ETH chains, Polygon.io equity chains, moneyness×DTE surfaces, and Long Gamma candidate scoring.
 - **Backtest Lab**: unified backtest engine with quant metrics, artifacts, and candle data. `ExecutableStrategySpec` (Pydantic) plus `compile_backtest_spec` turn declared strategies into backtest entry/exit rules, and `AgentToolRegistry` (`packages/backtest/tools.py`, 34 tools) gives the Agent a provenance-carrying view of market, journal, and backtest data.
+- **Dream-RSI strategy discovery**: Agent chat accepts constrained goals such as “找一个 BTC 15m，最大回撤 < 12%，Sharpe > 1.8 的策略”. The control plane explores six strategy families, runs causal 70/30 chronological IS/OOS evaluation with timeframe-correct 24/7 Sharpe annualization, replays observed history, and allocates the next family-level compute budget. Results, family budgets, factor quality, and the bounded Discovery Tree persist with the conversation. Research only: Dream-RSI creates no OrderIntent and performs no strategy activation.
 - **Research Runner**: user code executed in a no-network, read-only, resource-limited Docker sandbox with static AST validation.
 - **DeepSeek Harness deep research** (Phase 1, `HARNESS_RESEARCH_ENABLED=false` by default): a research orchestration engine that plans multi-step investigations, coordinates macro / on-chain / options / risk sub-agents, snapshots cited evidence (`EvidenceSnapshot`), and returns server-validated `ResearchArtifact` results. Code executes only in a short-lived low-trust `harness-runner` container whose sole I/O is a capability-token-gated Research Gateway (no DB, Redis, Docker socket, or network by default); per-run credit budgets, daily caps, and global concurrency are enforced. Research only — it never creates orders.
 - **Memory service** (Phase 1, `MEMORY_SERVICE_ENABLED=false` by default): PureGamma-owned user memory with explicit scope settings, consent-gated `MemoryProposal`s, append-only audit records, TTL'd conversation summaries, and ownership checks on every read/write. Memory is personalization context only — never trading authorization or risk input.
@@ -109,6 +116,8 @@ flowchart TD
   Gateway --> LLM["DeepSeek / Kimi / GLM / Luna"]
   API --> Options["Options research (Deribit / Polygon)"]
   API --> Backtest["Backtest Lab + unified engine"]
+  API --> Dream["Dream-RSI family control plane"]
+  Dream --> Backtest
   API --> ResearchRunner["Research sandbox (Docker)"]
   API --> Harness["DeepSeek Harness: orchestrator + low-trust runner"]
   Harness --> DB
@@ -150,6 +159,7 @@ Backend layers:
 | Nautilus | `packages/nautilus`, `services/nautilus-runtime` | Data adapter, guardrails, isolated runtime |
 | Options | `packages/options` | Chain, surface, Long Gamma scoring |
 | Research Runner | `packages/research_runner` | Sandboxed user-code execution |
+| Dream-RSI | `packages/dream_rsi`, `packages/backtest/family_research.py` | Strategy-family exploration policy, causal family evaluation, history replay, compute reallocation |
 | Harness | `packages/harness` | Deep-research orchestration, security gates, state machine, mock adapter |
 | Memory | `packages/memory` | User memory policy, scope settings, proposals, audits |
 | Data | `packages/data` | Market, on-chain, RSS, FinTwit, macro providers |

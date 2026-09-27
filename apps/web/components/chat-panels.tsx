@@ -62,11 +62,19 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
   const best = asRecord(data.best_candidate);
   const metrics = asRecord(best.metrics);
   const params = asRecord(best.params);
+  const bestFamily = String(best.family || params.family || "-");
+  const bestVariant = String(best.factor_variant || params.factor_variant || "-");
+  const parameterText = Object.entries(params)
+    .filter(([key]) => !["family", "factor_variant", "lookback_days", "timeframe"].includes(key))
+    .slice(0, 5)
+    .map(([key, value]) => `${key.replaceAll("_", " ")} ${String(value)}`)
+    .join(" · ");
   const coverage = asRecord(data.data);
   const compute = asRecord(data.compute);
   const replay = asRecord(data.history_replay);
   const tree = asRecord(data.discovery_tree);
   const nodes = Array.isArray(tree.nodes) ? tree.nodes : [];
+  const families = Array.isArray(tree.families) ? tree.families : [];
   const sharpe = numeric(metrics.sharpe_ratio);
   const maxDrawdown = Math.abs(numeric(metrics.max_drawdown)) * 100;
   const totalReturn = numeric(metrics.total_return) * 100;
@@ -93,7 +101,7 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
     </div>
     <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
       <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "目标约束" : "Goal constraints"}</span><p className="mt-1">Sharpe {targetSharpe} · MaxDD {targetDrawdown}</p></div>
-      <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "当前策略参数" : "Candidate parameters"}</span><p className="mt-1">fast {String(params.fast_window ?? "-")} · slow {String(params.slow_window ?? "-")} · fee {String(params.fee_bps ?? "-")} bps</p></div>
+      <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "最佳策略家族" : "Best strategy family"}</span><p className="mt-1">{bestFamily.replaceAll("_", " ")} · {bestVariant.replaceAll("_", " ")}</p><p className="mt-1 text-text-pg-dim">{parameterText || "-"}</p></div>
     </div>
     <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-text-pg-muted">
       <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "探索" : "Evaluations"} {String(compute.evaluations ?? nodes.length)}</span>
@@ -103,7 +111,16 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
       <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "约束口径" : "Constraint basis"} · OOS</span>
     </div>
     <details className="mt-3 border-t border-border-pg pt-3 text-xs">
-      <summary className="cursor-pointer text-text-pg-muted">{zh ? `查看 Discovery Tree（${nodes.length} 个节点）` : `View Discovery Tree (${nodes.length} nodes)`}</summary>
+      <summary className="cursor-pointer text-text-pg-muted">{zh ? `查看 Family Budget 与 Discovery Tree（${nodes.length} 个节点）` : `View family budget and Discovery Tree (${nodes.length} nodes)`}</summary>
+      <div className="mt-2 grid gap-2 sm:grid-cols-2">
+        {families.map((raw, index) => {
+          const family = asRecord(raw);
+          return <div key={String(family.id || index)} className="border border-border-pg p-2 rounded-lg">
+            <div className="flex items-center justify-between gap-2"><span className="font-medium">{String(family.label || family.family || "-")}</span><span className="font-mono text-[10px]">budget {String(family.generation_1_budget ?? 0)}</span></div>
+            <p className="mt-1 text-text-pg-dim">{String(family.status || "-")} · {String(family.evaluations ?? 0)} eval</p>
+          </div>;
+        })}
+      </div>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {nodes.slice(0, 8).map((raw, index) => {
           const node = asRecord(raw);
@@ -111,8 +128,9 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
           const nodeParams = asRecord(node.params);
           return <div key={String(node.id || index)} className="border border-border-pg bg-bg-panel-muted p-2 rounded-lg">
             <div className="flex items-center justify-between gap-2"><span className="font-mono text-[10px]">{String(node.id || `node-${index + 1}`)}</span><span>{Boolean(node.meets_constraints) ? "✓" : "·"}</span></div>
+            <p className="mt-1">{String(node.family || "-").replaceAll("_", " ")} · {String(node.factor_variant || "-").replaceAll("_", " ")}</p>
             <p className="mt-1">S {numeric(nodeMetrics.sharpe_ratio).toFixed(2)} · DD {(Math.abs(numeric(nodeMetrics.max_drawdown)) * 100).toFixed(1)}%</p>
-            <p className="mt-1 text-text-pg-dim">fast {String(nodeParams.fast_window ?? "-")} · slow {String(nodeParams.slow_window ?? "-")}</p>
+            <p className="mt-1 text-text-pg-dim">{String(node.factor_quality || "-")} · score {numeric(node.score).toFixed(2)}</p>
           </div>;
         })}
       </div>
