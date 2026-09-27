@@ -117,7 +117,10 @@ For each bounded candidate:
 
 Possible statuses are `constraint_satisfied`, `best_effort`,
 `timeframe_coverage_insufficient`, `development_mock_only`, and
-`no_evaluable_families`.
+`no_evaluable_families`. If the requested timeframe does not yet contain
+enough bars for warm-up plus a chronological OOS holdout, the family sweep
+returns structured `insufficient_history` metadata instead of throwing a tool
+error; the Agent surfaces that as `timeframe_coverage_insufficient`.
 
 Backtests remain hypothetical and do not predict future returns.
 

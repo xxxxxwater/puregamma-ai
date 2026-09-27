@@ -516,10 +516,43 @@ def run_strategy_family_sweep_for_agent(
     warmup = max_candidate_warmup(requested)
     min_segment = max(30, warmup * 2)
     if len(bars) < min_segment * 2:
-        raise RuntimeError(
-            f"BACKTEST_SERIES_TOO_SHORT_FOR_FAMILY_OOS: need at least {min_segment * 2} "
-            f"{timeframe} bars, got {len(bars)}"
-        )
+        skipped = [
+            {
+                "available": False,
+                "family": candidate.get("family"),
+                "factor_variant": candidate.get("factor_variant"),
+                "reason": "insufficient_history",
+                "missing_factors": [],
+                "factor_coverage": catalog.get("factor_coverage", {}),
+                "factor_quality": (catalog.get("factor_quality", {}) or {}).get(candidate.get("family")),
+            }
+            for candidate in requested
+        ]
+        return {
+            "asset": symbol,
+            "timeframe": timeframe,
+            "lookback_days": lookback_days,
+            "candidates": [],
+            "skipped_families": skipped,
+            "bar_count": catalog.get("bar_count", 0),
+            "coverage_ratio": catalog.get("coverage_ratio", 0.0),
+            "factor_coverage": catalog.get("factor_coverage", {}),
+            "factor_quality": catalog.get("factor_quality", {}),
+            "data_freshness": catalog.get("data_freshness", "unknown"),
+            "bar_construction": catalog.get("bar_construction"),
+            "validation": {
+                "method": "chronological_holdout",
+                "required_bars": min_segment * 2,
+                "available_bars": len(bars),
+                "constraint_metrics": "out_of_sample",
+                "minimum_factor_coverage": minimum_factor_coverage,
+                "status": "insufficient_history",
+            },
+            "insufficient_history": True,
+            "engine": "puregamma_family_research_on_nautilus_catalog",
+            "mode": "research",
+            "live_trading": False,
+        }
     split_index = min(max(int(len(bars) * 0.70), min_segment), len(bars) - min_segment)
 
     evaluated, skipped = [], []

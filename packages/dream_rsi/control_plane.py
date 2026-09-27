@@ -237,10 +237,13 @@ def run_dream_strategy_search(db: Session, query: str) -> dict[str, Any]:
     data_freshness = str(first.get("data_freshness") or "unknown")
     matches = [item for item in nodes if item["meets_constraints"]]
     best = max(matches or nodes, key=lambda item: float(item["score"])) if nodes else None
+    insufficient_history = bool(first.get("insufficient_history")) or bool(
+        second and second.get("insufficient_history")
+    )
     status = (
-        "no_evaluable_families" if not nodes else
         "development_mock_only" if data_freshness == "mock" else
-        "timeframe_coverage_insufficient" if not coverage_verified else
+        "timeframe_coverage_insufficient" if insufficient_history or not coverage_verified else
+        "no_evaluable_families" if not nodes else
         "constraint_satisfied" if matches else "best_effort"
     )
     return {
@@ -263,6 +266,7 @@ def run_dream_strategy_search(db: Session, query: str) -> dict[str, Any]:
             "coverage_verified": coverage_verified, "factor_coverage": first.get("factor_coverage", {}),
             "factor_quality": first.get("factor_quality", {}), "data_freshness": data_freshness,
             "bar_construction": first.get("bar_construction"), "validation": first.get("validation"),
+            "insufficient_history": insufficient_history,
         },
         "compute": {
             "evaluations": len(nodes), "generations": 2 if second else 1,
