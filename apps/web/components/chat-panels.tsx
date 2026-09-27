@@ -125,7 +125,6 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
         {nodes.slice(0, 8).map((raw, index) => {
           const node = asRecord(raw);
           const nodeMetrics = asRecord(node.metrics);
-          const nodeParams = asRecord(node.params);
           return <div key={String(node.id || index)} className="border border-border-pg bg-bg-panel-muted p-2 rounded-lg">
             <div className="flex items-center justify-between gap-2"><span className="font-mono text-[10px]">{String(node.id || `node-${index + 1}`)}</span><span>{Boolean(node.meets_constraints) ? "✓" : "·"}</span></div>
             <p className="mt-1">{String(node.family || "-").replaceAll("_", " ")} · {String(node.factor_variant || "-").replaceAll("_", " ")}</p>

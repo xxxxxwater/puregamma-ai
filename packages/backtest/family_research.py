@@ -197,7 +197,19 @@ def _vwap_condition(bars: list[dict[str, Any]], index: int, candidate: dict[str,
         return False
     latest = float(bars[index - 1]["close"])
     band = float(candidate.get("band_bps", 0.0)) / 10_000
-    return latest >= value * (1.0 + band)
+    variant = str(candidate.get("factor_variant") or "vwap_reclaim")
+    if variant == "vwap_reclaim":
+        previous_value = _vwap_value(bars, index - 1, window)
+        if previous_value is None or index < 2:
+            return False
+        previous_close = float(bars[index - 2]["close"])
+        return (
+            previous_close <= previous_value * (1.0 + band)
+            and latest > value * (1.0 + band)
+        )
+    # Deviation-trend intentionally stays long while price remains sufficiently
+    # above the rolling proxy VWAP rather than requiring a fresh crossing.
+    return latest > value * (1.0 + band)
 
 
 def _signed_volume_pressure(bars: list[dict[str, Any]], index: int, window: int) -> float | None:

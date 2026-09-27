@@ -313,11 +313,14 @@ class AgentToolRegistry:
         payload = run_dream_strategy_search(self.db, request)
         best = payload.get("best_candidate") or {}
         metrics = best.get("metrics") or {}
+        family = str(best.get("family") or "none").replace("_", " ")
+        variant = str(best.get("factor_variant") or "none").replace("_", " ")
         summary = (
             f"Dream-RSI {payload.get('status', 'best_effort')}: "
             f"{payload['goal']['symbol']} {payload['goal']['timeframe']}, "
-            f"Sharpe {metrics.get('sharpe_ratio', 0):.2f}, "
-            f"max drawdown {abs(float(metrics.get('max_drawdown', 0))) * 100:.2f}%, "
+            f"best family {family} / {variant}, "
+            f"OOS Sharpe {metrics.get('sharpe_ratio', 0):.2f}, "
+            f"OOS max drawdown {abs(float(metrics.get('max_drawdown', 0))) * 100:.2f}%, "
             f"{payload['compute']['evaluations']} evaluations; research-only"
         )
         return ToolResult("run_dream_strategy_search", payload, summary, [])
