@@ -192,6 +192,20 @@ def build_scheduler() -> BlockingScheduler:
         max_instances=1,
         coalesce=True,
     )
+    if settings.research_runner_enabled:
+        scheduler.add_job(
+            enqueue,
+            IntervalTrigger(
+                seconds=max(
+                    10,
+                    min(30, settings.research_runner_heartbeat_ttl_seconds // 2),
+                )
+            ),
+            args=["puregamma.research_runner_heartbeat"],
+            id="research_runner_heartbeat",
+            max_instances=1,
+            coalesce=True,
+        )
     if settings.data_sync_worker_enabled:
         if settings.binance_public_data_enabled:
             scheduler.add_job(
