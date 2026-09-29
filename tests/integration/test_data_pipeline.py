@@ -8,7 +8,7 @@ from packages.data.mock_provider import MockMarketDataProvider
 from packages.data.rss_provider import RSSProvider
 from packages.data.x_provider import XProvider
 from packages.data.bloomberg_provider import BloombergProvider
-from packages.data.provider import DataSourceStatus
+from packages.data.provider import DataSourceStatus, ProviderError
 
 
 def test_coindesk_mock_provider_contract_with_market_mock():
@@ -27,10 +27,9 @@ def test_rss_provider_returns_headlines(monkeypatch):
     assert all(isinstance(item, str) for item in headlines)
 
 
-def test_x_kol_mock_returns_posts_as_sentiment_scores():
-    scores = XProvider().scan_sentiment(["BTC", "SOL"])
-
-    assert scores == {"BTC": 0.5, "SOL": 0.5}
+def test_x_legacy_sentiment_facade_fails_closed():
+    with pytest.raises(ProviderError, match="Synthetic X sentiment scoring is disabled"):
+        XProvider().scan_sentiment(["BTC", "SOL"])
 
 
 def test_sentiment_classifier_returns_valid_score():
