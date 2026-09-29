@@ -535,6 +535,7 @@ def _valid_production_settings() -> Settings:
         session_secret="s" * 32,
         encryption_master_key="e" * 32,
         internal_runtime_secret="i" * 32,
+        metrics_bearer_token="m" * 32,
         nautilus_runtime_secret="n" * 32,
         site_url="https://app.puregamma.ai",
         cors_origins=("https://app.puregamma.ai",),
