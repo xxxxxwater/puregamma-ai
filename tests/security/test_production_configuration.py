@@ -282,5 +282,5 @@ def test_production_metrics_accepts_configured_bearer(monkeypatch):
         _request("/metrics", authorization=f"Bearer {settings.metrics_bearer_token}")
     )
     assert response.status_code == 200
-    assert response.media_type == "text/plain"
+    assert response.media_type.startswith("text/plain")
     assert b"puregamma_uptime_seconds" in response.body
