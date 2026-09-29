@@ -7,7 +7,7 @@ on:
     branches: [main]
 
 concurrency:
-  group: puregamma-commercial-${{ github.ref }}
+  group: puregamma-commercial-readiness-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
