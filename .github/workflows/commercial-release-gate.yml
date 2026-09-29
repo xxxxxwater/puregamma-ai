@@ -110,10 +110,138 @@ jobs:
         working-directory: apps/site
         run: npm test
 
+  production-contract:
+    name: Production deployment contract
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Compile deployment validators
+        run: |
+          python3 -m py_compile scripts/validate-production-env.py
+          bash -n deploy/deploy.sh
+          bash -n deploy/release-final-check.sh
+
+      - name: Verify production compose fail-closed rails
+        run: |
+          set -euo pipefail
+          grep -Fq 'POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?' docker-compose.production.yml
+          grep -Fq 'REDIS_PASSWORD: ${REDIS_PASSWORD:?' docker-compose.production.yml
+          grep -Fq 'NEXT_PUBLIC_ALLOW_MOCK_FALLBACK: "false"' docker-compose.production.yml
+          grep -Fq 'NAUTILUS_LIVE_TRADING_ENABLED: "false"' docker-compose.production.yml
+          grep -Fq 'NAUTILUS_ALLOW_LIVE_ORDER: "false"' docker-compose.production.yml
+          grep -Fq 'NAUTILUS_ALLOW_WITHDRAWAL: "false"' docker-compose.production.yml
+          grep -Fq 'NAUTILUS_ALLOW_TRANSFER: "false"' docker-compose.production.yml
+
+      - name: Verify production env template carries mandatory controls
+        run: |
+          set -euo pipefail
+          grep -q '^APP_ENV=production    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every commercial surface to pass
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          WEB: ${{ needs.web.result }}
+          SITE: ${{ needs.site.result }}
+          PRODUCTION_CONTRACT: ${{ needs.production-contract.result }}
+        run: |
+          set -euo pipefail
+          printf 'backend=%s web=%s site=%s production-contract=%s\n' "$BACKEND" "$WEB" "$SITE" "$PRODUCTION_CONTRACT"
+          test "$BACKEND" = success
+          test "$WEB" = success
+          test "$SITE" = success
+          test "$PRODUCTION_CONTRACT" = success
+ deploy/production.env
+          grep -q '^REDIS_PASSWORD=    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every commercial surface to pass
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          WEB: ${{ needs.web.result }}
+          SITE: ${{ needs.site.result }}
+        run: |
+          set -euo pipefail
+          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
+          test "$BACKEND" = success
+          test "$WEB" = success
+          test "$SITE" = success
+ deploy/production.env
+          grep -q '^METRICS_BEARER_TOKEN=    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every commercial surface to pass
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          WEB: ${{ needs.web.result }}
+          SITE: ${{ needs.site.result }}
+        run: |
+          set -euo pipefail
+          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
+          test "$BACKEND" = success
+          test "$WEB" = success
+          test "$SITE" = success
+ deploy/production.env
+          grep -q '^NEXT_PUBLIC_API_URL=https://api.puregamma.ai    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every commercial surface to pass
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          WEB: ${{ needs.web.result }}
+          SITE: ${{ needs.site.result }}
+        run: |
+          set -euo pipefail
+          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
+          test "$BACKEND" = success
+          test "$WEB" = success
+          test "$SITE" = success
+ deploy/production.env
+          grep -q '^ENABLE_MOCK_AGENT=false    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every commercial surface to pass
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          WEB: ${{ needs.web.result }}
+          SITE: ${{ needs.site.result }}
+        run: |
+          set -euo pipefail
+          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
+          test "$BACKEND" = success
+          test "$WEB" = success
+          test "$SITE" = success
+ deploy/production.env
+          grep -q '^ENABLE_MOCK_MARKET_DATA=false    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every commercial surface to pass
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          WEB: ${{ needs.web.result }}
+          SITE: ${{ needs.site.result }}
+        run: |
+          set -euo pipefail
+          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
+          test "$BACKEND" = success
+          test "$WEB" = success
+          test "$SITE" = success
+ deploy/production.env
+          grep -q '^ENABLE_MOCK_DATA_SOURCES=false    runs-on: ubuntu-24.04
+    steps:
+      - name: Require every commercial surface to pass
+        env:
+          BACKEND: ${{ needs.backend.result }}
+          WEB: ${{ needs.web.result }}
+          SITE: ${{ needs.site.result }}
+        run: |
+          set -euo pipefail
+          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
+          test "$BACKEND" = success
+          test "$WEB" = success
+          test "$SITE" = success
+ deploy/production.env
+
   release-gate:
     name: Commercial gate
     if: always()
-    needs: [backend, web, site]
+    needs: [backend, web, site, production-contract]
     runs-on: ubuntu-24.04
     steps:
       - name: Require every commercial surface to pass
