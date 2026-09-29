@@ -147,6 +147,18 @@ jobs:
           grep -q 'rollback candidate failed verification' deploy/release-rollback.sh
           grep -q '127.0.0.1:8000/ready' deploy/release-rollback.sh
 
+      - name: Validate Caddy edge contract
+        run: |
+          set -euo pipefail
+          ! grep -q 'header_up X-Real-IP {http.request.header.CF-Connecting-IP}' Caddyfile
+          ! grep -q 'default {http.request.header.CF-Connecting-IP}' Caddyfile
+          grep -q 'header_up X-Real-IP {client_ip}' Caddyfile
+          docker run --rm \
+            -e APP_DOMAIN=app.puregamma.ai \
+            -e API_DOMAIN=api.puregamma.ai \
+            -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+
       - name: Verify production env template carries mandatory controls
         run: |
           set -euo pipefail
