@@ -147,6 +147,9 @@ def render_daily_brief_delivery(db: Session, preference: DailyBriefPreference, r
     if preference.include_market:
         lines.extend(["", "Long Gamma 候选" if zh else "Long Gamma candidates"])
         try:
+            user = db.get(User, preference.user_id)
+            if user is None:
+                raise ValueError("DAILY_BRIEF_USER_NOT_FOUND")
             opportunities = research_event_service.get_opportunities(db, user, preference.locale)
             earnings = opportunities.get("earnings") or []
             long_gamma = opportunities.get("long_gamma") or []
