@@ -87,7 +87,7 @@ def test_renewal_extends_the_ttl_the_ttl_key_is_actually_set(fake_redis):
     assert fake_redis.get(key) is None
 
 
-def test_a_dead_holder_can_be_replaced_by_the_container_that_reuses_its_name(fake_redis, monkeypatch, caplog):
+def test_a_dead_holder_can_be_replaced_by_the_container_that_reuses_its_name(fake_redis, monkeypatch):
     """The recovery path this release adds.
 
     A crashed scheduler leaves the lock naming "<container-id>:1". When the same
@@ -99,12 +99,17 @@ def test_a_dead_holder_can_be_replaced_by_the_container_that_reuses_its_name(fak
     fake_redis.set(key, "schedulerhost:1", nx=True, ex=900)  # left behind by the dead run
 
     started: list[bool] = []
+    warnings: list[str] = []
     monkeypatch.setattr(scheduler_module, "build_scheduler", lambda: _StubScheduler(started))
+    monkeypatch.setattr(
+        scheduler_module.logger,
+        "warning",
+        lambda message, *args, **kwargs: warnings.append(message % args if args else message),
+    )
 
-    with caplog.at_level("WARNING"):
-        scheduler_module.main()
+    scheduler_module.main()
     assert started == [True], "the scheduler should have started on its own lock"
-    assert any("reclaimed" in record.message or "reclaimed" in record.getMessage() for record in caplog.records), caplog.text
+    assert any("reclaimed" in message for message in warnings), warnings
     assert fake_redis.get(key) is None, "the lock must be released when the scheduler exits"
 
 
