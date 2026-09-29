@@ -54,6 +54,7 @@ def _stripe_mode_settings(**overrides) -> Settings:
         openai_luna_enabled=True,
         openai_api_key="sk-luna-acceptance",
         openai_luna_model="gpt-5.6-luna",
+        openai_agent_models=(("gpt-5.6-luna", "GPT-5.6 Luna"),),
         openai_luna_allowed_plans=("Max", "Enterprise"),
     )
     base.update(overrides)
