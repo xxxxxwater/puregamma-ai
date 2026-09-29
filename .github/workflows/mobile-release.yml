@@ -4,22 +4,96 @@ on:
   workflow_dispatch:
     inputs:
       tag:
-        description: "Release tag to attach artifacts to (e.g. v0.1.0)"
+        description: "Release tag to publish (for example v0.2.2). Empty uses .release-version."
         required: false
         default: ""
   push:
     tags:
       - "v*"
+    branches:
+      - main
+    paths:
+      - ".release-version"
 
 permissions:
   contents: write
 
+concurrency:
+  group: puregamma-release-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
-  android:
-    name: Android release APK
-    runs-on: ubuntu-latest
+  prepare:
+    name: Resolve release metadata
+    runs-on: ubuntu-24.04
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+      commit: ${{ steps.meta.outputs.commit }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.ref_type == 'tag' && github.ref_name || 'main' }}
+          fetch-depth: 0
+
+      - id: meta
+        name: Resolve and validate tag
+        shell: bash
+        env:
+          INPUT_TAG: ${{ github.event.inputs.tag }}
+          REF_TYPE: ${{ github.ref_type }}
+          REF_NAME: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          if [ -n "${INPUT_TAG:-}" ]; then
+            tag="$INPUT_TAG"
+          elif [ "$REF_TYPE" = "tag" ]; then
+            tag="$REF_NAME"
+          else
+            tag="$(tr -d '[:space:]' < .release-version)"
+          fi
+          if [[ ! "$tag" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "Invalid release tag: $tag" >&2
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+          echo "Publishing $tag from $(git rev-parse HEAD)"
+
+  source:
+    name: Source archive
+    needs: prepare
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
+          fetch-depth: 0
+
+      - name: Build source archive
+        env:
+          TAG: ${{ needs.prepare.outputs.tag }}
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          git archive --format=tar.gz --prefix="puregamma-$TAG/" HEAD > "dist/puregamma-$TAG-src.tar.gz"
+          test -s "dist/puregamma-$TAG-src.tar.gz"
+          sha256sum "dist/puregamma-$TAG-src.tar.gz"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-source
+          path: dist/*.tar.gz
+          if-no-files-found: error
+          retention-days: 3
+
+  android:
+    name: Android installable APK
+    needs: prepare
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
 
       - uses: actions/setup-java@v4
         with:
@@ -29,49 +103,90 @@ jobs:
       - name: Build installable APK
         working-directory: apps/android
         run: |
+          set -euo pipefail
           chmod +x gradlew
-          # Debug build: signed with the auto-generated debug keystore so the
-          # APK can be sideloaded directly. Release builds need a keystore
-          # (PG_KEYSTORE_FILE etc.) and stay unsigned without one.
-          ./gradlew :app:assembleDebug -PPG_API_BASE_URL=https://api.puregamma.ai --no-daemon
+          ./gradlew :app:testDebugUnitTest :app:assembleDebug             -PPG_API_BASE_URL=https://api.puregamma.ai --no-daemon
 
-      - name: Stage APK
+      - name: Stage APK with current app version
         run: |
+          set -euo pipefail
+          version="$(sed -n 's/.*versionName = "\([^"]*\)".*/\1/p' apps/android/app/build.gradle.kts | head -1)"
+          test -n "$version"
           mkdir -p dist
-          cp apps/android/app/build/outputs/apk/debug/app-debug.apk dist/PureGamma-AI-1.4.0.apk
+          cp apps/android/app/build/outputs/apk/debug/app-debug.apk "dist/PureGamma-AI-$version.apk"
+          sha256sum "dist/PureGamma-AI-$version.apk"
 
-      - name: Upload to Release
-        uses: softprops/action-gh-release@v2
+      - uses: actions/upload-artifact@v4
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          files: dist/PureGamma-AI-1.4.0.apk
-          fail_on_unmatched_files: true
+          name: release-android
+          path: dist/*.apk
+          if-no-files-found: error
+          retention-days: 3
 
   ios:
-    name: iOS unsigned ipa
+    name: iOS unsigned IPA
+    needs: prepare
     runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare.outputs.commit }}
 
-      - name: Build unsigned iOS app (device)
+      - name: Build unsigned iOS app
         working-directory: apps/ios
         run: |
-          # The app predates Swift 6 strict concurrency; build in Swift 5
-          # language mode (concurrency checks become warnings) so release
-          # packaging works without a signing identity.
-          xcodebuild -project PureGamma.xcodeproj -scheme PureGamma \
-            -configuration Release -sdk iphoneos -derivedDataPath build \
-            CODE_SIGNING_ALLOWED=NO SWIFT_VERSION=5.0 build
+          set -euo pipefail
+          xcodebuild -project PureGamma.xcodeproj -scheme PureGamma             -configuration Release -sdk iphoneos -derivedDataPath build             CODE_SIGNING_ALLOWED=NO SWIFT_VERSION=5.0 build
 
-      - name: Package ipa
+      - name: Package IPA with current app version
         run: |
+          set -euo pipefail
+          version="$(grep -o 'MARKETING_VERSION = [^;]*' apps/ios/PureGamma.xcodeproj/project.pbxproj | head -1 | awk '{print $3}')"
+          test -n "$version"
           mkdir -p dist/Payload
           cp -r apps/ios/build/Build/Products/Release-iphoneos/PureGamma.app dist/Payload/
-          cd dist && zip -qr PureGamma-AI-1.4.0-unsigned.ipa Payload
+          (
+            cd dist
+            zip -qr "PureGamma-AI-$version-unsigned.ipa" Payload
+            rm -rf Payload
+          )
+          shasum -a 256 "dist/PureGamma-AI-$version-unsigned.ipa"
 
-      - name: Upload to Release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-ios
+          path: dist/*.ipa
+          if-no-files-found: error
+          retention-days: 3
+
+  publish:
+    name: Publish three-asset GitHub release
+    needs: [prepare, source, android, ios]
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+
+      - name: Verify exactly three release assets
+        run: |
+          set -euo pipefail
+          find dist -maxdepth 1 -type f -print
+          test "$(find dist -maxdepth 1 -type f | wc -l)" -eq 3
+          test "$(find dist -maxdepth 1 -name '*.tar.gz' | wc -l)" -eq 1
+          test "$(find dist -maxdepth 1 -name '*.apk' | wc -l)" -eq 1
+          test "$(find dist -maxdepth 1 -name '*.ipa' | wc -l)" -eq 1
+          sha256sum dist/*
+
+      - name: Publish release
         uses: softprops/action-gh-release@v2
         with:
-          tag_name: ${{ github.event.inputs.tag || github.ref_name }}
-          files: dist/PureGamma-AI-1.4.0-unsigned.ipa
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          target_commitish: ${{ needs.prepare.outputs.commit }}
+          name: "PureGamma AI ${{ needs.prepare.outputs.tag }}"
+          generate_release_notes: true
+          files: dist/*
           fail_on_unmatched_files: true
+          overwrite_files: true
