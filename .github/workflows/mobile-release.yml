@@ -17,6 +17,7 @@ on:
 
 permissions:
   contents: write
+  actions: read
 
 concurrency:
   group: puregamma-release-${{ github.ref }}
@@ -58,6 +59,35 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "commit=$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           echo "Publishing $tag from $(git rev-parse HEAD)"
+
+      - name: Require successful commercial gates for exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+          COMMIT: ${{ steps.meta.outputs.commit }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          for workflow in commercial-release-gate.yml commercial-readiness.yml; do
+            result="$(gh api \
+              -H "Accept: application/vnd.github+json" \
+              "/repos/${GITHUB_REPOSITORY}/actions/workflows/${workflow}/runs?head_sha=${COMMIT}&status=success&per_page=20")"
+            count="$(jq --arg sha "$COMMIT" '[.workflow_runs[] | select(.head_sha == $sha and .head_branch == "main" and .conclusion == "success")] | length' <<<"$result")"
+            if [ "$count" -lt 1 ]; then
+              echo "ERROR: no successful ${workflow} run exists for main commit ${COMMIT}" >&2
+              exit 1
+            fi
+            echo "${workflow}: exact-commit success evidence found"
+          done
+
+      - name: Require release commit is contained in current main
+        shell: bash
+        env:
+          COMMIT: ${{ steps.meta.outputs.commit }}
+        run: |
+          set -euo pipefail
+          git fetch origin main:refs/remotes/origin/main
+          git merge-base --is-ancestor "$COMMIT" refs/remotes/origin/main
+          echo "release commit is contained in current main"
 
   source:
     name: Source archive
