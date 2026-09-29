@@ -89,7 +89,9 @@ jobs:
           DATABASE_URL: postgresql+psycopg://puregamma:ci-postgres-password@postgres:5432/puregamma
           APP_DOMAIN: app.puregamma.ai
           API_DOMAIN: api.puregamma.ai
-        run: docker compose -f docker-compose.production.yml config --quiet
+        run: |
+          cp deploy/production.env .env
+          docker compose -f docker-compose.production.yml config --quiet
 
   backend:
     runs-on: ubuntu-24.04
