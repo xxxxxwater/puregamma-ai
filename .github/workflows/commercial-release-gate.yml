@@ -8,7 +8,7 @@ on:
   workflow_dispatch:
 
 concurrency:
-  group: puregamma-commercial-${{ github.ref }}
+  group: puregamma-commercial-release-${{ github.ref }}
   cancel-in-progress: true
 
 permissions:
