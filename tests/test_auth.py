@@ -87,7 +87,7 @@ def test_google_oauth_rejects_unverified_email(api_client, monkeypatch):
     callback = api_client.get(f"/auth/google/callback?code=mock-code&state={state}")
 
     assert callback.status_code == 400
-    assert "not verified" in callback.json()["detail"]
+    assert callback.json()["detail"]["code"] == "GOOGLE_ACCOUNT_LINK_FAILED"
 
 
 def test_google_oauth_rejects_invalid_state(api_client, monkeypatch):
