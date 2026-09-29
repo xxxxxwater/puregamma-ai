@@ -52,7 +52,8 @@ async def stripe_webhook(
             try:
                 import stripe
             except ImportError as exc:
-                raise HTTPException(status_code=500, detail="stripe package is required") from exc
+                logger.error("stripe_webhook_sdk_missing")
+                raise HTTPException(status_code=503, detail={"code": "STRIPE_WEBHOOK_UNAVAILABLE"}) from exc
             try:
                 try:
                     event = stripe.Webhook.construct_event(payload, stripe_signature, settings.stripe_webhook_secret, tolerance=settings.stripe_webhook_tolerance_seconds)
@@ -83,12 +84,12 @@ async def stripe_webhook(
 
             await asyncio.to_thread(
                 notify_ops,
-                f"Stripe webhook processing failed: {str(exc)[:300]} (event={event_id or 'unknown'})",
+                f"Stripe webhook processing failed: {type(exc).__name__} (event={event_id or 'unknown'})",
                 level="error",
             )
         except Exception:
             logger.exception("ops_alert_failed")
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        raise HTTPException(status_code=500, detail={"code": "STRIPE_WEBHOOK_PROCESSING_FAILED"}) from exc
     finally:
         elapsed_ms = round((time.perf_counter() - started) * 1000, 2)
         logger.info("stripe_webhook event_id=%s event_type=%s elapsed_ms=%s", event_id, event_type, elapsed_ms)
