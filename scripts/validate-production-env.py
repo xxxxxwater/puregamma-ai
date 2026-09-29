@@ -75,6 +75,7 @@ def _deployment_checks() -> list[str]:
         "SESSION_COOKIE_DOMAIN",
         "GOOGLE_OAUTH_REDIRECT_URI",
         "INTERNAL_RUNTIME_SECRET",
+        "METRICS_BEARER_TOKEN",
         "NAUTILUS_RUNTIME_SECRET",
         "LLM_PROVIDER",
         "IMESSAGE_PROVIDER",
