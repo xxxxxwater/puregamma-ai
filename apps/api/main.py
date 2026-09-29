@@ -3,6 +3,7 @@ from __future__ import annotations
 import os
 import time
 import logging
+import secrets
 import uuid
 from contextlib import asynccontextmanager
 
@@ -177,13 +178,24 @@ def readiness():
     return JSONResponse(status_code=200 if ready else 503, content=payload)
 
 
-@app.get("/metrics")
-def metrics() -> str:
+@app.get("/metrics", response_class=PlainTextResponse)
+def metrics(request: Request) -> PlainTextResponse:
     """Prometheus-text metrics for uptime and error-rate monitoring.
 
     Counters are process-local plus a few database aggregates; no PII is
     exposed. Wire this into Prometheus/Grafana or an uptime probe.
     """
+    if settings.app_environment.lower() == "production":
+        authorization = request.headers.get("authorization", "")
+        scheme, _, token = authorization.partition(" ")
+        expected = settings.metrics_bearer_token
+        if scheme.lower() != "bearer" or not token or not expected or not secrets.compare_digest(token, expected):
+            return PlainTextResponse(
+                "Unauthorized\n",
+                status_code=401,
+                headers={"WWW-Authenticate": "Bearer"},
+            )
+
     from apps.api.services.ops_alert import METRICS_COUNTERS, METRICS_STARTED_AT
     from packages.database.session import SessionLocal
     from packages.database.models import GatewayRequestLog, StripeWebhookEvent
