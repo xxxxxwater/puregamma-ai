@@ -610,6 +610,16 @@ class Settings:
     # "follow the platform DeepSeek default".
     harness_research_model: str = os.getenv("HARNESS_RESEARCH_MODEL", "")
 
+    # ---- Isolated user-code Research Runner ----
+    # Production availability is proven by a dedicated Celery research worker
+    # heartbeat; the web-facing API never needs Docker socket access.
+    research_runner_enabled: bool = (
+        os.getenv("RESEARCH_RUNNER_ENABLED", "false").lower() == "true"
+    )
+    research_runner_heartbeat_ttl_seconds: int = int(
+        os.getenv("RESEARCH_RUNNER_HEARTBEAT_TTL_SECONDS", "60") or 60
+    )
+
     # ---- Automated trading foundation (additive, default OFF) ----
     auto_trading_mandates_enabled: bool = (
         os.getenv("AUTO_TRADING_MANDATES_ENABLED", "false").lower() == "true"
@@ -955,6 +965,8 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("APNS team, key, bundle identifier, and private key are required when APNS_ENABLED=true")
     if settings.nautilus_runtime_secret in {"", "dev-runtime-secret"} or len(settings.nautilus_runtime_secret) < 24:
         errors.append("NAUTILUS_RUNTIME_SECRET must be a strong non-default value")
+    if settings.research_runner_enabled and settings.research_runner_heartbeat_ttl_seconds < 30:
+        errors.append("RESEARCH_RUNNER_HEARTBEAT_TTL_SECONDS must be at least 30 when the runner is enabled")
     if settings.portfolio_token_encryption_key == "" and any(
         (settings.plaid_client_id, settings.ibkr_client_id)
     ):
