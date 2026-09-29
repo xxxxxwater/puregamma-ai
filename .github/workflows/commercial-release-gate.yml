@@ -131,6 +131,7 @@ jobs:
           python3 -m py_compile scripts/validate-production-env.py
           bash -n deploy/deploy.sh
           bash -n deploy/release-final-check.sh
+          bash -n deploy/release-rollback.sh
 
       - name: Verify production compose fail-closed rails
         run: |
@@ -142,6 +143,9 @@ jobs:
           grep -Fq 'NAUTILUS_ALLOW_LIVE_ORDER: "false"' docker-compose.production.yml
           grep -Fq 'NAUTILUS_ALLOW_WITHDRAWAL: "false"' docker-compose.production.yml
           grep -Fq 'NAUTILUS_ALLOW_TRANSFER: "false"' docker-compose.production.yml
+          grep -q 'before-rollback-rescue' deploy/release-rollback.sh
+          grep -q 'rollback candidate failed verification' deploy/release-rollback.sh
+          grep -q '127.0.0.1:8000/ready' deploy/release-rollback.sh
 
       - name: Verify production env template carries mandatory controls
         run: |
