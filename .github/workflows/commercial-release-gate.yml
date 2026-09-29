@@ -34,10 +34,12 @@ jobs:
         with:
           python-version: "3.12"
           cache: pip
-          cache-dependency-path: apps/api/requirements.txt
+          cache-dependency-path: |
+            apps/api/requirements.txt
+            apps/pocket-relay/requirements.txt
 
       - name: Install API and quality dependencies
-        run: python -m pip install -r apps/api/requirements.txt ruff
+        run: python -m pip install -r apps/api/requirements.txt -r apps/pocket-relay/requirements.txt ruff
 
       - name: Compile Python sources
         run: python -m compileall -q apps packages services scripts tests
