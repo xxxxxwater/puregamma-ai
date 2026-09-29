@@ -378,7 +378,7 @@ def agent_model_options(db: Session, user: User) -> list[dict]:
         *[
             {
                 "id": identifier,
-                "display_name": f"GPT-6 {label} · OpenAI",
+                "display_name": f"{label} · OpenAI",
                 "description": "High-quality deep market research for selective use.",
                 "provider": "openai",
                 "available": plan_allowed and configured,
