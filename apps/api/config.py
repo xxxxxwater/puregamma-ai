@@ -19,7 +19,7 @@ if "pytest" not in sys.modules:
 
 #: The Agent's generation models, `id:Label`. Kept as data so a provider rename
 #: is an env change, not a release.
-DEFAULT_OPENAI_AGENT_MODELS = "gpt-6-luna:Luna,gpt-6-sol:Sol,gpt-6-astra:Astra"
+DEFAULT_OPENAI_AGENT_MODELS = "gpt-6-luna:GPT-6 Luna,gpt-6-sol:GPT-6 Sol,gpt-6-astra:GPT-6 Astra"
 
 
 def _model_label(value: str) -> tuple[str, str] | None:
