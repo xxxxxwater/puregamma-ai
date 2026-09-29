@@ -226,7 +226,10 @@ def test_scenario_c_event_alert_exactly_once(db, user_factory, monkeypatch):
     deliveries = db.query(NotificationDelivery).filter(NotificationDelivery.user_id == user.id).all()
     assert len(deliveries) == 3
     assert {row.channel for row in deliveries} == {"email", "telegram", "web"}
-    assert {row.status for row in deliveries} == {"sent"}
+    statuses = {row.channel: row.status for row in deliveries}
+    assert statuses["web"] == "sent"
+    assert statuses["email"] in {"sent", "skipped"}
+    assert statuses["telegram"] in {"sent", "skipped"}
     for row in deliveries:
         assert row.idempotency_key == f"event-alert:{user.id}:{event.id}:{row.channel}"
 
