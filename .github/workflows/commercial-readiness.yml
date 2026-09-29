@@ -128,8 +128,10 @@ jobs:
         with:
           node-version: '22.20.0'
 
-      - name: Enable pnpm
-        run: corepack enable
+      - name: Pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
 
       - name: Install web dependencies
         run: pnpm install --frozen-lockfile
