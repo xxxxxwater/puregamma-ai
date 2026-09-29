@@ -197,9 +197,11 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.api
+      args:
+        INSTALL_DOCKER_CLI: 'false'
     restart: unless-stopped
     env_file: .env
-    command: ["sh", "-c", "celery -A packages.workers.celery_app.celery_app worker --loglevel=INFO --concurrency=$${WORKER_CONCURRENCY:-2}"]
+    command: ["sh", "-c", "celery -A packages.workers.celery_app.celery_app worker --loglevel=INFO --concurrency=$${WORKER_CONCURRENCY:-2} --queues=celery"]
     environment:
       APP_ENV: production
       NAUTILUS_RUNTIME_SECRET: ${NAUTILUS_RUNTIME_SECRET:?NAUTILUS_RUNTIME_SECRET is required}
@@ -207,7 +209,7 @@ services:
       ENCRYPTION_MASTER_KEY: ${ENCRYPTION_MASTER_KEY:?ENCRYPTION_MASTER_KEY is required}
       LLM_PROVIDER: ${LLM_PROVIDER:?LLM_PROVIDER is required and must be openai or deepseek}
       DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}
-      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-v4-flash}
+      DEEPSEEK_MODEL: ${DEEPSEEK_MODEL:-deepseek-flash}
       GATEWAY_ENABLED: ${GATEWAY_ENABLED:-false}
       GATEWAY_API_KEY_PEPPER: ${GATEWAY_API_KEY_PEPPER:-}
       GATEWAY_DEEPSEEK_API_KEY: ${GATEWAY_DEEPSEEK_API_KEY:-}
@@ -223,13 +225,6 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
       BACKTEST_ARTIFACT_DIR: ${BACKTEST_ARTIFACT_DIR:-/var/lib/puregamma/backtests}
-      RESEARCH_RUNNER_IMAGE: ${RESEARCH_RUNNER_IMAGE:-puregamma-research-runner:1}
-      # Host-visible job/dataset dirs: sibling research containers can only
-      # mount HOST paths, so the worker writes job files on a bind mount that
-      # exists at the same absolute path on the host.
-      RESEARCH_RUNNER_JOB_DIR: ${RESEARCH_RUNNER_JOB_DIR:-/var/lib/puregamma/research-jobs/jobs}
-      RESEARCH_RUNNER_DATA_DIRS: ${RESEARCH_RUNNER_DATA_DIRS:-/var/lib/puregamma/research-jobs/datasets}
-      RESEARCH_RUNNER_CONTAINER_USER: ${RESEARCH_RUNNER_CONTAINER_USER:-10001:10001}
       # LIVE Trading Control Plane (additive; EVERY gate defaults OFF)
       LIVE_TRADING_ENABLED: ${LIVE_TRADING_ENABLED:-false}
       LIVE_TRADING_DEPLOYMENT_APPROVED: ${LIVE_TRADING_DEPLOYMENT_APPROVED:-false}
@@ -249,20 +244,51 @@ services:
       LIVE_NAV_PRICE_STALE_SECONDS: ${LIVE_NAV_PRICE_STALE_SECONDS:-60}
       LIVE_RECONCILIATION_HOUR_UTC: ${LIVE_RECONCILIATION_HOUR_UTC:-0}
     volumes:
-      # Research runner figures/datasets share the artifact store with the API.
       - backtest_artifacts:/var/lib/puregamma/backtests
-      # Optional: lets the worker spawn ephemeral sibling containers for the
-      # isolated research runner. On hosts without Docker, remove this mount;
-      # the runner then honestly reports runs as "unavailable" (never faked).
-      - /var/run/docker.sock:/var/run/docker.sock
-      - ${RESEARCH_JOBS_HOST_DIR:-/var/lib/puregamma/research-jobs}:/var/lib/puregamma/research-jobs
-    # Host docker group (stat -c %g /var/run/docker.sock): lets the non-root
-    # container user reach the socket to spawn research containers.
-    group_add: ["${DOCKER_SOCKET_GID:-107}"]
     networks: [data, runtime, egress]
     mem_limit: 768m
     cpus: 0.70
     pids_limit: 256
+    security_opt: ["no-new-privileges:true"]
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "3"
+    depends_on:
+      api: { condition: service_healthy }
+
+  research-worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+      args:
+        INSTALL_DOCKER_CLI: 'true'
+    restart: unless-stopped
+    command: ["sh", "-c", "celery -A packages.workers.celery_app.celery_app worker --loglevel=INFO --concurrency=1 --queues=research --hostname=research@%h"]
+    environment:
+      APP_ENV: production
+      DATABASE_URL: ${DATABASE_URL:?DATABASE_URL is required}
+      REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
+      BACKTEST_ARTIFACT_DIR: ${BACKTEST_ARTIFACT_DIR:-/var/lib/puregamma/backtests}
+      CREDIT_USAGE_ENFORCED: ${CREDIT_USAGE_ENFORCED:-true}
+      ENTITLEMENTS_ENFORCED: ${ENTITLEMENTS_ENFORCED:-true}
+      RESEARCH_RUNNER_ENABLED: ${RESEARCH_RUNNER_ENABLED:-true}
+      RESEARCH_RUNNER_HEARTBEAT_TTL_SECONDS: ${RESEARCH_RUNNER_HEARTBEAT_TTL_SECONDS:-60}
+      RESEARCH_RUNNER_IMAGE: ${RESEARCH_RUNNER_IMAGE:-puregamma-research-runner:1}
+      RESEARCH_RUNNER_JOB_DIR: ${RESEARCH_RUNNER_JOB_DIR:-/var/lib/puregamma/research-jobs/jobs}
+      RESEARCH_RUNNER_DATA_DIRS: ${RESEARCH_RUNNER_DATA_DIRS:-/var/lib/puregamma/research-jobs/datasets}
+      RESEARCH_RUNNER_CONTAINER_USER: ${RESEARCH_RUNNER_CONTAINER_USER:-10001:10001}
+      SENTRY_DSN: ${SENTRY_DSN:-}
+    volumes:
+      - backtest_artifacts:/var/lib/puregamma/backtests
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ${RESEARCH_JOBS_HOST_DIR:-/var/lib/puregamma/research-jobs}:/var/lib/puregamma/research-jobs
+    group_add: ["${DOCKER_SOCKET_GID:-107}"]
+    networks: [data]
+    mem_limit: 512m
+    cpus: 0.35
+    pids_limit: 192
     security_opt: ["no-new-privileges:true"]
     logging:
       driver: json-file
