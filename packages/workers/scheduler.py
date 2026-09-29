@@ -196,7 +196,7 @@ def build_scheduler() -> BlockingScheduler:
         if settings.binance_public_data_enabled:
             scheduler.add_job(
                 enqueue,
-                IntervalTrigger(minutes=1),
+                IntervalTrigger(minutes=max(1, settings.binance_sync_interval_minutes)),
                 args=["puregamma.sync_data_provider", "binance"],
                 id="provider_binance_market_sync",
                 max_instances=1,
@@ -235,6 +235,33 @@ def build_scheduler() -> BlockingScheduler:
             max_instances=1,
             coalesce=True,
         )
+        if settings.defillama_free_enabled:
+            scheduler.add_job(
+                enqueue,
+                IntervalTrigger(minutes=max(5, settings.defillama_sync_interval_minutes)),
+                args=["puregamma.sync_data_provider", "defillama-free"],
+                id="provider_defillama_sync",
+                max_instances=1,
+                coalesce=True,
+            )
+        if settings.the_graph_enabled:
+            scheduler.add_job(
+                enqueue,
+                IntervalTrigger(minutes=max(5, settings.onchain_sync_interval_minutes)),
+                args=["puregamma.sync_data_provider", "the-graph"],
+                id="provider_the_graph_sync",
+                max_instances=1,
+                coalesce=True,
+            )
+        if settings.onchain_rpc_enabled:
+            scheduler.add_job(
+                enqueue,
+                IntervalTrigger(minutes=max(5, settings.onchain_sync_interval_minutes)),
+                args=["puregamma.sync_data_provider", "evm-rpc"],
+                id="provider_evm_rpc_sync",
+                max_instances=1,
+                coalesce=True,
+            )
         if settings.bloomberg_mode in {"mock", "production"}:
             scheduler.add_job(
                 enqueue,
