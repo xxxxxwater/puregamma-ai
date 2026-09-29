@@ -160,6 +160,41 @@ def test_api_research_run_contract(monkeypatch, api_client, pro_user):
     assert detail["logs_tail"] == ""
 
 
+def test_production_runner_availability_uses_redis_heartbeat_not_api_docker(monkeypatch):
+    settings = SimpleNamespace(
+        app_environment="production",
+        research_runner_enabled=True,
+    )
+    monkeypatch.setattr("apps.api.config.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        rrs,
+        "docker_available",
+        lambda: (_ for _ in ()).throw(AssertionError("API must not probe Docker in production")),
+    )
+
+    redis = SimpleNamespace(get=lambda key: b"ok")
+    monkeypatch.setattr("apps.api.redis_client.get_redis", lambda: redis)
+    assert rrs.research_runner_available() == (True, "ok")
+
+    redis.get = lambda key: None
+    available, reason = rrs.research_runner_available()
+    assert available is False
+    assert "heartbeat" in reason
+
+
+def test_production_runner_disabled_ignores_stale_heartbeat(monkeypatch):
+    settings = SimpleNamespace(
+        app_environment="production",
+        research_runner_enabled=False,
+    )
+    monkeypatch.setattr("apps.api.config.get_settings", lambda: settings)
+    monkeypatch.setattr(
+        "apps.api.redis_client.get_redis",
+        lambda: SimpleNamespace(get=lambda key: b"stale"),
+    )
+    assert rrs.research_runner_available() == (False, "research runner is disabled")
+
+
 # ── Credits: reserve → settle/refund, entitlement gating, cancellation ──
 
 
