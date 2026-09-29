@@ -26,28 +26,16 @@ puregamma.ai, www.puregamma.ai {
 		Referrer-Policy "no-referrer"
 		-Server
 	}
-	# X-Real-IP is the ONLY address the API trusts for rate limits and IP blocks
-	# (it ignores X-Forwarded-For, which a client can forge). It must therefore
-	# carry the CLIENT address, not the edge's own.
+	# X-Real-IP is the ONLY address the API trusts for rate limits and IP blocks.
+	# Never copy a client-supplied CF-Connecting-IP/X-Forwarded-For value here:
+	# the current origin is directly reachable, so either header can be forged.
 	#
-	# Two cases, in priority order:
-	#   1. Behind Cloudflare: CF-Connecting-IP is set by Cloudflare itself and is
-	#      trustworthy because the origin firewall admits 80/443 only from
-	#      Cloudflare's ranges.
-	#   2. No CDN (the current deployment): Caddy's {client_ip}, the socket peer
-	#      after its own trusted_proxies handling.
-	#
-	# The previous rule used CF-Connecting-IP unconditionally. With no CDN in
-	# front that header is absent, so the API fell back to the socket peer — the
-	# Caddy container — and every visitor on earth shared one rate-limit bucket:
-	# 120 requests and 20 writes per minute for the whole deployment. A map is
-	# used rather than two header_up rules because header_up has no "if absent"
-	# form, and the two-rule version silently lost the fallback.
-	map {http.request.header.CF-Connecting-IP} {pg_client_ip} {
-		"" {client_ip}
-		default {http.request.header.CF-Connecting-IP}
-	}
+	# {client_ip} is Caddy's trusted client-address placeholder. With no CDN it is
+	# the socket peer. If a CDN/reverse proxy is introduced later, configure
+	# Caddy's trusted_proxies/client_ip_headers globally so this same placeholder
+	# is resolved only through explicitly trusted proxy ranges.
 	reverse_proxy api:8000 {
-		header_up X-Real-IP {pg_client_ip}
+		header_up X-Real-IP {client_ip}
 	}
+
 }
