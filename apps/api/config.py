@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from functools import lru_cache
 from urllib.parse import urlparse
 
-from dotenv import load_dotenv
+try:
+    from dotenv import load_dotenv
+except ModuleNotFoundError:  # deployment preflight may run before pip install
+    def load_dotenv(*_args, **_kwargs) -> bool:
+        return False
 
 
 if "pytest" not in sys.modules:
