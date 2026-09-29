@@ -1,152 +1,123 @@
 #!/usr/bin/env bash
 set -Eeuo pipefail
-# =========================================================================
-# PureGamma AI - Production Deployment Script
-# =========================================================================
-# This script deploys the entire PureGamma stack (API, Web, DB, Redis, Workers, Caddy)
-# including the API Gateway (中转站) infrastructure.
-#
-# Usage:
-#   1. First, copy deploy/production.env to .env and fill in all secrets.
-#   2. Run: bash deploy/deploy.sh
-# =========================================================================
+
+# PureGamma AI production deployment.
+# The script is deliberately fail-closed: invalid configuration, stale source,
+# failed backup, failed migration, or failed readiness all stop the release.
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
+COMPOSE=(docker compose --env-file .env -f docker-compose.production.yml)
 
-# -----------------------------------------------------------------
-# 0. Pre-flight checks
-# -----------------------------------------------------------------
 echo "=== Pre-flight checks ==="
-
 if [ ! -f ".env" ]; then
   echo "ERROR: .env file not found. Copy deploy/production.env to .env and fill in all secrets first."
   exit 1
 fi
 
-if [ "${APP_ENV:-}" != "production" ] && [ "${APP_ENV:-}" != "prod" ]; then
-  echo "NOTE: APP_ENV is not 'production'. This script targets production deployment."
-fi
+python3 scripts/validate-production-env.py --env-file .env --require-production
+"${COMPOSE[@]}" config --quiet
 
-# Validate .env
-python3 scripts/validate-production-env.py || {
-  echo "WARNING: Environment validation reported issues. Review and fix before deploying."
-  echo "Continue anyway? [y/N]"
-  read -r answer
-  if [ "${answer,,}" != "y" ]; then
-    echo "Aborted."
+# Deploy only the canonical clean main checkout when this directory is a git
+# worktree. Release bundles without .git remain supported.
+if [ -d ".git" ]; then
+  branch="$(git branch --show-current)"
+  if [ "${branch}" != "main" ]; then
+    echo "ERROR: production deploys must run from main (current: ${branch:-detached})."
     exit 1
   fi
-}
+  if ! git diff --quiet || ! git diff --cached --quiet; then
+    echo "ERROR: working tree is dirty; refusing to deploy uncommitted changes."
+    exit 1
+  fi
+  git fetch origin main
+  git pull --ff-only origin main
+  echo "Deploying main at $(git rev-parse HEAD)"
+fi
 
-# -----------------------------------------------------------------
-# 1. Backup database (if running)
-# -----------------------------------------------------------------
-echo ""
+echo
 echo "=== Backing up database ==="
-if docker ps --format '{{.Names}}' | grep -q "puregamma-ai-postgres"; then
-  echo "Postgres container found. Creating backup..."
+postgres_id="$("${COMPOSE[@]}" ps -q postgres 2>/dev/null || true)"
+if [ -n "${postgres_id}" ] && [ "$(docker inspect -f '{{.State.Running}}' "${postgres_id}" 2>/dev/null || true)" = "true" ]; then
   install -d -m 0700 /var/backups/puregamma
-  TIMESTAMP="$(date -u +%Y%m%dT%H%M%SZ)"
-  docker exec puregamma-ai-postgres-1 pg_dump -U puregamma -d puregamma --format=custom --no-owner --no-privileges \
-    >"/var/backups/puregamma/postgres-${TIMESTAMP}.dump"
-  echo "Backup saved to /var/backups/puregamma/postgres-${TIMESTAMP}.dump"
+  timestamp="$(date -u +%Y%m%dT%H%M%SZ)"
+  backup="/var/backups/puregamma/postgres-${timestamp}.dump"
+  docker exec "${postgres_id}" pg_dump -U puregamma -d puregamma --format=custom --no-owner --no-privileges >"${backup}"
+  test -s "${backup}"
+  echo "Backup saved to ${backup}"
 else
-  echo "No running Postgres container found. Skipping backup."
+  echo "No running PostgreSQL service yet; first deployment has nothing to back up."
 fi
 
-# -----------------------------------------------------------------
-# 2. Pull latest code (if git repo)
-# -----------------------------------------------------------------
-echo ""
-echo "=== Updating code ==="
-if [ -d ".git" ]; then
-  git fetch origin 2>/dev/null && echo "Fetched latest from origin." || echo "NOTE: Could not fetch. Using local code."
-fi
+echo
+echo "=== Building immutable application images ==="
+"${COMPOSE[@]}" build --pull
 
-# -----------------------------------------------------------------
-# 3. Build and deploy
-# -----------------------------------------------------------------
-echo ""
-echo "=== Building and deploying ==="
-compose_file="docker-compose.production.yml"
+echo
+echo "=== Starting stateful dependencies ==="
+"${COMPOSE[@]}" up -d postgres redis nautilus-runtime
 
-# Stop all services first
-docker compose --env-file .env -f "${compose_file}" down --remove-orphans 2>/dev/null || true
-
-# Build with no cache for clean images
-docker compose --env-file .env -f "${compose_file}" build --no-cache
-
-# Start all services in detached mode
-docker compose --env-file .env -f "${compose_file}" up -d
-
-# -----------------------------------------------------------------
-# 4. Wait for healthy
-# -----------------------------------------------------------------
-echo ""
-echo "=== Waiting for services to be healthy ==="
-attempt=1
-max_attempts=30
-while [ $attempt -le $max_attempts ]; do
-  if docker compose --env-file .env -f "${compose_file}" ps | grep -q "unhealthy\|exited"; then
-    echo "WARNING: Some services are unhealthy or exited:"
-    docker compose --env-file .env -f "${compose_file}" ps
+wait_healthy() {
+  local service="$1"
+  local attempts="${2:-40}"
+  local id
+  id="$("${COMPOSE[@]}" ps -q "${service}")"
+  if [ -z "${id}" ]; then
+    echo "ERROR: service ${service} has no container."
+    return 1
   fi
-  if curl -sf http://localhost:8000/health >/dev/null 2>&1; then
-    echo "API is healthy."
-    break
-  fi
-  echo "Waiting for API... ($attempt/$max_attempts)"
-  sleep 5
-  ((attempt++))
-done
-
-if [ $attempt -gt $max_attempts ]; then
-  echo "ERROR: API did not become healthy. Check logs: docker compose -f docker-compose.production.yml logs api"
-  exit 1
-fi
-
-# -----------------------------------------------------------------
-# 5. Run migrations
-# -----------------------------------------------------------------
-echo ""
-echo "=== Running database migrations ==="
-docker exec puregamma-ai-api-1 python -m scripts.db_migrate upgrade 2>/dev/null || {
-  echo "Migration script failed. Check API container logs."
+  for ((i=1; i<=attempts; i++)); do
+    status="$(docker inspect -f '{{if .State.Health}}{{.State.Health.Status}}{{else}}{{.State.Status}}{{end}}' "${id}")"
+    if [ "${status}" = "healthy" ] || [ "${status}" = "running" ]; then
+      echo "${service}: ${status}"
+      return 0
+    fi
+    if [ "${status}" = "unhealthy" ] || [ "${status}" = "exited" ] || [ "${status}" = "dead" ]; then
+      echo "ERROR: ${service} entered ${status}."
+      return 1
+    fi
+    sleep 3
+  done
+  echo "ERROR: ${service} did not become healthy."
+  return 1
 }
 
-# -----------------------------------------------------------------
-# 6. Smoke test
-# -----------------------------------------------------------------
-echo ""
-echo "=== Smoke tests ==="
-echo "Health check:"
-curl -sf http://localhost:8000/health | python3 -m json.tool 2>/dev/null || echo "Health check failed."
-echo ""
+wait_healthy postgres
+wait_healthy redis
+wait_healthy nautilus-runtime
 
-# -----------------------------------------------------------------
-# 7. Cleanup old images
-# -----------------------------------------------------------------
-echo ""
-echo "=== Cleaning up old images ==="
-docker image prune -f --filter "until=24h" 2>/dev/null || true
+echo
+echo "=== Validating application production config inside the built image ==="
+"${COMPOSE[@]}" run --rm --no-deps api python -c   'from apps.api.config import Settings, validate_production_settings; validate_production_settings(Settings()); print("application production config valid")'
 
-# -----------------------------------------------------------------
-# 8. Status
-# -----------------------------------------------------------------
-echo ""
+echo
+echo "=== Applying database migrations before API cutover ==="
+"${COMPOSE[@]}" run --rm --no-deps api python -m scripts.db_migrate upgrade
+"${COMPOSE[@]}" run --rm --no-deps api python -m scripts.db_migrate check
+
+echo
+echo "=== Starting application stack ==="
+"${COMPOSE[@]}" up -d --remove-orphans api worker scheduler web pocket caddy
+
+wait_healthy api 50
+wait_healthy web 50
+wait_healthy pocket 50
+
+echo
+echo "=== Readiness smoke test ==="
+"${COMPOSE[@]}" exec -T api python -c   'import json, urllib.request; data=json.load(urllib.request.urlopen("http://127.0.0.1:8000/ready", timeout=5)); assert data.get("status") == "ok", data; print(json.dumps(data, sort_keys=True))'
+
+echo
+echo "=== Runtime status ==="
+"${COMPOSE[@]}" ps
+
+echo
+echo "=== Cleaning dangling images ==="
+docker image prune -f --filter "until=24h" >/dev/null 2>&1 || true
+
+echo
 echo "=== Deployment complete ==="
-echo ""
-echo "Services:"
-docker compose --env-file .env -f "${compose_file}" ps --format "table {{.Name}}\t{{.Status}}\t{{.Ports}}"
-echo ""
-echo "To view logs: docker compose -f docker-compose.production.yml logs -f"
-echo "To check gateway: curl https://api.puregamma.ai/v1/models"
-echo ""
-echo "=== Next: Gateway Activation ==="
-echo "When you have the official provider API keys ready:"
-echo "  1. Add keys to .env: GATEWAY_DEEPSEEK_API_KEY, GATEWAY_MOONSHOT_API_KEY, GATEWAY_GLM_API_KEY"
-echo "  2. Set GATEWAY_ENABLED=true and add GATEWAY_API_KEY_PEPPER"
-echo "  3. Redeploy: docker compose --env-file .env -f docker-compose.production.yml up -d --build api"
-echo "  4. Admin bootstrap: POST /admin/gateway/bootstrap then POST /admin/gateway/sync"
-echo "  5. Approve pricing: GET /admin/gateway/prices/pending then POST /admin/gateway/prices/{id}/approve"
+if [ -d ".git" ]; then
+  echo "Commit: $(git rev-parse HEAD)"
+fi
+echo "Run deploy/release-final-check.sh for public-route and data-integrity verification."
