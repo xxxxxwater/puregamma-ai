@@ -11,6 +11,9 @@ if [ ! -f ".env" ]; then
 fi
 
 COMPOSE=(docker compose --env-file .env -f docker-compose.production.yml)
+RESEARCH_COMPOSE=(docker compose --env-file .env -f docker-compose.production.yml --profile research-runner)
+research_runner_enabled="$(awk -F= '/^RESEARCH_RUNNER_ENABLED=/{print tolower($2); exit}' .env | tr -d '[:space:]')"
+research_runner_enabled="${research_runner_enabled:-false}"
 SHORT="${1:-}"
 if [ -z "${SHORT}" ] && [ -d ".git" ]; then
   SHORT="$(git rev-parse --short=8 HEAD)"
@@ -18,8 +21,16 @@ fi
 
 echo "=== containers ==="
 "${COMPOSE[@]}" ps
-for service in postgres redis nautilus-runtime api worker scheduler web pocket caddy; do
-  id="$("${COMPOSE[@]}" ps -q "${service}")"
+services=(postgres redis nautilus-runtime api worker scheduler web pocket caddy)
+if [ "${research_runner_enabled}" = "true" ]; then
+  services+=(research-worker)
+fi
+for service in "${services[@]}"; do
+  if [ "${service}" = "research-worker" ]; then
+    id="$("${RESEARCH_COMPOSE[@]}" ps -q "${service}")"
+  else
+    id="$("${COMPOSE[@]}" ps -q "${service}")"
+  fi
   if [ -z "${id}" ]; then
     echo "ERROR: missing container for ${service}"
     exit 1
@@ -59,6 +70,14 @@ fi
 
 echo "=== internal readiness ==="
 "${COMPOSE[@]}" exec -T api python -c   'import json, urllib.request; data=json.load(urllib.request.urlopen("http://127.0.0.1:8000/ready", timeout=5)); assert data.get("status") == "ok", data; print(json.dumps(data, sort_keys=True))'
+
+if [ "${research_runner_enabled}" = "true" ]; then
+  echo "=== research runner readiness ==="
+  "${COMPOSE[@]}" exec -T api python -c 'from apps.api.redis_client import get_redis; value=get_redis().get("pg:research-runner:heartbeat"); assert value, "research heartbeat missing"; print("research heartbeat ok")'
+  runner_image="$(awk -F= '/^RESEARCH_RUNNER_IMAGE=/{sub(/^[^=]*=/, ""); print; exit}' .env)"
+  runner_image="${runner_image:-puregamma-research-runner:1}"
+  docker image inspect "${runner_image}" --format 'research image {{.Id}}' >/dev/null
+fi
 
 echo "=== public routes ==="
 curl --fail --silent --show-error https://api.puregamma.ai/ready | python3 -m json.tool
