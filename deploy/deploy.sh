@@ -8,6 +8,7 @@ set -Eeuo pipefail
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "${ROOT_DIR}"
 COMPOSE=(docker compose --env-file .env -f docker-compose.production.yml)
+RESEARCH_COMPOSE=(docker compose --env-file .env -f docker-compose.production.yml --profile research-runner)
 
 echo "=== Pre-flight checks ==="
 if [ ! -f ".env" ]; then
@@ -15,8 +16,15 @@ if [ ! -f ".env" ]; then
   exit 1
 fi
 
+research_runner_enabled="$(awk -F= '/^RESEARCH_RUNNER_ENABLED=/{print tolower($2); exit}' .env | tr -d '[:space:]')"
+research_runner_enabled="${research_runner_enabled:-false}"
+
 python3 scripts/validate-production-env.py --env-file .env --require-production
-"${COMPOSE[@]}" config --quiet
+if [ "${research_runner_enabled}" = "true" ]; then
+  "${RESEARCH_COMPOSE[@]}" config --quiet
+else
+  "${COMPOSE[@]}" config --quiet
+fi
 
 # Deploy only the canonical clean main checkout when this directory is a git
 # worktree. Release bundles without .git remain supported.
@@ -52,6 +60,13 @@ fi
 echo
 echo "=== Building immutable application images ==="
 "${COMPOSE[@]}" build --pull
+if [ "${research_runner_enabled}" = "true" ]; then
+  "${RESEARCH_COMPOSE[@]}" build --pull research-worker
+  runner_image="$(awk -F= '/^RESEARCH_RUNNER_IMAGE=/{sub(/^[^=]*=/, ""); print; exit}' .env)"
+  runner_image="${runner_image:-puregamma-research-runner:1}"
+  echo "Building isolated research image: ${runner_image}"
+  docker build --pull -f packages/research_runner/Dockerfile.runner -t "${runner_image}" .
+fi
 
 echo
 echo "=== Starting stateful dependencies ==="
@@ -102,6 +117,28 @@ echo "=== Starting application stack ==="
 wait_healthy api 50
 wait_healthy web 50
 wait_healthy pocket 50
+
+if [ "${research_runner_enabled}" = "true" ]; then
+  echo
+  echo "=== Starting isolated research worker ==="
+  "${RESEARCH_COMPOSE[@]}" up -d research-worker
+  wait_healthy research-worker 40
+
+  echo "=== Waiting for research worker heartbeat ==="
+  heartbeat_ok=false
+  for ((i=1; i<=20; i++)); do
+    if "${COMPOSE[@]}" exec -T api python -c 'from apps.api.redis_client import get_redis; raise SystemExit(0 if get_redis().get("pg:research-runner:heartbeat") else 1)' >/dev/null 2>&1; then
+      heartbeat_ok=true
+      break
+    fi
+    sleep 3
+  done
+  if [ "${heartbeat_ok}" != "true" ]; then
+    echo "ERROR: research worker failed to publish a readiness heartbeat."
+    exit 1
+  fi
+  echo "research-worker: heartbeat ok"
+fi
 
 echo
 echo "=== Readiness smoke test ==="
