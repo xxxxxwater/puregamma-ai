@@ -1191,38 +1191,93 @@ def sync_live_order_statuses() -> dict:
 
 @celery_app.task(name="puregamma.sync_live_balances_and_positions")
 def sync_live_balances_and_positions() -> dict:
-    """Balance/position refresh (30-60s): connection health, then real
-    balance/position sync through the execution gateway with mark prices
-    recorded into the server price feed for NAV marking."""
+    """Refresh LIVE positions and fail closed when account observability is lost.
+
+    A LIVE mandate is paused whenever its broker connection is missing/unhealthy
+    or position synchronization fails. A system that cannot observe current
+    positions must never continue authorizing new exposure.
+    """
     db = SessionLocal()
     checked = 0
     positions_recorded = 0
+    errors = 0
+    paused = 0
     try:
         from apps.api.config import get_settings
+        from packages.database.models import BrokerConnection
         from packages.live_trading import price_feed as price_feed_service
-        from packages.live_trading.control_plane import test_connection
+        from packages.live_trading.control_plane import pause_mandate, test_connection
         from packages.live_trading.gateway_adapter import get_execution_gateway
 
         settings = get_settings()
         gateway = get_execution_gateway()
         for mandate, connection in _live_mandate_accounts(db):
             if not connection:
+                errors += 1
+                pause_mandate(db, mandate.user_id, mandate.id, reason="live_connection_missing")
+                paused += 1
+                logger.error(
+                    "live_position_sync_missing_connection mandate=%s user_id=%s",
+                    mandate.id,
+                    mandate.user_id,
+                )
                 continue
+
             try:
-                test_connection(db, connection.user_id, connection.id)
+                health = test_connection(db, connection.user_id, connection.id)
                 checked += 1
             except Exception:
                 db.rollback()
-                continue
-            if getattr(gateway, "name", "") == "mock":
-                continue
-            try:
-                positions = gateway.positions(
-                    mandate.account_id, connection_id=connection.id
+                errors += 1
+                pause_mandate(db, mandate.user_id, mandate.id, reason="live_connection_health_failed")
+                paused += 1
+                logger.exception(
+                    "live_position_sync_health_failed mandate=%s connection=%s",
+                    mandate.id,
+                    connection.id,
                 )
-            except Exception:
-                db.rollback()
                 continue
+
+            if health.get("status") != "HEALTHY":
+                errors += 1
+                pause_mandate(db, mandate.user_id, mandate.id, reason="live_connection_unhealthy")
+                paused += 1
+                logger.error(
+                    "live_position_sync_unhealthy mandate=%s connection=%s status=%s",
+                    mandate.id,
+                    connection.id,
+                    health.get("status"),
+                )
+                continue
+
+            if getattr(gateway, "name", "") == "mock":
+                errors += 1
+                pause_mandate(db, mandate.user_id, mandate.id, reason="live_execution_gateway_disabled")
+                paused += 1
+                continue
+
+            try:
+                positions = gateway.positions(mandate.account_id, connection_id=connection.id)
+            except Exception as exc:
+                db.rollback()
+                errors += 1
+                persisted_connection = db.get(BrokerConnection, connection.id)
+                if persisted_connection is not None:
+                    persisted_connection.status = "ERROR"
+                    persisted_connection.error_code = "POSITION_SYNC_FAILED"
+                    persisted_connection.error_message = (
+                        f"Position synchronization failed ({type(exc).__name__})"
+                    )
+                db.commit()
+                pause_mandate(db, mandate.user_id, mandate.id, reason="live_position_sync_failed")
+                paused += 1
+                logger.exception(
+                    "live_position_sync_failed mandate=%s connection=%s",
+                    mandate.id,
+                    connection.id,
+                )
+                continue
+
             for position in positions:
                 mark = position.get("mark_price")
                 instrument = position.get("instrument")
@@ -1237,7 +1292,12 @@ def sync_live_balances_and_positions() -> dict:
                 )
                 positions_recorded += 1
             db.commit()
-        return {"checked": checked, "positions_recorded": positions_recorded}
+        return {
+            "checked": checked,
+            "positions_recorded": positions_recorded,
+            "errors": errors,
+            "paused": paused,
+        }
     finally:
         db.close()
 
