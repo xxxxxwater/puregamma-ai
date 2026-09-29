@@ -30,6 +30,7 @@ jobs:
           set -euo pipefail
           bash -n deploy/deploy.sh
           bash -n deploy/release-final-check.sh
+          bash -n deploy/release-rollback.sh
           python -m py_compile scripts/validate-production-env.py
 
       - name: Validate production environment contract
