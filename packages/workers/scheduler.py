@@ -375,6 +375,7 @@ def main() -> None:
         # exactly like a duplicate instance. reclaim_own_lock only ever deletes a
         # lock whose owner shares this process's hostname with a different pid.
         if reclaim_own_lock("scheduler"):
+            logger.warning("scheduler_lock_reclaimed_previous_holder")
             acquired, token = acquire_redis_lock("scheduler", ttl_seconds=LOCK_HOLDER_TTL_SECONDS)
     if not acquired:
         raise SystemExit(
