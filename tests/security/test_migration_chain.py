@@ -56,14 +56,14 @@ def test_single_alembic_head():
     heads = revisions - parents
     assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
     head = next(iter(heads))
-    assert head == "0032_chat_workspace"
+    assert head == "0033_agent_run_events"
 
 
 def test_chain_is_connected_and_acyclic():
     graph = _load_graph()
     # Walk the chain from the head back to the root; detect missing parents
     # and cycles by visited-count (a cycle would require re-visiting a node).
-    stack = ["0032_chat_workspace"]
+    stack = ["0033_agent_run_events"]
     visited: set[str] = set()
     while stack:
         revision = stack.pop()
@@ -138,3 +138,8 @@ def test_migration_files_have_matching_revision_headers():
         prefix = name.split("_", 1)[0]
         revision, _ = _parse_migration(os.path.join(VERSIONS_DIR, name))
         assert revision.startswith(prefix), f"{name} prefix mismatch: {revision}"
+
+
+def test_agent_run_events_migration_revises_chat_workspace():
+    graph = _load_graph()
+    assert graph["0033_agent_run_events"] == "0032_chat_workspace"
