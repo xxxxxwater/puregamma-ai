@@ -208,3 +208,41 @@ def test_cookie_authenticated_state_change_accepts_saas_origin(monkeypatch):
     response = asyncio.run(main.cookie_csrf_guard(request, call_next))
 
     assert response.status_code == 200
+
+
+
+def _request(path: str, headers: list[tuple[bytes, bytes]] | None = None) -> Request:
+    return Request(
+        {
+            "type": "http",
+            "http_version": "1.1",
+            "method": "GET",
+            "scheme": "https",
+            "path": path,
+            "raw_path": path.encode(),
+            "query_string": b"",
+            "headers": headers or [],
+            "client": ("127.0.0.1", 1234),
+            "server": ("api.puregamma.ai", 443),
+        }
+    )
+
+
+def test_production_metrics_requires_bearer_token(monkeypatch):
+    settings = replace(valid_production_settings(), metrics_bearer_token="m" * 32)
+    monkeypatch.setattr(main, "settings", settings)
+    response = main.metrics(_request("/metrics"))
+    assert response.status_code == 401
+    assert response.headers["www-authenticate"] == "Bearer"
+
+
+def test_production_metrics_accepts_configured_bearer_token(monkeypatch):
+    token = "m" * 32
+    settings = replace(valid_production_settings(), metrics_bearer_token=token)
+    monkeypatch.setattr(main, "settings", settings)
+    response = main.metrics(
+        _request("/metrics", [(b"authorization", f"Bearer {token}".encode())])
+    )
+    assert response.status_code == 200
+    assert response.media_type.startswith("text/plain")
+    assert b"puregamma_uptime_seconds" in response.body

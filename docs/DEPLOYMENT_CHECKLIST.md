@@ -15,6 +15,7 @@
 - Restrict admin users, rotate development credentials, and do not copy `.env` into images.
 - Run `pytest`, `pnpm typecheck`, `pnpm build`, and browser smoke tests.
 - Verify `/health`, `/admin/data-sources`, Google login/logout, `/chat`, Stripe webhook idempotency, and notification delivery.
+- Scrape `/metrics` only with `Authorization: Bearer $METRICS_BEARER_TOKEN`; unauthenticated production requests must return 401.
 - Monitor provider `RATE_LIMITED`/`ERROR`, stale sync runs, Agent failed/interrupted runs, token usage, credit ledger, and Stripe webhook errors.
 - Alert on `/health` degradation, overdue notification retries, and daily brief delivery gaps; back up PostgreSQL daily and test restores.
 
