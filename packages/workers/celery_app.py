@@ -46,6 +46,10 @@ celery_app.conf.update(
     task_soft_time_limit=540,
     task_time_limit=600,
     result_expires=3600,
+    task_routes={
+        "puregamma.execute_research_run": {"queue": "research"},
+        "puregamma.research_runner_heartbeat": {"queue": "research"},
+    },
 )
 
 
