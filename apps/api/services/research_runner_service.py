@@ -45,6 +45,7 @@ LOG_TAIL_CHARS = 4_000
 MAX_FIGURES = 8
 RESEARCH_RUN_CREDITS = 20
 TERMINAL_STATUSES = {"completed", "failed", "cancelled", "unavailable"}
+RESEARCH_RUNNER_HEARTBEAT_KEY = "pg:research-runner:heartbeat"
 
 _FIGURE_NAME = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._\-]{0,119}$")
 
@@ -119,6 +120,31 @@ def _refund_run_reservation(db: Session, row: ResearchRun, reason: str) -> None:
         logger.exception("research_run_refund_failed run_id=%s reason=%s", row.id, reason)
 
 
+def research_runner_available() -> tuple[bool, str]:
+    """Return whether the isolated research runner is ready for new work.
+
+    Development and tests keep using a direct Docker probe. Production APIs
+    never need Docker access: a dedicated research worker proves readiness by
+    refreshing a short-lived Redis heartbeat.
+    """
+    from apps.api.config import get_settings
+
+    settings = get_settings()
+    if settings.app_environment.lower() != "production":
+        return docker_available()
+    if not settings.research_runner_enabled:
+        return False, "research runner is disabled"
+    try:
+        from apps.api.redis_client import get_redis
+
+        heartbeat = get_redis().get(RESEARCH_RUNNER_HEARTBEAT_KEY)
+    except Exception as exc:
+        return False, f"research runner heartbeat unavailable: {type(exc).__name__}"
+    if not heartbeat:
+        return False, "research worker heartbeat missing or expired"
+    return True, "ok"
+
+
 def create_research_run(
     db: Session,
     user_id: str,
@@ -177,8 +203,15 @@ def create_research_run(
 def queue_research_run(db: Session, run_id: str) -> str:
     """Hand a queued research run to the worker; inline only outside production."""
     try:
+        from apps.api.config import get_settings
         from apps.api.redis_client import get_redis
+
+        settings = get_settings()
         get_redis().ping()
+        if settings.app_environment.lower() == "production":
+            available, reason = research_runner_available()
+            if not available:
+                raise RuntimeError(reason)
         from packages.workers.tasks import execute_research_run
         execute_research_run.delay(run_id)
         return "celery"
@@ -195,7 +228,6 @@ def queue_research_run(db: Session, run_id: str) -> str:
             raise RuntimeError("Research runner queue is temporarily unavailable") from exc
         execute_research_run(db, run_id)
         return "inline"
-
 
 def cancel_research_run(db: Session, user_id: str, run_id: str) -> ResearchRun:
     """Cancel a queued/running research run and refund the reservation.
