@@ -117,7 +117,7 @@ def test_capabilities_report_luna_plan_and_availability(db, normal_user, max_use
 
     assert free_option == {
         "id": "gpt-5.6-luna",
-        "display_name": "GPT-5.6 Luna",
+        "display_name": "GPT-5.6 Luna · OpenAI",
         "description": "High-quality deep market research for selective use.",
         "provider": "openai",
         "available": False,
