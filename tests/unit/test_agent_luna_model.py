@@ -14,6 +14,7 @@ def luna_settings(**overrides) -> Settings:
         "openai_api_key": "server-side-test-key",
         "openai_luna_enabled": True,
         "openai_luna_model": "gpt-5.6-luna",
+        "openai_agent_models": (("gpt-5.6-luna", "GPT-5.6 Luna"),),
         "openai_luna_allowed_plans": ("Max", "Enterprise"),
         "openai_luna_timeout_seconds": 90,
         "agent_model": "existing-default-model",
@@ -123,6 +124,7 @@ def test_capabilities_report_luna_plan_and_availability(db, normal_user, max_use
         "available": False,
         "reason": "plan_required",
         "credit_cost": None,
+        "category": "generation",
     }
     assert max_option["available"] is True
     assert max_option["reason"] is None
