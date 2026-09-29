@@ -47,7 +47,16 @@ jobs:
 
       - name: Run security and unit suites
         run: |
-          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q -rx             tests/security             tests/unit             tests/test_auth.py             tests/test_billing.py             tests/test_captcha.py             tests/test_mobile_auth.py             tests/test_notifications.py             tests/test_dream_rsi_control_plane.py             tests/test_portfolio_connections.py
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -q -rx \
+            tests/security \
+            tests/unit \
+            tests/test_auth.py \
+            tests/test_billing.py \
+            tests/test_captcha.py \
+            tests/test_mobile_auth.py \
+            tests/test_notifications.py \
+            tests/test_dream_rsi_control_plane.py \
+            tests/test_portfolio_connections.py
 
   web:
     name: SaaS web typecheck lint build
@@ -137,106 +146,13 @@ jobs:
       - name: Verify production env template carries mandatory controls
         run: |
           set -euo pipefail
-          grep -q '^APP_ENV=production    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every commercial surface to pass
-        env:
-          BACKEND: ${{ needs.backend.result }}
-          WEB: ${{ needs.web.result }}
-          SITE: ${{ needs.site.result }}
-          PRODUCTION_CONTRACT: ${{ needs.production-contract.result }}
-        run: |
-          set -euo pipefail
-          printf 'backend=%s web=%s site=%s production-contract=%s\n' "$BACKEND" "$WEB" "$SITE" "$PRODUCTION_CONTRACT"
-          test "$BACKEND" = success
-          test "$WEB" = success
-          test "$SITE" = success
-          test "$PRODUCTION_CONTRACT" = success
- deploy/production.env
-          grep -q '^REDIS_PASSWORD=    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every commercial surface to pass
-        env:
-          BACKEND: ${{ needs.backend.result }}
-          WEB: ${{ needs.web.result }}
-          SITE: ${{ needs.site.result }}
-        run: |
-          set -euo pipefail
-          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
-          test "$BACKEND" = success
-          test "$WEB" = success
-          test "$SITE" = success
- deploy/production.env
-          grep -q '^METRICS_BEARER_TOKEN=    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every commercial surface to pass
-        env:
-          BACKEND: ${{ needs.backend.result }}
-          WEB: ${{ needs.web.result }}
-          SITE: ${{ needs.site.result }}
-        run: |
-          set -euo pipefail
-          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
-          test "$BACKEND" = success
-          test "$WEB" = success
-          test "$SITE" = success
- deploy/production.env
-          grep -q '^NEXT_PUBLIC_API_URL=https://api.puregamma.ai    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every commercial surface to pass
-        env:
-          BACKEND: ${{ needs.backend.result }}
-          WEB: ${{ needs.web.result }}
-          SITE: ${{ needs.site.result }}
-        run: |
-          set -euo pipefail
-          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
-          test "$BACKEND" = success
-          test "$WEB" = success
-          test "$SITE" = success
- deploy/production.env
-          grep -q '^ENABLE_MOCK_AGENT=false    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every commercial surface to pass
-        env:
-          BACKEND: ${{ needs.backend.result }}
-          WEB: ${{ needs.web.result }}
-          SITE: ${{ needs.site.result }}
-        run: |
-          set -euo pipefail
-          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
-          test "$BACKEND" = success
-          test "$WEB" = success
-          test "$SITE" = success
- deploy/production.env
-          grep -q '^ENABLE_MOCK_MARKET_DATA=false    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every commercial surface to pass
-        env:
-          BACKEND: ${{ needs.backend.result }}
-          WEB: ${{ needs.web.result }}
-          SITE: ${{ needs.site.result }}
-        run: |
-          set -euo pipefail
-          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
-          test "$BACKEND" = success
-          test "$WEB" = success
-          test "$SITE" = success
- deploy/production.env
-          grep -q '^ENABLE_MOCK_DATA_SOURCES=false    runs-on: ubuntu-24.04
-    steps:
-      - name: Require every commercial surface to pass
-        env:
-          BACKEND: ${{ needs.backend.result }}
-          WEB: ${{ needs.web.result }}
-          SITE: ${{ needs.site.result }}
-        run: |
-          set -euo pipefail
-          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
-          test "$BACKEND" = success
-          test "$WEB" = success
-          test "$SITE" = success
- deploy/production.env
+          grep -q '^APP_ENV=production$' deploy/production.env
+          grep -q '^REDIS_PASSWORD=$' deploy/production.env
+          grep -q '^METRICS_BEARER_TOKEN=$' deploy/production.env
+          grep -q '^NEXT_PUBLIC_API_URL=https://api.puregamma.ai$' deploy/production.env
+          grep -q '^ENABLE_MOCK_AGENT=false$' deploy/production.env
+          grep -q '^ENABLE_MOCK_MARKET_DATA=false$' deploy/production.env
+          grep -q '^ENABLE_MOCK_DATA_SOURCES=false$' deploy/production.env
 
   release-gate:
     name: Commercial gate
@@ -249,9 +165,11 @@ jobs:
           BACKEND: ${{ needs.backend.result }}
           WEB: ${{ needs.web.result }}
           SITE: ${{ needs.site.result }}
+          PRODUCTION_CONTRACT: ${{ needs['production-contract'].result }}
         run: |
           set -euo pipefail
-          printf 'backend=%s web=%s site=%s\n' "$BACKEND" "$WEB" "$SITE"
+          printf 'backend=%s web=%s site=%s production-contract=%s\n' "$BACKEND" "$WEB" "$SITE" "$PRODUCTION_CONTRACT"
           test "$BACKEND" = success
           test "$WEB" = success
           test "$SITE" = success
+          test "$PRODUCTION_CONTRACT" = success
