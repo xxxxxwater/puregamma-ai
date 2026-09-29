@@ -1,5 +1,6 @@
 # Deployment Checklist
-- Set `APP_ENV=production`, a high-entropy `SESSION_SECRET`, HTTPS web/API origins, and exact CORS origins.
+- Set `APP_ENV=production`, high-entropy `JWT_SECRET` / `SESSION_SECRET` / `METRICS_BEARER_TOKEN`, HTTPS web/API origins, exact CORS origins, and authenticated Redis (`REDIS_PASSWORD` reflected in `REDIS_URL`).
+- Run deployments through `deploy/deploy.sh`; it loads the exact `.env`, refuses non-production mode, blocks on environment validation, and treats migration/readiness failures as fatal.
 - Back up PostgreSQL, run `python -m scripts.db_migrate check`, then apply `python -m scripts.db_migrate upgrade`; verify `alembic current` reports head.
 - Configure Google client ID/secret and every localized callback URI.
 - Configure one real Agent provider/model/key and keep `ENABLE_MOCK_AGENT=false`.

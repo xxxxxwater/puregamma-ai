@@ -105,6 +105,10 @@ def _deployment_checks() -> list[str]:
 
     if not os.getenv("DATABASE_URL", "").startswith(("postgresql://", "postgresql+psycopg://")):
         errors.append("DATABASE_URL must use PostgreSQL")
+    redis_password = os.getenv("REDIS_PASSWORD", "")
+    redis_url = os.getenv("REDIS_URL", "")
+    if redis_password and redis_password not in redis_url:
+        errors.append("REDIS_URL must include REDIS_PASSWORD for authenticated production Redis")
 
     if os.getenv("AUTH_ALLOW_DEMO_FALLBACK", "false").lower() == "true":
         errors.append("AUTH_ALLOW_DEMO_FALLBACK must be false")
