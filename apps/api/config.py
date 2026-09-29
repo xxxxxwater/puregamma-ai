@@ -337,6 +337,8 @@ class Settings:
     # relay outages. Optional; when unset, alerts are logged only.
     ops_alert_webhook: str = os.getenv("OPS_ALERT_WEBHOOK", "")
     ops_alert_chat_id: str = os.getenv("OPS_ALERT_CHAT_ID", "")
+    # Prometheus endpoint protection. Production requires a dedicated high-entropy token.
+    metrics_bearer_token: str = os.getenv("METRICS_BEARER_TOKEN", "")
     # Optional error tracking. When SENTRY_DSN is set the API initializes the
     # Sentry SDK at startup (sentry-sdk must be installed separately).
     sentry_dsn: str = os.getenv("SENTRY_DSN", "")
@@ -808,6 +810,8 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("ENCRYPTION_MASTER_KEY must be at least 32 characters")
     if not settings.internal_runtime_secret or len(settings.internal_runtime_secret) < 32:
         errors.append("INTERNAL_RUNTIME_SECRET must be at least 32 characters")
+    if not settings.metrics_bearer_token or len(settings.metrics_bearer_token) < 32:
+        errors.append("METRICS_BEARER_TOKEN must be at least 32 characters in production")
     if settings.jwt_secret in {"", "change-me", "dev-only-change-me"} or len(settings.jwt_secret) < 32:
         errors.append("SESSION_SECRET/JWT_SECRET must be a strong value of at least 32 characters")
     if not settings.session_secret or len(settings.session_secret) < 32:
