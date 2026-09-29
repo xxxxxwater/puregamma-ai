@@ -588,6 +588,53 @@ def test_reconciliation_pauses_mandate_on_discrepancy(db, user_factory, monkeypa
     assert db.query(LedgerEntry).count() == 0
 
 
+def test_reconciliation_rejects_malformed_exchange_balance(db, user_factory, monkeypatch):
+    user = user_factory("recon-malformed@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    fake = FakeGateway(balance="NaN")
+
+    row = reconciliation_service.reconcile_account(
+        db,
+        user_id=user.id,
+        account_id=world["account"].id,
+        mandate=world["mandate"],
+        gateway=fake,
+        trace_id="trace-recon-malformed",
+    )
+    db.commit()
+
+    assert row.status == "error"
+    assert row.differences_json[0]["source"] == "exchange_invalid_numeric_data"
+    db.refresh(world["mandate"])
+    assert world["mandate"].paused is True
+    assert world["mandate"].pause_reason == "reconciliation_exchange_invalid_numeric_data"
+
+
+def test_reconciliation_rejects_missing_exchange_cash(db, user_factory, monkeypatch):
+    user = user_factory("recon-missing@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+
+    class MissingBalanceGateway(FakeGateway):
+        def account_balances(self, account_id, *, connection_id=None):
+            return {"equity": "100000"}
+
+    row = reconciliation_service.reconcile_account(
+        db,
+        user_id=user.id,
+        account_id=world["account"].id,
+        mandate=world["mandate"],
+        gateway=MissingBalanceGateway(),
+        trace_id="trace-recon-missing",
+    )
+    db.commit()
+
+    assert row.status == "error"
+    assert row.exchange_balance_json["cash"] is None
+    assert row.differences_json[0]["source"] == "exchange_invalid_numeric_data"
+    db.refresh(world["mandate"])
+    assert world["mandate"].paused is True
+
+
 # ---------------------------------------------------------------------------
 # Default gate is disabled
 # ---------------------------------------------------------------------------
