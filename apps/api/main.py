@@ -8,7 +8,7 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi import Request
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
@@ -223,7 +223,7 @@ def metrics() -> str:
     lines.append("# HELP puregamma_gateway_error_requests Gateway requests with non-success status.")
     lines.append("# TYPE puregamma_gateway_error_requests gauge")
     lines.append(f"puregamma_gateway_error_requests {gateway_errors}")
-    return "\n".join(lines) + "\n"
+    return PlainTextResponse("\n".join(lines) + "\n", media_type="text/plain; version=0.0.4; charset=utf-8")
 
 
 app.include_router(auth.router)
