@@ -30,7 +30,7 @@ STATE_MAX_AGE_SECONDS = 600
 def _configured_google_settings() -> tuple[str, str, str]:
     settings = get_settings()
     if not settings.google_client_id or not settings.google_client_secret:
-        raise HTTPException(status_code=400, detail="Google OAuth is not configured")
+        raise HTTPException(status_code=503, detail={"code": "GOOGLE_OAUTH_NOT_CONFIGURED"})
     return settings.google_client_id, settings.google_client_secret, settings.google_oauth_redirect_uri
 
 
