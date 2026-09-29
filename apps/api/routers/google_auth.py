@@ -3,6 +3,7 @@ from __future__ import annotations
 import secrets
 import hashlib
 import base64
+import logging
 from datetime import datetime, timezone
 from urllib.parse import urlencode
 
@@ -17,6 +18,7 @@ from packages.database.models import UsageEvent, User, UserIdentity, UserPrefere
 
 
 router = APIRouter(tags=["auth"])
+logger = logging.getLogger(__name__)
 
 GOOGLE_AUTHORIZE_URL = "https://accounts.google.com/o/oauth2/v2/auth"
 GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token"
@@ -176,12 +178,14 @@ def google_callback(code: str, state: str, request: Request, response: Response,
     except HTTPException:
         raise
     except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Google OAuth verification failed: {exc}") from exc
+        logger.warning("google_oauth_verification_failed", extra={"error": type(exc).__name__})
+        raise HTTPException(status_code=400, detail={"code": "GOOGLE_OAUTH_VERIFICATION_FAILED"}) from exc
 
     try:
         user = upsert_google_user(db, payload)
     except ValueError as exc:
-        raise HTTPException(status_code=400, detail=str(exc)) from exc
+        logger.warning("google_oauth_account_link_failed", extra={"error": type(exc).__name__})
+        raise HTTPException(status_code=400, detail={"code": "GOOGLE_ACCOUNT_LINK_FAILED"}) from exc
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     db.refresh(user)
