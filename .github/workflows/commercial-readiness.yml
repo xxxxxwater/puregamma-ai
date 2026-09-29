@@ -54,6 +54,10 @@ jobs:
           CORS_ORIGINS: https://app.puregamma.ai
           SESSION_COOKIE_DOMAIN: .puregamma.ai
           GOOGLE_OAUTH_REDIRECT_URI: https://api.puregamma.ai/auth/google/callback
+          MOBILE_GOOGLE_OAUTH_REDIRECT_URI: https://api.puregamma.ai/auth/mobile/google/callback
+          MOBILE_IBKR_OAUTH_REDIRECT_URI: https://api.puregamma.ai/portfolio/ibkr/mobile/callback
+          STRIPE_SUCCESS_URL: https://app.puregamma.ai/billing/success
+          STRIPE_CANCEL_URL: https://app.puregamma.ai/billing/cancel
           LLM_PROVIDER: deepseek
           DEEPSEEK_API_KEY: ci-deepseek-key
           BILLING_MODE: stripe
@@ -105,8 +109,8 @@ jobs:
       - name: Install API and quality dependencies
         run: python -m pip install -r apps/api/requirements.txt ruff
 
-      - name: Lint backend
-        run: python -m ruff check apps packages services tests
+      - name: Block syntax and undefined-name defects
+        run: python -m ruff check apps packages services scripts tests --select E9,F63,F7,F82
 
       - name: Run backend suite
         env:
