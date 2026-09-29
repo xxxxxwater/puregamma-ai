@@ -18,6 +18,7 @@ from apps.api.services.entitlement_service import EntitlementDeniedError, assert
 from packages.billing.budgets import AutomationBudgetExceeded
 from packages.database.models import NotificationDelivery, PushDevice, User, UserPreference, utcnow
 from packages.notifications.apns import APNsProvider
+from packages.notifications.base import NotificationResult
 from packages.notifications.email import EmailProvider
 from packages.notifications.imessage.provider_factory import get_imessage_provider
 from packages.notifications.slack import SlackProvider
@@ -284,15 +285,25 @@ class NotificationDispatcher:
             provider = self._provider(channel)
         try:
             result = provider.send(recipient, message, idempotency_key)
-        except Exception:
+        except Exception as exc:
             if reservation:
-                refund_task(db, user_id, reservation, "NOTIFICATION_PROVIDER_EXCEPTION", metadata={"channel": channel})
+                refund_task(
+                    db,
+                    user_id,
+                    reservation,
+                    "NOTIFICATION_PROVIDER_EXCEPTION",
+                    metadata={"channel": channel, "exception_type": type(exc).__name__},
+                )
                 db.commit()
             if channel == "imessage" and self.settings.imessage_provider in {"macos_relay", "photon"}:
                 from apps.api.services.ops_alert import notify_ops
 
                 notify_ops(f"iMessage provider is failing (provider={self.settings.imessage_provider})", level="error")
-            raise
+            result = NotificationResult(
+                False,
+                channel,
+                {"error": "provider_exception", "exception_type": type(exc).__name__},
+            )
         if result.ok and result.response.get("mode") == "mock":
             # A mock recipient/endpoint delivers nothing: refund the hold and
             # record a skipped delivery so mock ids can never be billed.
