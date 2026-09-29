@@ -477,6 +477,29 @@ def execute_unified_backtest(self, run_id: str) -> dict:
         db.close()
 
 
+@celery_app.task(name="puregamma.research_runner_heartbeat")
+def research_runner_heartbeat() -> dict:
+    """Publish short-lived proof that the isolated Docker research worker is usable."""
+    from apps.api.redis_client import get_redis
+    from apps.api.services.research_runner_service import RESEARCH_RUNNER_HEARTBEAT_KEY
+    from packages.research_runner.docker_runner import docker_available
+
+    settings = get_settings()
+    client = get_redis()
+    if not settings.research_runner_enabled:
+        client.delete(RESEARCH_RUNNER_HEARTBEAT_KEY)
+        return {"status": "disabled"}
+
+    available, reason = docker_available()
+    if not available:
+        client.delete(RESEARCH_RUNNER_HEARTBEAT_KEY)
+        return {"status": "unavailable", "reason": reason}
+
+    ttl = max(30, settings.research_runner_heartbeat_ttl_seconds)
+    client.setex(RESEARCH_RUNNER_HEARTBEAT_KEY, ttl, "ok")
+    return {"status": "ok", "ttl_seconds": ttl}
+
+
 @celery_app.task(name="puregamma.execute_research_run", bind=True, max_retries=0)
 def execute_research_run(self, run_id: str) -> dict:
     """Execute one isolated research run in an ephemeral Docker container."""
