@@ -259,6 +259,7 @@ services:
       api: { condition: service_healthy }
 
   research-worker:
+    profiles: ["research-runner"]
     build:
       context: .
       dockerfile: Dockerfile.api
