@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -9,7 +10,9 @@ from ipaddress import ip_address
 from typing import Any, Generator, Literal
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, Request
+from fastapi import BackgroundTasks
 from fastapi.responses import JSONResponse, StreamingResponse
+from starlette.background import BackgroundTask
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func
 from sqlalchemy.orm import Session
@@ -30,6 +33,7 @@ from packages.database.models import (
 )
 from packages.gateway.contracts import GatewayProviderError, GatewayUsage
 from packages.gateway.catalog import public_model_catalog
+from packages.gateway.pricing import usage_cost
 from packages.gateway.metadata import (
     approve_price_revision,
     bootstrap_gateway_catalog,
@@ -66,6 +70,8 @@ from apps.api.services.gateway_wallet_service import (
     gateway_topup_history,
     gateway_wallet,
     gateway_wallet_history,
+    release_gateway_request_funds,
+    reserve_gateway_request_funds,
     serialize_gateway_topup_intent,
     serialize_gateway_wallet,
     serialize_gateway_wallet_ledger,
@@ -153,6 +159,48 @@ class ChatCompletionsRequest(BaseModel):
 def _admin(user: User = Depends(get_current_user)) -> User:
     require_admin(user)
     return user
+
+
+# A prepaid Gateway request must prove it can pay its own worst case before the
+# provider is called. The ceiling uses the request payload as an upper bound on
+# input length, so a caller can never receive streamed content the wallet cannot
+# cover, and concurrent streams cannot spend the same dollars twice.
+_GATEWAY_MAX_OUTPUT_TOKENS = 131_072  # matches ChatCompletionsRequest.max_tokens
+_GATEWAY_BYTES_PER_TOKEN_FLOOR = Decimal("3")  # ~3 bytes/token is a safe upper bound
+_GATEWAY_ABSOLUTE_TOKEN_CEILING = 1_000_000
+
+
+def _gateway_reservation_ceiling(db: Session, public_model: str, payload: dict[str, Any], max_output_tokens: int | None) -> Decimal:
+    """Hold the most this request could possibly cost under the active tariff.
+
+    The ceiling intentionally depends only on the catalog (model + active price
+    revision), not on adapter resolution, so the hold is computed before any
+    provider object is built or contacted.
+    """
+    model = db.query(GatewayModel).filter_by(public_id=public_model, status="active").one_or_none()
+    if model is None or not model.active_pricing_id:
+        return Decimal("0")
+    revision = db.get(GatewayPriceRevision, model.active_pricing_id)
+    if revision is None:
+        return Decimal("0")
+    try:
+        encoded = len(json.dumps(payload, separators=(",", ":"), default=str))
+    except (TypeError, ValueError):
+        encoded = 0
+    input_tokens = min(
+        int(Decimal(encoded) / _GATEWAY_BYTES_PER_TOKEN_FLOOR) + 4096,
+        _GATEWAY_ABSOLUTE_TOKEN_CEILING,
+    )
+    # Reserve the caller's own output allowance when one is set. Otherwise
+    # reserve the absolute policy ceiling: a request that cannot fund its own
+    # worst case is refused before any provider spend, which is the fail-closed
+    # behaviour this prepaid gateway promises. Reserving less than the ceiling
+    # would let one request drain more than it held.
+    requested = int(max_output_tokens or 0)
+    output_tokens = requested if requested > 0 else _GATEWAY_MAX_OUTPUT_TOKENS
+    output_tokens = min(output_tokens, _GATEWAY_ABSOLUTE_TOKEN_CEILING)
+    prices = revision.final_prices_json or {}
+    return usage_cost(prices, GatewayUsage(input_tokens=input_tokens, output_tokens=output_tokens))
 
 
 def _gateway_enabled() -> None:
@@ -475,12 +523,55 @@ def chat_completions(
     request_id = request.headers.get("x-request-id", "")[:128] or f"chatcmpl_{uuid.uuid4().hex}"
     started = time.perf_counter()
     route = None
+    reserved_request_id: str | None = None
     try:
         assert_gateway_account_available(db, api_key.user_id)
         if payload.stream:
+            # Hold the worst-case cost before any upstream request starts, so a
+            # stream cannot begin until its ceiling is provably funded and two
+            # concurrent streams can never spend the same dollars.
+            reserve_gateway_request_funds(
+                db,
+                user_id=api_key.user_id,
+                request_id=request_id,
+                amount_usd=_gateway_reservation_ceiling(
+                    db,
+                    payload.model,
+                    payload.provider_payload(),
+                    payload.max_completion_tokens or payload.max_tokens,
+                ),
+                metadata={"public_model": payload.model, "stream": True},
+            )
+            reserved_request_id = request_id
             execution = stream_chat(db, payload.model, payload.provider_payload())
             route = execution.route
-            return _streaming_response(execution, payload.model, request_id, api_key, client_ip(request), db, started)
+            try:
+                return _streaming_response(
+                    execution,
+                    payload.model,
+                    request_id,
+                    api_key,
+                    client_ip(request),
+                    db,
+                    started,
+                    reserved_request_id,
+                )
+            except Exception:
+                release_gateway_request_funds(db, request_id=request_id)
+                raise
+        reserve_gateway_request_funds(
+            db,
+            user_id=api_key.user_id,
+            request_id=request_id,
+            amount_usd=_gateway_reservation_ceiling(
+                db,
+                payload.model,
+                payload.provider_payload(),
+                payload.max_completion_tokens or payload.max_tokens,
+            ),
+            metadata={"public_model": payload.model, "stream": False},
+        )
+        reserved_request_id = request_id
         result, route = execute_chat(db, payload.model, payload.provider_payload())
         record_request(
             db,
@@ -534,6 +625,16 @@ def chat_completions(
         except Exception:
             db.rollback()
         return _openai_error(exc, request_id)
+    finally:
+        # A non-stream request is finished when it returns, so its worst-case
+        # hold can be released here. A stream keeps its hold until its own
+        # generator settles the response.
+        if reserved_request_id and not payload.stream:
+            try:
+                release_gateway_request_funds(db, request_id=reserved_request_id)
+            except Exception as release_exc:  # the hold must never break the response
+                logging.getLogger(__name__).warning("gateway reservation release failed: %s", release_exc)
+                db.rollback()
 
 
 @openai_router.post("/systemone")
@@ -609,8 +710,26 @@ def system_one(
             db.rollback()
         return _openai_error(exc, request_id)
 
-def _streaming_response(execution, public_model: str, request_id: str, api_key: GatewayApiKey, ip_address: str, db: Session, started: float) -> StreamingResponse:
+def _streaming_response(
+    execution,
+    public_model: str,
+    request_id: str,
+    api_key: GatewayApiKey,
+    ip_address: str,
+    db: Session,
+    started: float,
+    reserved_request_id: str | None = None,
+) -> StreamingResponse:
     created = int(time.time())
+
+    def release_hold() -> None:
+        """Return the worst-case hold once the response path is finished."""
+        if reserved_request_id:
+            try:
+                release_gateway_request_funds(db, request_id=reserved_request_id)
+            except Exception as release_exc:  # the hold must never break a response
+                logging.getLogger(__name__).warning("gateway reservation release failed: %s", release_exc)
+                db.rollback()
 
     def event_stream() -> Generator[str, None, None]:
         usage = GatewayUsage()
@@ -633,6 +752,7 @@ def _streaming_response(execution, public_model: str, request_id: str, api_key: 
                         ip_address=ip_address,
                     )
                     terminal_logged = True
+                    release_hold()
                     yield "data: [DONE]\n\n"
                     return
                 body: dict[str, Any] = {
@@ -665,6 +785,7 @@ def _streaming_response(execution, public_model: str, request_id: str, api_key: 
                 ip_address=ip_address,
             )
             terminal_logged = True
+            release_hold()
             yield "data: [DONE]\n\n"
         except GatewayProviderError as exc:
             if not terminal_logged:
@@ -693,6 +814,9 @@ def _streaming_response(execution, public_model: str, request_id: str, api_key: 
         event_stream(),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "Connection": "keep-alive", "X-Accel-Buffering": "no", "X-Request-ID": request_id},
+        # Starlette runs background tasks even when a client disconnects mid-stream
+        # and the generator is closed early, so a hold can never be stranded.
+        background=BackgroundTask(release_hold) if reserved_request_id else None,
     )
 
 

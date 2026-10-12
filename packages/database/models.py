@@ -1929,6 +1929,10 @@ class GatewayWallet(Base, TimestampMixin):
     user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, unique=True, index=True)
     currency = Column(String(3), nullable=False, default="USD")
     available_balance_usd = Column(Numeric(18, 8), nullable=False, default=0)
+    # USD held against in-flight requests. A request reserves its worst-case
+    # cost before the provider is called and settles to the real cost after, so
+    # concurrent streams can never spend the same dollars twice.
+    reserved_usd = Column(Numeric(18, 8), nullable=False, default=0, server_default="0")
     lifetime_credited_usd = Column(Numeric(18, 8), nullable=False, default=0)
     lifetime_debited_usd = Column(Numeric(18, 8), nullable=False, default=0)
 
@@ -1968,6 +1972,29 @@ class GatewayWalletLedger(Base):
     gateway_request_log_id = Column(String, ForeignKey("gateway_request_logs.id", ondelete="SET NULL"), nullable=True, unique=True, index=True)
     metadata_json = Column("metadata", JSON, default=dict, nullable=False)
     created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+
+
+class GatewayRequestReservation(Base):
+    """A hold on prepaid Gateway USD for one in-flight API request.
+
+    The worst-case cost is reserved before the provider is called and released
+    when the request settles to its real metered cost, so concurrent requests
+    can never spend the same wallet dollars twice and a request that cannot
+    cover its own ceiling is rejected before any upstream spend happens.
+    """
+
+    __tablename__ = "gateway_request_reservations"
+
+    id = Column(String, primary_key=True, default=new_id)
+    request_id = Column(String, nullable=False, unique=True, index=True)
+    wallet_id = Column(String, ForeignKey("gateway_wallets.id", ondelete="CASCADE"), nullable=False, index=True)
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    amount_usd = Column(Numeric(18, 8), nullable=False)
+    status = Column(String, nullable=False, default="held", index=True)  # held | settled | released
+    settled_amount_usd = Column(Numeric(18, 8), nullable=True)
+    metadata_json = Column("metadata", JSON, default=dict, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utcnow, nullable=False, index=True)
+    resolved_at = Column(DateTime(timezone=True), nullable=True)
 
 
 # =============================================================================

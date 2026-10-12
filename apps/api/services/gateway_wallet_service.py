@@ -18,6 +18,7 @@ from apps.api.config import get_settings
 from apps.api.services.stripe_service import StripeService
 from packages.database.models import (
     GatewayRequestLog,
+    GatewayRequestReservation,
     GatewayTopupIntent,
     GatewayWallet,
     GatewayWalletLedger,
@@ -149,9 +150,16 @@ def create_gateway_topup_checkout(db: Session, user: User, amount_usd: Decimal |
     return {**checkout, "topup": serialize_gateway_topup_intent(intent)}
 
 
+def gateway_wallet_available_usd(wallet: GatewayWallet) -> Decimal:
+    """Spendable USD: the settled balance minus dollars held by in-flight work."""
+    balance = _usd(wallet.available_balance_usd or 0)
+    reserved = _usd(getattr(wallet, "reserved_usd", 0) or 0)
+    return balance - reserved
+
+
 def assert_gateway_wallet_available(db: Session, user_id: str) -> GatewayWallet:
     wallet = gateway_wallet(db, user_id)
-    if _usd(wallet.available_balance_usd or 0) <= 0:
+    if gateway_wallet_available_usd(wallet) <= 0:
         raise GatewayProviderError(
             "GATEWAY_INSUFFICIENT_BALANCE",
             "Gateway wallet balance is insufficient. Add prepaid USD credit in the Gateway console.",
@@ -182,7 +190,7 @@ def debit_gateway_wallet_for_request(
     existing = db.query(GatewayWalletLedger).filter_by(gateway_request_log_id=request_log.id).one_or_none()
     if existing:
         return wallet
-    current = _usd(wallet.available_balance_usd or 0)
+    current = gateway_wallet_available_usd(wallet)
     if current < amount:
         raise GatewayProviderError(
             "GATEWAY_INSUFFICIENT_BALANCE",
@@ -206,6 +214,81 @@ def debit_gateway_wallet_for_request(
         )
     )
     return wallet
+
+
+def reserve_gateway_request_funds(
+    db: Session,
+    *,
+    user_id: str,
+    request_id: str,
+    amount_usd: Decimal,
+    metadata: dict[str, Any] | None = None,
+) -> GatewayRequestReservation:
+    """Hold the worst-case cost of one request before the provider is called.
+
+    The hold is taken under a wallet row lock, so concurrent requests can never
+    reserve the same dollars twice. Reserving is idempotent per request_id: a
+    retried dispatch reuses the existing hold instead of taking a second one.
+    """
+    amount = _usd(amount_usd)
+    wallet = gateway_wallet(db, user_id, lock=True)
+    existing = db.query(GatewayRequestReservation).filter_by(request_id=request_id).one_or_none()
+    if existing is not None:
+        return existing
+    if amount <= 0:
+        return existing
+    available = gateway_wallet_available_usd(wallet)
+    if available < amount:
+        raise GatewayProviderError(
+            "GATEWAY_INSUFFICIENT_BALANCE",
+            "Gateway wallet balance cannot cover this request's maximum cost. Add prepaid USD credit and retry.",
+            status_code=402,
+            retryable=False,
+        )
+    reservation = GatewayRequestReservation(
+        request_id=request_id,
+        wallet_id=wallet.id,
+        user_id=user_id,
+        amount_usd=amount,
+        status="held",
+        metadata_json=metadata or {},
+    )
+    db.add(reservation)
+    wallet.reserved_usd = _usd(Decimal(str(getattr(wallet, "reserved_usd", 0) or 0)) + amount)
+    # The hold must be durable before the provider is called: it is committed on
+    # its own so a later request failure cannot silently un-reserve the dollars.
+    db.commit()
+    return reservation
+
+
+def release_gateway_request_funds(db: Session, *, request_id: str) -> GatewayRequestReservation | None:
+    """Release a hold when a request failed or produced no billable usage."""
+    reservation = db.query(GatewayRequestReservation).filter_by(request_id=request_id).one_or_none()
+    if reservation is None or reservation.status != "held":
+        return reservation
+    wallet = gateway_wallet(db, reservation.user_id, lock=True)
+    db.refresh(wallet)
+    held = _usd(reservation.amount_usd or 0)
+    wallet.reserved_usd = _usd(max(Decimal("0"), _usd(Decimal(str(getattr(wallet, "reserved_usd", 0) or 0)) - held)))
+    reservation.status = "released"
+    reservation.resolved_at = datetime.now(timezone.utc)
+    db.commit()
+    return reservation
+
+
+def settle_gateway_request_funds(
+    db: Session,
+    *,
+    request_id: str,
+    amount_usd: Decimal | None = None,
+) -> GatewayRequestReservation | None:
+    """Release a hold; the billed amount is charged by record_request itself.
+
+    The hold only gates admission. Once the hold is released the metered cost is
+    charged by the single existing usage-debit path, which is idempotent on the
+    request id, so a completion, an error and a retry can never double-charge.
+    """
+    return release_gateway_request_funds(db, request_id=request_id)
 
 
 def _topup_intent_by_session(db: Session, obj: dict[str, Any]) -> GatewayTopupIntent | None:
