@@ -518,10 +518,10 @@ def _apply_fill(
 
     notional = quantity * price
     if order.side == Side.BUY.value:
-        cash_delta = -notional - fee
+        cash_delta = -notional
         entry_type = "trade_buy"
     else:
-        cash_delta = notional - fee
+        cash_delta = notional
         entry_type = "trade_sell"
     signed_qty = quantity if order.side == Side.BUY.value else -quantity
 
@@ -555,10 +555,11 @@ def _apply_fill(
             trace_id=order.trace_id,
         )
 
-    filled = _decimal(order.filled_quantity or 0) + quantity
+    previous_filled = _decimal(order.filled_quantity or 0)
+    filled = previous_filled + quantity
     order.filled_quantity = filled
     order.average_price = (
-        ((_decimal(order.average_price or 0) * _decimal(order.filled_quantity or 0)) + notional)
+        ((_decimal(order.average_price or 0) * previous_filled) + notional)
         / filled
         if filled > 0
         else price

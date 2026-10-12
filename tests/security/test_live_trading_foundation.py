@@ -194,6 +194,47 @@ def _make_live_world(db: Session, user, monkeypatch, **mandate_kwargs):
     }
 
 
+def _make_fill_order(db: Session, user, world, *, side: str, quantity: str) -> LiveOrder:
+    """Create a persisted order for focused fill-accounting tests."""
+    suffix = f"{side}:{user.id}"
+    intent = LiveOrderIntent(
+        user_id=user.id,
+        mandate_id=world["mandate"].id,
+        strategy_release_id=world["release"].id,
+        broker_connection_id=world["connection"].id,
+        symbol="BTCUSDT",
+        side=side,
+        quantity=Decimal(quantity),
+        order_type="market",
+        client_order_id=f"client:{suffix}",
+        idempotency_key=f"intent:{suffix}",
+        source="user_confirmed",
+        expires_at=datetime.now(timezone.utc) + timedelta(minutes=10),
+        status="APPROVED",
+        trace_id=f"trace:{suffix}",
+    )
+    db.add(intent)
+    db.flush()
+    order = LiveOrder(
+        user_id=user.id,
+        mandate_id=world["mandate"].id,
+        order_intent_id=intent.id,
+        broker_connection_id=world["connection"].id,
+        symbol="BTCUSDT",
+        side=side,
+        quantity=Decimal(quantity),
+        order_type="market",
+        status="submitted",
+        client_order_id=intent.client_order_id,
+        idempotency_key=f"order:{suffix}",
+        trace_id=intent.trace_id,
+    )
+    db.add(order)
+    db.commit()
+    db.refresh(order)
+    return order
+
+
 # ---------------------------------------------------------------------------
 # Immutability
 # ---------------------------------------------------------------------------
@@ -402,6 +443,103 @@ def test_live_order_source_is_reserved(db, user_factory, monkeypatch):
 # ---------------------------------------------------------------------------
 # Happy path + idempotency
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("side", "trade_type", "trade_amount", "cash_balance", "realized_pnl"),
+    [
+        ("buy", "trade_buy", Decimal("-200"), Decimal("-203"), Decimal("-3")),
+        ("sell", "trade_sell", Decimal("200"), Decimal("197"), Decimal("197")),
+    ],
+)
+def test_fill_fee_is_recorded_once(
+    db,
+    user_factory,
+    monkeypatch,
+    side,
+    trade_type,
+    trade_amount,
+    cash_balance,
+    realized_pnl,
+):
+    user = user_factory(f"fill-fee-{side}@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    order = _make_fill_order(db, user, world, side=side, quantity="2")
+
+    fill = control_plane._apply_fill(
+        db,
+        order,
+        account_id=world["account"].id,
+        broker_fill_id=f"fill-fee-{side}",
+        quantity=Decimal("2"),
+        price=Decimal("100"),
+        fee=Decimal("3"),
+        fee_currency="USD",
+        executed_at=datetime.now(timezone.utc),
+        raw={},
+    )
+
+    entries = db.query(LedgerEntry).filter_by(ref_id=fill.id).all()
+    amounts = {entry.entry_type: entry.amount for entry in entries}
+    assert amounts == {trade_type: trade_amount, "fee": Decimal("-3")}
+    assert ledger.cash_balance(db, world["account"].id) == cash_balance
+    assert ledger.realized_pnl(db, world["account"].id) == realized_pnl
+
+
+def test_partial_fill_average_and_replay_are_idempotent(db, user_factory, monkeypatch):
+    user = user_factory("partial-fills@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    order = _make_fill_order(db, user, world, side="buy", quantity="4")
+
+    first = control_plane._apply_fill(
+        db,
+        order,
+        account_id=world["account"].id,
+        broker_fill_id="partial-fill-1",
+        quantity=Decimal("1"),
+        price=Decimal("100"),
+        fee=Decimal("1"),
+        fee_currency="USD",
+        executed_at=datetime.now(timezone.utc),
+        raw={},
+    )
+    replay = control_plane._apply_fill(
+        db,
+        order,
+        account_id=world["account"].id,
+        broker_fill_id="partial-fill-1",
+        quantity=Decimal("1"),
+        price=Decimal("100"),
+        fee=Decimal("1"),
+        fee_currency="USD",
+        executed_at=datetime.now(timezone.utc),
+        raw={},
+    )
+
+    assert replay.id == first.id
+    assert order.filled_quantity == Decimal("1")
+    assert order.average_price == Decimal("100")
+    assert db.query(Fill).filter_by(order_id=order.id).count() == 1
+    assert db.query(LedgerEntry).filter_by(ref_id=first.id).count() == 2
+
+    control_plane._apply_fill(
+        db,
+        order,
+        account_id=world["account"].id,
+        broker_fill_id="partial-fill-2",
+        quantity=Decimal("3"),
+        price=Decimal("200"),
+        fee=Decimal("2"),
+        fee_currency="USD",
+        executed_at=datetime.now(timezone.utc),
+        raw={},
+    )
+
+    assert order.filled_quantity == Decimal("4")
+    assert order.average_price == Decimal("175")
+    assert order.status == LiveOrderStatus.FILLED.value
+    assert db.query(Fill).filter_by(order_id=order.id).count() == 2
+    assert ledger.cash_balance(db, world["account"].id) == Decimal("-703")
 
 
 def test_full_order_path_writes_risk_fill_ledger_nav(db, user_factory, monkeypatch):
