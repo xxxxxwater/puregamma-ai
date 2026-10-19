@@ -19,7 +19,7 @@ fi
 research_runner_enabled="$(awk -F= '/^RESEARCH_RUNNER_ENABLED=/{print tolower($2); exit}' .env | tr -d '[:space:]')"
 research_runner_enabled="${research_runner_enabled:-false}"
 
-python3 scripts/validate-production-env.py --env-file .env --require-production
+PYTHONPATH="${ROOT_DIR}${PYTHONPATH:+:${PYTHONPATH}}" python3 scripts/validate-production-env.py --env-file .env --require-production
 if [ "${research_runner_enabled}" = "true" ]; then
   "${RESEARCH_COMPOSE[@]}" config --quiet
 else
