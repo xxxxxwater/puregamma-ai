@@ -20,9 +20,9 @@ function NodeCard({
         ? "border-sky-500/30"
         : "border-border-pg-strong";
   return (
-    <div className={`absolute z-10 -translate-x-1/2 -translate-y-1/2 border ${ring} bg-bg-panel-muted px-2 py-1.5 text-center rounded-lg ${className}`}>
-      <div className="whitespace-nowrap text-[0.58rem] font-semibold leading-tight text-text-pg">{title}</div>
-      {detail ? <div className="mt-0.5 whitespace-nowrap text-[9px] leading-tight text-text-pg-dim">{detail}</div> : null}
+    <div data-testid="architecture-node" className={`architecture-node absolute z-10 w-[70px] -translate-x-1/2 -translate-y-1/2 border ${ring} bg-bg-panel-muted px-1 py-1 text-center rounded-lg ${className}`}>
+      <div className="architecture-node-title whitespace-normal text-[8px] font-semibold leading-tight text-text-pg">{title}</div>
+      {detail ? <div className="architecture-node-detail mt-0.5 whitespace-normal text-[7px] leading-tight text-text-pg-dim">{detail}</div> : null}
     </div>
   );
 }
@@ -106,14 +106,44 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
     notifyDetail: "Email · Telegram · Slack · APNs · iMessage",
     hmac: "HMAC",
     legend: zh ? "数据流" : "Data flow",
+    runtimeMap: zh ? "PureGamma 运行图" : "PureGamma Runtime Map",
+    signedTopology: zh ? "HMAC 签名拓扑" : "HMAC signed topology",
+    live: zh ? "在线" : "LIVE",
+    windowControls: zh ? "macOS 窗口控制" : "macOS window controls",
+    closePreview: zh ? "关闭架构预览" : "Close architecture preview",
+    minimizePreview: zh ? "最小化架构预览" : "Minimize architecture preview",
+    expandPreview: zh ? "展开架构预览" : "Expand architecture preview",
   };
 
   return (
-    <div className="relative border border-border-pg bg-bg-panel p-5 md:p-7 rounded-2xl">
+    <section className="relative overflow-hidden border border-border-pg bg-bg-panel p-5 md:p-7 rounded-2xl">
       <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">{copy.eyebrow}</div>
       <h2 className="mt-2 max-w-2xl text-lg font-semibold text-text-pg">{copy.headline}</h2>
 
-      <div className="relative mt-6 h-[520px] w-full overflow-hidden rounded-xl border border-border-pg/60 bg-bg-panel-muted/40">
+      <div
+        data-testid="architecture-mac-window"
+        className="relative mx-auto mt-6 max-w-4xl rounded-[30px] border-[7px] border-[#151922] bg-[#0b0e14] p-1.5 shadow-[0_28px_75px_-34px_rgba(2,6,23,0.86)]"
+      >
+        <div className="pointer-events-none absolute left-1/2 top-0 z-30 h-4 w-24 -translate-x-1/2 rounded-b-[10px] bg-[#151922]" aria-hidden />
+        <div className="overflow-hidden rounded-[21px] border border-white/10 bg-[#0e1420]">
+          <div className="flex h-9 items-center justify-between border-b border-white/10 bg-[#161d2a] px-3 text-[9px] text-slate-400">
+            <div className="flex items-center gap-1.5" aria-label={copy.windowControls}>
+              <span role="img" aria-label={copy.closePreview} className="h-2.5 w-2.5 rounded-full bg-[#ff5f57] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.16)]" />
+              <span role="img" aria-label={copy.minimizePreview} className="h-2.5 w-2.5 rounded-full bg-[#febc2e] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.16)]" />
+              <span role="img" aria-label={copy.expandPreview} className="h-2.5 w-2.5 rounded-full bg-[#28c840] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.16)]" />
+            </div>
+            <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 font-medium tracking-[0.08em] text-slate-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
+              <span>PUREGAMMA.AI</span>
+            </div>
+            <div className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 font-semibold tracking-[0.12em] text-emerald-300">{copy.live}</div>
+          </div>
+
+          <div data-testid="architecture-system-map" className="architecture-system-map relative h-[520px] w-full overflow-hidden bg-bg-panel-muted/40">
+            <div data-testid="architecture-map-caption" className="absolute bottom-2 left-2 z-20 rounded-md border border-white/10 bg-slate-950/55 px-2 py-1 text-[8px] uppercase tracking-[0.14em] text-slate-200 backdrop-blur-sm">
+              <span className="font-semibold">{copy.runtimeMap}</span>
+              <span className="ml-2 text-emerald-300/80">{copy.signedTopology}</span>
+            </div>
         {/* Flow layer */}
         <svg
           className="absolute inset-0 h-full w-full text-emerald-400/70"
@@ -135,23 +165,23 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
         </svg>
 
         {/* Nodes */}
-        <NodeCard title={copy.user} className="left-[50%] top-[6%]" />
-        <NodeCard title={copy.web} className="left-[21%] top-[17%]" />
-        <NodeCard title={copy.ios} className="left-[50%] top-[18%]" />
-        <NodeCard title={copy.android} className="left-[79%] top-[17%]" />
-        <NodeCard title={copy.api} accent="emerald" className="left-[50%] top-[29%] px-3 py-2" />
-        <NodeCard title={copy.auth} detail={copy.authDetail} className="left-[15%] top-[41%]" />
-        <NodeCard title={copy.agent} detail={copy.agentDetail} className="left-[50%] top-[41%]" />
-        <NodeCard title={copy.gateway} detail={copy.gatewayDetail} className="left-[85%] top-[41%]" />
-        <NodeCard title={copy.options} detail={copy.optionsDetail} className="left-[15%] top-[52%]" />
-        <NodeCard title={copy.backtest} className="left-[50%] top-[52%]" />
-        <NodeCard title={copy.research} detail={copy.researchDetail} className="left-[85%] top-[52%]" />
-        <NodeCard title={copy.skills} className="left-[15%] top-[63%]" />
-        <NodeCard title={copy.portfolio} detail={copy.portfolioDetail} className="left-[50%] top-[63%]" />
-        <NodeCard title={copy.data} detail={copy.dataDetail} className="left-[85%] top-[63%]" />
-        <NodeCard title={copy.trading} accent="blue" className="left-[30%] top-[78%] px-3 py-2" />
-        <NodeCard title={copy.runtime} detail={copy.runtimeDetail} accent="emerald" className="left-[70%] top-[78%] px-3 py-2" />
-        <NodeCard title={copy.notify} detail={copy.notifyDetail} className="left-[50%] top-[92%]" />
+        <NodeCard title={copy.user} className="architecture-user left-[50%] top-[6%]" />
+        <NodeCard title={copy.web} className="architecture-web left-[21%] top-[17%]" />
+        <NodeCard title={copy.ios} className="architecture-ios left-[50%] top-[18%]" />
+        <NodeCard title={copy.android} className="architecture-android left-[79%] top-[17%]" />
+        <NodeCard title={copy.api} accent="emerald" className="architecture-api left-[50%] top-[29%] px-1.5 py-1" />
+        <NodeCard title={copy.auth} detail={copy.authDetail} className="architecture-auth left-[15%] top-[41%]" />
+        <NodeCard title={copy.agent} detail={copy.agentDetail} className="architecture-agent left-[50%] top-[41%]" />
+        <NodeCard title={copy.gateway} detail={copy.gatewayDetail} className="architecture-gateway left-[85%] top-[41%]" />
+        <NodeCard title={copy.options} detail={copy.optionsDetail} className="architecture-options left-[15%] top-[52%]" />
+        <NodeCard title={copy.backtest} className="architecture-backtest left-[50%] top-[52%]" />
+        <NodeCard title={copy.research} detail={copy.researchDetail} className="architecture-research left-[85%] top-[52%]" />
+        <NodeCard title={copy.skills} className="architecture-skills left-[15%] top-[63%]" />
+        <NodeCard title={copy.portfolio} detail={copy.portfolioDetail} className="architecture-portfolio left-[50%] top-[63%]" />
+        <NodeCard title={copy.data} detail={copy.dataDetail} className="architecture-data left-[85%] top-[63%]" />
+        <NodeCard title={copy.trading} accent="blue" className="architecture-trading left-[30%] top-[78%] px-1.5 py-1" />
+        <NodeCard title={copy.runtime} detail={copy.runtimeDetail} accent="emerald" className="architecture-runtime left-[70%] top-[78%] px-1.5 py-1" />
+        <NodeCard title={copy.notify} detail={copy.notifyDetail} className="architecture-notify left-[50%] top-[88%]" />
 
         {/* HMAC label on the trading→runtime link */}
         <span className="absolute left-1/2 top-[75.5%] z-10 -translate-x-1/2 border border-border-pg bg-bg-panel px-1.5 py-0.5 text-[8px] font-semibold tracking-wide text-text-pg-dim rounded">
@@ -164,7 +194,29 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />API</span>
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-sky-400" />Trading</span>
         </div>
+          </div>
+        </div>
+        <div data-testid="architecture-mac-base" className="mx-auto h-3 w-[60%] rounded-b-[18px] border-x border-b border-slate-500/25 bg-gradient-to-b from-slate-300 via-slate-500 to-slate-700 shadow-[0_12px_20px_-16px_rgba(0,0,0,0.95)]" aria-hidden />
       </div>
-    </div>
+      <style jsx global>{`
+        .architecture-system-map { container-type: inline-size; }
+        @container (min-width: 640px) {
+          .architecture-system-map { height: 520px !important; }
+          .architecture-node { width: auto !important; padding: 0.375rem 0.5rem !important; }
+          .architecture-node-title { white-space: nowrap !important; font-size: 0.58rem !important; }
+          .architecture-node-detail { white-space: nowrap !important; font-size: 9px !important; }
+          .architecture-api, .architecture-trading, .architecture-runtime { padding: 0.5rem 0.75rem !important; }
+          .architecture-user { top: 6% !important; }
+          .architecture-web { left: 21% !important; top: 17% !important; }
+          .architecture-ios { top: 18% !important; }
+          .architecture-android { left: 79% !important; top: 17% !important; }
+          .architecture-api { top: 29% !important; }
+          .architecture-auth, .architecture-agent, .architecture-gateway { top: 41% !important; }
+          .architecture-options, .architecture-backtest, .architecture-research { top: 52% !important; }
+          .architecture-trading, .architecture-runtime { top: 78% !important; }
+          .architecture-notify { top: 92% !important; }
+        }
+      `}</style>
+    </section>
   );
 }
