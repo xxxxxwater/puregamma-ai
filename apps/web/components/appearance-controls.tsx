@@ -14,7 +14,7 @@ function clsxLike(visualStyle: VisualStyle, base: string): string {
 /**
  * Theme / appearance controls.
  *
- * Mounted three times (sidebar rail, desktop top bar, mobile top bar). All
+ * Mounted in the sidebar and mobile drawer. Both
  * instances now read one shared store, so they cannot disagree, and the
  * preference survives a reload because the pre-paint script applies it before
  * first paint. The control is a three-state cycle — System → Light → Dark —
@@ -46,7 +46,7 @@ export function AppearanceControls({
   };
 
   const scaleIndex = SCALES.indexOf(fontScale);
-  const buttonClass = "grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong disabled:opacity-35";
+  const buttonClass = "grid h-9 w-9 place-items-center rounded-xl border border-border-pg bg-bg-panel-muted text-text-pg-muted transition hover:border-border-pg-strong hover:bg-bg-panel hover:text-text-pg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg disabled:opacity-35";
 
   const themeTitle =
     preference === "system"

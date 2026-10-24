@@ -1,11 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { Copy, CreditCard, KeyRound, Pause, Play, RefreshCw, Trash2 } from "lucide-react";
 import { Badge, EmptyState, MetricCard, ResearchCard } from "@/components/puregamma";
 import { UsagePanel } from "@/components/usage-panel";
 import { changeGatewayKeyStatus, createGatewayKey, createGatewayTopup, rotateGatewayKey, type GatewayDashboard, type GatewayKey, type GatewayRequest, type GatewayUsage } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { withLocale } from "@/i18n/routing";
 
 type Props = { locale: Locale; dashboard: GatewayDashboard; initialKeys: GatewayKey[]; initialRequests: GatewayRequest[]; initialUsage: GatewayUsage };
 
@@ -59,8 +61,16 @@ export function GatewayConsole({ locale, dashboard, initialKeys, initialRequests
     } finally { setBusy(false); }
   };
 
+  if (dashboard.unavailable) {
+    return <section role="status" className="rounded-3xl border border-border-pg bg-bg-panel p-7 shadow-panel md:p-10">
+      <span className="section-eyebrow">{zh ? "API 工作台" : "API WORKSPACE"}</span>
+      <h2 className="mt-3 font-display text-2xl font-semibold tracking-[-0.04em]">{zh ? "Gateway 当前不可用" : "Gateway is unavailable here"}</h2>
+      <p className="mt-3 max-w-xl text-sm leading-7 text-text-pg-muted">{zh ? "请确认此环境已启用 Gateway，并使用已登录账户访问。模型目录和接入说明仍可查看。" : "Check that Gateway is enabled for this deployment and that you are signed in. The model directory and integration guide remain available."}</p>
+      <Link href={withLocale(locale, "/api")} className="mt-6 inline-flex min-h-11 items-center rounded-full border border-border-pg px-5 text-sm font-medium text-text-pg transition hover:bg-bg-panel-muted">{zh ? "查看模型目录" : "Explore the model directory"}</Link>
+    </section>;
+  }
+
   return <div className="space-y-5">
-    {dashboard.unavailable ? <div role="status" className="border border-border-pg-strong bg-bg-panel p-4 text-sm text-text-pg-muted">{zh ? "Gateway 数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Gateway data is unavailable. Confirm that the gateway is enabled and you are signed in."}</div> : null}
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
       <MetricCard label={zh ? "API 可用余额" : "API balance"} value={money(dashboard.wallet.available_balance_usd)} detail={zh ? "独立预付 USD，不影响 PureGamma 订阅" : "Separate prepaid USD; does not affect PureGamma subscriptions"} tone="neutral" />
       <MetricCard label={zh ? "今日消费" : "Today"} value={money(dashboard.spend_usd.today)} detail={zh ? "按确认后的零售价计费" : "At approved retail pricing"} tone="neutral" />

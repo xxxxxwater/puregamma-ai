@@ -43,7 +43,8 @@
   width: var(--pg-brand-mark-size);
   height: var(--pg-brand-mark-size);
   overflow: hidden;
-  border: 1px solid #ddd;
+  border: 1px solid var(--pg-border-subtle);
+  border-radius: 11px;
   background: #fff;
 }
 
@@ -62,6 +63,61 @@
 
 .pg-brand-suffix {
   font-weight: 400;
+}
+
+.pg-brand-orbit {
+  position: relative;
+  display: grid;
+  min-height: 430px;
+  place-items: center;
+  overflow: hidden;
+  isolation: isolate;
+  border: 1px solid var(--pg-border-subtle);
+  border-radius: 30px;
+  background: linear-gradient(145deg, var(--panel-muted), color-mix(in oklab, var(--panel) 74%, var(--panel-muted)));
+}
+.pg-brand-orbit__eyebrow,
+.pg-brand-orbit__caption {
+  position: absolute;
+  z-index: 2;
+  color: var(--muted-2);
+  font-size: 0.64rem;
+  font-weight: 600;
+  letter-spacing: 0.17em;
+}
+.pg-brand-orbit__eyebrow { top: 26px; left: 28px; }
+.pg-brand-orbit__caption { right: 27px; bottom: 24px; text-align: right; }
+.pg-brand-orbit__ring {
+  position: absolute;
+  width: var(--orbit-size);
+  height: var(--orbit-size);
+  border: 1px solid color-mix(in oklab, var(--border-strong) 38%, transparent);
+  border-radius: 50%;
+}
+.pg-brand-orbit__ring--outer { --orbit-size: 420px; }
+.pg-brand-orbit__ring--middle { --orbit-size: 310px; }
+.pg-brand-orbit__ring--inner { --orbit-size: 185px; }
+.pg-brand-orbit__mark {
+  z-index: 1;
+  display: grid;
+  width: 94px;
+  height: 94px;
+  place-items: center;
+  border: 1px solid var(--pg-border-subtle);
+  border-radius: 25px;
+  background: #fff;
+  box-shadow: 0 12px 36px -24px rgba(0, 0, 0, 0.3);
+}
+.pg-brand-orbit__mark img { filter: grayscale(1) invert(1); }
+@media (max-width: 640px) {
+  .pg-brand-orbit { min-height: 285px; }
+  .pg-brand-orbit__ring--outer { --orbit-size: 300px; }
+  .pg-brand-orbit__ring--middle { --orbit-size: 210px; }
+  .pg-brand-orbit__ring--inner { --orbit-size: 135px; }
+  .pg-brand-orbit__mark { width: 76px; height: 76px; border-radius: 20px; }
+  .pg-brand-orbit__mark img { width: 54px; height: 54px; }
+  .pg-brand-orbit__eyebrow { top: 20px; left: 20px; }
+  .pg-brand-orbit__caption { right: 18px; bottom: 16px; }
 }
 
 @keyframes secretary-portrait-blink {
@@ -116,11 +172,11 @@
      inline so this is correct from the very first frame. */
   color-scheme: light;
   /* PureGamma Research / Harness: paper, ink, and quiet neutral surfaces. */
-  --background: #ffffff;
-  --foreground: #151515;
+  --background: #faf9f7;
+  --foreground: #171717;
   --panel: #ffffff;
-  --panel-muted: #f5f5f5;
-  --panel-strong: #ebebeb;
+  --panel-muted: #f5f4f2;
+  --panel-strong: #ebeae7;
   --secretary-assistant-bg: #f5f5f5;
   --secretary-assistant-text: #151515;
   --secretary-assistant-border: #d9d9d9;
@@ -131,8 +187,8 @@
      white button with a white border and black text — no visible boundary. */
   --pg-surface-inverse: #151515;
   --pg-text-inverse: #ffffff;
-  --border: #d9d9d9;
-  --border-strong: #b8b8b8;
+  --border: #e5e4e1;
+  --border-strong: #c8c7c3;
   --muted: #616161;
   --muted-2: #6d6d6d;
   /* Risk and P&L retain distinct, readable semantic colors. */
@@ -239,16 +295,16 @@
 
   /* ── Scale ───────────────────────────────────────────────────────── */
   --pg-hairline: 1px;              /* Phase 2 narrows neutral rules to 0.5px */
-  --pg-radius-sm: 6px;
-  --pg-radius-md: 8px;
-  --pg-radius-lg: 12px;
+  --pg-radius-sm: 10px;
+  --pg-radius-md: 14px;
+  --pg-radius-lg: 20px;
   --pg-chat-measure: 48rem;        /* one width contract for both chat routes */
   --pg-chat-measure-max: 880px;
 
   /* ── Elevation ───────────────────────────────────────────────────── */
   --pg-elevation-flat: none;
-  --pg-elevation-raised: 0 1px 2px rgba(0, 0, 0, 0.06);
-  --pg-elevation-overlay: 0 8px 24px rgba(0, 0, 0, 0.18);
+  --pg-elevation-raised: 0 8px 28px -22px rgba(0, 0, 0, 0.2);
+  --pg-elevation-overlay: 0 18px 48px -24px rgba(0, 0, 0, 0.26);
 }
 
 :root[data-font-scale="compact"] { font-size: 14px; }
@@ -725,7 +781,7 @@ textarea {
   --lens-fill-a: rgba(255, 255, 255, 0.92);
   --lens-fill-b: rgba(245, 245, 245, 0.86);
 
-  --radius-panel: 12px;
+  --radius-panel: 20px;
   --section-gap: clamp(32px, 5vw, 72px);
 }
 :root[data-theme="dark"] {
@@ -773,8 +829,8 @@ body { font-family: var(--font-sans); }
 }
 .display-sm { font-family: var(--font-display); font-weight: 700; line-height: 1.05; letter-spacing: -0.03em; font-size: clamp(1.5rem, 2.4vw, 1.9rem); }
 .display-md { font-family: var(--font-display); font-weight: 700; line-height: 1.0; letter-spacing: -0.035em; font-size: clamp(2rem, 4vw, 2.8rem); }
-.display-lg { font-family: var(--font-display); font-weight: 750; line-height: 0.98; letter-spacing: -0.04em; font-size: clamp(2.6rem, 6vw, 4.2rem); }
-.display-xl { font-family: var(--font-display); font-weight: 750; line-height: 0.96; letter-spacing: -0.045em; font-size: clamp(3.3rem, 8.5vw, 6rem); }
+.display-lg { font-family: var(--font-display); font-weight: 700; line-height: 1.02; letter-spacing: -0.045em; font-size: clamp(2.5rem, 5vw, 3.8rem); }
+.display-xl { font-family: var(--font-display); font-weight: 700; line-height: 1.01; letter-spacing: -0.055em; font-size: clamp(3rem, 5.8vw, 4.5rem); }
 .editorial-rule { border: 0; border-top: 1px solid var(--border); margin: 0; }
 
 /* ── Default data surface: near-solid, high-contrast (no glass everywhere). */
@@ -783,9 +839,9 @@ body { font-family: var(--font-sans); }
   background: var(--panel);
   border-radius: var(--radius-panel);
   padding: clamp(18px, 2.6vw, 28px);
-  box-shadow: 0 1px 2px rgba(0,0,0,0.12);
+  box-shadow: var(--pg-elevation-raised);
 }
-:root[data-theme="light"] .terminal-panel { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
+:root[data-theme="light"] .terminal-panel { box-shadow: var(--pg-elevation-raised); }
 
 /* ── The Liquid Lens: scarce, premium glass. ────────────────────────────── */
 .liquid, .lens-surface {
@@ -905,9 +961,10 @@ body { font-family: var(--font-sans); }
   bottom: 12px;
   width: 260px;
   border: 1px solid var(--border);
-  border-radius: 20px;
+  border-radius: 24px;
   background: var(--panel);
   overflow: hidden;
+  box-shadow: var(--pg-elevation-raised);
 }
 [data-visual-style="glass"] .shell-rail {
   background: color-mix(in oklab, var(--panel) 96%, transparent);
@@ -921,7 +978,7 @@ body { font-family: var(--font-sans); }
   z-index: 30;
   margin: 12px 14px 0;
   border: 1px solid var(--border);
-  border-radius: 16px;
+  border-radius: 20px;
   background: var(--panel);
 }
 [data-visual-style="glass"] .shell-chrome {
@@ -941,7 +998,7 @@ body { font-family: var(--font-sans); }
   align-items: center;
   gap: 0.65rem;
   padding: 0.5rem 0.8rem;
-  border-radius: 10px;
+  border-radius: 13px;
   color: var(--muted);
   font-size: 0.875rem;
   font-weight: 500;
@@ -953,22 +1010,25 @@ body { font-family: var(--font-sans); }
 .nav-active {
   color: var(--foreground);
   font-weight: 600;
-  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 12%, var(--panel)), var(--panel));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.06);
+  background: var(--panel-muted);
+  box-shadow: none;
 }
 :root[data-theme="light"] .nav-active {
-  background: linear-gradient(180deg, color-mix(in oklab, var(--accent) 10%, var(--panel)), var(--panel));
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.9);
+  background: var(--panel-muted);
+  box-shadow: none;
 }
 .nav-active::before {
   content: "";
   position: absolute;
-  left: 0;
-  top: 9px;
-  bottom: 9px;
-  width: 2px;
+  right: 12px;
+  left: auto;
+  top: 50%;
+  bottom: auto;
+  width: 5px;
+  height: 5px;
   border-radius: 999px;
-  background: linear-gradient(180deg, var(--accent), transparent 72%);
+  background: var(--foreground);
+  transform: translateY(-50%);
 }
 
 /* The rail's navigation remains scrollable on compact desktops, but its

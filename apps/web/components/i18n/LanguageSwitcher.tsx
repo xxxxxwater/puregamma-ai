@@ -33,7 +33,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
   }
 
   return (
-    <div className={clsx("inline-flex items-center border border-border-pg bg-bg-panel-muted rounded-lg", compact ? "text-xs" : "text-sm")} aria-label={t(locale, "common.language.label")}>
+    <div className={clsx("inline-flex items-center rounded-xl border border-border-pg bg-bg-panel-muted p-0.5", compact ? "text-xs" : "text-sm")} aria-label={t(locale, "common.language.label")}>
       {targets.map((target) => {
         const active = target.locale === locale;
         return (
@@ -42,7 +42,7 @@ export function LanguageSwitcher({ compact = false }: { compact?: boolean }) {
             type="button"
             aria-label={t(locale, target.ariaKey)}
             aria-pressed={active}
-            className={clsx("min-h-9 px-2.5 py-1.5 font-medium transition", active ? "bg-pg-white text-pg-black" : "text-text-pg-muted hover:bg-bg-panel hover:text-text-pg")}
+            className={clsx("min-h-8 rounded-[10px] px-2.5 py-1.5 font-medium transition", active ? "bg-bg-panel text-text-pg shadow-[0_1px_3px_rgba(0,0,0,0.08)]" : "text-text-pg-muted hover:bg-bg-panel hover:text-text-pg")}
             onClick={() => switchTo(target.locale)}
           >
             {t(locale, target.labelKey)}

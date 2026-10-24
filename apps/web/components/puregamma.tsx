@@ -60,7 +60,7 @@ export type IntegrationRow = {
 
 export function PGResearchCard({ children, className = "", ...props }: HTMLAttributes<HTMLElement> & { children: ReactNode; className?: string }) {
   return (
-    <section className={clsx("min-w-0 border border-border-pg bg-bg-panel p-4 text-text-pg transition hover:border-border-pg-strong rounded-xl", className)} {...props}>
+    <section className={clsx("min-w-0 rounded-2xl border border-border-pg bg-bg-panel p-5 text-text-pg shadow-card transition-[border-color,box-shadow] hover:border-border-pg-strong hover:shadow-card-hover", className)} {...props}>
       {children}
     </section>
   );
@@ -85,14 +85,14 @@ export function PageHeader({
 }) {
   const body = description || subtitle;
   return (
-    <div className="mb-8 border-b border-border-pg pb-6">
+    <div className="mb-9 border-b border-border-pg pb-7">
       <div className="flex flex-wrap items-end justify-between gap-4">
         <div className="max-w-4xl">
           <div className="mb-3 flex items-center gap-3 text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">
             {sectionNumber ? <span className="text-text-pg">{sectionNumber}</span> : null}
             <span>{eyebrow}</span>
           </div>
-          <h1 className="max-w-5xl text-2xl font-semibold tracking-normal text-text-pg">{title}</h1>
+          <h1 className="max-w-5xl font-display text-3xl font-semibold tracking-[-0.045em] text-text-pg md:text-4xl">{title}</h1>
           {body ? <p className="mt-4 max-w-3xl text-sm leading-6 text-text-pg-muted">{body}</p> : null}
         </div>
         {actions ? <div className="flex flex-wrap gap-2">{actions}</div> : null}
@@ -138,7 +138,7 @@ export function MetricCard({
 }
 
 export function Badge({ children, tone = "neutral" }: { children: ReactNode; tone?: Tone }) {
-  return <span className={clsx("inline-flex items-center gap-1 border px-2 py-0.5 text-xs font-medium rounded-lg", badgeClass(tone))}>{children}</span>;
+  return <span className={clsx("inline-flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium", badgeClass(tone))}>{children}</span>;
 }
 
 export function StatusDot({ tone = "neutral" }: { tone?: Tone }) {

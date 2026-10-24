@@ -232,14 +232,14 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   const pathname = usePathname();
   const activePathname = stripLocale(pathname);
   return (
-    <aside className="shell-rail hidden flex-col p-4 lg:flex">
+    <aside className="shell-rail hidden flex-col p-5 lg:flex">
       <Link href={withLocale(locale, "/")} className="flex items-center text-text-pg"><BrandLockup />
       </Link>
-      <div className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
+      <div className="mt-8 text-[0.64rem] font-semibold uppercase tracking-[0.17em] text-text-pg-dim">{locale === "zh" ? "研究工作台" : "Analysis workspace"}</div>
       <div className="mt-4">
         <div className="flex items-center gap-2"><LanguageSwitcher compact /><AppearanceControls locale={locale} /></div>
       </div>
-      <nav className="shell-nav mt-8 flex-1 space-y-7 overflow-y-auto pr-1">
+      <nav className="shell-nav mt-7 flex-1 space-y-7 overflow-y-auto pr-1">
         {groups.map((group) => (
           <div key={group.labelKey}>
             <div className="mb-2 text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-text-pg-dim">{t(locale, group.labelKey)}</div>
@@ -271,6 +271,9 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
   const [storedUser, setStoredUser] = useState<StoredUser | null>(null);
   const pathname = usePathname();
   const dashboardRoute = stripLocale(pathname || "/") === "/dashboard";
+  const activePath = stripLocale(pathname || "/");
+  const activeNavItem = groups.flatMap((group) => group.items).find((item) => activePath === item.href || activePath.startsWith(`${item.href}/`));
+  const activeLabel = activeNavItem ? t(locale, activeNavItem.labelKey) : activePath === "/" ? (locale === "zh" ? "概览" : "Overview") : (locale === "zh" ? "工作台" : "Workspace");
   const refreshUser = useCallback(async () => {
     const result = await getMe();
     setStoredUser(result.user);
@@ -329,12 +332,15 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
           <BrandLockup size="small" />
           <span className="sr-only">{locale === "zh" ? "，返回首页" : ", back to home"}</span>
         </Link>
+        <div className="hidden items-center gap-2 text-sm lg:flex">
+          <span className="text-text-pg-dim">{locale === "zh" ? "工作台" : "Workspace"}</span>
+          <span className="text-text-pg-dim">/</span>
+          <span className="font-medium text-text-pg">{activeLabel}</span>
+        </div>
         <div className="hidden items-center gap-2 text-xs md:flex">
           {!dashboardRoute ? <TopClock locale={locale} /> : null}
-          <PlanBadge plan={storedUser?.plan || "Free"} tier={storedUser?.membership_tier} locale={locale} />
-          <Badge tone="neutral">{storedUser ? `${storedUser.credit_balance ?? 0} credits` : t(locale, "common.topbar.credits")}</Badge>
-          <LanguageSwitcher compact />
-          <AppearanceControls locale={locale} />
+          {storedUser ? <PlanBadge plan={storedUser.plan || "Free"} tier={storedUser.membership_tier} locale={locale} /> : null}
+          {storedUser ? <Badge tone="neutral">{`${storedUser.credit_balance ?? 0} credits`}</Badge> : null}
           {storedUser ? (
             <Link href={withLocale(locale, "/account")} className="ml-2 flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-2 py-1 hover:border-border-pg-strong rounded-lg">
               {storedUser.avatar_url ? <span aria-hidden className="h-5 w-5 rounded-full bg-cover bg-center" style={{ backgroundImage: `url(${storedUser.avatar_url})` }} /> : null}
@@ -343,8 +349,8 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
             </Link>
           ) : (
             <>
-              <Link href={withLocale(locale, "/signup")} className="ml-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-1 text-xs font-semibold text-[var(--pg-text-inverse)] rounded-lg">{t(locale, "common.nav.signup")}</Link>
-              <Link href={withLocale(locale, "/login")} className="border border-border-pg px-3 py-1 text-xs text-text-pg hover:border-border-pg-strong rounded-lg">{t(locale, "common.nav.signin")}</Link>
+              <Link href={withLocale(locale, "/signup")} className="ml-2 rounded-full border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3.5 py-1.5 text-xs font-semibold text-[var(--pg-text-inverse)]">{t(locale, "common.nav.signup")}</Link>
+              <Link href={withLocale(locale, "/login")} className="rounded-full border border-border-pg px-3.5 py-1.5 text-xs text-text-pg hover:border-border-pg-strong">{t(locale, "common.nav.signin")}</Link>
             </>
           )}
         </div>
@@ -352,7 +358,7 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
             secondary lives in the drawer. */}
         <div className="flex shrink-0 items-center gap-2 text-xs text-text-pg-muted md:hidden">
           {storedUser ? null : (
-            <Link href={withLocale(locale, "/signup")} className="whitespace-nowrap border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-2.5 py-1 font-semibold text-[var(--pg-text-inverse)] rounded-lg">{t(locale, "common.nav.signup")}</Link>
+            <Link href={withLocale(locale, "/signup")} className="whitespace-nowrap rounded-full border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-1.5 font-semibold text-[var(--pg-text-inverse)]">{t(locale, "common.nav.signup")}</Link>
           )}
         </div>
       </div>

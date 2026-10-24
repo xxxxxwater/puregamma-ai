@@ -94,10 +94,10 @@ export default function LoginPage() {
           <Link href={withLocale(locale, "/")} className="inline-flex items-center text-text-pg">
             <BrandLockup />
           </Link>
-          <h1 className="mt-6 text-2xl font-semibold">{t(locale, "common.auth.loginTitle")}</h1>
+          <h1 className="mt-7 font-display text-3xl font-semibold tracking-[-0.05em]">{t(locale, "common.auth.loginTitle")}</h1>
         </div>
 
-        <div className="space-y-4 border border-border-pg bg-bg-panel p-6 rounded-2xl">
+        <div className="space-y-4 rounded-3xl border border-border-pg bg-bg-panel p-7 shadow-panel">
           {error ? <p className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative rounded-lg">{error}</p> : null}
           {verifyError ? (
             <div className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 space-y-2 rounded-lg">
@@ -112,7 +112,7 @@ export default function LoginPage() {
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder={t(locale, "common.auth.emailPlaceholder")}
-              className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong rounded-lg"
+              className="w-full rounded-xl border border-border-pg bg-bg-panel-muted px-3.5 py-2.5 text-sm text-text-pg placeholder:text-text-pg-dim outline-none transition focus:border-border-pg-strong focus:ring-2 focus:ring-accent-ring"
               required
             />
             <PasswordInput
@@ -124,7 +124,7 @@ export default function LoginPage() {
             <button
               type="submit"
               disabled={busy || !email || !password}
-              className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-pg-white px-4 py-2.5 text-sm font-semibold text-pg-black transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-3 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:shadow-card-hover disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t(locale, "common.auth.emailLogin")}
@@ -140,7 +140,7 @@ export default function LoginPage() {
             <div className="h-px flex-1 bg-border-pg" />
           </div>
 
-          <button type="button" disabled={busy} onClick={handleGoogleLogin} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm font-semibold text-text-pg transition hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-50 rounded-lg">
+          <button type="button" disabled={busy} onClick={handleGoogleLogin} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border-pg bg-bg-panel-muted px-4 py-3 text-sm font-semibold text-text-pg transition hover:border-border-pg-strong hover:bg-bg-panel disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Chrome className="h-4 w-4" />}
             {t(locale, "common.auth.googleLogin")}
           </button>

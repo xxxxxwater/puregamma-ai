@@ -143,8 +143,11 @@ export function UsagePanel({ locale, initialUsage }: Props) {
   const hasData = buckets.some((bucket) => bucket.requests > 0);
   const totalTokens = totals.input_tokens + totals.output_tokens + totals.cache_tokens;
 
+  if (usage?.unavailable) {
+    return <div role="status" className="rounded-2xl border border-border-pg bg-bg-panel-muted p-5 text-sm leading-6 text-text-pg-muted">{zh ? "用量数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Usage data is unavailable. Confirm that Gateway is enabled and you are signed in."}</div>;
+  }
+
   return <div className="space-y-5">
-    {usage?.unavailable ? <div role="status" className="border border-border-pg-strong bg-bg-panel p-4 text-sm text-text-pg-muted">{zh ? "用量数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Usage data is unavailable. Confirm that the gateway is enabled and you are signed in."}</div> : null}
 
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -152,7 +155,7 @@ export function UsagePanel({ locale, initialUsage }: Props) {
         <h2 className="mt-1 font-semibold">{zh ? "用量" : "Usage"}</h2>
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        {presets.map((item) => <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)} aria-pressed={preset === item.id} className={`min-h-10 border px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg ${preset === item.id ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] font-semibold text-[var(--pg-text-inverse)]" : "border-border-pg bg-bg-panel-muted"}`}>{item.label}</button>)}
+        {presets.map((item) => <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)} aria-pressed={preset === item.id} className={`min-h-10 rounded-full border px-3.5 py-1.5 text-sm disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg ${preset === item.id ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] font-semibold text-[var(--pg-text-inverse)]" : "border-border-pg bg-bg-panel-muted"}`}>{item.label}</button>)}
         <div className="flex items-end gap-2">
           <label className="text-xs text-text-pg-muted">{zh ? "起" : "From"}<input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>
           <label className="text-xs text-text-pg-muted">{zh ? "止" : "To"}<input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>

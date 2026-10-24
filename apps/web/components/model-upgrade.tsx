@@ -114,7 +114,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
   return (
     <section
       aria-labelledby="model-upgrade-title"
-      className="border border-border-pg-strong border-t-[3px] border-t-text-pg bg-bg-panel p-6 md:p-8"
+      className="rounded-3xl border border-border-pg bg-bg-panel p-6 shadow-panel md:p-9"
       data-testid="model-upgrade-preview"
       data-model-availability={state}
     >
@@ -135,7 +135,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
         </div>
         <Link
           href={withLocale(locale, "/chat")}
-          className="inline-flex min-h-11 shrink-0 items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-2 text-sm font-semibold text-[var(--pg-text-inverse)] transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"
+          className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-full border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-5 py-2 text-sm font-semibold text-[var(--pg-text-inverse)] transition-[transform,box-shadow] hover:-translate-y-0.5 hover:shadow-card-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"
         >
           {copy.preview.chatCta} <ArrowRight className="h-4 w-4" aria-hidden />
         </Link>
@@ -158,7 +158,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
           catalog limits, pricing, alias mapping, capability list and a raw
           request — is secondary for a product page, and the API reference is
           its authoritative home. */}
-      <details className="mt-5 border border-border-pg bg-bg-panel-muted" data-testid="model-upgrade-technical">
+      <details className="mt-6 overflow-hidden rounded-2xl border border-border-pg bg-bg-panel-muted" data-testid="model-upgrade-technical">
         <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 p-3 text-xs font-medium text-text-pg-muted">
           <span>{copy.preview.technicalTitle}</span>
           <span className="text-[10px] font-normal uppercase tracking-[0.1em] text-text-pg-dim">{copy.preview.technicalHint}</span>
@@ -198,7 +198,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
               <button
                 type="button"
                 onClick={() => void copyValue("request", sampleRequest)}
-                className="inline-flex min-h-9 items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"
               >
                 {copied === "request" ? <Check className="h-3.5 w-3.5 text-text-pg" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
                 {copied === "request" ? copy.preview.copied : copy.preview.copy}

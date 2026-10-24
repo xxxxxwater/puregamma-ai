@@ -65,16 +65,16 @@ const modelNarratives = {
   "deepseek-v4-pro": {
     en: {
       title: "DeepSeek V4 Pro",
-      badge: "Being retired",
-      summary: "Scheduled to route to V4.1 Flash from 14 September 2026, 12:00 Beijing time.",
-      detail: "DeepSeek announced the orderly retirement of V4 Pro because V4.1 Flash outperforms it on their published benchmarks. After the announced cut-over this id is served by V4.1 Flash and billed at Flash prices. Use deepseek-flash directly for new work.",
+      badge: "Legacy reference",
+      summary: "Retained for migration reference. Check the live catalog before using this ID.",
+      detail: "Use deepseek-flash for new work. Current availability and billing for this legacy ID depend on the upstream provider and the live Gateway catalog.",
       bestFor: "Migration reference only",
     },
     zh: {
       title: "DeepSeek V4 Pro",
-      badge: "即将下线",
-      summary: "自北京时间 2026 年 9 月 14 日 12:00 起路由至 V4.1 Flash。",
-      detail: "DeepSeek 因 V4.1 Flash 在官方基准上全面超越 V4 Pro，已公告有序下线 V4 Pro。切换后该 ID 由 V4.1 Flash 提供服务并按 Flash 价格计费。新任务请直接使用 deepseek-flash。",
+      badge: "旧模型参考",
+      summary: "保留供迁移参考；使用前请查看实时模型目录。",
+      detail: "新任务请使用 deepseek-flash。此旧 ID 的可用性和计费以当前上游服务与 Gateway 实时目录为准。",
       bestFor: "仅作迁移参考",
     },
   },
@@ -507,8 +507,8 @@ PUREGAMMA_MODEL=${selectedId}
         title={content.title}
         description={content.description}
         actions={<>
-          <Link href={withLocale(locale, "/gateway")} className="inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-2 text-xs font-semibold text-[var(--pg-text-inverse)] transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><KeyRound className="h-3.5 w-3.5" />{content.console}</Link>
-          <a href={docsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ExternalLink className="h-3.5 w-3.5" />{content.fullDocs}</a>
+          <Link href={withLocale(locale, "/gateway")} className="inline-flex min-h-10 items-center gap-2 rounded-full border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-2 text-xs font-semibold text-[var(--pg-text-inverse)] transition hover:shadow-card-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><KeyRound className="h-3.5 w-3.5" />{content.console}</Link>
+          <a href={docsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 rounded-full border border-border-pg px-4 py-2 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg"><ExternalLink className="h-3.5 w-3.5" />{content.fullDocs}</a>
         </>}
       />
 
@@ -534,11 +534,11 @@ PUREGAMMA_MODEL=${selectedId}
                 type="button"
                 onClick={() => setSelectedId(id)}
                 aria-pressed={isSelected}
-                className={`min-w-0 border border-l-[3px] p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg ${isSelected ? "border-text-pg bg-bg-panel" : "border-border-pg border-l-border-pg bg-bg-panel hover:border-border-pg-strong"}`}
+                className={`min-w-0 rounded-2xl border bg-bg-panel p-5 text-left shadow-card transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:shadow-card-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg ${isSelected ? "border-border-pg-strong ring-1 ring-border-pg-strong" : "border-border-pg hover:border-border-pg-strong"}`}
               >
                 <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{info.badge}</div><h3 className="mt-2 break-words text-sm font-semibold text-text-pg">{info.title}</h3></div><ChevronMark active={isSelected} /></div>
                 <code className="mt-3 block break-all text-[11px] text-text-pg-muted">{id}</code>
-                {cardAvailability ? <div className={`mt-2 inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] ${model?.availability === "available" && catalog?.gateway_enabled ? "border-border-pg-strong font-semibold text-text-pg" : "border-border-pg text-text-pg-muted"}`}>{cardAvailability}</div> : null}
+                {cardAvailability ? <div className={`mt-2 inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] ${model?.availability === "available" && catalog?.gateway_enabled ? "border-border-pg-strong font-semibold text-text-pg" : "border-border-pg text-text-pg-muted"}`}>{cardAvailability}</div> : null}
                 <p className="mt-3 min-h-10 text-xs leading-5 text-text-pg-muted">{info.summary}</p>
                 <div className="mt-4 border-t border-border-pg pt-3">
                   {input && output && finalInput && finalOutput ? <div className="mt-2 grid min-w-0 grid-cols-2 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2">
@@ -562,7 +562,7 @@ PUREGAMMA_MODEL=${selectedId}
         {/* The curated cards above are curated; this table is the catalog itself.
             A model this deployment starts serving is listed here even before
             anyone writes copy for it. */}
-        <div className="mt-5 min-w-0 border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl" data-testid="catalog-model-table">
+        <div className="mt-6 min-w-0 rounded-2xl border border-border-pg bg-bg-panel p-5 shadow-card" data-testid="catalog-model-table">
           <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
             <div>
               <div className="text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim">01b / {modelCopy.preview.catalogTitle}</div>
@@ -661,10 +661,10 @@ PUREGAMMA_MODEL=${selectedId}
           </div>
         </main>
 
-        <aside className="order-1 min-w-0 max-w-full border border-border-pg bg-bg-panel xl:sticky xl:top-6 xl:order-2 rounded-lg">
+        <aside className="order-1 min-w-0 max-w-full overflow-hidden rounded-2xl border border-border-pg bg-bg-panel shadow-card xl:sticky xl:top-6 xl:order-2">
           <div className="border-b border-border-pg px-4 py-4 sm:px-5"><div className="flex flex-wrap items-start justify-between gap-2"><div className="inline-flex items-center gap-2 text-lg font-semibold text-text-pg"><Sparkles className="h-4 w-4" />{content.quickStart}</div><span className="max-w-full overflow-x-auto whitespace-nowrap border border-border-pg px-2 py-1 font-mono text-[10px] text-text-pg-muted rounded-lg">{selectedId}</span></div><p className="mt-2 text-sm leading-6 text-text-pg-muted">{content.quickDescription}</p></div>
           <div className="space-y-5 p-4 sm:p-5">
-            <div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">1</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepKey}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepKeyDescription}</p><Link href={withLocale(locale, "/gateway")} className="mt-3 inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-2 text-xs font-semibold text-[var(--pg-text-inverse)] transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><KeyRound className="h-3.5 w-3.5" />{content.createKey}</Link></div></div><div className="mt-4"><CodeBlock language=".env" value={snippets.env} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
+            <div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">1</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepKey}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepKeyDescription}</p><Link href={withLocale(locale, "/gateway")} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-2 text-xs font-semibold text-[var(--pg-text-inverse)] transition hover:shadow-card-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><KeyRound className="h-3.5 w-3.5" />{content.createKey}</Link></div></div><div className="mt-4"><CodeBlock language=".env" value={snippets.env} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
             <div className="border-t border-border-pg pt-5"><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">2</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepRequest}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepRequestDescription}</p></div></div><div className="mt-4 min-w-0 flex flex-wrap gap-1 border-b border-border-pg"><CodeTab active={language === "curl"} onClick={() => setLanguage("curl")} label="cURL" /><CodeTab active={language === "python"} onClick={() => setLanguage("python")} label="Python" /><CodeTab active={language === "node"} onClick={() => setLanguage("node")} label="Node.js" /></div><div className="mt-3"><CodeBlock language={tabLabel} value={activeSnippet} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
             <div className="border-t border-border-pg pt-5"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.activeModel}</div><div className="mt-2 flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-text-pg">{selectedName}</div><code className="break-all text-xs text-text-pg-muted">{selectedId}</code></div><Code2 className="h-5 w-5 shrink-0 text-text-pg-dim" /></div><p className="mt-3 text-xs leading-5 text-text-pg-muted">{content.stack}</p></div>
           </div>
@@ -676,7 +676,7 @@ PUREGAMMA_MODEL=${selectedId}
 }
 
 function ChevronMark({ active }: { active: boolean }) {
-  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border ${active ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)]" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
+  return <span className={`flex h-7 w-7 shrink-0 items-center justify-center rounded-full border ${active ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)]" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
 }
 
 function CodeTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {

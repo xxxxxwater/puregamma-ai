@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { AgentChat } from "@/components/agent-chat";
+import { IntelligenceShell } from "@/components/terminal/intelligence-shell";
 import { isLocale, type Locale } from "@/i18n/routing";
 
 export function generateMetadata({ params }: { params: { locale: string; conversationId: string } }): Metadata {
@@ -9,5 +10,5 @@ export function generateMetadata({ params }: { params: { locale: string; convers
 }
 
 export default function ConversationPage({ params }: { params: { locale: Locale; conversationId: string } }) {
-  return <AgentChat locale={params.locale} initialConversationId={params.conversationId} />;
+  return <IntelligenceShell compact eyebrow="Reason" title={params.locale === "zh" ? "与 Agent 共同推理。" : "Reason with your Agent."} byline={params.locale === "zh" ? "围绕策略、事件与风险的持续推理对象。" : "A continuously updating counterpart for strategies, events and risk."}><AgentChat locale={params.locale} initialConversationId={params.conversationId} /></IntelligenceShell>;
 }

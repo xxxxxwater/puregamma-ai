@@ -13,12 +13,7 @@ function NodeCard({
   accent?: "emerald" | "blue";
   className?: string;
 }) {
-  const ring =
-    accent === "emerald"
-      ? "border-status-positive/30"
-      : accent === "blue"
-        ? "border-sky-500/30"
-        : "border-border-pg-strong";
+  const ring = accent ? "border-border-pg-strong" : "border-border-pg";
   return (
     <div data-testid="architecture-node" className={`architecture-node absolute z-10 w-[70px] -translate-x-1/2 -translate-y-1/2 border ${ring} bg-bg-panel-muted px-1 py-1 text-center rounded-lg ${className}`}>
       <div className="architecture-node-title whitespace-normal text-[8px] font-semibold leading-tight text-text-pg">{title}</div>
@@ -41,14 +36,14 @@ function FlowPath({
       <path
         d={d}
         fill="none"
-        stroke={light ? "var(--text-pg, #9ca3af)" : "currentColor"}
+        stroke={light ? "var(--muted-2)" : "currentColor"}
         strokeOpacity={light ? 0.18 : 0.4}
         strokeWidth={light ? 0.35 : 0.5}
         vectorEffect="non-scaling-stroke"
         strokeDasharray="1.5 1.5"
         className="pg-flow-dash"
       />
-      <circle r="1.15" fill={light ? "#f472b6" : "#34d399"} opacity="0.95">
+      <circle r="1.15" fill="var(--foreground)" opacity="0.65">
         <animateMotion dur={`${duration}s`} repeatCount="indefinite" path={d} keyPoints="0;1" keyTimes="0;1" />
         <animate attributeName="opacity" values="0.95;0.35;0.95" dur="1.6s" repeatCount="indefinite" />
       </circle>
@@ -108,7 +103,7 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
     legend: zh ? "数据流" : "Data flow",
     runtimeMap: zh ? "PureGamma 运行图" : "PureGamma Runtime Map",
     signedTopology: zh ? "HMAC 签名拓扑" : "HMAC signed topology",
-    live: zh ? "在线" : "LIVE",
+    live: zh ? "系统示意" : "SYSTEM MAP",
     windowControls: zh ? "macOS 窗口控制" : "macOS window controls",
     closePreview: zh ? "关闭架构预览" : "Close architecture preview",
     minimizePreview: zh ? "最小化架构预览" : "Minimize architecture preview",
@@ -116,37 +111,37 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
   };
 
   return (
-    <section className="relative overflow-hidden border border-border-pg bg-bg-panel p-5 md:p-7 rounded-2xl">
+    <section className="relative overflow-hidden rounded-3xl border border-border-pg bg-bg-panel p-6 shadow-panel md:p-9">
       <div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">{copy.eyebrow}</div>
       <h2 className="mt-2 max-w-2xl text-lg font-semibold text-text-pg">{copy.headline}</h2>
 
       <div
         data-testid="architecture-mac-window"
-        className="relative mx-auto mt-6 max-w-4xl rounded-[30px] border-[7px] border-[#151922] bg-[#0b0e14] p-1.5 shadow-[0_28px_75px_-34px_rgba(2,6,23,0.86)] grayscale"
+        className="relative mx-auto mt-7 max-w-4xl rounded-[30px] border-[7px] border-border-pg bg-bg-panel-muted p-1.5 shadow-card"
       >
-        <div className="pointer-events-none absolute left-1/2 top-0 z-30 h-4 w-24 -translate-x-1/2 rounded-b-[10px] bg-[#151922]" aria-hidden />
-        <div className="overflow-hidden rounded-[21px] border border-white/10 bg-[#0e1420]">
-          <div className="flex h-9 items-center justify-between border-b border-white/10 bg-[#161d2a] px-3 text-[9px] text-slate-400">
+        <div className="pointer-events-none absolute left-1/2 top-0 z-30 h-4 w-24 -translate-x-1/2 rounded-b-[10px] bg-border-pg" aria-hidden />
+        <div className="overflow-hidden rounded-[21px] border border-border-pg bg-bg-panel">
+          <div className="flex h-9 items-center justify-between border-b border-border-pg bg-bg-panel px-3 text-[9px] text-text-pg-muted">
             <div className="flex items-center gap-1.5" aria-label={copy.windowControls}>
-              <span role="img" aria-label={copy.closePreview} className="h-2.5 w-2.5 rounded-full bg-[#ff5f57] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.16)]" />
-              <span role="img" aria-label={copy.minimizePreview} className="h-2.5 w-2.5 rounded-full bg-[#febc2e] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.16)]" />
-              <span role="img" aria-label={copy.expandPreview} className="h-2.5 w-2.5 rounded-full bg-[#28c840] shadow-[inset_0_0_0_1px_rgba(0,0,0,0.16)]" />
+              <span role="img" aria-label={copy.closePreview} className="h-2.5 w-2.5 rounded-full bg-border-pg-strong" />
+              <span role="img" aria-label={copy.minimizePreview} className="h-2.5 w-2.5 rounded-full bg-border-pg-strong" />
+              <span role="img" aria-label={copy.expandPreview} className="h-2.5 w-2.5 rounded-full bg-border-pg-strong" />
             </div>
             <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 font-medium tracking-[0.08em] text-slate-300">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
               <span>PUREGAMMA.AI</span>
             </div>
-            <div className="rounded-full border border-white/10 bg-white/5 px-2 py-0.5 font-semibold tracking-[0.12em] text-emerald-300">{copy.live}</div>
+            <div className="rounded-full border border-border-pg bg-bg-panel-muted px-2 py-0.5 font-semibold tracking-[0.12em] text-text-pg-muted">{copy.live}</div>
           </div>
 
           <div data-testid="architecture-system-map" className="architecture-system-map relative h-[520px] w-full overflow-hidden bg-bg-panel-muted/40">
-            <div data-testid="architecture-map-caption" className="absolute bottom-2 left-2 z-20 rounded-md border border-white/10 bg-slate-950/55 px-2 py-1 text-[8px] uppercase tracking-[0.14em] text-slate-200 backdrop-blur-sm">
+            <div data-testid="architecture-map-caption" className="absolute bottom-2 left-2 z-20 rounded-md border border-border-pg bg-bg-panel px-2 py-1 text-[8px] uppercase tracking-[0.14em] text-text-pg-muted backdrop-blur-sm">
               <span className="font-semibold">{copy.runtimeMap}</span>
-              <span className="ml-2 text-emerald-300/80">{copy.signedTopology}</span>
+              <span className="ml-2 text-text-pg-dim">{copy.signedTopology}</span>
             </div>
         {/* Flow layer */}
         <svg
-          className="absolute inset-0 h-full w-full text-emerald-400/70"
+          className="absolute inset-0 h-full w-full text-text-pg-muted"
           viewBox="0 0 100 100"
           preserveAspectRatio="none"
           aria-hidden
@@ -191,12 +186,12 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
         {/* Legend */}
         <div className="absolute bottom-2 right-2 flex items-center gap-3 rounded-md border border-border-pg/60 bg-bg-panel/90 px-2 py-1 text-[8px] text-text-pg-dim">
           <span className="flex items-center gap-1"><span className="h-1 w-3 rounded bg-current opacity-40" />{copy.legend}</span>
-          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />API</span>
-          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-sky-400" />Trading</span>
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-text-pg-muted" />API</span>
+          <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-text-pg-muted" />Trading</span>
         </div>
           </div>
         </div>
-        <div data-testid="architecture-mac-base" className="mx-auto h-3 w-[60%] rounded-b-[18px] border-x border-b border-slate-500/25 bg-gradient-to-b from-slate-300 via-slate-500 to-slate-700 shadow-[0_12px_20px_-16px_rgba(0,0,0,0.95)]" aria-hidden />
+        <div data-testid="architecture-mac-base" className="mx-auto h-2 w-[60%] rounded-b-[18px] border-x border-b border-border-pg bg-bg-panel-muted" aria-hidden />
       </div>
       <style jsx global>{`
         .architecture-system-map { container-type: inline-size; }
