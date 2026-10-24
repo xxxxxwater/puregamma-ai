@@ -5,7 +5,7 @@ export function ResearchModeSwitch({
   onChange,
   labels,
 }: {
-  /** true = research mode ON (white "ON"); false = 联网模式 (blue "OFF"). */
+  /** Research and connected modes use inverse monochrome treatments. */
   enabled: boolean;
   onChange: (enabled: boolean) => void;
   labels: { on: string; off: string };
@@ -19,7 +19,7 @@ export function ResearchModeSwitch({
       className={`inline-flex h-6 w-[4.25rem] shrink-0 cursor-pointer items-center justify-center rounded-full border px-1 text-[0.6rem] font-bold uppercase tracking-[0.12em] transition-colors duration-200 ${
         enabled
           ? "border-border-pg-strong bg-pg-white text-pg-black"
-          : "border-transparent bg-[#0A84FF] text-pg-white"
+          : "border-border-pg-strong bg-pg-black text-pg-white"
       }`}
     >
       {enabled ? labels.on : labels.off}

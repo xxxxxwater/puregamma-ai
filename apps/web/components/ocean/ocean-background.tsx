@@ -27,10 +27,8 @@ export function OceanBackground({ variant = "agent", forceStatic = false, classN
   const effectiveTier = forceStatic ? "static" : tier;
   const tierRef = useRef<MotionTier>(effectiveTier);
   const visibleRef = useRef(visible);
-  const variantRef = useRef(variant);
   tierRef.current = effectiveTier;
   visibleRef.current = visible;
-  variantRef.current = variant;
 
   useEffect(() => {
     if (effectiveTier === "static") return;
@@ -59,12 +57,11 @@ export function OceanBackground({ variant = "agent", forceStatic = false, classN
     const observer = typeof ResizeObserver !== "undefined" ? new ResizeObserver(resize) : null;
     observer?.observe(wrap);
 
-    const layerColors = [
-      variantRef.current === "research" ? "46, 125, 255" : "46, 125, 255",
-      "66, 217, 255",
-      "139, 124, 255",
-    ];
-    const layerAlphas = [0.075, 0.055, 0.05];
+    // Canvas colours cannot read CSS variables directly. Resolve the same
+    // light/dark ink used by the surrounding monochrome interface each frame,
+    // so changing theme does not leave a stale coloured background behind.
+    const inkChannels = () => document.documentElement.dataset.theme === "dark" ? "238, 241, 246" : "23, 24, 28";
+    const layerAlphas = variant === "research" ? [0.08, 0.05, 0.03] : [0.09, 0.06, 0.04];
     const layerCount = () => (tierRef.current === "light" ? 2 : 3);
     const start = performance.now();
 
@@ -99,13 +96,14 @@ export function OceanBackground({ variant = "agent", forceStatic = false, classN
 
     const layers = (time: number) => {
       const count = layerCount();
+      const ink = inkChannels();
       for (let index = 0; index < count; index += 1) {
         const cx = width * (0.18 + index * 0.36) + Math.sin(time * 0.00009 + index * 2.1) * width * 0.07;
         const cy = height * (0.22 + index * 0.24) + Math.cos(time * 0.00007 + index * 1.7) * height * 0.06;
         const radius = Math.max(width, height) * (0.5 + index * 0.14);
         const gradient = ctx!.createRadialGradient(cx, cy, 0, cx, cy, radius);
-        gradient.addColorStop(0, `rgba(${layerColors[index]}, ${layerAlphas[index]})`);
-        gradient.addColorStop(0.62, `rgba(${layerColors[index]}, ${layerAlphas[index] * 0.45})`);
+        gradient.addColorStop(0, `rgba(${ink}, ${layerAlphas[index]})`);
+        gradient.addColorStop(0.62, `rgba(${ink}, ${layerAlphas[index] * 0.45})`);
         gradient.addColorStop(1, "rgba(0, 0, 0, 0)");
         ctx!.fillStyle = gradient;
         ctx!.fillRect(0, 0, width, height);
@@ -119,8 +117,9 @@ export function OceanBackground({ variant = "agent", forceStatic = false, classN
       glow.intensity = Math.max(0, glow.intensity - 0.002);
       if (glow.intensity <= 0.01) return;
       const gradient = ctx!.createRadialGradient(glow.x, glow.y, 0, glow.x, glow.y, 160);
-      gradient.addColorStop(0, `rgba(66, 217, 255, ${0.10 * glow.intensity})`);
-      gradient.addColorStop(1, "rgba(66, 217, 255, 0)");
+      const ink = inkChannels();
+      gradient.addColorStop(0, `rgba(${ink}, ${0.10 * glow.intensity})`);
+      gradient.addColorStop(1, `rgba(${ink}, 0)`);
       ctx!.fillStyle = gradient;
       ctx!.fillRect(0, 0, width, height);
     };
@@ -131,7 +130,7 @@ export function OceanBackground({ variant = "agent", forceStatic = false, classN
         const progress = (time - ripple.born) / RIPPLE_LIFE_MS;
         const radius = ripple.radius * (0.2 + progress * 1.6);
         const alpha = ripple.alpha * (1 - progress);
-        ctx!.strokeStyle = `rgba(66, 217, 255, ${alpha * 0.45})`;
+        ctx!.strokeStyle = `rgba(${inkChannels()}, ${alpha * 0.45})`;
         ctx!.lineWidth = 1;
         ctx!.beginPath();
         ctx!.arc(ripple.x, ripple.y, radius, 0, Math.PI * 2);
@@ -163,7 +162,7 @@ export function OceanBackground({ variant = "agent", forceStatic = false, classN
       wrap.removeEventListener("pointerleave", onPointerLeave);
       wrap.removeEventListener("pointerdown", onPointerDown as unknown as EventListener);
     };
-  }, [effectiveTier]);
+  }, [effectiveTier, variant]);
 
   if (effectiveTier === "static") {
     return <div aria-hidden className={`ocean-static-gradient pointer-events-none absolute inset-0 ${className}`} />;

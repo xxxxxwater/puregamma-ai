@@ -95,7 +95,7 @@ function MarketLogo({ row }: { row: GlobalMarketRow }) {
     const lc = FX_COLORS[left] ?? "#3B82F6";
     const rc = FX_COLORS[right] ?? "#64748B";
     return (
-      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full grayscale">
         <defs>
           <linearGradient id={`${id}-fx`} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor={lc} />
@@ -115,7 +115,7 @@ function MarketLogo({ row }: { row: GlobalMarketRow }) {
     const c1 = gold ? "#F6C453" : "#C0C8D2";
     const c2 = gold ? "#B8860B" : "#8A94A6";
     return (
-      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full grayscale">
         <defs>
           <linearGradient id={`${id}-bar`} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor={c1} />
@@ -133,7 +133,7 @@ function MarketLogo({ row }: { row: GlobalMarketRow }) {
     const c1 = isGas ? "#38BDF8" : "#0F766E";
     const c2 = isGas ? "#1D4ED8" : "#134E4A";
     return (
-      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full">
+      <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full grayscale">
         <defs>
           <linearGradient id={`${id}-oil`} x1="0" y1="0" x2="1" y2="1">
             <stop offset="0" stopColor={c1} />
@@ -149,7 +149,7 @@ function MarketLogo({ row }: { row: GlobalMarketRow }) {
   // Equities and everything else: brand-color rounded mark with ticker letters.
   const color = BRAND_COLORS[ticker] ?? "#64748B";
   return (
-    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full">
+    <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden className="h-6 w-6 shrink-0 rounded-full grayscale">
       <defs>
         <linearGradient id={`${id}-eq`} x1="0" y1="0" x2="1" y2="1">
           <stop offset="0" stopColor={color} />

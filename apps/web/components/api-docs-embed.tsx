@@ -177,7 +177,7 @@ function CopyButton({ value, label, copiedLabel }: { value: string; label: strin
       onClick={() => void copy()}
       className="inline-flex min-h-9 items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg"
     >
-      {copied ? <Check className="h-3.5 w-3.5 text-status-positive" /> : <Copy className="h-3.5 w-3.5" />}
+      {copied ? <Check className="h-3.5 w-3.5 text-text-pg" /> : <Copy className="h-3.5 w-3.5" />}
       {copied ? copiedLabel : label}
     </button>
   );
@@ -507,7 +507,7 @@ PUREGAMMA_MODEL=${selectedId}
         title={content.title}
         description={content.description}
         actions={<>
-          <Link href={withLocale(locale, "/gateway")} className="inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black rounded-lg"><KeyRound className="h-3.5 w-3.5" />{content.console}</Link>
+          <Link href={withLocale(locale, "/gateway")} className="inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-2 text-xs font-semibold text-[var(--pg-text-inverse)] transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><KeyRound className="h-3.5 w-3.5" />{content.console}</Link>
           <a href={docsUrl} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ExternalLink className="h-3.5 w-3.5" />{content.fullDocs}</a>
         </>}
       />
@@ -534,11 +534,11 @@ PUREGAMMA_MODEL=${selectedId}
                 type="button"
                 onClick={() => setSelectedId(id)}
                 aria-pressed={isSelected}
-                className={`min-w-0 border p-4 text-left transition  rounded-xl ${isSelected ? "border-text-pg bg-bg-panel shadow-[inset_0_0_0_1px_var(--foreground)]" : "border-border-pg bg-bg-panel hover:border-border-pg-strong"}`}
+                className={`min-w-0 border border-l-[3px] p-4 text-left transition focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg ${isSelected ? "border-text-pg bg-bg-panel" : "border-border-pg border-l-border-pg bg-bg-panel hover:border-border-pg-strong"}`}
               >
                 <div className="flex items-start justify-between gap-3"><div className="min-w-0"><div className="truncate text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{info.badge}</div><h3 className="mt-2 break-words text-sm font-semibold text-text-pg">{info.title}</h3></div><ChevronMark active={isSelected} /></div>
                 <code className="mt-3 block break-all text-[11px] text-text-pg-muted">{id}</code>
-                {cardAvailability ? <div className={`mt-2 inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] rounded-lg ${model?.availability === "available" && catalog?.gateway_enabled ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{cardAvailability}</div> : null}
+                {cardAvailability ? <div className={`mt-2 inline-flex items-center gap-1 border px-1.5 py-0.5 text-[10px] ${model?.availability === "available" && catalog?.gateway_enabled ? "border-border-pg-strong font-semibold text-text-pg" : "border-border-pg text-text-pg-muted"}`}>{cardAvailability}</div> : null}
                 <p className="mt-3 min-h-10 text-xs leading-5 text-text-pg-muted">{info.summary}</p>
                 <div className="mt-4 border-t border-border-pg pt-3">
                   {input && output && finalInput && finalOutput ? <div className="mt-2 grid min-w-0 grid-cols-2 items-end gap-3 sm:grid-cols-[minmax(0,1fr)_auto_minmax(0,1fr)] sm:gap-2">
@@ -604,7 +604,7 @@ PUREGAMMA_MODEL=${selectedId}
                         </td>
                         <td className="px-3 py-3 text-text-pg-muted">{providerLabel(model, model.id)}</td>
                         <td className="px-3 py-3 font-mono text-text-pg-muted">{model.provider_model_id}</td>
-                        <td className="px-3 py-3"><span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 rounded-lg ${live ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{availabilityLabel(model, catalog, zh)}</span></td>
+                        <td className="px-3 py-3"><span className={`inline-flex items-center gap-1 border px-1.5 py-0.5 ${live ? "border-border-pg-strong font-semibold text-text-pg" : "border-border-pg text-text-pg-muted"}`}>{availabilityLabel(model, catalog, zh)}</span></td>
                         <td className="px-3 py-3 font-mono text-text-pg-muted">{input && output ? `${symbol}${input.amount} / ${symbol}${output.amount}` : "—"}</td>
                       </tr>
                     );
@@ -630,7 +630,7 @@ PUREGAMMA_MODEL=${selectedId}
         <main className="order-2 min-w-0 max-w-full space-y-5 xl:order-1">
           <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
-              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted rounded-lg"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span>{selectedAvailabilityLabel ? <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] rounded-lg ${availabilityIsLive ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-muted"}`}>{availabilityIsLive ? <Check className="h-3 w-3" /> : null}{selectedAvailabilityLabel}</span> : null}</div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
+              <div className="min-w-0 max-w-3xl"><div className="flex flex-wrap items-center gap-2"><span className="inline-flex items-center gap-1 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[11px] text-text-pg-muted"><Layers3 className="h-3 w-3" />{selectedCatalog?.provider_display_name || (selectedId.startsWith("deepseek") ? "DeepSeek" : selectedId.startsWith("kimi") ? "Moonshot AI" : "Zhipu AI")}</span><span className="inline-flex max-w-full items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted"><CircleDollarSign className="h-3 w-3 shrink-0" /><span className="break-words">{status}</span></span>{selectedAvailabilityLabel ? <span className={`inline-flex items-center gap-1 border px-2 py-1 text-[11px] ${availabilityIsLive ? "border-border-pg-strong font-semibold text-text-pg" : "border-border-pg text-text-pg-muted"}`}>{availabilityIsLive ? <Check className="h-3 w-3" /> : null}{selectedAvailabilityLabel}</span> : null}</div><h2 className="mt-4 text-xl font-semibold text-text-pg sm:text-2xl">{selectedName}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{narrative.detail}</p></div>
               <div className="w-full border border-border-pg bg-bg-panel-muted p-3 text-left sm:w-auto sm:text-right rounded-lg"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.modelId}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg">{selectedId}</code><div className="mt-3 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.upstream}</div><code className="mt-2 block max-w-full break-all text-xs text-text-pg-muted">{selectedCatalog?.provider_model_id || "—"}</code></div>
             </div>
             <div className="mt-5 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3 rounded-xl overflow-hidden">
@@ -643,7 +643,7 @@ PUREGAMMA_MODEL=${selectedId}
           <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4"><div><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><CircleDollarSign className="h-3.5 w-3.5" />02 / {content.pricing}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{pricingHeading}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{priceComparisonDescription}</p></div>{selectedCatalog?.source_reference ? <a href={selectedCatalog.source_reference} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 border border-border-pg px-2.5 py-2 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ExternalLink className="h-3.5 w-3.5" />{content.source}</a> : null}</div>
             <div className="mt-5 grid gap-3 md:grid-cols-3"><PriceCompare label={zh ? "输入 / cache miss" : "Input / cache miss"} official={official.input} final={final.input} currency={currency} zh={zh} /><PriceCompare label={zh ? "输出" : "Output"} official={official.output} final={final.output} currency={currency} zh={zh} /><PriceCompare label={zh ? "缓存命中" : "Cache hit"} official={official.cache} final={final.cache} currency={currency} zh={zh} /></div>
-            {selectedCatalog?.pricing?.status === "requires_currency_policy" ? <p className="mt-4 border-l-2 border-status-warning pl-3 text-xs leading-5 text-status-warning">{content.currencyNote}</p> : null}
+            {selectedCatalog?.pricing?.status === "requires_currency_policy" ? <p role="status" className="mt-4 border-l-2 border-border-pg-strong pl-3 text-xs leading-5 text-text-pg-muted">{content.currencyNote}</p> : null}
           </section>
 
           <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
@@ -664,7 +664,7 @@ PUREGAMMA_MODEL=${selectedId}
         <aside className="order-1 min-w-0 max-w-full border border-border-pg bg-bg-panel xl:sticky xl:top-6 xl:order-2 rounded-lg">
           <div className="border-b border-border-pg px-4 py-4 sm:px-5"><div className="flex flex-wrap items-start justify-between gap-2"><div className="inline-flex items-center gap-2 text-lg font-semibold text-text-pg"><Sparkles className="h-4 w-4" />{content.quickStart}</div><span className="max-w-full overflow-x-auto whitespace-nowrap border border-border-pg px-2 py-1 font-mono text-[10px] text-text-pg-muted rounded-lg">{selectedId}</span></div><p className="mt-2 text-sm leading-6 text-text-pg-muted">{content.quickDescription}</p></div>
           <div className="space-y-5 p-4 sm:p-5">
-            <div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">1</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepKey}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepKeyDescription}</p><Link href={withLocale(locale, "/gateway")} className="mt-3 inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black rounded-lg"><KeyRound className="h-3.5 w-3.5" />{content.createKey}</Link></div></div><div className="mt-4"><CodeBlock language=".env" value={snippets.env} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
+            <div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">1</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepKey}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepKeyDescription}</p><Link href={withLocale(locale, "/gateway")} className="mt-3 inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-2 text-xs font-semibold text-[var(--pg-text-inverse)] transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><KeyRound className="h-3.5 w-3.5" />{content.createKey}</Link></div></div><div className="mt-4"><CodeBlock language=".env" value={snippets.env} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
             <div className="border-t border-border-pg pt-5"><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">2</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepRequest}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepRequestDescription}</p></div></div><div className="mt-4 min-w-0 flex flex-wrap gap-1 border-b border-border-pg"><CodeTab active={language === "curl"} onClick={() => setLanguage("curl")} label="cURL" /><CodeTab active={language === "python"} onClick={() => setLanguage("python")} label="Python" /><CodeTab active={language === "node"} onClick={() => setLanguage("node")} label="Node.js" /></div><div className="mt-3"><CodeBlock language={tabLabel} value={activeSnippet} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
             <div className="border-t border-border-pg pt-5"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.activeModel}</div><div className="mt-2 flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-text-pg">{selectedName}</div><code className="break-all text-xs text-text-pg-muted">{selectedId}</code></div><Code2 className="h-5 w-5 shrink-0 text-text-pg-dim" /></div><p className="mt-3 text-xs leading-5 text-text-pg-muted">{content.stack}</p></div>
           </div>
@@ -676,7 +676,7 @@ PUREGAMMA_MODEL=${selectedId}
 }
 
 function ChevronMark({ active }: { active: boolean }) {
-  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border  rounded-lg ${active ? "border-text-pg bg-pg-white text-pg-black" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
+  return <span className={`flex h-6 w-6 shrink-0 items-center justify-center border ${active ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)]" : "border-border-pg text-text-pg-dim"}`}><ArrowRight className="h-3.5 w-3.5" /></span>;
 }
 
 function CodeTab({ active, onClick, label }: { active: boolean; onClick: () => void; label: string }) {

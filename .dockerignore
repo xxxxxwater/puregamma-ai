@@ -13,6 +13,13 @@
 **/.next-playwright
 **/.next-build
 **/test-results
+apps/ios/*DerivedData
+apps/ios/**/DerivedData
+apps/ios/**/.build
+backups
+storage
+**/*.dump
+**/*.sql.gz
 playwright-report
 .pytest_cache
 .ruff_cache

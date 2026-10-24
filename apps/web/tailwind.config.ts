@@ -5,26 +5,20 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // ── PGResearch grey tokens (DeepSeek console bluish scale) ──
-        "pg-black": "#101216",
-        "pg-black-soft": "#15181e",
-        "pg-panel": "#191c22",
-        "pg-panel-2": "#212123",
-        "pg-panel-3": "#292929",
+        // ── Shared PureGamma black / white identity ──
+        "pg-black": "#151515",
+        "pg-black-soft": "#252525",
+        "pg-panel": "var(--panel)",
+        "pg-panel-2": "var(--panel-muted)",
+        "pg-panel-3": "var(--panel-strong)",
         "pg-white": "#FFFFFF",
-        "pg-white-soft": "#F4F4F5",
-        "pg-text": "#F5F6F8",
-        "pg-muted": "#A2A4A6",
-        "pg-muted-2": "#7F8287",
+        "pg-white-soft": "#F5F5F5",
+        "pg-text": "var(--foreground)",
+        "pg-muted": "var(--muted)",
+        "pg-muted-2": "var(--muted-2)",
 
         // ── Semantic tokens ──
-        // Phase 1: every value below now points at the `--pg-*` semantic
-        // namespace instead of the legacy raw tokens. The class names are
-        // deliberately unchanged (`bg-bg-panel`, `text-text-pg`, …), so the
-        // ~2000 existing utility usages migrated without a single edit, and
-        // because each alias resolves to the identical value today this is a
-        // zero-visual-difference change. New work should consume `--pg-*`
-        // directly rather than adding another raw-token mapping here.
+        // Existing utility classes continue to use the shared theme tokens.
         "bg-app": "var(--pg-bg-page)",
         "bg-panel": "var(--pg-surface-1)",
         "bg-panel-muted": "var(--pg-surface-2)",
@@ -77,23 +71,23 @@ const config: Config = {
         "status-inactive": "var(--pg-text-tertiary)",
 
         // ── Keep legacy token names for backward compatibility ──
-        canvas: "#f7f7f4",
-        ink: "#171717",
-        line: "#dfded8",
-        positive: "#10805f",
-        warning: "#b45309",
-        danger: "#b91c1c",
+        canvas: "var(--background)",
+        ink: "var(--foreground)",
+        line: "var(--border)",
+        positive: "var(--positive)",
+        warning: "var(--warning)",
+        danger: "var(--negative)",
 
-        // ── Ocean visual system (Agent / Research / Today only) ──
-        "ocean-blue": "#2E7DFF",
-        "ocean-cyan": "#42D9FF",
-        "ocean-violet": "#8B7CFF",
-        "ocean-deep": "#070B12",
-        "ocean-deep-panel": "#0D1420",
-        "ocean-line": "rgba(66, 217, 255, 0.14)",
-        "ocean-blue-muted": "rgba(46, 125, 255, 0.10)",
-        "ocean-cyan-muted": "rgba(66, 217, 255, 0.08)",
-        "ocean-violet-muted": "rgba(139, 124, 255, 0.08)",
+        // ── Legacy Ocean names now resolve to neutral, theme-aware values ──
+        "ocean-blue": "var(--ocean-blue)",
+        "ocean-cyan": "var(--ocean-cyan)",
+        "ocean-violet": "var(--ocean-violet)",
+        "ocean-deep": "var(--ocean-deep)",
+        "ocean-deep-panel": "var(--ocean-deep-panel)",
+        "ocean-line": "var(--ocean-line)",
+        "ocean-blue-muted": "var(--ocean-layer-a)",
+        "ocean-cyan-muted": "var(--ocean-layer-b)",
+        "ocean-violet-muted": "var(--ocean-layer-c)",
       },
       fontFamily: {
         sans: [
@@ -114,7 +108,7 @@ const config: Config = {
       boxShadow: {
         panel: "none",
         card: "none",
-        "card-hover": "0 0 0 1px rgba(255,255,255,0.12)",
+        "card-hover": "0 0 0 1px var(--border-strong)",
         "glow-cyan": "none",
         "glow-emerald": "none",
       },
@@ -135,7 +129,7 @@ const config: Config = {
       },
       backgroundImage: {
         "grid-pattern":
-          "linear-gradient(rgba(255,255,255,0.035) 1px, transparent 1px), linear-gradient(90deg, rgba(255,255,255,0.035) 1px, transparent 1px)",
+          "linear-gradient(var(--border) 1px, transparent 1px), linear-gradient(90deg, var(--border) 1px, transparent 1px)",
       },
       backgroundSize: {
         "grid": "40px 40px",

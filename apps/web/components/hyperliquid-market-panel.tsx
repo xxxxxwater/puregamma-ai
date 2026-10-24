@@ -71,9 +71,8 @@ function compactUsd(value?: number): string {
   return new Intl.NumberFormat("en-US", { notation: "compact", maximumFractionDigits: 1 }).format(value);
 }
 
-// Official colored coin icons are self-hosted under /coins (downloaded from
-// Hyperliquid's official icon set). Synthetic XYZ assets (CL, S&P500, ...)
-// have no icon upstream: they render a per-asset colored gradient badge.
+// Coin icons are self-hosted under /coins. Synthetic XYZ assets have no icon
+// upstream, so they use a labeled badge. Both render in the site palette.
 function assetCoin(instrumentId: string): string {
   return instrumentId.startsWith("xyz:") ? instrumentId.slice(4) : instrumentId;
 }
@@ -97,7 +96,7 @@ function SynthBadge({ coin }: { coin: string }) {
   return (
     <span
       aria-hidden
-      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br ${gradient} text-[10px] font-bold text-white`}
+      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br ${gradient} text-[10px] font-bold text-white grayscale`}
     >
       {coin.charAt(0)}
     </span>
@@ -117,7 +116,7 @@ function AssetIcon({ coin, synthetic = false }: { coin: string; synthetic?: bool
       height={24}
       loading="lazy"
       onError={() => setFailed(true)}
-      className="h-6 w-6 shrink-0 rounded-full object-cover"
+      className="h-6 w-6 shrink-0 rounded-full object-cover grayscale"
     />
   );
 }

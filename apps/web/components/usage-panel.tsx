@@ -9,13 +9,12 @@ import type { Locale } from "@/i18n/routing";
 
 const grid = "var(--border)";
 const text = "var(--muted)";
-const white = "var(--foreground)";
-const positive = "var(--positive)";
-const negative = "var(--negative)";
-const warning = "var(--warning)";
-const positiveFill = "color-mix(in srgb, var(--positive) 12%, transparent)";
-const whiteFill = "color-mix(in srgb, var(--foreground) 10%, transparent)";
-const warningFill = "color-mix(in srgb, var(--warning) 12%, transparent)";
+const inkStrong = "var(--pg-text-primary)";
+const inkMid = "var(--pg-text-secondary)";
+const inkSoft = "var(--pg-text-tertiary)";
+const inkStrongFill = "color-mix(in srgb, var(--pg-text-primary) 16%, transparent)";
+const inkMidFill = "color-mix(in srgb, var(--pg-text-primary) 10%, transparent)";
+const inkSoftFill = "color-mix(in srgb, var(--pg-text-primary) 5%, transparent)";
 
 type Props = { locale: Locale; initialUsage: GatewayUsage };
 
@@ -145,7 +144,7 @@ export function UsagePanel({ locale, initialUsage }: Props) {
   const totalTokens = totals.input_tokens + totals.output_tokens + totals.cache_tokens;
 
   return <div className="space-y-5">
-    {usage?.unavailable ? <div className="border border-status-warning bg-bg-panel p-4 text-sm text-text-pg-muted rounded-xl">{zh ? "用量数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Usage data is unavailable. Confirm that the gateway is enabled and you are signed in."}</div> : null}
+    {usage?.unavailable ? <div role="status" className="border border-border-pg-strong bg-bg-panel p-4 text-sm text-text-pg-muted">{zh ? "用量数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Usage data is unavailable. Confirm that the gateway is enabled and you are signed in."}</div> : null}
 
     <div className="flex flex-wrap items-end justify-between gap-3">
       <div>
@@ -153,7 +152,7 @@ export function UsagePanel({ locale, initialUsage }: Props) {
         <h2 className="mt-1 font-semibold">{zh ? "用量" : "Usage"}</h2>
       </div>
       <div className="flex flex-wrap items-end gap-2">
-        {presets.map((item) => <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)} className={`border px-3 py-1.5 text-sm disabled:opacity-50  rounded-lg ${preset === item.id ? "border-text-pg bg-text-pg font-semibold text-bg-panel" : "border-border-pg bg-bg-panel-muted"}`}>{item.label}</button>)}
+        {presets.map((item) => <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)} aria-pressed={preset === item.id} className={`min-h-10 border px-3 py-1.5 text-sm disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg ${preset === item.id ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] font-semibold text-[var(--pg-text-inverse)]" : "border-border-pg bg-bg-panel-muted"}`}>{item.label}</button>)}
         <div className="flex items-end gap-2">
           <label className="text-xs text-text-pg-muted">{zh ? "起" : "From"}<input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>
           <label className="text-xs text-text-pg-muted">{zh ? "止" : "To"}<input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>
@@ -173,23 +172,23 @@ export function UsagePanel({ locale, initialUsage }: Props) {
     {loading ? <div className="border border-border-pg bg-bg-panel p-4 text-sm text-text-pg-muted rounded-xl">{zh ? "加载中…" : "Loading…"}</div> : null}
 
     <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-4">
-      <MetricCard label={zh ? "总 Tokens" : "Total tokens"} value={num(totalTokens)} detail={zh ? "输入 + 输出 + 缓存" : "Input + output + cache"} tone="emerald" />
-      <MetricCard label={zh ? "输入 Tokens" : "Input tokens"} value={num(totals.input_tokens)} detail={`${totals.reasoning_tokens} ${zh ? "推理" : "reasoning"}`} tone="cyan" />
-      <MetricCard label={zh ? "输出 Tokens" : "Output tokens"} value={num(totals.output_tokens)} detail={zh ? "模型生成" : "Model-generated"} tone="cyan" />
+      <MetricCard label={zh ? "总 Tokens" : "Total tokens"} value={num(totalTokens)} detail={zh ? "输入 + 输出 + 缓存" : "Input + output + cache"} tone="neutral" />
+      <MetricCard label={zh ? "输入 Tokens" : "Input tokens"} value={num(totals.input_tokens)} detail={`${totals.reasoning_tokens} ${zh ? "推理" : "reasoning"}`} tone="neutral" />
+      <MetricCard label={zh ? "输出 Tokens" : "Output tokens"} value={num(totals.output_tokens)} detail={zh ? "模型生成" : "Model-generated"} tone="neutral" />
       <MetricCard label={zh ? "缓存 Tokens" : "Cache tokens"} value={num(totals.cache_tokens)} detail={zh ? "命中缓存输入" : "Cache-hit input"} tone="neutral" />
-      <MetricCard label={zh ? "请求数" : "Requests"} value={num(totals.requests)} detail={`${totals.success} ${zh ? "成功" : "ok"} · ${totals.errors} ${zh ? "错误" : "errors"}`} tone="amber" />
-      <MetricCard label={zh ? "消费" : "Spend"} value={money(totals.cost_usd)} detail={zh ? "按零售价计费" : "At retail pricing"} tone="emerald" />
-      <MetricCard label={zh ? "平均延迟" : "Avg latency"} value={`${num(Math.round(totals.avg_latency_ms))} ms`} detail={zh ? `峰值 ${totals.max_latency_ms} ms` : `Peak ${totals.max_latency_ms} ms`} tone="cyan" />
+      <MetricCard label={zh ? "请求数" : "Requests"} value={num(totals.requests)} detail={`${totals.success} ${zh ? "成功" : "ok"} · ${totals.errors} ${zh ? "错误" : "errors"}`} tone="neutral" />
+      <MetricCard label={zh ? "消费" : "Spend"} value={money(totals.cost_usd)} detail={zh ? "按零售价计费" : "At retail pricing"} tone="neutral" />
+      <MetricCard label={zh ? "平均延迟" : "Avg latency"} value={`${num(Math.round(totals.avg_latency_ms))} ms`} detail={zh ? `峰值 ${totals.max_latency_ms} ms` : `Peak ${totals.max_latency_ms} ms`} tone="neutral" />
       <MetricCard label={zh ? "错误数" : "Errors"} value={num(totals.errors)} detail={zh ? "非 200 响应" : "Non-200 responses"} tone={totals.errors > 0 ? "red" : "neutral"} />
     </div>
 
     {!hasData && !loading && !usage?.unavailable ? <div className="mt-4"><EmptyState title={zh ? "该时间范围内暂无调用记录" : "No calls in this range"} description={zh ? "调整日期范围或先发起一次 API 调用。" : "Adjust the range or make an API call first."} /></div> : null}
 
     {hasData ? <div className="grid gap-4 xl:grid-cols-2">
-      <ResearchCard><h3 className="font-semibold">{zh ? "Tokens 时间序列" : "Tokens over time"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={tokenSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<ChartTooltip />} /><Area type="monotone" dataKey="input" name={zh ? "输入" : "Input"} stackId="1" stroke={positive} fill={positiveFill} strokeWidth={2} /><Area type="monotone" dataKey="output" name={zh ? "输出" : "Output"} stackId="1" stroke={white} fill={whiteFill} strokeWidth={2} /><Area type="monotone" dataKey="cache" name={zh ? "缓存" : "Cache"} stackId="1" stroke={warning} fill={warningFill} strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
-      <ResearchCard><h3 className="font-semibold">{zh ? "请求与错误" : "Requests and errors"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={requestSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={36} /><Tooltip content={<ChartTooltip />} /><Bar dataKey="success" name={zh ? "成功" : "Success"} fill={positive} radius={[6, 6, 0, 0]} /><Bar dataKey="errors" name={zh ? "错误" : "Errors"} fill={negative} radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div></ResearchCard>
-      <ResearchCard><h3 className="font-semibold">{zh ? "消费金额" : "Spend"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={costSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip prefix="$" />} /><Area type="monotone" dataKey="cost" name="USD" stroke={warning} fill={warningFill} strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
-      <ResearchCard><h3 className="font-semibold">{zh ? "平均延迟" : "Average latency"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><LineChart data={latencySeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip />} /><Line type="monotone" dataKey="latency" name="ms" stroke={positive} strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div></ResearchCard>
+      <ResearchCard><h3 className="font-semibold">{zh ? "Tokens 时间序列" : "Tokens over time"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={tokenSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<ChartTooltip />} /><Area type="monotone" dataKey="input" name={zh ? "输入" : "Input"} stackId="1" stroke={inkStrong} fill={inkStrongFill} strokeWidth={2} /><Area type="monotone" dataKey="output" name={zh ? "输出" : "Output"} stackId="1" stroke={inkMid} fill={inkMidFill} strokeWidth={2} /><Area type="monotone" dataKey="cache" name={zh ? "缓存" : "Cache"} stackId="1" stroke={inkSoft} fill={inkSoftFill} strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
+      <ResearchCard><h3 className="font-semibold">{zh ? "请求与错误" : "Requests and errors"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><BarChart data={requestSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={36} /><Tooltip content={<ChartTooltip />} /><Bar dataKey="success" name={zh ? "成功" : "Success"} fill={inkStrong} radius={[6, 6, 0, 0]} /><Bar dataKey="errors" name={zh ? "错误" : "Errors"} fill={inkMid} radius={[6, 6, 0, 0]} /></BarChart></ResponsiveContainer></div></ResearchCard>
+      <ResearchCard><h3 className="font-semibold">{zh ? "消费金额" : "Spend"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><AreaChart data={costSeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip prefix="$" />} /><Area type="monotone" dataKey="cost" name="USD" stroke={inkSoft} fill={inkSoftFill} strokeWidth={2} /></AreaChart></ResponsiveContainer></div></ResearchCard>
+      <ResearchCard><h3 className="font-semibold">{zh ? "平均延迟" : "Average latency"}</h3><div className="h-56"><ResponsiveContainer width="100%" height="100%"><LineChart data={latencySeries}><CartesianGrid stroke={grid} vertical={false} /><XAxis dataKey="date" stroke={text} tickLine={false} axisLine={false} interval="preserveStartEnd" minTickGap={24} /><YAxis stroke={text} tickLine={false} axisLine={false} width={44} /><Tooltip content={<UsageTooltip />} /><Line type="monotone" dataKey="latency" name="ms" stroke={inkStrong} strokeWidth={2} dot={false} /></LineChart></ResponsiveContainer></div></ResearchCard>
     </div> : null}
 
     {hasData ? <ResearchCard>

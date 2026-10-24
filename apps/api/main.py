@@ -73,7 +73,7 @@ app.add_middleware(
 async def cookie_csrf_guard(request: Request, call_next):
     """Require an approved Origin for browser state changes using the session cookie."""
     if (
-        settings.app_environment.lower() == "production"
+        settings.app_environment.lower() in {"production", "staging"}
         and request.method.upper() in {"POST", "PUT", "PATCH", "DELETE"}
         and request.cookies.get(settings.session_cookie_name)
         and not request.headers.get("authorization")
@@ -90,7 +90,7 @@ async def cookie_csrf_guard(request: Request, call_next):
 
 @app.middleware("http")
 async def rate_limit(request: Request, call_next):
-    if settings.app_environment.lower() != "production" or request.url.path in {"/health", "/ready", "/metrics", "/stripe/webhook"}:
+    if settings.app_environment.lower() not in {"production", "staging"} or request.url.path in {"/health", "/ready", "/metrics", "/stripe/webhook"}:
         return await call_next(request)
     # Only X-Real-IP (set by the edge proxy from the socket peer) is trusted;
     # X-Forwarded-For is client-controllable and must never feed rate limits.

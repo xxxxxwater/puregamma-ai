@@ -14,9 +14,9 @@ export type EvidenceNode = {
 };
 
 const KIND_META: Record<EvidenceNodeKind, { icon: typeof Database; label: { en: string; zh: string }; color: string }> = {
-  source: { icon: Database, label: { en: "Data Source", zh: "数据源" }, color: "var(--ocean-blue)" },
-  evidence: { icon: FileSearch, label: { en: "Evidence Snapshot", zh: "证据快照" }, color: "var(--ocean-cyan)" },
-  conclusion: { icon: Lightbulb, label: { en: "Conclusion", zh: "结论" }, color: "var(--ocean-violet)" },
+  source: { icon: Database, label: { en: "Data Source", zh: "数据源" }, color: "var(--pg-text-primary)" },
+  evidence: { icon: FileSearch, label: { en: "Evidence Snapshot", zh: "证据快照" }, color: "var(--pg-text-secondary)" },
+  conclusion: { icon: Lightbulb, label: { en: "Conclusion", zh: "结论" }, color: "var(--pg-text-primary)" },
   limitation: { icon: ShieldAlert, label: { en: "Limitation", zh: "限制条件" }, color: "var(--warning)" },
   citation: { icon: Quote, label: { en: "Citation", zh: "引用/来源" }, color: "var(--muted)" },
 };

@@ -192,13 +192,13 @@ function TerminalLine({ event }: { event: LogEvent }) {
   const colorClass = useMemo(() => {
     switch (event.t) {
       case "trade":
-        return "text-yellow-300";
+        return "text-neutral-200";
       case "error":
         return "text-red-400";
       case "warning":
         return "text-amber-300";
       case "metric":
-        return "text-cyan-300";
+        return "text-neutral-300";
       case "complete":
         return "font-semibold text-green-300";
       case "start":
@@ -219,7 +219,7 @@ function TerminalLine({ event }: { event: LogEvent }) {
   if (event.t === "trade" && event.direction && event.asset && event.price !== undefined) {
     const arrow = event.direction === "buy" ? "↑" : "↓";
     return (
-      <div className="text-yellow-300">
+      <div className="text-neutral-200">
         {`  ${arrow} ${event.direction.toUpperCase()} ${event.asset} @ $${fmtLite(event.price, 2)}`}
         {event.position !== undefined ? `  pos=${fmtLite(event.position, 2)}` : ""}
         {event.equity !== undefined ? `  equity=$${fmtLite(event.equity, 0)}` : ""}

@@ -72,14 +72,14 @@ export function ResearchTimeline({ nodes, locale }: { nodes: TimelineNode[]; loc
           node.status === "failed"
             ? "text-status-negative"
             : node.status === "active"
-              ? "font-medium text-ocean-cyan"
+              ? "font-semibold text-text-pg"
               : node.status === "done"
                 ? "text-text-pg"
                 : "text-text-pg-dim";
         return (
           <li key={node.id} className="relative flex gap-3 pb-4 last:pb-0">
             {!isLast ? <span aria-hidden className="absolute left-[11px] top-6 h-full w-px bg-border-pg" /> : null}
-            <span className={`relative z-10 mt-0.5 grid h-6 w-6 shrink-0 place-items-center border ${node.status === "active" ? "ocean-stage-active border-ocean-line text-ocean-cyan" : node.status === "failed" ? "border-status-negative text-status-negative" : "border-border-pg text-text-pg-muted"}`}>
+            <span className={`relative z-10 mt-0.5 grid h-6 w-6 shrink-0 place-items-center border ${node.status === "active" ? "ocean-stage-active border-border-pg-strong text-text-pg" : node.status === "failed" ? "border-status-negative text-status-negative" : "border-border-pg text-text-pg-muted"}`}>
               <Icon className={`h-3.5 w-3.5 ${node.status === "active" ? "animate-spin" : ""}`} aria-hidden />
             </span>
             <div className="ocean-fade-in min-w-0" style={{ animationDelay: `${index * 60}ms` }}>

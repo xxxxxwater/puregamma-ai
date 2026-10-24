@@ -122,7 +122,7 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
 
       <div
         data-testid="architecture-mac-window"
-        className="relative mx-auto mt-6 max-w-4xl rounded-[30px] border-[7px] border-[#151922] bg-[#0b0e14] p-1.5 shadow-[0_28px_75px_-34px_rgba(2,6,23,0.86)]"
+        className="relative mx-auto mt-6 max-w-4xl rounded-[30px] border-[7px] border-[#151922] bg-[#0b0e14] p-1.5 shadow-[0_28px_75px_-34px_rgba(2,6,23,0.86)] grayscale"
       >
         <div className="pointer-events-none absolute left-1/2 top-0 z-30 h-4 w-24 -translate-x-1/2 rounded-b-[10px] bg-[#151922]" aria-hidden />
         <div className="overflow-hidden rounded-[21px] border border-white/10 bg-[#0e1420]">

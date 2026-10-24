@@ -36,8 +36,8 @@ export function AgentStageIndicator({ stage, locale, detail }: { stage: AgentSta
           const done = index < activeIndex;
           const active = index === activeIndex;
           return (
-            <span key={item.id} className={`inline-flex items-center gap-1 ${active ? "ocean-stage-active font-medium text-ocean-cyan" : done ? "text-text-pg-muted" : "text-text-pg-dim"}`}>
-              {done ? <Check className="h-3 w-3" aria-hidden /> : <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-ocean-cyan" : "bg-text-pg-dim"}`} aria-hidden />}
+            <span key={item.id} className={`inline-flex items-center gap-1 ${active ? "ocean-stage-active font-semibold text-text-pg" : done ? "text-text-pg-muted" : "text-text-pg-dim"}`}>
+              {done ? <Check className="h-3 w-3" aria-hidden /> : <span className={`h-1.5 w-1.5 rounded-full ${active ? "bg-text-pg" : "bg-text-pg-dim"}`} aria-hidden />}
               {zh ? item.zh : item.en}
             </span>
           );

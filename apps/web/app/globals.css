@@ -115,114 +115,80 @@
      theme, not the operating system. The pre-paint script sets the same value
      inline so this is correct from the very first frame. */
   color-scheme: light;
-  /* PureGamma — California Daylight scene: warm cloud white / titanium,
-     near-black ink (not pure black), very light cool shadows. */
-  --background: #f4f4f2;
-  --foreground: #17181c;
+  /* PureGamma Research / Harness: paper, ink, and quiet neutral surfaces. */
+  --background: #ffffff;
+  --foreground: #151515;
   --panel: #ffffff;
-  --panel-muted: #f0f1f3;
-  --panel-strong: #e8eaee;
-  --secretary-assistant-bg: #e3edfa;
-  --secretary-assistant-text: #172554;
-  --secretary-assistant-border: #9cc3f0;
-  --secretary-assistant-muted: #3b5ba9;
+  --panel-muted: #f5f5f5;
+  --panel-strong: #ebebeb;
+  --secretary-assistant-bg: #f5f5f5;
+  --secretary-assistant-text: #151515;
+  --secretary-assistant-border: #d9d9d9;
+  --secretary-assistant-muted: #616161;
   /* Inverted (primary) surface. In Light the primary action is near-black on
      white; in Dark it inverts to near-white on black. Previously this was a
      hardcoded `#FFFFFF` at the call site, which in the Light theme produced a
      white button with a white border and black text — no visible boundary. */
-  --pg-surface-inverse: #17181c;
+  --pg-surface-inverse: #151515;
   --pg-text-inverse: #ffffff;
-  --border: rgba(15, 23, 42, 0.10);
-  --border-strong: rgba(15, 23, 42, 0.18);
-  --muted: #5b606b;
-  /* Same reasoning as the dark set: #7c8089 measured 3.50:1 as small text, and
-     #0e8f61 only 3.63:1 (fine for a chart line, short of AA for a status word).
-     Both are darkened to clear 4.5:1 on every surface. */
-  --muted-2: #666a73;
-  --positive: #0a784f;
-  --negative: #c2413c;
-  --warning: #96600a;
-  --info: #2f5fc4;
+  --border: #d9d9d9;
+  --border-strong: #b8b8b8;
+  --muted: #616161;
+  --muted-2: #6d6d6d;
+  /* Risk and P&L retain distinct, readable semantic colors. */
+  --positive: #0b7044;
+  --negative: #ad3030;
+  --warning: #815a00;
+  --info: #454545;
   --accent-cyan: var(--info);
   --accent-emerald: var(--positive);
   --accent-amber: var(--warning);
   --accent-red: var(--negative);
-  --admin-accent: #2f5fc4;
-  --admin-accent-soft: #6f93e0;
+  --admin-accent: #151515;
+  --admin-accent-soft: #616161;
   --admin-accent-ink: #ffffff;
-  --admin-accent-fill: rgba(47, 95, 196, 0.14);
-  --admin-accent-fill-soft: rgba(111, 147, 224, 0.12);
-  --admin-accent-fill-faint: rgba(47, 95, 196, 0.08);
-  --admin-shadow: 0 4px 12px rgba(15, 23, 42, 0.06);
+  --admin-accent-fill: rgba(21, 21, 21, 0.12);
+  --admin-accent-fill-soft: rgba(21, 21, 21, 0.08);
+  --admin-accent-fill-faint: rgba(21, 21, 21, 0.05);
+  --admin-shadow: 0 4px 12px rgba(0, 0, 0, 0.06);
 }
 
 :root[data-theme="dark"] {
   color-scheme: dark;
-  /* PureGamma — Night Intelligence scene: deep graphite + night blue-black,
-     faint cool light fields, near-white ink, calm semantic colors. */
-  --background: #0b0e14;
-  --foreground: #eef1f6;
-  --panel: #131a24;
-  --panel-muted: #1a2230;
-  --panel-strong: #212a3a;
-  --secretary-assistant-bg: #2e2624;
-  --secretary-assistant-text: #f0e7e2;
-  --secretary-assistant-border: #5d4a44;
-  --secretary-assistant-muted: #c9b6ac;
+  /* The dark preference inverts the same neutral hierarchy. */
+  --background: #111111;
+  --foreground: #f5f5f5;
+  --panel: #1b1b1b;
+  --panel-muted: #252525;
+  --panel-strong: #303030;
+  --secretary-assistant-bg: #252525;
+  --secretary-assistant-text: #f5f5f5;
+  --secretary-assistant-border: #494949;
+  --secretary-assistant-muted: #b8b8b8;
   --pg-surface-inverse: #fafafa;
-  --pg-text-inverse: #0b0e14;
-  --border: rgba(150, 172, 214, 0.10);
-  --border-strong: rgba(150, 172, 214, 0.18);
-  --muted: #98a2b3;
-  /* `--muted-2` is the small meta text (timestamps, field labels, 11px hints).
-     At #6b7484 it measured 3.39:1 on `--panel-muted` — below WCAG AA for body
-     text. #8f97a6 clears 4.5:1 on all three surfaces (worst 5.43:1) while still
-     reading as secondary. */
-  --muted-2: #8f97a6;
-  --positive: #34d399;
-  --negative: #f87171;
-  --warning: #f5b453;
-  --info: #93b4ff;
+  --pg-text-inverse: #111111;
+  --border: #3b3b3b;
+  --border-strong: #585858;
+  --muted: #b8b8b8;
+  --muted-2: #a8a8a8;
+  --positive: #8fdaad;
+  --negative: #f2a3a3;
+  --warning: #f2ce86;
+  --info: #d4d4d4;
   --accent-cyan: var(--info);
   --accent-emerald: var(--positive);
   --accent-amber: var(--warning);
   --accent-red: var(--negative);
-  /* Admin console accent (charts, active filters). Dark surface needs a lighter
-     blue than the light theme to hold AA against `--panel`. */
-  --admin-accent: #6f9bff;
-  --admin-accent-soft: #a8c2ff;
-  --admin-accent-ink: #0b0e14;
-  --admin-accent-fill: rgba(111, 155, 255, 0.18);
-  --admin-accent-fill-soft: rgba(168, 194, 255, 0.14);
-  --admin-accent-fill-faint: rgba(168, 194, 255, 0.10);
+  --admin-accent: #f5f5f5;
+  --admin-accent-soft: #b8b8b8;
+  --admin-accent-ink: #111111;
+  --admin-accent-fill: rgba(255, 255, 255, 0.18);
+  --admin-accent-fill-soft: rgba(255, 255, 255, 0.12);
+  --admin-accent-fill-faint: rgba(255, 255, 255, 0.08);
   --admin-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
 }
 
-/* =====================================================================
-   Phase 1 — semantic token namespace (`--pg-*`)
-   =====================================================================
-   This block introduces the single semantic vocabulary the UI should
-   consume. Every value is an ALIAS to a token that already exists above,
-   so adopting it cannot change a single rendered pixel. That is the whole
-   point: the foundation is swapped while the appearance is pinned, and the
-   visual changes land in Phase 2 where they can be reviewed on their own.
-
-   Deliberately NOT changed here: the default theme (still dark in `:root`),
-   the radius scale, and every existing value. Those are Phase 2 work.
-
-   Rules this namespace exists to enforce:
-     1. A component names intent (`--pg-text-secondary`), never a raw colour.
-     2. Theme switching happens only in the token table. No `dark:` variants,
-        no `[data-theme=…]` inside component CSS.
-     3. A skin (glass) may not redeclare a semantic token.
-
-   Placement: declared once under `:root` only. Phase 1 had to duplicate this
-   under `:root[data-theme="light"]` because `:root` then held the DARK values
-   for the legacy tokens and a light page would have resolved `--pg-bg-page` to
-   a dark `--background`. Light is now the `:root` default for both the legacy
-   and the semantic names, so the duplication is gone: the aliases resolve
-   through the active theme automatically.
-   ===================================================================== */
+/* Semantic aliases consumed by route utilities; values follow the active theme. */
 :root {
   /* ── Text ────────────────────────────────────────────────────────── */
   --pg-text-primary: var(--foreground);
@@ -304,25 +270,6 @@ body {
   font-feature-settings: "tnum" 1, "cv02" 1, "cv03" 1;
 }
 
-body::before {
-  content: "";
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  background:
-    linear-gradient(rgba(255, 255, 255, 0.026) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(255, 255, 255, 0.026) 1px, transparent 1px);
-  background-size: 56px 56px;
-  mask-image: linear-gradient(180deg, rgba(0, 0, 0, 0.72), transparent 82%);
-}
-
-:root[data-theme="light"] body::before {
-  background:
-    linear-gradient(rgba(0, 0, 0, 0.035) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 0, 0, 0.035) 1px, transparent 1px);
-  background-size: 56px 56px;
-}
-
 a {
   color: inherit;
   text-decoration: none;
@@ -345,8 +292,8 @@ textarea {
   height: 34px;
   width: 100%;
   background:
-    linear-gradient(90deg, rgba(255, 255, 255, 0.10) 1px, transparent 1px),
-    linear-gradient(180deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+    linear-gradient(90deg, var(--border) 1px, transparent 1px),
+    linear-gradient(180deg, var(--border) 1px, transparent 1px);
   background-size: 18px 100%, 100% 11px;
   position: relative;
   overflow: hidden;
@@ -356,12 +303,12 @@ textarea {
   content: "";
   position: absolute;
   inset: 8px 0 5px 0;
-  background: linear-gradient(135deg, transparent 0 12%, #f5f6f8 13% 15%, transparent 16% 28%, #a2a4a6 29% 31%, transparent 32% 49%, #7f8287 50% 52%, transparent 53% 68%, #f5f6f8 69% 71%, transparent 72%);
+  background: linear-gradient(135deg, transparent 0 12%, var(--muted) 13% 15%, transparent 16% 28%, var(--foreground) 29% 31%, transparent 32% 49%, var(--muted-2) 50% 52%, transparent 53% 68%, var(--muted) 69% 71%, transparent 72%);
 }
 
 ::selection {
-  background: #f5f6f8;
-  color: #101216;
+  background: #151515;
+  color: #ffffff;
 }
 
 .secretary-bubble-assistant {
@@ -416,11 +363,11 @@ textarea {
 }
 
 :root {
-  --flash-bg: rgba(255, 255, 255, 0.18);
+  --flash-bg: rgba(21, 21, 21, 0.08);
 }
 
-:root[data-theme="light"] {
-  --flash-bg: rgba(23, 37, 84, 0.10);
+:root[data-theme="dark"] {
+  --flash-bg: rgba(255, 255, 255, 0.16);
 }
 
 .market-cell-flash {
@@ -432,36 +379,49 @@ textarea {
   color: var(--secretary-assistant-muted);
 }
 
-:root[data-theme="light"] ::selection {
-  background: #172554;
-  color: #dbeafe;
+:root[data-theme="dark"] ::selection {
+  background: #f5f5f5;
+  color: #111111;
 }
 
 /* ────────────────────────────────────────────────────────────────────────
-   Ocean visual system (Agent / Research / Today only)
-   Alpha budget for dynamic layers: 0.05 – 0.18. Content always stays above.
-   Financial surfaces never use these tokens.
+   Research motion system (legacy Ocean class names remain for route compatibility).
+   Neutral values follow the active theme; financial surfaces remain static.
    ──────────────────────────────────────────────────────────────────────── */
 
 :root {
-  --ocean-blue: #2e7dff;
-  --ocean-cyan: #42d9ff;
-  --ocean-violet: #8b7cff;
-  --ocean-layer-a: rgba(46, 125, 255, 0.09);
-  --ocean-layer-b: rgba(66, 217, 255, 0.07);
-  --ocean-layer-c: rgba(139, 124, 255, 0.06);
-  --ocean-ripple: rgba(66, 217, 255, 0.22);
-  --ocean-glow: rgba(46, 125, 255, 0.10);
-  --ocean-deep: #070b12;
-  --ocean-deep-panel: #0d1420;
-  --ocean-line: rgba(66, 217, 255, 0.14);
+  --ocean-blue: #454545;
+  --ocean-cyan: #151515;
+  --ocean-violet: #737373;
+  --ocean-layer-a: rgba(21, 21, 21, 0.045);
+  --ocean-layer-b: rgba(21, 21, 21, 0.03);
+  --ocean-layer-c: rgba(21, 21, 21, 0.02);
+  --ocean-ripple: rgba(21, 21, 21, 0.2);
+  --ocean-glow: rgba(21, 21, 21, 0.07);
+  --ocean-deep: #ffffff;
+  --ocean-deep-panel: #f5f5f5;
+  --ocean-line: rgba(21, 21, 21, 0.18);
+}
+
+:root[data-theme="dark"] {
+  --ocean-blue: #b8b8b8;
+  --ocean-cyan: #f5f5f5;
+  --ocean-violet: #969696;
+  --ocean-layer-a: rgba(255, 255, 255, 0.045);
+  --ocean-layer-b: rgba(255, 255, 255, 0.03);
+  --ocean-layer-c: rgba(255, 255, 255, 0.02);
+  --ocean-ripple: rgba(255, 255, 255, 0.2);
+  --ocean-glow: rgba(255, 255, 255, 0.08);
+  --ocean-deep: #111111;
+  --ocean-deep-panel: #1b1b1b;
+  --ocean-line: rgba(255, 255, 255, 0.18);
 }
 
 .ocean-static-gradient {
   background:
-    radial-gradient(58% 42% at 12% 8%, rgba(46, 125, 255, 0.08), transparent 62%),
-    radial-gradient(52% 44% at 88% 14%, rgba(66, 217, 255, 0.06), transparent 60%),
-    radial-gradient(60% 46% at 50% 100%, rgba(139, 124, 255, 0.05), transparent 64%);
+    radial-gradient(58% 42% at 12% 8%, var(--ocean-layer-a), transparent 62%),
+    radial-gradient(52% 44% at 88% 14%, var(--ocean-layer-b), transparent 60%),
+    radial-gradient(60% 46% at 50% 100%, var(--ocean-layer-c), transparent 64%);
 }
 
 @keyframes ocean-drift-a {
@@ -517,7 +477,7 @@ textarea {
 
 .ocean-flowing-border {
   background:
-    linear-gradient(var(--bg-panel), var(--bg-panel)) padding-box,
+    linear-gradient(var(--panel), var(--panel)) padding-box,
     linear-gradient(120deg, var(--ocean-blue), var(--ocean-cyan), var(--ocean-violet), var(--ocean-cyan), var(--ocean-blue)) border-box;
   background-size: 100% 100%, 200% 100%;
   border: 1px solid transparent;
@@ -536,8 +496,8 @@ textarea {
 @media (prefers-reduced-motion: reduce) {
   .ocean-flowing-border {
     animation: none;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-pg);
+    background: var(--panel);
+    border: 1px solid var(--border);
   }
   .ocean-ripple-ring,
   .ocean-stage-active,
@@ -550,8 +510,8 @@ textarea {
 @media (max-width: 767px) {
   .ocean-flowing-border {
     animation: none;
-    background: var(--bg-panel);
-    border: 1px solid var(--border-pg);
+    background: var(--panel);
+    border: 1px solid var(--border);
   }
 }
 
@@ -574,12 +534,12 @@ textarea {
 :root {
   --glass-blur: 12px;
   --glass-blur-mobile: 6px;
-  --glass-saturate: 1.35;
-  --glass-edge: rgba(255, 255, 255, 0.07);
-  --glass-chrome-bg: rgba(16, 18, 22, 0.72);
-  --glass-ambient-a: rgba(46, 125, 255, 0.10);
-  --glass-ambient-b: rgba(66, 217, 255, 0.07);
-  --glass-ambient-c: rgba(139, 124, 255, 0.08);
+  --glass-saturate: 1;
+  --glass-edge: rgba(21, 21, 21, 0.08);
+  --glass-chrome-bg: rgba(255, 255, 255, 0.88);
+  --glass-ambient-a: rgba(21, 21, 21, 0.025);
+  --glass-ambient-b: rgba(21, 21, 21, 0.018);
+  --glass-ambient-c: rgba(21, 21, 21, 0.012);
 }
 
 /* Glass surface tokens, one block per theme.
@@ -591,54 +551,59 @@ textarea {
    the `:root` default that ordering paints light pages with dark glass, so each
    theme now states its own values and neither relies on source order. */
 :root[data-visual-style="glass"][data-theme="dark"] {
-  --panel: rgba(19, 26, 38, 0.90);
-  --panel-muted: rgba(26, 34, 48, 0.88);
-  --panel-strong: rgba(33, 42, 58, 0.94);
-  --border: rgba(150, 172, 214, 0.10);
-  --border-strong: rgba(150, 172, 214, 0.20);
+  --panel: rgba(27, 27, 27, 0.92);
+  --panel-muted: rgba(37, 37, 37, 0.9);
+  --panel-strong: rgba(48, 48, 48, 0.95);
+  --border: #3b3b3b;
+  --border-strong: #585858;
+  --glass-edge: rgba(255, 255, 255, 0.08);
+  --glass-chrome-bg: rgba(27, 27, 27, 0.88);
+  --glass-ambient-a: rgba(255, 255, 255, 0.025);
+  --glass-ambient-b: rgba(255, 255, 255, 0.018);
+  --glass-ambient-c: rgba(255, 255, 255, 0.012);
 }
 
 :root[data-visual-style="glass"][data-theme="light"] {
   --panel: rgba(255, 255, 255, 0.94);
-  --panel-muted: rgba(240, 241, 243, 0.92);
-  --panel-strong: rgba(233, 235, 238, 0.96);
-  --border: rgba(15, 23, 42, 0.10);
-  --border-strong: rgba(15, 23, 42, 0.18);
-  --glass-edge: rgba(255, 255, 255, 0.65);
-  --glass-chrome-bg: rgba(246, 247, 248, 0.78);
-  --glass-ambient-a: rgba(37, 99, 235, 0.10);
-  --glass-ambient-b: rgba(8, 145, 178, 0.07);
-  --glass-ambient-c: rgba(124, 58, 237, 0.07);
+  --panel-muted: rgba(245, 245, 245, 0.94);
+  --panel-strong: rgba(235, 235, 235, 0.97);
+  --border: #d9d9d9;
+  --border-strong: #b8b8b8;
+  --glass-edge: rgba(21, 21, 21, 0.08);
+  --glass-chrome-bg: rgba(255, 255, 255, 0.88);
+  --glass-ambient-a: rgba(21, 21, 21, 0.025);
+  --glass-ambient-b: rgba(21, 21, 21, 0.018);
+  --glass-ambient-c: rgba(21, 21, 21, 0.012);
 }
 
 /* Financial / security routes: prices, positions, alerts and action
    buttons must stay crisp — near-solid panels, softer blur. */
 :root[data-visual-style="glass"][data-surface-tier="financial"][data-theme="dark"] {
-  --panel: rgba(16, 21, 31, 0.97);
-  --panel-muted: rgba(22, 29, 41, 0.96);
-  --panel-strong: rgba(30, 38, 53, 0.98);
+  --panel: rgba(27, 27, 27, 0.98);
+  --panel-muted: rgba(37, 37, 37, 0.97);
+  --panel-strong: rgba(48, 48, 48, 0.98);
   --glass-blur: 8px;
 }
 
 :root[data-visual-style="glass"][data-surface-tier="financial"][data-theme="light"] {
   --panel: rgba(255, 255, 255, 0.94);
-  --panel-muted: rgba(246, 247, 248, 0.92);
-  --panel-strong: rgba(236, 238, 241, 0.97);
+  --panel-muted: rgba(245, 245, 245, 0.94);
+  --panel-strong: rgba(235, 235, 235, 0.97);
 }
 
 /* Ocean pages: the Ocean layers already blur beneath the work panel; a
    second backdrop-filter would double-blur. Keep translucent panels but
    disable the filter here. */
 :root[data-visual-style="glass"][data-surface-tier="ocean"][data-theme="dark"] {
-  --panel: rgba(10, 14, 22, 0.80);
-  --panel-muted: rgba(16, 21, 32, 0.74);
-  --panel-strong: rgba(22, 28, 42, 0.88);
+  --panel: rgba(27, 27, 27, 0.88);
+  --panel-muted: rgba(37, 37, 37, 0.84);
+  --panel-strong: rgba(48, 48, 48, 0.92);
 }
 
 :root[data-visual-style="glass"][data-surface-tier="ocean"][data-theme="light"] {
   --panel: rgba(255, 255, 255, 0.86);
-  --panel-muted: rgba(244, 245, 246, 0.82);
-  --panel-strong: rgba(235, 237, 240, 0.90);
+  --panel-muted: rgba(245, 245, 245, 0.88);
+  --panel-strong: rgba(235, 235, 235, 0.94);
 }
 
 /* One shared glass treatment for every surface token consumer. */
@@ -695,14 +660,14 @@ textarea {
    high-opacity panels (never translucent mush). */
 @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
   :root[data-visual-style="glass"] {
-    --panel: #191c22;
-    --panel-muted: #212123;
-    --panel-strong: #292929;
-  }
-  :root[data-visual-style="glass"][data-theme="light"] {
     --panel: #ffffff;
-    --panel-muted: #f0f1f2;
-    --panel-strong: #e7e8ea;
+    --panel-muted: #f5f5f5;
+    --panel-strong: #ebebeb;
+  }
+  :root[data-visual-style="glass"][data-theme="dark"] {
+    --panel: #1b1b1b;
+    --panel-muted: #252525;
+    --panel-strong: #303030;
   }
 }
 
@@ -733,73 +698,59 @@ textarea {
     opacity: 0.55;
   }
 }
-/* ════════════════════════════════════════════════════════════════════════
-   PureGamma — Liquid Intelligence (Glass + Classic).
-   California precision + liquid glass: modern tight sans display, huge
-   structured type, scarce premium glass (AI command / hero / chrome),
-   near-solid high-contrast data surfaces, complete Dark & Light scenes.
-   Tokens first; semantic classes only. Classic stays static + solid.
-   ════════════════════════════════════════════════════════════════════════ */
+/* PureGamma monochrome identity across Classic and Glass modes. */
 
 :root {
-  --font-display: "Inter", system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "Space Grotesk", "Inter", system-ui, -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
   --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   --font-mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
 
-  /* Intelligence blue: the single interaction color. Violet is refraction only. */
-  --accent: #5b8cff;
-  --accent-strong: #7aa0ff;
-  --accent-soft: rgba(91, 140, 255, 0.13);
-  --accent-ring: rgba(91, 140, 255, 0.38);
-  --accent-violet: #8b7cff;
+  --accent: #151515;
+  --accent-strong: #000000;
+  --accent-soft: rgba(21, 21, 21, 0.08);
+  --accent-ring: rgba(21, 21, 21, 0.28);
+  --accent-violet: #737373;
 
-  /* Brand gold: premium / insight / member signal only — never a UI control color. */
-  --brand-gold: #d6b35a;
-  --brand-gold-strong: #e9cd82;
+  /* Historical token names remain for consumers; all brand accents are neutral. */
+  --brand-gold: #616161;
+  --brand-gold-strong: #454545;
 
-  /* Liquid glass materials (opt-in, scarce). */
+  /* Glass remains an appearance option with neutral translucent materials. */
   --lens-blur: 26px;
-  --lens-saturate: 1.35;
-  --lens-edge: rgba(255, 255, 255, 0.16);
-  --lens-haze: rgba(255, 255, 255, 0.055);
-  --lens-tint: rgba(120, 150, 255, 0.05);
-  --lens-shadow: 0 1px 1px rgba(0,0,0,0.22), 0 30px 70px -36px rgba(0,0,0,0.62);
-  --lens-fill-a: rgba(26, 33, 48, 0.84);
-  --lens-fill-b: rgba(14, 18, 27, 0.88);
+  --lens-saturate: 1;
+  --lens-edge: rgba(21, 21, 21, 0.12);
+  --lens-haze: rgba(255, 255, 255, 0.35);
+  --lens-tint: rgba(21, 21, 21, 0.02);
+  --lens-shadow: 0 1px 1px rgba(0, 0, 0, 0.03), 0 24px 56px -38px rgba(0, 0, 0, 0.18);
+  --lens-fill-a: rgba(255, 255, 255, 0.92);
+  --lens-fill-b: rgba(245, 245, 245, 0.86);
 
-  --radius-panel: 18px;
+  --radius-panel: 12px;
   --section-gap: clamp(32px, 5vw, 72px);
 }
-:root[data-theme="light"] {
-  --accent: #2f66f5;
-  --accent-strong: #1f55e8;
-  --accent-soft: rgba(47, 102, 245, 0.10);
-  --accent-ring: rgba(47, 102, 245, 0.30);
-  --accent-violet: #6f5cf1;
-  --brand-gold: #8a6d1f;
-  --brand-gold-strong: #a5842c;
-  --lens-edge: rgba(255, 255, 255, 0.92);
-  --lens-haze: rgba(255, 255, 255, 0.6);
-  --lens-tint: rgba(90, 120, 255, 0.045);
-  --lens-shadow: 0 1px 1px rgba(15,23,42,0.04), 0 32px 74px -46px rgba(15,23,42,0.20);
-  --lens-fill-a: rgba(255, 255, 255, 0.78);
-  --lens-fill-b: rgba(248, 250, 253, 0.82);
+:root[data-theme="dark"] {
+  --accent: #f5f5f5;
+  --accent-strong: #ffffff;
+  --accent-soft: rgba(255, 255, 255, 0.1);
+  --accent-ring: rgba(255, 255, 255, 0.34);
+  --accent-violet: #a8a8a8;
+  --brand-gold: #b8b8b8;
+  --brand-gold-strong: #dedede;
+  --lens-edge: rgba(255, 255, 255, 0.12);
+  --lens-haze: rgba(255, 255, 255, 0.06);
+  --lens-tint: rgba(255, 255, 255, 0.03);
+  --lens-shadow: 0 1px 1px rgba(0, 0, 0, 0.24), 0 24px 56px -38px rgba(0, 0, 0, 0.7);
+  --lens-fill-a: rgba(37, 37, 37, 0.9);
+  --lens-fill-b: rgba(27, 27, 27, 0.9);
 }
 
 body { font-family: var(--font-sans); }
 
-/* Night atmosphere: whisper-light ice blue + violet + moon white. */
+/* Low-contrast grayscale atmosphere, visible only in Glass mode. */
 [data-visual-style="glass"] body {
   background:
-    radial-gradient(64% 48% at 10% -8%, var(--accent-soft), transparent 60%),
-    radial-gradient(50% 42% at 94% -2%, rgba(139,124,255,0.06), transparent 58%),
-    radial-gradient(48% 54% at 88% 104%, rgba(190,205,255,0.045), transparent 62%),
-    var(--background);
-}
-:root[data-theme="light"][data-visual-style="glass"] body {
-  background:
-    radial-gradient(60% 46% at 12% -8%, rgba(47,102,245,0.06), transparent 60%),
-    radial-gradient(46% 40% at 92% -2%, rgba(111,92,241,0.045), transparent 58%),
+    radial-gradient(64% 48% at 10% -8%, var(--glass-ambient-a), transparent 60%),
+    radial-gradient(50% 42% at 94% -2%, var(--glass-ambient-b), transparent 58%),
     var(--background);
 }
 
@@ -834,7 +785,7 @@ body { font-family: var(--font-sans); }
   padding: clamp(18px, 2.6vw, 28px);
   box-shadow: 0 1px 2px rgba(0,0,0,0.12);
 }
-:root[data-theme="light"] .terminal-panel { box-shadow: 0 1px 2px rgba(15,23,42,0.05); }
+:root[data-theme="light"] .terminal-panel { box-shadow: 0 1px 2px rgba(0,0,0,0.05); }
 
 /* ── The Liquid Lens: scarce, premium glass. ────────────────────────────── */
 .liquid, .lens-surface {
@@ -883,7 +834,7 @@ body { font-family: var(--font-sans); }
 }
 :root[data-theme="light"][data-visual-style="glass"] .liquid:active,
 :root[data-theme="light"][data-visual-style="glass"] .lens-surface:active {
-  box-shadow: inset 0 2px 12px rgba(15,23,42,0.06), var(--lens-shadow);
+  box-shadow: inset 0 2px 12px rgba(0,0,0,0.06), var(--lens-shadow);
 }
 
 /* Quiet alias for legacy class usage (data panels). */
@@ -906,10 +857,9 @@ body { font-family: var(--font-sans); }
 [data-visual-style="glass"] .chronosphere { opacity: 1; }
 :root[data-visual-style="classic"] .chronosphere { display: none; }
 .chronosphere-field { position: absolute; inset: 0; background:
-
-    radial-gradient(58% 44% at 12% 4%, rgba(91,140,255,0.05), transparent 62%),
-    radial-gradient(50% 38% at 90% 8%, rgba(139,124,255,0.04), transparent 60%),
-    radial-gradient(56% 46% at 48% 102%, rgba(190,205,255,0.03), transparent 64%); }
+    radial-gradient(58% 44% at 12% 4%, var(--glass-ambient-a), transparent 62%),
+    radial-gradient(50% 38% at 90% 8%, var(--glass-ambient-b), transparent 60%),
+    radial-gradient(56% 46% at 48% 102%, var(--glass-ambient-c), transparent 64%); }
 
 /* ── Signal status ──────────────────────────────────────────────────────── */
 .signal-chip {
@@ -982,7 +932,7 @@ body { font-family: var(--font-sans); }
 }
 :root[data-theme="light"] .shell-chrome {
   background: color-mix(in oklab, var(--panel) 74%, transparent);
-  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 18px 50px -38px rgba(15,23,42,0.16);
+  box-shadow: inset 0 1px 0 rgba(255,255,255,0.85), 0 18px 50px -38px rgba(0,0,0,0.16);
 }
 
 /* ── Navigation ─────────────────────────────────────────────────────────── */
@@ -1072,7 +1022,7 @@ body { font-family: var(--font-sans); }
   gap: 0.45rem;
   border: 1px solid transparent;
   background: var(--accent);
-  color: #fff;
+  color: var(--pg-text-inverse);
   border-radius: 999px;
   padding: 0.55rem 1rem;
   font-size: 0.72rem;
@@ -1080,7 +1030,6 @@ body { font-family: var(--font-sans); }
   letter-spacing: 0.02em;
   transition: background 0.16s ease, transform 0.12s ease;
 }
-:root[data-theme="light"] .command-submit { color: #fff; }
 .command-submit:hover { background: var(--accent-strong); }
 .command-submit:active { transform: translateY(0.5px) scale(0.99); }
 .command-chip {

@@ -61,7 +61,7 @@ export function PointerGlow() {
       ref={ref}
       aria-hidden
       className="pointer-events-none fixed left-0 top-0 z-0 h-[280px] w-[280px] opacity-0"
-      style={{ background: "radial-gradient(circle, rgba(66, 217, 255, 0.07) 0%, rgba(46, 125, 255, 0.05) 42%, transparent 68%)" }}
+      style={{ background: "radial-gradient(circle, color-mix(in srgb, currentColor 8%, transparent) 0%, color-mix(in srgb, currentColor 5%, transparent) 42%, transparent 68%)" }}
     />
   );
 }

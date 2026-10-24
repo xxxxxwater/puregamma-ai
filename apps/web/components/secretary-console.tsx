@@ -21,7 +21,7 @@ const waveformBars = [10, 18, 13, 24, 16, 28, 20, 12, 26, 18, 30, 15, 23, 11, 27
 
 function BubblePlayer({ dark, playing, loading, ratio, currentTime, remaining, knownDuration, stopLabel, playLabel, speakingLabel, onToggle, title }: { dark: boolean; playing: boolean; loading: boolean; ratio: number; currentTime: number; remaining: number; knownDuration: number; stopLabel: string; playLabel: string; speakingLabel: string; onToggle: () => void; title: string }) {
   return (
-    <div className={`flex min-h-14 w-[min(320px,72vw)] items-center gap-3 rounded-lg px-3 py-2 text-white shadow-sm ${dark ? "bg-pg-black" : "bg-[#229ed9]"}`}>
+    <div className={`flex min-h-14 w-[min(320px,72vw)] items-center gap-3 rounded-lg px-3 py-2 text-white shadow-sm ${dark ? "bg-pg-black" : "bg-pg-black-soft"}`}>
       <button type="button" title={title || (playing ? stopLabel : playLabel)} disabled={loading} onClick={onToggle} className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-white/20 hover:bg-white/30 disabled:opacity-60">
         {loading ? <span className="h-3.5 w-3.5 animate-pulse rounded-full bg-white" /> : playing ? <Pause className="h-4 w-4 fill-current" /> : <Play className="h-4 w-4 fill-current" />}
       </button>

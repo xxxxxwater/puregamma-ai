@@ -32,8 +32,8 @@ export default async function LandingPage({ params }: { params: { locale: Locale
         <div className="flex flex-wrap items-center gap-4 border-b border-border-pg pb-5 text-sm">
           <BrandLockup />
         </div>
-        <div className="flex flex-wrap items-center gap-3 pt-5 text-sm" data-testid="model-announcement">
-          <Badge tone={availability.state === "available" ? "emerald" : "neutral"}>
+        <div className="flex flex-wrap items-center gap-3 pt-5 text-sm" data-testid="model-announcement" data-model-availability={availability.state}>
+          <Badge tone="neutral">
             <span className="inline-flex items-center gap-1.5">{modelCopy.announcement}</span>
           </Badge>
           <span className="text-text-pg-muted">{modelCopy.announcementDetail}</span>
@@ -44,13 +44,13 @@ export default async function LandingPage({ params }: { params: { locale: Locale
             <h1 className="mt-7 max-w-5xl text-4xl font-semibold tracking-normal md:text-6xl">{copy.hero.headline}</h1>
             <p className="mt-6 max-w-3xl text-base leading-7 text-text-pg-muted">{copy.hero.subheadline}</p>
             <div className="mt-8 flex flex-wrap gap-3">
-              <Link href={withLocale(locale, "/chat")} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-3 text-sm font-semibold text-pg-black rounded-lg">
+              <Link href={withLocale(locale, "/chat")} className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-3 text-sm font-semibold text-[var(--pg-text-inverse)] transition-opacity hover:opacity-80 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg">
                 {copy.hero.primaryCta} <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href={withLocale(locale, "/api")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong rounded-lg">
+              <Link href={withLocale(locale, "/api")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg">
                 {locale === "zh" ? "API 快速接入" : "API Quickstart"} <ArrowRight className="h-4 w-4" />
               </Link>
-              <Link href={withLocale(locale, "/pricing")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong rounded-lg">
+              <Link href={withLocale(locale, "/pricing")} className="inline-flex items-center gap-2 border border-border-pg px-4 py-3 text-sm font-semibold text-text-pg hover:border-border-pg-strong focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg">
                 {locale === "zh" ? "查看定价" : "View pricing"} <ArrowRight className="h-4 w-4" />
               </Link>
             </div>

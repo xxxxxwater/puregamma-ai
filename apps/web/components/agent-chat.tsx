@@ -29,9 +29,9 @@ const DATA_SOURCES = ["market", "rss", "fintwit", "x-twitter", "bloomberg", "por
  * model, so the label follows the deployment instead of a literal in this file.
  * The i18n string is only a fallback for when the catalog is unreachable.
  */
-function agentModelLabel(model: AgentModelOption, copy: ModelUpgradeCopy, catalogName: string | null) {
-  if (model.id === "default") return catalogName || copy.chat.badgeLive;
-  return model.display_name;
+function agentModelLabel(model: AgentModelOption, copy: ModelUpgradeCopy, catalogName: string | null, zh: boolean) {
+  const name = model.id === "default" ? catalogName || copy.chat.badgeLive : model.display_name;
+  return `${name}${agentModelSuffix(model, zh)}`;
 }
 
 function agentModelSuffix(model: AgentModelOption, zh: boolean) {
@@ -562,7 +562,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
        changed text-column width when the route changed — and on a wide screen
        the bare route let content span the full viewport. Constraining the
        component itself means both routes agree by construction. */
-    <OceanShell locale={locale} variant="agent" className="mx-auto h-[calc(100dvh-7rem)] min-h-[620px] w-full max-w-[1180px] rounded-2xl">
+    <OceanShell locale={locale} variant="agent" className="mx-auto h-[calc(100dvh-7rem)] min-h-[620px] w-full max-w-[1180px]">
       <div className={`grid h-full min-h-[620px] grid-cols-1 overflow-hidden border border-border-pg bg-bg-panel ${historyCollapsed ? "lg:grid-cols-[44px_minmax(0,1fr)]" : "lg:grid-cols-[244px_minmax(0,1fr)]"}`}>
       {/* A backdrop is only rendered on small screens, where the history aside
           becomes a drawer. Without it the drawer would cover the transcript
@@ -670,7 +670,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           <ChatWorkspaceComposer locale={locale} input={input} onInput={setInput} busy={busy} onSend={() => void send()} onStop={() => void stop()} attachments={attachments} onAttachments={setAttachments} permission={permission} onUploading={setUploading}
             onPermission={async (mode, acknowledged) => { if (conversationId) await setAgentPermission(conversationId, mode, acknowledged); setPermission(mode); }}
             researchMode={researchMode} onResearch={setResearchMode} onTextarea={node => { composerRef.current = node; }}
-            modelControl={<select id="agent-model" aria-label={zh ? "模型" : "Model"} value={selectedModel} onChange={event => setSelectedModel(event.target.value)} disabled={busy} className="min-h-10 max-w-[220px] rounded-md bg-transparent text-xs text-text-pg focus-visible:ring-2">{models.map(model => <option key={model.id} value={model.id} disabled={!model.available}>{agentModelLabel(model, modelCopy, defaultModelName)}</option>)}</select>}
+            modelControl={<select id="agent-model" aria-label={zh ? "模型" : "Model"} value={selectedModel} onChange={event => setSelectedModel(event.target.value)} disabled={busy} className="min-h-10 max-w-[220px] border border-border-pg-strong bg-bg-panel px-2.5 text-xs font-medium text-text-pg disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg">{models.map(model => <option key={model.id} value={model.id} disabled={!model.available}>{agentModelLabel(model, modelCopy, defaultModelName, zh)}</option>)}</select>}
             settings={<ContextControls locale={locale} plugins={plugins} pluginCounts={pluginCounts} customPrompt={customPrompt} attachments={[]} onPrompt={setCustomPrompt} onRemoveFile={() => undefined} />} />
           {input.trim() && creditQuote && !creditQuote.unavailable ? <p className="mx-auto mt-2 max-w-3xl text-right text-xs text-text-pg-muted">{zh ? "预计" : "Estimated"} {estimatedCredits} Credits</p> : null}
           {failure ? (

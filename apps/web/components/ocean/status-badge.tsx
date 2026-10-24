@@ -11,7 +11,7 @@ export type BadgeTone = "neutral" | "info" | "positive" | "warning" | "negative"
 
 const TONE_CLASS: Record<BadgeTone, string> = {
   neutral: "border-border-pg bg-bg-panel-muted text-text-pg-muted",
-  info: "border-ocean-line bg-ocean-blue-muted text-ocean-cyan",
+  info: "border-border-pg-strong bg-bg-panel-muted text-text-pg",
   positive: "border-border-pg bg-bg-panel-muted text-status-positive",
   warning: "border-border-pg bg-bg-panel-muted text-status-warning",
   negative: "border-border-pg bg-bg-panel-muted text-status-negative",

@@ -64,7 +64,7 @@ def ensure_bootstrap() -> None:
     init_db()
     db = SessionLocal()
     try:
-        if get_settings().app_environment.lower() == "production":
+        if get_settings().app_environment.lower() in {"production", "staging"}:
             seed_reference_data(db)
         else:
             seed_all(db)
@@ -113,7 +113,7 @@ def set_session_cookie(response: Response, user: User) -> str:
         token,
         max_age=settings.session_max_age_seconds,
         httponly=True,
-        secure=settings.app_environment == "production",
+        secure=settings.app_environment == "production" or settings.site_url.lower().startswith("https://"),
         samesite="lax",
         path="/",
         domain=settings.session_cookie_domain,
