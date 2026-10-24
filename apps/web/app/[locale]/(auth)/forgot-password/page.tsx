@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { BrandLockup } from "@/components/brand-lockup";
 import { Loader2 } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { forgotPassword } from "@/lib/api";
@@ -52,9 +52,8 @@ export default function ForgotPasswordPage() {
     <div className="space-y-6">
       <div className="space-y-6">
         <div className="text-center">
-          <Link href={withLocale(locale, "/")} className="inline-flex items-center gap-2 font-semibold text-text-pg">
-            <Image src="/logo.png" alt="PureGamma" width={32} height={32} className="mx-auto" />
-            PureGamma AI
+          <Link href={withLocale(locale, "/")} className="inline-flex items-center text-text-pg">
+            <BrandLockup />
           </Link>
           <h1 className="mt-6 text-2xl font-semibold">{t(locale, "common.auth.forgotPasswordTitle")}</h1>
           <p className="mt-2 text-sm text-text-pg-muted">{t(locale, "common.auth.forgotPasswordDescription")}</p>

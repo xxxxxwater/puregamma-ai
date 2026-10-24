@@ -1,7 +1,7 @@
 "use client";
 
 import { FormEvent, useState } from "react";
-import Image from "next/image";
+import { BrandLockup } from "@/components/brand-lockup";
 import { useRouter } from "next/navigation";
 import { Loader2, LockKeyhole } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
@@ -43,8 +43,7 @@ export default function InternalAdminLoginPage() {
     <div className="flex min-h-[80vh] items-center justify-center">
       <div className="w-full max-w-sm border border-border-pg bg-bg-panel p-6 rounded-2xl">
         <div className="mb-6 text-center">
-          <Image src="/logo.png" alt="PureGamma" width={36} height={36} className="mx-auto" />
-          <h1 className="mt-4 text-xl font-semibold">PureGamma Internal</h1>
+          <h1><BrandLockup product="Internal" /></h1>
           <p className="mt-2 text-xs text-text-pg-muted">{zh ? "仅限授权内部人员" : "Authorized personnel only"}</p>
         </div>
         {error ? <p className="mb-4 border border-status-negative/40 p-3 text-sm text-status-negative rounded-lg">{error}</p> : null}

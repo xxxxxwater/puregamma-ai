@@ -1,11 +1,11 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useCallback, useEffect, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, Newspaper, Smartphone, UserRound, X, type LucideIcon } from "lucide-react";
 import { AppearanceControls } from "@/components/appearance-controls";
+import { BrandLockup } from "@/components/brand-lockup";
 import { PlanBadge, Badge } from "@/components/puregamma";
 import { LanguageSwitcher } from "@/components/i18n/LanguageSwitcher";
 import { LocaleProvider } from "@/components/i18n/LocaleProvider";
@@ -175,8 +175,8 @@ export function MobileNavDrawer({ locale, open, onClose }: { locale: Locale; ope
       {open ? <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden" onClick={onClose} aria-hidden /> : null}
       <div role="dialog" aria-modal="true" aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className={`fixed inset-y-3 left-3 z-50 flex w-80 max-w-[85vw] transform flex-col rounded-2xl border border-border-pg bg-bg-app p-5 shadow-2xl transition-transform duration-200 lg:hidden ${open ? "translate-x-0" : "-translate-x-full"}`}>
         <div className="flex items-center justify-between gap-2">
-          <Link href={withLocale(locale, "/")} className="flex min-w-0 items-center gap-2 font-semibold text-text-pg">
-            <Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI
+          <Link href={withLocale(locale, "/")} className="flex min-w-0 items-center text-text-pg">
+            <BrandLockup size="compact" />
           </Link>
           <button type="button" onClick={onClose} aria-label={locale === "zh" ? "关闭导航" : "Close navigation"} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong rounded-lg"><X className="h-4 w-4" /></button>
         </div>
@@ -233,7 +233,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   const activePathname = stripLocale(pathname);
   return (
     <aside className="shell-rail hidden flex-col p-4 lg:flex">
-      <Link href={withLocale(locale, "/")} className="flex items-center gap-2.5"><Image src="/logo.png" alt="PureGamma" width={22} height={22} /><span className="text-[0.95rem] font-semibold tracking-tight text-text-pg">PureGamma</span><span className="mt-0.5 text-[0.6rem] font-medium uppercase tracking-[0.3em] text-text-pg-dim">AI</span>
+      <Link href={withLocale(locale, "/")} className="flex items-center text-text-pg"><BrandLockup />
       </Link>
       <div className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "common.nav.tagline")}</div>
       <div className="mt-4">
@@ -323,11 +323,10 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
         <button type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong lg:hidden rounded-lg" data-testid="nav-menu-button"><Menu className="h-4 w-4" /></button>
         <Link
           href={withLocale(locale, "/")}
-          className="flex shrink-0 items-center gap-2 whitespace-nowrap font-semibold text-text-pg lg:hidden"
+          className="flex shrink-0 items-center whitespace-nowrap text-text-pg lg:hidden"
           data-testid="nav-brand"
         >
-          <Image src="/logo.png" alt="" width={20} height={20} />
-          <span>PureGamma AI</span>
+          <BrandLockup size="small" />
           <span className="sr-only">{locale === "zh" ? "，返回首页" : ", back to home"}</span>
         </Link>
         <div className="hidden items-center gap-2 text-xs md:flex">

@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import Link from "next/link";
-import Image from "next/image";
+import { BrandLockup } from "@/components/brand-lockup";
 import { useRouter } from "next/navigation";
 import { Loader2, CheckCircle, XCircle } from "lucide-react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
@@ -58,9 +58,8 @@ export default function VerifyEmailPage() {
     <div className="space-y-6">
       <div className="space-y-6 text-center">
         <div className="text-center">
-          <Link href={withLocale(locale, "/")} className="inline-flex items-center gap-2 font-semibold text-text-pg">
-            <Image src="/logo.png" alt="PureGamma" width={32} height={32} className="mx-auto" />
-            PureGamma AI
+          <Link href={withLocale(locale, "/")} className="inline-flex items-center text-text-pg">
+            <BrandLockup />
           </Link>
           <h1 className="mt-6 text-2xl font-semibold">{t(locale, "common.auth.verifyEmailTitle")}</h1>
         </div>

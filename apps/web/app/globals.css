@@ -2,6 +2,68 @@
 @tailwind components;
 @tailwind utilities;
 
+/* The same framed bird and two-weight wordmark used by Research and Harness. */
+@font-face {
+  font-family: "Space Grotesk";
+  font-style: normal;
+  font-weight: 400 700;
+  font-display: swap;
+  src: url("/fonts/space-grotesk-latin-400-700.woff2") format("woff2");
+}
+
+.pg-brand-lockup {
+  --pg-brand-mark-size: 38px;
+  --pg-brand-type-size: 20px;
+  --pg-brand-gap: 11px;
+  display: inline-flex;
+  align-items: center;
+  gap: var(--pg-brand-gap);
+  flex: none;
+  white-space: nowrap;
+  color: var(--foreground);
+}
+
+.pg-brand-lockup--compact {
+  --pg-brand-mark-size: 32px;
+  --pg-brand-type-size: 18px;
+  --pg-brand-gap: 9px;
+}
+
+.pg-brand-lockup--small {
+  --pg-brand-mark-size: 28px;
+  --pg-brand-type-size: 16px;
+  --pg-brand-gap: 7px;
+}
+
+.pg-brand-mark {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 var(--pg-brand-mark-size);
+  width: var(--pg-brand-mark-size);
+  height: var(--pg-brand-mark-size);
+  overflow: hidden;
+  border: 1px solid #ddd;
+  background: #fff;
+}
+
+.pg-brand-mark img {
+  display: block;
+  width: calc(var(--pg-brand-mark-size) - 1px);
+  height: calc(var(--pg-brand-mark-size) - 1px);
+  object-fit: cover;
+  filter: grayscale(1) invert(1);
+}
+
+.pg-brand-wordmark {
+  font: 700 var(--pg-brand-type-size)/1 "Space Grotesk", Arial, sans-serif;
+  letter-spacing: -0.055em;
+}
+
+.pg-brand-suffix {
+  font-weight: 400;
+}
+
 @keyframes secretary-portrait-blink {
   0%, 41.8%, 43.6%, 45.3%, 100% { opacity: 0; }
   42.3%, 43.1%, 44.1%, 44.8% { opacity: 1; }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import Image from "next/image";
 import { ArrowRight } from "lucide-react";
+import { BrandLockup } from "@/components/brand-lockup";
 import { Badge } from "@/components/puregamma";
 import { LandingFooterRotator } from "@/components/landing-footer-rotator";
 import { ModelUpgradePreview } from "@/components/model-upgrade";
@@ -30,7 +30,7 @@ export default async function LandingPage({ params }: { params: { locale: Locale
     <div className="space-y-16 py-4">
       <section className="border border-border-pg bg-bg-panel p-6 md:p-10 rounded-2xl">
         <div className="flex flex-wrap items-center gap-4 border-b border-border-pg pb-5 text-sm">
-          <div className="flex items-center gap-2 font-semibold"><Image src="/logo.png" alt="PureGamma" width={24} height={24} />PureGamma AI</div>
+          <BrandLockup />
         </div>
         <div className="flex flex-wrap items-center gap-3 pt-5 text-sm" data-testid="model-announcement">
           <Badge tone={availability.state === "available" ? "emerald" : "neutral"}>

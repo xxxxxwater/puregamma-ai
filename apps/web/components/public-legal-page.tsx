@@ -1,6 +1,6 @@
 import Link from "next/link";
-import Image from "next/image";
 import type { ReactNode } from "react";
+import { BrandLockup } from "@/components/brand-lockup";
 
 export type PublicLegalSection = {
   title: string;
@@ -20,10 +20,9 @@ export function PublicLegalPage({
 }) {
   return (
     <main className="relative z-10 mx-auto min-h-screen w-full max-w-5xl px-5 py-8 sm:px-8 lg:px-10">
-      <nav className="flex items-center justify-between border-b border-border-pg pb-5">
-        <Link href="/" className="inline-flex items-center gap-2 text-sm font-semibold tracking-wide">
-          <Image src="/logo.png" alt="PureGamma AI" width={28} height={28} />
-          PUREGAMMA AI
+      <nav className="flex flex-wrap items-center justify-between gap-4 border-b border-border-pg pb-5">
+        <Link href="/" className="inline-flex items-center">
+          <BrandLockup />
         </Link>
         <Link href="/" className="text-xs text-text-pg-muted underline underline-offset-4 hover:text-text-pg">
           返回首页 / Home
