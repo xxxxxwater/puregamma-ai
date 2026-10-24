@@ -130,7 +130,7 @@ def research_runner_available() -> tuple[bool, str]:
     from apps.api.config import get_settings
 
     settings = get_settings()
-    if settings.app_environment.lower() != "production":
+    if settings.app_environment.lower() not in {"production", "staging"}:
         return docker_available()
     if not settings.research_runner_enabled:
         return False, "research runner is disabled"
@@ -208,7 +208,7 @@ def queue_research_run(db: Session, run_id: str) -> str:
 
         settings = get_settings()
         get_redis().ping()
-        if settings.app_environment.lower() == "production":
+        if settings.app_environment.lower() in {"production", "staging"}:
             available, reason = research_runner_available()
             if not available:
                 raise RuntimeError(reason)
@@ -217,7 +217,7 @@ def queue_research_run(db: Session, run_id: str) -> str:
         return "celery"
     except Exception as exc:
         from apps.api.config import get_settings
-        if get_settings().app_environment.lower() == "production":
+        if get_settings().app_environment.lower() in {"production", "staging"}:
             row = db.get(ResearchRun, run_id)
             if row and row.status == "queued":
                 row.status = "failed"

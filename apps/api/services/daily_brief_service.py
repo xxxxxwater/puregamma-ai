@@ -214,7 +214,7 @@ Omit unavailable metrics rather than describing their absence.
     try:
         generated = get_llm_provider().complete(prompt, task_type="daily_market_report", locale=language, user_id=user_id, db=db)
     except Exception as exc:
-        if get_settings().app_environment.lower() == "production":
+        if get_settings().app_environment.lower() in {"production", "staging"}:
             raise RuntimeError("DAILY_BRIEF_MODEL_UNAVAILABLE") from exc
         return _local_brief(context, language, "")
     return _compact_daily_brief(generated, language)

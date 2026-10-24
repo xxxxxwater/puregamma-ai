@@ -200,5 +200,5 @@ def _rate_limit(db: Session, api_key: GatewayApiKey, request: Request) -> None:
     except HTTPException:
         raise
     except Exception as exc:
-        if settings.app_environment.lower() == "production":
+        if settings.app_environment.lower() in {"production", "staging"}:
             raise HTTPException(status_code=503, detail={"code": "GATEWAY_RATE_LIMIT_UNAVAILABLE"}) from exc

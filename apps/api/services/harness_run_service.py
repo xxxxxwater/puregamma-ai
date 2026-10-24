@@ -256,7 +256,7 @@ def queue_harness_run(db: Session, run_id: str) -> str:
         return "celery"
     except Exception as exc:
         settings = get_settings()
-        if settings.app_environment.lower() == "production":
+        if settings.app_environment.lower() in {"production", "staging"}:
             row = db.get(HarnessResearchRun, run_id)
             if row and row.status == "queued":
                 try:

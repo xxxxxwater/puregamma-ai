@@ -47,7 +47,7 @@ def _redis():
 
 
 def _is_production() -> bool:
-    return get_settings().app_environment.lower() == "production"
+    return get_settings().app_environment.lower() in {"production", "staging"}
 
 
 def _store_answer(captcha_id: str, offset_x: int) -> None:

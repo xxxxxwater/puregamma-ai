@@ -78,7 +78,7 @@ def _nonce_key(address: str) -> str:
 
 def _rate_limit(request: Request, address: str, action: str, limit: int = 10, window: int = 600) -> None:
     settings = get_settings()
-    if settings.app_environment.lower() != "production":
+    if settings.app_environment.lower() not in {"production", "staging"}:
         return
     forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for")
     client = forwarded.split(",", 1)[0].strip() if forwarded else (request.client.host if request.client else "unknown")

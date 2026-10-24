@@ -149,7 +149,7 @@ def _serialize_reconciliation(row: CustodyReconciliation) -> dict:
 
 def _assert_testnet_mutation_allowed(account: CustodyAccount) -> None:
     """Mutating custody paths are testnet/sandbox-only in this MVP."""
-    if get_settings().app_environment.lower() == "production":
+    if get_settings().app_environment.lower() in {"production", "staging"}:
         _error(
             403,
             "CUSTODY_LIVE_DISABLED",

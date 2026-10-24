@@ -17,7 +17,7 @@ class SyntheticDataForbiddenError(RuntimeError):
 def _in_production() -> bool:
     from apps.api.config import get_settings
 
-    return get_settings().app_environment.lower() == "production"
+    return get_settings().app_environment.lower() in {"production", "staging"}
 
 
 def assert_synthetic_allowed(what: str) -> None:

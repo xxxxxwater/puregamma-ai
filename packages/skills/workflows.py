@@ -742,7 +742,7 @@ def _tool_run_nautilus_backtest(ctx: WorkflowContext, args: dict, deps: list) ->
     except Exception:
         from apps.api.config import get_settings
 
-        if get_settings().app_environment.lower() == "production":
+        if get_settings().app_environment.lower() in {"production", "staging"}:
             raise ToolUnavailableError("BACKTEST_SERVICE_UNAVAILABLE", "backtest queue is temporarily unavailable")
     if not dispatched:
         try:

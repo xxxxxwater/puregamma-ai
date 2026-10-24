@@ -239,7 +239,7 @@ def create_playbook_report(db: Session, user_id: str, language: str = "en") -> R
         if generated.lstrip().startswith("#"):
             content = generated
     except Exception as exc:
-        if get_settings().app_environment.lower() == "production":
+        if get_settings().app_environment.lower() in {"production", "staging"}:
             refund_task(db, user_id, reservation, "PLAYBOOK_MODEL_FAILED")
             db.commit()
             raise RuntimeError("PLAYBOOK_MODEL_UNAVAILABLE") from exc

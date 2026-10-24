@@ -126,7 +126,7 @@ def _weak_password_error(rule: str) -> HTTPException:
 
 def _email_rate_limit(request: Request, email: str, action: str, limit: int = 5, window: int = 900) -> None:
     settings = get_settings()
-    if settings.app_environment.lower() != "production":
+    if settings.app_environment.lower() not in {"production", "staging"}:
         return
     forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for")
     client = forwarded.split(",", 1)[0].strip() if forwarded else (request.client.host if request.client else "unknown")
@@ -260,7 +260,7 @@ def email_register(
         _send_verification_email(user)
     except Exception as exc:
         email_sent = False
-        if get_settings().app_environment.lower() == "production":
+        if get_settings().app_environment.lower() in {"production", "staging"}:
             # Never commit an account that holds a verification token but whose
             # verification email was not delivered: the user would be left in a
             # silently unverifiable state (registered but unable to sign in).

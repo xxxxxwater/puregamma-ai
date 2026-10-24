@@ -77,7 +77,7 @@ def _nautilus_available() -> bool:
 def _in_production() -> bool:
     from apps.api.config import get_settings
 
-    return get_settings().app_environment.lower() == "production"
+    return get_settings().app_environment.lower() in {"production", "staging"}
 
 
 def _assert_no_mock_catalog_in_production(what: str) -> None:

@@ -233,7 +233,7 @@ class ModelRouter:
                 continue
             configured_chain.append((label, provider))
         if not configured_chain:
-            if self.settings.app_environment.lower() != "production":
+            if self.settings.app_environment.lower() not in {"production", "staging"}:
                 mock = MockLLMProvider(status="fallback_mock", last_error="no real provider configured")
                 response = mock.chat(messages, task_type=task_type, locale=locale, user_id=user_id, db=db, response_format=response_format)
                 response.metadata.update({"degraded": True, "requested_provider": route.provider_name, "reason": "no_real_provider_configured"})

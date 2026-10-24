@@ -22,6 +22,6 @@ def get_imessage_provider(settings: Settings | None = None) -> IMessageProvider:
         return MacOSIMessageRelayClient()
     if settings.imessage_provider == "photon":
         return PhotonIMessageProvider()
-    if settings.app_environment.lower() != "production" and settings.imessage_provider == "mock":
+    if settings.app_environment.lower() not in {"production", "staging"} and settings.imessage_provider == "mock":
         return MockIMessageProvider()
     raise RuntimeError("IMESSAGE_PROVIDER_UNAVAILABLE")

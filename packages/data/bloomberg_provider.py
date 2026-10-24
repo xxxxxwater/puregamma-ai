@@ -33,7 +33,7 @@ class BloombergProvider(DataProvider):
 
     def health_check(self) -> DataSourceHealth:
         if self.mode == "mock":
-            if self.app_environment.lower() in {"production", "prod"}:
+            if self.app_environment.lower() in {"production", "prod", "staging"}:
                 return DataSourceHealth(DataSourceStatus.ERROR, "Bloomberg mock mode is forbidden in production")
             return DataSourceHealth(DataSourceStatus.MOCK, "Explicit Bloomberg development mock")
         if self.mode != "production":

@@ -209,7 +209,7 @@ class NotificationDispatcher:
             return _finish("sent", {"reason": "web_inbox"})
         if not recipient:
             return _finish("skipped", {"reason": "missing_recipient"})
-        if self.settings.app_environment.lower() == "production":
+        if self.settings.app_environment.lower() in {"production", "staging"}:
             configured = {
                 "telegram": bool(self.settings.telegram_bot_token),
                 "slack": bool(

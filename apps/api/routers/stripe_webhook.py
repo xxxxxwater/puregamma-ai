@@ -40,6 +40,8 @@ async def stripe_webhook(
     db: Session = Depends(get_db),
 ) -> dict:
     settings = get_settings()
+    if settings.app_environment.lower() == "staging" and settings.billing_mode != "stripe":
+        raise HTTPException(status_code=404, detail="Not found")
     payload = await request.body()
     started = time.perf_counter()
     event_id = None

@@ -13,13 +13,14 @@ from fastapi.responses import JSONResponse, Response, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
-from apps.api.config import get_settings, validate_production_settings
+from apps.api.config import get_settings, validate_production_settings, validate_staging_settings
 from apps.api.dependencies import ensure_bootstrap
 from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, custody, email_auth, frontend, gateway, google_auth, harness_runs, hyperliquid_stream, imessage_agent, internal, jev_advisory, live_trading, market, memory, mobile, mobile_access, mobile_auth, news, notifications, opportunities, options, playbooks, portfolio, reports, research, research_runner, secretary, signals, skills, strategies, stripe_webhook, trading, wallet_auth
 
 
 settings = get_settings()
 validate_production_settings(settings)
+validate_staging_settings(settings)
 logger = logging.getLogger("puregamma.api")
 
 if settings.sentry_dsn:
@@ -46,7 +47,7 @@ async def lifespan(_: FastAPI):
 # API schema/docs are a developer surface; keep them off in production unless
 # explicitly re-enabled for an internal environment.
 _docs_enabled = (
-    settings.app_environment.lower() != "production"
+    settings.app_environment.lower() not in {"production", "staging"}
     or os.getenv("API_DOCS_ENABLED", "").lower() == "true"
 )
 
@@ -167,7 +168,7 @@ def readiness():
     except Exception:
         redis_status = "error"
     ready = database_status == "ok" and (
-        redis_status == "ok" or settings.app_environment.lower() != "production"
+        redis_status == "ok" or settings.app_environment.lower() not in {"production", "staging"}
     )
     payload = {
         "status": "ok" if ready else "degraded",
@@ -185,7 +186,7 @@ def metrics(request: Request) -> PlainTextResponse:
     Counters are process-local plus a few database aggregates; no PII is
     exposed. Wire this into Prometheus/Grafana or an uptime probe.
     """
-    if settings.app_environment.lower() == "production":
+    if settings.app_environment.lower() in {"production", "staging"}:
         authorization = request.headers.get("authorization", "")
         scheme, _, token = authorization.partition(" ")
         expected = settings.metrics_bearer_token

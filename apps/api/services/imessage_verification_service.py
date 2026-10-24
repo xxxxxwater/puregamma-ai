@@ -73,7 +73,7 @@ def request_verification(db: Session, user: User, recipient: str) -> dict:
     if not result.ok:
         raise RuntimeError("VERIFICATION_DELIVERY_FAILED")
     response = {"challenge_id": challenge.id, "expires_at": challenge.expires_at.isoformat(), "recipient": recipient}
-    if settings.app_environment.lower() != "production" and settings.imessage_provider == "mock":
+    if settings.app_environment.lower() not in {"production", "staging"} and settings.imessage_provider == "mock":
         response["development_code"] = code
     return response
 

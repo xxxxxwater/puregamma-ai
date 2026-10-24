@@ -983,3 +983,49 @@ def validate_production_settings(settings: Settings) -> None:
             errors.append(f"{name} must use https in production")
     if errors:
         raise RuntimeError("Invalid production configuration: " + "; ".join(errors))
+
+
+def validate_staging_settings(settings: Settings) -> None:
+    """Require production-grade isolation before exposing copied user data."""
+    if settings.app_environment.lower() != "staging":
+        return
+    errors: list[str] = []
+    for name, value in {
+        "JWT_SECRET": settings.jwt_secret,
+        "SESSION_SECRET": settings.session_secret,
+        "ENCRYPTION_MASTER_KEY": settings.encryption_master_key,
+        "INTERNAL_RUNTIME_SECRET": settings.internal_runtime_secret,
+        "METRICS_BEARER_TOKEN": settings.metrics_bearer_token,
+    }.items():
+        if len(value) < 32 or value in {"dev-only-change-me", "change-me"}:
+            errors.append(f"{name} must be a strong value of at least 32 characters")
+    if not settings.redis_url:
+        errors.append("REDIS_URL is required")
+    if not settings.site_url.startswith("https://"):
+        errors.append("SITE_URL must use HTTPS")
+    if settings.site_url not in settings.cors_origins:
+        errors.append("CORS_ORIGINS must include SITE_URL")
+    if settings.session_cookie_domain:
+        errors.append("SESSION_COOKIE_DOMAIN must be unset for a host-only staging cookie")
+    if settings.auth_allow_demo_fallback:
+        errors.append("AUTH_ALLOW_DEMO_FALLBACK must be false")
+    if settings.internal_admin_login_enabled and (
+        len(settings.internal_admin_username) < 3
+        or "@" not in settings.internal_admin_user_email
+        or not settings.internal_admin_password_hash.startswith("scrypt$1$")
+    ):
+        errors.append("Internal admin login needs a username, admin email, and scrypt password hash")
+    if settings.enable_mock_agent or settings.enable_mock_market_data or settings.enable_mock_data_sources:
+        errors.append("Mock agent and data providers must be disabled")
+    if settings.imessage_provider == "mock":
+        errors.append("IMESSAGE_PROVIDER cannot be mock")
+    if (
+        settings.live_trading_enabled
+        or settings.nautilus_live_trading_enabled
+        or settings.nautilus_allow_live_order
+        or settings.nautilus_allow_withdrawal
+        or settings.nautilus_allow_transfer
+    ):
+        errors.append("Live orders, transfers, and withdrawals must be disabled")
+    if errors:
+        raise RuntimeError("Invalid staging configuration: " + "; ".join(errors))

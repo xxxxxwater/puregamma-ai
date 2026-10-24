@@ -15,6 +15,12 @@ from apps.api.services.credit_service import quote_task
 router = APIRouter(prefix="/billing", tags=["billing"])
 
 
+def _require_checkout_available() -> None:
+    settings = get_settings()
+    if settings.app_environment.lower() == "staging" and settings.billing_mode != "stripe":
+        raise HTTPException(status_code=503, detail={"code": "BILLING_UNAVAILABLE_IN_STAGING"})
+
+
 class PlanRequest(BaseModel):
     plan_name: str
 
@@ -152,6 +158,7 @@ def capabilities(db: Session = Depends(get_db), user: User = Depends(get_current
 
 @router.post("/create-checkout-session")
 def checkout(payload: PlanRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    _require_checkout_available()
     try:
         result = billing_service.create_checkout_session(db, user.id, payload.plan_name)
         db.commit()
@@ -162,6 +169,7 @@ def checkout(payload: PlanRequest, db: Session = Depends(get_db), user: User = D
 
 @router.post("/create-payment-link-checkout")
 def payment_link_checkout(payload: PlanRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    _require_checkout_available()
     try:
         result = billing_service.create_payment_link_checkout(db, user.id, payload.plan_name)
         db.commit()
@@ -172,6 +180,7 @@ def payment_link_checkout(payload: PlanRequest, db: Session = Depends(get_db), u
 
 @router.post("/create-portal-session")
 def portal(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    _require_checkout_available()
     try:
         return billing_service.create_portal_session(db, user.id)
     except ValueError as exc:
@@ -180,6 +189,7 @@ def portal(db: Session = Depends(get_db), user: User = Depends(get_current_user)
 
 @router.post("/cancel-subscription")
 def cancel_subscription(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    _require_checkout_available()
     try:
         return billing_service.set_subscription_cancel_at_period_end(db, user.id, True)
     except ValueError as exc:
@@ -188,6 +198,7 @@ def cancel_subscription(db: Session = Depends(get_db), user: User = Depends(get_
 
 @router.post("/reactivate-subscription")
 def reactivate_subscription(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    _require_checkout_available()
     try:
         return billing_service.set_subscription_cancel_at_period_end(db, user.id, False)
     except ValueError as exc:
@@ -200,7 +211,7 @@ def mock_upgrade(payload: PlanRequest, db: Session = Depends(get_db), user: User
     # Mock upgrades are a developer-only convenience: they must never be
     # reachable in production, and also not when billing is wired to Stripe
     # (a misconfigured APP_ENV must not silently grant paid entitlements).
-    if settings.app_environment.lower() == "production" or settings.billing_mode != "mock":
+    if settings.app_environment.lower() in {"production", "staging"} or settings.billing_mode != "mock":
         raise HTTPException(status_code=404, detail="Not found")
     try:
         return billing_service.mock_upgrade(db, user.id, payload.plan_name)

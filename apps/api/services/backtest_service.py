@@ -25,7 +25,7 @@ def run_backtest(
 ) -> BacktestRun:
     assert_action_allowed(db, user_id, "backtest")
     normalized_engine = engine.lower().strip()
-    if get_settings().app_environment.lower() == "production" and normalized_engine == "mock":
+    if get_settings().app_environment.lower() in {"production", "staging"} and normalized_engine == "mock":
         raise ValueError("MOCK_BACKTEST_DISABLED_IN_PRODUCTION")
     request_key = idempotency_key or str(uuid.uuid4())
     scoped_key = f"backtest:{user_id}:{request_key}"

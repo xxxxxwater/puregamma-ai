@@ -50,6 +50,11 @@ export function apiWebSocketBaseUrl(): string {
  * model preview. Rebuild the origin from the incoming request there.
  */
 async function resolveApiUrl(): Promise<string> {
+  // A protected preview edge cannot authenticate server-rendered fetches with
+  // the browser's credentials. Keep those reads on the local API connection.
+  if (typeof window === "undefined" && process.env.PUREGAMMA_SERVER_API_URL) {
+    return process.env.PUREGAMMA_SERVER_API_URL;
+  }
   if (typeof window !== "undefined" || ABSOLUTE_URL.test(API_URL)) return API_URL;
   try {
     const { headers } = await import("next/headers");

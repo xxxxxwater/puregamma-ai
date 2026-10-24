@@ -113,7 +113,7 @@ def _dispatch_or_run(db: Session, run_id: str) -> None:
         execute_unified_backtest.delay(run_id)
         return
     except Exception as exc:
-        if get_settings().app_environment.lower() == "production":
+        if get_settings().app_environment.lower() in {"production", "staging"}:
             fail_unified_run(db, run_id, code="BACKTEST_QUEUE_UNAVAILABLE", message=str(exc))
             raise BacktestDispatchUnavailable("Backtest queue is temporarily unavailable") from exc
         # Local/test environments commonly do not run Redis. The same worker

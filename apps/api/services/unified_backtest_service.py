@@ -97,7 +97,7 @@ def queue_unified_run(db: Session, run_id: str) -> str:
         return "celery"
     except Exception as exc:
         from apps.api.config import get_settings
-        if get_settings().app_environment.lower() == "production":
+        if get_settings().app_environment.lower() in {"production", "staging"}:
             fail_unified_run(db, run_id, code="BACKTEST_QUEUE_UNAVAILABLE", message=str(exc))
             raise RuntimeError("Backtest queue is temporarily unavailable") from exc
         execute_unified_run(db, run_id)

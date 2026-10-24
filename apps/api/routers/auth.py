@@ -85,7 +85,7 @@ def serialize_user(user: User) -> dict:
 def _internal_admin_rate_limit(request: Request, username: str, *, success: bool = False) -> None:
     """Five failed attempts per IP/account in 15 minutes; production fails closed."""
     settings = get_settings()
-    if settings.app_environment.lower() != "production":
+    if settings.app_environment.lower() not in {"production", "staging"}:
         return
     forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for")
     client = forwarded.split(",", 1)[0].strip() if forwarded else (request.client.host if request.client else "unknown")
@@ -149,7 +149,7 @@ def mock_login(
     payload: MockLoginRequest, response: Response, db: Session = Depends(get_db)
 ) -> dict:
     settings = get_settings()
-    if settings.app_environment.lower() == "production":
+    if settings.app_environment.lower() in {"production", "staging"}:
         raise HTTPException(status_code=404, detail="Not found")
     user = db.query(User).filter(User.email == payload.email).one_or_none()
     if not user:

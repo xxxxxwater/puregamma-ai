@@ -34,7 +34,7 @@ def snapshot() -> dict:
     settings = get_settings()
     mode = (
         "auto"
-        if settings.app_environment.lower() == "production"
+        if settings.app_environment.lower() in {"production", "staging"}
         and settings.market_data_mode == "mock"
         else settings.market_data_mode
     )
