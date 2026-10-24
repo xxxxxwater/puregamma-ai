@@ -5,6 +5,7 @@
   "stateLive": "已接入",
   "statePending": "尚未接入",
   "stateUnavailable": "暂不可用",
+  "stateGatewayOff": "API 网关未开启",
   "stateChecking": "正在确认状态",
   "stateUnverified": "状态未验证",
   "preview": {
@@ -14,6 +15,7 @@
     "availability": "可用状态",
     "availabilityDetailLive": "已在模型目录中发布，价格已审核。运行健康状态由中转站单独监控。",
     "availabilityDetailPending": "公开目录未显示该模型可用，当前不可计费调用。",
+    "availabilityDetailGatewayOff": "此部署未开启 API 网关。Agent 对话中的模型选项以对话页面为准。",
     "availabilityDetailUnverified": "未能读取模型目录，因此不声明任何上线状态。",
     "whereTitle": "可用位置",
     "chatTitle": "Agent 对话",

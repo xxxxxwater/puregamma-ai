@@ -5,6 +5,7 @@
   "stateLive": "Available",
   "statePending": "Not available yet",
   "stateUnavailable": "Unavailable",
+  "stateGatewayOff": "API Gateway off",
   "stateChecking": "Checking status",
   "stateUnverified": "Status unverified",
   "preview": {
@@ -14,6 +15,7 @@
     "availability": "Availability",
     "availabilityDetailLive": "Published in the model catalog with an approved price. Runtime health is monitored separately by the Gateway.",
     "availabilityDetailPending": "The public catalog does not report this model as available. Nothing here is billable yet.",
+    "availabilityDetailGatewayOff": "The API Gateway is disabled on this deployment. Agent model choices are shown in Agent Chat.",
     "availabilityDetailUnverified": "The catalog could not be reached, so no live state is claimed.",
     "whereTitle": "Where it works",
     "chatTitle": "Agent Chat",

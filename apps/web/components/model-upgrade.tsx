@@ -9,7 +9,15 @@ import { FLASH_ALIAS_ID, FLASH_MODEL_ID, compactTokens, flashAvailability, type 
 import { withLocale, type Locale } from "@/i18n/routing";
 import { getMessageNamespace } from "@/lib/translations";
 
-function availabilityCopy(state: ModelCatalogState, copy: ModelCopy) {
+function availabilityCopy(state: ModelCatalogState, copy: ModelCopy, gatewayEnabled: boolean | null) {
+  if (gatewayEnabled === false) {
+    return {
+      label: copy.stateGatewayOff,
+      detail: copy.preview.availabilityDetailGatewayOff,
+      tone: "neutral" as const,
+      icon: <MinusCircle className="h-3 w-3" aria-hidden />,
+    };
+  }
   if (state === "available") {
     return {
       label: copy.stateLive,
@@ -74,7 +82,7 @@ function DataRow({ label, value }: { label: string; value: string }) {
 export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catalog: GatewayCatalog | null }) {
   const copy = getMessageNamespace(locale, "model-upgrade");
   const { state, model } = flashAvailability(catalog);
-  const availability = availabilityCopy(state, copy);
+  const availability = availabilityCopy(state, copy, catalog?.gateway_enabled ?? null);
   const alias = catalog?.models.find((item) => item.id === FLASH_ALIAS_ID) ?? null;
 
   const contextWindow = compactTokens(model?.capabilities.max_context_tokens);
