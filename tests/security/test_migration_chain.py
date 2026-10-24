@@ -56,14 +56,14 @@ def test_single_alembic_head():
     heads = revisions - parents
     assert len(heads) == 1, f"expected exactly one head, got {sorted(heads)}"
     head = next(iter(heads))
-    assert head == "0034_gateway_wallet_reservations"
+    assert head == "0035_repair_legacy_schema"
 
 
 def test_chain_is_connected_and_acyclic():
     graph = _load_graph()
     # Walk the chain from the head back to the root; detect missing parents
     # and cycles by visited-count (a cycle would require re-visiting a node).
-    stack = ["0034_gateway_wallet_reservations"]
+    stack = ["0035_repair_legacy_schema"]
     visited: set[str] = set()
     while stack:
         revision = stack.pop()

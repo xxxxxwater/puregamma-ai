@@ -92,13 +92,17 @@ POST_BASELINE_TABLES = {
 }
 
 
-def _schema_gaps(*, ignore_columns: set[tuple[str, str]] | None = None) -> list[str]:
+def _schema_gaps(
+    *,
+    ignore_columns: set[tuple[str, str]] | None = None,
+    allow_missing_post_baseline_tables: bool = False,
+) -> list[str]:
     inspector = inspect(engine)
     existing_tables = set(inspector.get_table_names())
     ignore_columns = ignore_columns or set()
     gaps: list[str] = []
     for table in Base.metadata.sorted_tables:
-        if table.name in POST_BASELINE_TABLES and table.name not in existing_tables:
+        if allow_missing_post_baseline_tables and table.name in POST_BASELINE_TABLES and table.name not in existing_tables:
             continue
         if table.name not in existing_tables:
             gaps.append(f"missing table {table.name}")
@@ -113,7 +117,10 @@ def _schema_gaps(*, ignore_columns: set[tuple[str, str]] | None = None) -> list[
 
 
 def _baseline_schema_gaps() -> list[str]:
-    return _schema_gaps(ignore_columns=POST_BASELINE_COLUMNS)
+    return _schema_gaps(
+        ignore_columns=POST_BASELINE_COLUMNS,
+        allow_missing_post_baseline_tables=True,
+    )
 
 
 def upgrade_database(*, allow_stamp_existing: bool = True) -> None:
@@ -140,6 +147,9 @@ def upgrade_database(*, allow_stamp_existing: bool = True) -> None:
             )
         command.stamp(config, "0001_baseline")
     command.upgrade(config, "head")
+    gaps = _schema_gaps()
+    if gaps:
+        raise RuntimeError("Database schema incomplete after migration: " + "; ".join(gaps[:20]))
 
 
 def init_db() -> None:
