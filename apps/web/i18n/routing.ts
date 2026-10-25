@@ -18,6 +18,7 @@ export const legacyLocaleRoutes = [
   "/data-sources",
   "/nautilus",
   "/strategies",
+  "/trading",
   "/trading/paper",
   "/trading/runtime",
   "/trading/positions",

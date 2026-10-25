@@ -6,6 +6,19 @@ import { isChinaIP } from "@/lib/geoip";
 const PUBLIC_FILE = /\.(.*)$/;
 const INITIAL_LAUNCH_HIDDEN = ["/signals", "/playbooks", "/strategies", "/trading", "/nautilus", "/data-sources", "/integrations", "/daily-push", "/billing/mock-checkout"];
 
+const PUBLIC_SAAS_HOSTS = new Set(["new.puregamma.ai", "app.puregamma.ai"]);
+const INSTABOX_PREVIEW_HOST = /^3100-[a-z0-9]+\.instabox\.tech$/;
+
+/** Next.js requires an absolute Location; accept only our known public hosts. */
+function redirectTo(request: NextRequest, pathname: string, search = "") {
+  const candidates = [request.headers.get("host"), request.headers.get("x-forwarded-host")];
+  const publicHost = candidates
+    .map((candidate) => candidate?.split(",")[0]?.trim().toLowerCase().replace(/:443$/, ""))
+    .find((candidate) => candidate && (PUBLIC_SAAS_HOSTS.has(candidate) || INSTABOX_PREVIEW_HOST.test(candidate)));
+  const origin = publicHost ? `https://${publicHost}` : request.nextUrl.origin;
+  return NextResponse.redirect(new URL(`${pathname}${search}`, origin));
+}
+
 async function resolveLocale(request: NextRequest, useGeo: boolean): Promise<string> {
   const cookieLocale = request.cookies.get(localeCookieName)?.value;
   if (isLocale(cookieLocale)) return cookieLocale;
@@ -30,19 +43,13 @@ export async function middleware(request: NextRequest) {
     const localPath = pathname.replace(localePrefixPattern, "") || "/";
     const initialLaunch = process.env.NEXT_PUBLIC_INITIAL_LAUNCH_MODE !== "false";
     if (initialLaunch && INITIAL_LAUNCH_HIDDEN.some((route) => localPath === route || localPath.startsWith(`${route}/`))) {
-      const url = request.nextUrl.clone();
-      url.pathname = `/${pathnameLocale}/dashboard`;
-      url.search = "";
-      return NextResponse.redirect(url);
+      return redirectTo(request, `/${pathnameLocale}/dashboard`);
     }
     const sessionCookieName = process.env.SESSION_COOKIE_NAME || "pg_session";
     const authenticationRequired = process.env.REQUIRE_AUTH === "true";
     if (authenticationRequired && requiresAuthentication(localPath) && !request.cookies.get(sessionCookieName)) {
-      const url = request.nextUrl.clone();
       const returnTo = `${pathname}${search}`;
-      url.pathname = `/${pathnameLocale}/login`;
-      url.search = `?returnTo=${encodeURIComponent(returnTo)}`;
-      return NextResponse.redirect(url);
+      return redirectTo(request, `/${pathnameLocale}/login`, `?returnTo=${encodeURIComponent(returnTo)}`);
     }
     const response = NextResponse.next();
     response.cookies.set(localeCookieName, pathnameLocale, { path: "/", sameSite: "lax" });
@@ -53,10 +60,7 @@ export async function middleware(request: NextRequest) {
 
   if (shouldRedirect) {
     const preferred = await resolveLocale(request, pathname === "/");
-    const url = request.nextUrl.clone();
-    url.pathname = `/${preferred}${pathname === "/" ? "" : pathname}`;
-    url.search = search;
-    return NextResponse.redirect(url);
+    return redirectTo(request, `/${preferred}${pathname === "/" ? "" : pathname}`, search);
   }
 
   return NextResponse.next();

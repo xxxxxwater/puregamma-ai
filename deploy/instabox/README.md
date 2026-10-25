@@ -1,6 +1,6 @@
 # PureGamma AI on Instabox `pg-test`
 
-This deployment is an isolated SaaS preview on the existing `pg-test` box. The original display server and `app.puregamma.ai` routing are outside this deployment. Existing PG-TSY, collector, translation, VPN, and other containers on `pg-test` must remain running.
+This deployment runs the new SaaS on the existing `pg-test` box. `new.puregamma.ai` is the public hostname; the original display sites and `app.puregamma.ai` routing are outside this deployment. Existing PG-TSY, collector, translation, VPN, and other containers on `pg-test` must remain running.
 
 ## Layout
 
@@ -11,9 +11,16 @@ This deployment is an isolated SaaS preview on the existing `pg-test` box. The o
 | API | `pg-ai-preview-api.service` at `127.0.0.1:8100` |
 | Web | `pg-ai-preview-web.service` at `127.0.0.1:3101` |
 | Edge | `puregamma-ai-preview-edge` on host port `3100`, HTTPS through Instabox, Basic Auth at the edge |
+| Domain origin | `puregamma-ai-new-domain-edge` on host port `3102`, reached through the published Instabox HTTPS URL and guarded by a private edge token |
 | Redis | `puregamma-ai-preview-redis` at `127.0.0.1:16379` |
 
 Private data is never committed to the public GitHub repository. The migrated SQLite database contains the local users and conversation records; its original snapshot and pre-migration snapshots are retained in the private directory. Upload storage is mounted there as well. The archived server backups under `archives/` are preserved and were not restored into the active database.
+
+## Public domain
+
+Gandi points `new.puregamma.ai` to the existing display server, whose separate Caddy virtual host terminates TLS and forwards only this hostname to the published Instabox port `3102`. The `pg-test` edge checks `X-PG-Edge-Token` and forwards to Web/API on localhost. The existing `3100` Basic Auth preview remains separate. Keep the edge token in private server files and never commit it.
+
+The API's private staging environment uses `SITE_URL=https://new.puregamma.ai` and includes both the public hostname and the Instabox preview hostname in `CORS_ORIGINS`. Web middleware must construct redirects from a trusted public hostname; its internal `127.0.0.1:3101` address must never appear in public `Location` headers. When changing the domain, check authenticated POST requests as well as page loads.
 
 ## Release procedure
 
