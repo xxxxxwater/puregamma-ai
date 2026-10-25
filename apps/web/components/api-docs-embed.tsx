@@ -397,12 +397,12 @@ PUREGAMMA_MODEL=${selectedId}
 
   const content = zh ? {
     eyebrow: "PureGamma API · OpenAI Compatible",
-    title: "选择模型，复制配置，直接上线",
-    description: "与 OpenAI SDK 兼容的轻量 API Gateway。使用您自己的 sk-pg 密钥和独立 API 预付余额；我们只路由到官方 Provider API。",
+    title: "浏览 PureGamma AI 模型目录",
+    description: "查看当前部署的模型、能力与价格。Gateway 启用后，可使用独立 API 密钥和预付余额连接官方 Provider API。",
     console: "打开 API 控制台",
     fullDocs: "完整 API 文档",
     models: "模型目录",
-    select: "选择模型后，Quick Start、代码示例与参数会同步切换。",
+    select: "选择模型后，模型信息与参数会同步切换；Gateway 可用时显示调用示例。",
     perMillion: "按百万 tokens",
     modelId: "PureGamma 模型 ID",
     upstream: "官方上游 ID",
@@ -446,12 +446,12 @@ PUREGAMMA_MODEL=${selectedId}
     stack: "OpenAI SDK · Dify · LangChain · Cursor · Continue · Open WebUI",
   } : {
     eyebrow: "PureGamma API · OpenAI Compatible",
-    title: "Choose a model, copy the configuration, and ship",
-    description: "A lightweight OpenAI-compatible API Gateway. Use your own sk-pg key and separate prepaid API balance; PureGamma routes only to official provider APIs.",
+    title: "Explore the PureGamma AI model catalog",
+    description: "Review the models, capabilities, and pricing on this deployment. When Gateway is enabled, a separate API key and prepaid balance connect to official provider APIs.",
     console: "Open API Console",
     fullDocs: "Full API docs",
     models: "Model catalog",
-    select: "Select a model and the Quick Start, code samples, and parameters update together.",
+    select: "Select a model to update its details and parameters. Request examples appear when Gateway is available.",
     perMillion: "per 1M tokens",
     modelId: "PureGamma model ID",
     upstream: "Official upstream ID",
@@ -659,7 +659,7 @@ PUREGAMMA_MODEL=${selectedId}
 
           <div className="grid gap-5 lg:grid-cols-2">
             <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><Zap className="h-3.5 w-3.5" />{content.streamTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.streamDescription}</p>{selectedCallable ? <div className="mt-4"><CodeBlock language="TypeScript" value={snippets.streamTools} copyLabel={content.copy} copiedLabel={content.copied} compact /></div> : null}</section>
-            <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><WalletCards className="h-3.5 w-3.5" />{content.walletTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.walletDescription}</p><div className="mt-5 border-t border-border-pg pt-4 text-xs leading-5 text-text-pg-muted"><LockKeyhole className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />{content.safety}</div></section>
+            <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><WalletCards className="h-3.5 w-3.5" />{content.walletTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{catalog?.gateway_enabled ? content.walletDescription : zh ? "当前预览未开放 Gateway 充值或 API 付款。" : "API top-ups and payments are unavailable on this preview."}</p><div className="mt-5 border-t border-border-pg pt-4 text-xs leading-5 text-text-pg-muted"><LockKeyhole className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />{content.safety}</div></section>
           </div>
         </main>
 
