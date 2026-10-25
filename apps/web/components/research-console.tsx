@@ -103,7 +103,7 @@ export function ResearchConsole({ locale }: { locale: Locale }) {
             <button
               type="button"
               onClick={() => setShowForm((value) => !value)}
-              className="border border-border-pg px-3 py-2 text-xs font-medium transition hover:border-border-pg-strong"
+              className="rounded-lg border border-border-pg px-3 py-2 text-xs font-medium transition hover:border-border-pg-strong"
             >
               {showForm ? (zh ? "收起" : "Collapse") : (zh ? "+ 新建研究任务" : "+ New research run")}
             </button>
@@ -113,19 +113,19 @@ export function ResearchConsole({ locale }: { locale: Locale }) {
           </div>
 
           {showForm ? (
-            <div className="mb-4 border border-border-pg bg-bg-panel p-4">
+            <div className="mb-4 rounded-xl border border-border-pg bg-bg-panel p-4">
               <input
                 value={name}
                 onChange={(event) => setName(event.target.value)}
                 placeholder={zh ? "任务名称(可选)" : "Run name (optional)"}
-                className="w-full border border-border-pg bg-transparent px-3 py-2 text-sm text-text-pg outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong"
+                className="w-full rounded-lg border border-border-pg bg-transparent px-3 py-2 text-sm text-text-pg outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong"
               />
               <textarea
                 value={prompt}
                 onChange={(event) => setPrompt(event.target.value)}
                 placeholder={zh ? "研究问题,例如:近 90 天 BTC 资金费率与价格偏离的关系" : "Research question, e.g. how funding rates diverged from BTC price over 90 days"}
                 rows={3}
-                className="mt-2 w-full border border-border-pg bg-transparent px-3 py-2 text-sm text-text-pg outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong"
+                className="mt-2 w-full rounded-lg border border-border-pg bg-transparent px-3 py-2 text-sm text-text-pg outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong"
               />
               <div className="mt-2 flex flex-wrap items-center gap-2">
                 {DATA_SOURCE_OPTIONS.map((source) => (
@@ -133,7 +133,7 @@ export function ResearchConsole({ locale }: { locale: Locale }) {
                     key={source}
                     type="button"
                     onClick={() => toggleSource(source)}
-                    className={`border px-2.5 py-1 text-xs transition ${sources.includes(source) ? "border-ocean-cyan text-ocean-cyan" : "border-border-pg text-text-pg-muted hover:border-border-pg-strong"}`}
+                    className={`rounded-full border px-2.5 py-1 text-xs transition ${sources.includes(source) ? "border-ocean-cyan text-ocean-cyan" : "border-border-pg text-text-pg-muted hover:border-border-pg-strong"}`}
                   >
                     {source}
                   </button>
@@ -144,7 +144,7 @@ export function ResearchConsole({ locale }: { locale: Locale }) {
                 type="button"
                 onClick={() => void submit()}
                 disabled={submitting || !prompt.trim()}
-                className="mt-3 border border-ocean-cyan px-4 py-2 text-xs font-medium text-ocean-cyan transition disabled:opacity-40"
+                className="mt-3 rounded-lg border border-ocean-cyan px-4 py-2 text-xs font-medium text-ocean-cyan transition disabled:opacity-40"
               >
                 {submitting ? (zh ? "创建中…" : "Creating…") : (zh ? "开始研究" : "Start research")}
               </button>
@@ -152,18 +152,18 @@ export function ResearchConsole({ locale }: { locale: Locale }) {
           ) : null}
 
           {runs.length === 0 ? (
-            <div className="border border-border-pg bg-bg-panel p-6 text-sm text-text-pg-muted">
+            <div className="rounded-xl border border-border-pg bg-bg-panel p-6 text-sm text-text-pg-muted">
               {zh ? "还没有研究任务。点击上方“新建研究任务”开始第一个深度研究。" : "No research runs yet. Click “New research run” above to start your first deep research."}
             </div>
           ) : (
             <ul className="space-y-3">
               {runs.map((run) => (
                 <li key={run.id}>
-                  <RippleEffect as="div" className="group cursor-pointer">
+                  <RippleEffect as="div" className="group cursor-pointer rounded-2xl">
                     <button
                       type="button"
                       onClick={() => router.push(withLocale(locale, `/research/${run.id}`))}
-                      className={`w-full border bg-bg-panel p-4 text-left transition hover:border-border-pg-strong ${ACTIVE_STATUSES.has(run.status) ? "ocean-flowing-border" : "border-border-pg"}`}
+                      className={`w-full rounded-2xl border bg-bg-panel p-4 text-left transition hover:border-border-pg-strong ${ACTIVE_STATUSES.has(run.status) ? "ocean-flowing-border" : "border-border-pg"}`}
                     >
                       <div className="flex flex-wrap items-start justify-between gap-3">
                         <div className="min-w-0">

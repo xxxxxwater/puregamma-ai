@@ -223,28 +223,28 @@ export function ResearchRunDetail({ locale, runId }: { locale: Locale; runId: st
                   </div>
                 </div>
                 {run.is_degraded ? (
-                  <p className="mt-3 border border-status-warning bg-bg-panel p-3 text-sm text-status-warning">
+                  <p className="mt-3 rounded-lg border border-status-warning bg-bg-panel p-3 text-sm text-status-warning">
                     {zh ? "该任务结果已降级：部分证据缺失，结论仅供参考。" : "This run is degraded: some evidence is missing, conclusions are partial."}
                   </p>
                 ) : null}
                 {run.status === "failed" || run.status === "timed_out" ? (
-                  <p className="mt-3 border border-status-negative bg-bg-panel p-3 text-sm text-status-negative">
+                  <p className="mt-3 rounded-lg border border-status-negative bg-bg-panel p-3 text-sm text-status-negative">
                     {run.error_message || (zh ? "任务失败，请查看服务端状态。" : "Run failed; see the server-side status.")}
                   </p>
                 ) : null}
               </header>
 
-              <section className="border border-border-pg bg-bg-panel p-4 md:p-5">
+              <section className="rounded-xl border border-border-pg bg-bg-panel p-4 md:p-5">
                 <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-pg-muted">{zh ? "任务时间线" : "Run timeline"}</h2>
                 <ResearchTimeline locale={locale} nodes={stagesForStatus(run.status)} />
               </section>
 
-              <section className="border border-border-pg bg-bg-panel p-4 md:p-5">
+              <section className="rounded-xl border border-border-pg bg-bg-panel p-4 md:p-5">
                 <h2 className="mb-4 text-sm font-semibold uppercase tracking-wide text-text-pg-muted">{zh ? "证据关系" : "Evidence relationships"}</h2>
                 {evidenceNodes.length ? <EvidenceGraph nodes={evidenceNodes} locale={locale} /> : <p className="text-sm text-text-pg-muted">{zh ? "证据数据将在任务完成后显示。" : "Evidence will appear once the run produces it."}</p>}
               </section>
 
-              <section className="border border-border-pg bg-bg-panel p-4 md:p-5">
+              <section className="rounded-xl border border-border-pg bg-bg-panel p-4 md:p-5">
                 <h2 className="mb-3 text-sm font-semibold uppercase tracking-wide text-text-pg-muted">{zh ? "研究产出" : "Research artifact"}</h2>
                 {run.summary ? (
                   <>
@@ -253,7 +253,7 @@ export function ResearchRunDetail({ locale, runId }: { locale: Locale; runId: st
                       <ul className="mt-4 space-y-2 border-t border-border-pg pt-3">
                         {artifacts.map((artifact) => (
                           <li key={artifact.id} className="flex items-center gap-2 text-xs">
-                            <span className="border border-border-pg px-1.5 py-0.5 uppercase text-text-pg-muted">{artifact.type}</span>
+                            <span className="rounded-lg border border-border-pg px-1.5 py-0.5 uppercase text-text-pg-muted">{artifact.type}</span>
                             {artifact.url ? (
                               <a href={artifact.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-ocean-cyan hover:underline">
                                 <LinkIcon className="h-3 w-3" aria-hidden />

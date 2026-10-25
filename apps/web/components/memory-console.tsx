@@ -190,7 +190,7 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
 
         {settings ? (
           <>
-            <section className="border border-border-pg bg-bg-panel">
+            <section className="overflow-hidden rounded-xl border border-border-pg bg-bg-panel">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-pg p-4">
                 <h2 className="font-semibold">{zh ? "Scope 开关" : "Memory scopes"}</h2>
                 <span className="text-xs text-text-pg-dim">{zh ? "保留期" : "Retention"}: {settings.retention_days} {zh ? "天" : "days"}</span>
@@ -220,9 +220,9 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
                         aria-checked={enabled}
                         disabled={busy.startsWith(scope.key) || busy.startsWith("consent")}
                         onClick={() => void toggleScope(scope.key, !enabled)}
-                        className={`h-8 w-14 border p-1 disabled:opacity-50 rounded-lg ${enabled ? "border-border-pg-strong" : "border-border-pg"}`}
+                        className={`h-8 w-14 rounded-full border p-1 disabled:opacity-50 ${enabled ? "border-border-pg-strong" : "border-border-pg"}`}
                       >
-                        <span className={`block h-5 w-5 transition-transform ${enabled ? "translate-x-6 bg-text-pg" : "translate-x-0 bg-text-pg-dim"}`} />
+                        <span className={`block h-5 w-5 rounded-full transition-transform ${enabled ? "translate-x-6 bg-text-pg" : "translate-x-0 bg-text-pg-dim"}`} />
                       </button>
                     </div>
                   );
@@ -231,7 +231,7 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
             </section>
 
             {consentPrompt ? (
-              <div role="dialog" aria-modal="true" aria-label={zh ? "记忆授权" : "Memory consent"} className="mt-4 border border-status-warning bg-bg-panel p-4">
+              <div role="dialog" aria-modal="true" aria-label={zh ? "记忆授权" : "Memory consent"} className="mt-4 rounded-xl border border-status-warning bg-bg-panel p-4">
                 <div className="flex items-start gap-3">
                   <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-status-warning" aria-hidden />
                   <div className="min-w-0 flex-1">
@@ -250,7 +250,7 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
               </div>
             ) : null}
 
-            <section className="mt-4 border border-border-pg bg-bg-panel">
+            <section className="mt-4 overflow-hidden rounded-xl border border-border-pg bg-bg-panel">
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-pg p-4">
                 <h2 className="flex items-center gap-2 font-semibold"><Clock3 className="h-4 w-4" aria-hidden />{zh ? "待批准的记忆提议" : "Pending memory proposals"}</h2>
                 <span className="text-xs text-text-pg-dim">{proposals.length} {zh ? "条待处理" : "pending"}</span>
@@ -280,7 +280,7 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
               )}
             </section>
 
-            <section className="mt-4 border border-border-pg bg-bg-panel">
+            <section className="mt-4 overflow-hidden rounded-xl border border-border-pg bg-bg-panel">
               <div className="border-b border-border-pg p-4">
                 <h2 className="font-semibold">{zh ? "已保存的记忆条目" : "Saved memory items"}</h2>
               </div>
@@ -312,7 +312,7 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
               )}
             </section>
 
-            <section className="mt-4 flex flex-wrap gap-2 border border-border-pg bg-bg-panel p-4">
+            <section className="mt-4 flex flex-wrap gap-2 rounded-xl border border-border-pg bg-bg-panel p-4">
               {confirmClear ? (
                 <>
                   <p className="w-full text-xs text-status-warning">{zh ? "清空操作不可撤销。确认清空所选范围的记忆？" : "Clearing is irreversible. Confirm clearing the selected memory scope?"}</p>

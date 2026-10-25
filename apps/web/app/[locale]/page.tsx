@@ -31,9 +31,10 @@ export default async function LandingPage({ params }: { params: { locale: Locale
       <section className="rounded-3xl border border-border-pg bg-bg-panel p-6 shadow-panel md:p-10 lg:p-12">
         <div className="flex flex-wrap items-center gap-3 text-sm" data-testid="model-announcement" data-model-availability={availability.state}>
           <Badge tone="neutral">
-            <span className="inline-flex items-center gap-1.5">{modelCopy.announcement}</span>
+            <span className="inline-flex items-center gap-1.5">{availability.state === "available" ? modelCopy.announcement : `${locale === "zh" ? "Agent 默认模型" : "Agent default"} · ${modelCopy.modelName}`}</span>
           </Badge>
           <span className="text-text-pg-muted">{modelCopy.announcementDetail}</span>
+          {availability.state !== "available" ? <Badge tone="neutral">{catalog && !catalog.gateway_enabled ? modelCopy.stateGatewayOff : availability.state === "unknown" ? modelCopy.stateUnverified : modelCopy.statePending}</Badge> : null}
         </div>
         <div className="grid gap-10 pb-5 pt-12 lg:grid-cols-[1.08fr_0.92fr] lg:items-center lg:pb-10 lg:pt-16">
           <div>

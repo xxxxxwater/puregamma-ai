@@ -8,12 +8,14 @@ import { UsagePanel } from "@/components/usage-panel";
 import { changeGatewayKeyStatus, createGatewayKey, createGatewayTopup, rotateGatewayKey, type GatewayDashboard, type GatewayKey, type GatewayRequest, type GatewayUsage } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
 import { withLocale } from "@/i18n/routing";
+import { useGatewayBaseUrl } from "@/lib/gateway-base-url";
 
 type Props = { locale: Locale; dashboard: GatewayDashboard; initialKeys: GatewayKey[]; initialRequests: GatewayRequest[]; initialUsage: GatewayUsage };
 
 const money = (value: string) => `$${Number(value || 0).toFixed(4)}`;
 
 export function GatewayConsole({ locale, dashboard, initialKeys, initialRequests, initialUsage }: Props) {
+  const gatewayBaseUrl = useGatewayBaseUrl();
   const zh = locale === "zh";
   const [keys, setKeys] = useState(initialKeys);
   const [oneTimeKey, setOneTimeKey] = useState<string | null>(null);
@@ -100,7 +102,7 @@ export function GatewayConsole({ locale, dashboard, initialKeys, initialRequests
 
     <ResearchCard>
       <div className="flex flex-wrap items-start justify-between gap-3">
-        <div><div className="text-eyebrow uppercase text-text-pg-muted">OpenAI compatible</div><h2 className="mt-1 font-semibold">{zh ? "API 密钥" : "API keys"}</h2><p className="mt-1 text-sm text-text-pg-muted">{zh ? "Base URL: https://api.puregamma.ai/v1" : "Base URL: https://api.puregamma.ai/v1"}</p></div>
+        <div><div className="text-eyebrow uppercase text-text-pg-muted">OpenAI compatible</div><h2 className="mt-1 font-semibold">{zh ? "API 密钥" : "API keys"}</h2><p className="mt-1 break-all text-sm text-text-pg-muted">Base URL: {gatewayBaseUrl}</p></div>
         <button type="button" onClick={create} disabled={busy || keys.filter((key) => key.status !== "revoked").length >= 10} className="inline-flex min-h-10 items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-2 text-sm font-semibold text-[var(--pg-text-inverse)] transition-opacity hover:opacity-80 disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><KeyRound className="h-4 w-4" />{zh ? "创建密钥" : "Create key"}</button>
       </div>
       {oneTimeKey ? <div className="mt-4 border-l-[3px] border-text-pg bg-bg-panel-muted p-3"><div className="text-xs font-semibold uppercase tracking-wider text-text-pg">{zh ? "仅显示一次" : "Shown once"}</div><div className="mt-2 flex flex-wrap items-center gap-2"><code className="max-w-full overflow-x-auto border border-border-pg px-2 py-1 text-xs">{oneTimeKey}</code><button type="button" onClick={() => void copy(oneTimeKey)} className="inline-flex min-h-9 items-center gap-1 border border-border-pg px-2 py-1 text-xs focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><Copy className="h-3 w-3" />{zh ? "复制" : "Copy"}</button></div></div> : null}

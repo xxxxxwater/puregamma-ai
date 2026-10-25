@@ -191,10 +191,10 @@ export function CreditCostBadge({ cost, locale = defaultLocale }: { cost: number
 type PlanIdentity = "silver" | "gold" | "black-gold" | "prestige";
 
 const planIdentityStyles: Record<PlanIdentity, string> = {
-  silver: "border-[var(--muted-2)] bg-[var(--muted-2)]/10 text-[var(--muted)]",
-  gold: "border-[var(--warning)] bg-[var(--warning)]/10 text-[var(--warning)]",
-  "black-gold": "border-[var(--warning)] bg-[var(--panel-strong)] text-[var(--warning)]",
-  prestige: "border-[var(--info)] bg-[var(--info)]/10 text-[var(--info)]",
+  silver: "border-[var(--border)] bg-[var(--panel-muted)] text-[var(--muted)]",
+  gold: "border-[var(--border-strong)] bg-[var(--panel-strong)] text-[var(--foreground)]",
+  "black-gold": "border-[var(--pg-surface-inverse)] bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)]",
+  prestige: "border-[var(--foreground)] bg-[var(--panel)] text-[var(--foreground)]",
 };
 
 function planIdentity(plan: string): PlanIdentity {

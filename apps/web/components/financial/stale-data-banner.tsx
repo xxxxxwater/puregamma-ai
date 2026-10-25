@@ -29,7 +29,7 @@ export function StaleDataBanner({ stale, updatedAt, locale, onRefresh, reconcili
   }
 
   return (
-    <div role="alert" className="flex flex-wrap items-start gap-3 border border-status-warning bg-bg-panel-muted p-3">
+    <div role="alert" className="flex flex-wrap items-start gap-3 rounded-xl border border-status-warning bg-bg-panel-muted p-3">
       <CircleAlert className="mt-0.5 h-5 w-5 shrink-0 text-status-warning" aria-hidden />
       <div className="min-w-0 flex-1">
         <p className="text-sm font-semibold text-status-warning">{zh ? "数据已过期（stale）" : "Data is stale"}</p>

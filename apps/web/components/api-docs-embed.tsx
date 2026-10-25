@@ -22,11 +22,11 @@ import { useEffect, useState } from "react";
 import { useLocale } from "@/components/i18n/LocaleProvider";
 import { PageHeader } from "@/components/puregamma";
 import { getGatewayCatalog, type GatewayCatalog, type GatewayCatalogModel, type GatewayCatalogPrice } from "@/lib/api";
+import { useGatewayBaseUrl } from "@/lib/gateway-base-url";
 import { catalogAvailabilityLabel, catalogProviderLabel } from "@/lib/model-catalog";
 import { getMessageNamespace } from "@/lib/translations";
 import { withLocale } from "@/i18n/routing";
 
-const baseUrl = "https://api.puregamma.ai/v1";
 const docsBaseUrl = (process.env.NEXT_PUBLIC_DOCS_URL || "https://puregamma-ai.gitbook.io/puregamma-ai").replace(/\/+$/, "");
 
 const modelNarratives = {
@@ -287,10 +287,11 @@ function PriceCompare({
 export function ApiDocsEmbed() {
   const locale = useLocale();
   const zh = locale === "zh";
+  const baseUrl = useGatewayBaseUrl();
   const modelCopy = getMessageNamespace(locale, "model-upgrade");
   const docsUrl = zh ? `${docsBaseUrl}/api-gateway` : `${docsBaseUrl}/api-gateway-en`;
   const [catalog, setCatalog] = useState<GatewayCatalog | null>(null);
-  const [selectedId, setSelectedId] = useState<string>("deepseek-flash");
+  const [preferredId, setSelectedId] = useState<string>("deepseek-flash");
   const [language, setLanguage] = useState<CodeLanguage>("curl");
 
   useEffect(() => {
@@ -301,8 +302,16 @@ export function ApiDocsEmbed() {
     return () => { active = false; };
   }, [locale]);
 
-  const catalogModels = catalog?.models ?? [];
-  const selectedCatalog = catalogModels.find((model) => model.id === selectedId);
+  const catalogModels = catalog && !catalog.unavailable ? catalog.models : [];
+  const selectedCatalog = catalogModels.find((model) => model.id === preferredId)
+    ?? catalogModels.find((model) => model.availability === "available")
+    ?? catalogModels[0];
+  const selectedId = selectedCatalog?.id ?? "";
+  const modelCards = [...catalogModels].sort((left, right) => {
+    const leftRank = modelOrder.indexOf(left.id as ModelId);
+    const rightRank = modelOrder.indexOf(right.id as ModelId);
+    return (leftRank < 0 ? modelOrder.length : leftRank) - (rightRank < 0 ? modelOrder.length : rightRank);
+  });
   const narrative = narrativeFor(selectedId, selectedCatalog, zh, modelCopy);
   const selectedName = narrative.title;
   const currency = selectedCatalog?.pricing?.currency || "USD";  const pricingHeading = zh ? "价格明细" : "Pricing details";
@@ -315,15 +324,9 @@ export function ApiDocsEmbed() {
   const final = selectedCatalog?.pricing?.final || {};
   // Availability is read from the live catalog, never asserted in copy: the
   // "live" wording only appears once the Gateway really serves the model.
-  const selectedAvailabilityLabel = selectedCatalog
-    ? {
-        available: zh ? "已上线" : "Live",
-        pending_approval: zh ? "预览中 · 待价格审批" : "Preview · price pending approval",
-        provider_disabled: zh ? "暂不可用 · 渠道已停用" : "Unavailable · provider disabled",
-        setup_required: zh ? "配置中" : "Setup required",
-      }[selectedCatalog.availability]
-    : null;
+  const selectedAvailabilityLabel = selectedCatalog ? catalogAvailabilityLabel(selectedCatalog, catalog, zh) : null;
   const availabilityIsLive = selectedCatalog?.availability === "available" && Boolean(catalog?.gateway_enabled);
+  const selectedCallable = availabilityIsLive && selectedCatalog?.pricing?.status === "active";
 
   const snippets = {
     env: `# Server only — never expose this value to a browser or mobile app
@@ -518,8 +521,8 @@ PUREGAMMA_MODEL=${selectedId}
           <p className="max-w-xl text-sm leading-6 text-text-pg-muted">{content.select}</p>
         </div>
         <div className="grid gap-3 md:grid-cols-2 2xl:grid-cols-4">
-          {modelOrder.map((id) => {
-            const model = catalogModels.find((candidate) => candidate.id === id);
+          {modelCards.map((model) => {
+            const id = model.id;
             const info = narrativeFor(id, model, zh, modelCopy);
             const cardPricing = model?.pricing;
             const input = cardPricing?.official.input;
@@ -557,11 +560,10 @@ PUREGAMMA_MODEL=${selectedId}
               </button>
             );
           })}
+          {!modelCards.length ? <div role="status" className="rounded-2xl border border-border-pg bg-bg-panel-muted p-5 text-sm text-text-pg-muted md:col-span-2 2xl:col-span-4">{catalog?.unavailable ? modelCopy.preview.catalogUnavailable : catalog ? modelCopy.preview.catalogEmpty : modelCopy.stateChecking}</div> : null}
         </div>
 
-        {/* The curated cards above are curated; this table is the catalog itself.
-            A model this deployment starts serving is listed here even before
-            anyone writes copy for it. */}
+        {/* The cards and the table are both derived from this deployment's catalog. */}
         <div className="mt-6 min-w-0 rounded-2xl border border-border-pg bg-bg-panel p-5 shadow-card" data-testid="catalog-model-table">
           <div className="flex min-w-0 flex-wrap items-end justify-between gap-3">
             <div>
@@ -626,7 +628,7 @@ PUREGAMMA_MODEL=${selectedId}
           let content inflate the track, so the constraint has to sit on the
           items; adding it further down the tree (the table wrapper) changed
           nothing, which is how the first attempt failed. */}
-      <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(390px,0.84fr)] xl:items-start">
+      {selectedCatalog ? <div className="mt-5 grid min-w-0 gap-5 xl:grid-cols-[minmax(0,1fr)_minmax(390px,0.84fr)] xl:items-start">
         <main className="order-2 min-w-0 max-w-full space-y-5 xl:order-1">
           <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
             <div className="flex flex-col items-start gap-4 sm:flex-row sm:justify-between">
@@ -652,16 +654,16 @@ PUREGAMMA_MODEL=${selectedId}
           </section>
 
           <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
-            <div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><ServerCog className="h-3.5 w-3.5" />04 / {content.backend}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{content.backend}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{content.backendDescription}</p><div className="mt-5 min-w-0 max-w-full"><CodeBlock language=".env.production" value={snippets.backend} copyLabel={content.copy} copiedLabel={content.copied} /></div>
+            <div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><ServerCog className="h-3.5 w-3.5" />04 / {content.backend}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{content.backend}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{content.backendDescription}</p>{selectedCallable ? <div className="mt-5 min-w-0 max-w-full"><CodeBlock language=".env.production" value={snippets.backend} copyLabel={content.copy} copiedLabel={content.copied} /></div> : <p role="status" className="mt-5 rounded-xl border border-border-pg bg-bg-panel-muted p-4 text-sm text-text-pg-muted">{zh ? "当前部署尚不能调用此模型，接入示例将在 Gateway 启用且价格审核通过后显示。" : "This model cannot be called on this deployment. Integration examples appear after Gateway is enabled and pricing is approved."}</p>}
           </section>
 
           <div className="grid gap-5 lg:grid-cols-2">
-            <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><Zap className="h-3.5 w-3.5" />{content.streamTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.streamDescription}</p><div className="mt-4"><CodeBlock language="TypeScript" value={snippets.streamTools} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></section>
+            <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><Zap className="h-3.5 w-3.5" />{content.streamTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.streamDescription}</p>{selectedCallable ? <div className="mt-4"><CodeBlock language="TypeScript" value={snippets.streamTools} copyLabel={content.copy} copiedLabel={content.copied} compact /></div> : null}</section>
             <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl"><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><WalletCards className="h-3.5 w-3.5" />{content.walletTitle}</div><p className="mt-3 text-sm leading-6 text-text-pg-muted">{content.walletDescription}</p><div className="mt-5 border-t border-border-pg pt-4 text-xs leading-5 text-text-pg-muted"><LockKeyhole className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />{content.safety}</div></section>
           </div>
         </main>
 
-        <aside className="order-1 min-w-0 max-w-full overflow-hidden rounded-2xl border border-border-pg bg-bg-panel shadow-card xl:sticky xl:top-6 xl:order-2">
+        {selectedCallable ? <aside className="order-1 min-w-0 max-w-full overflow-hidden rounded-2xl border border-border-pg bg-bg-panel shadow-card xl:sticky xl:top-6 xl:order-2">
           <div className="border-b border-border-pg px-4 py-4 sm:px-5"><div className="flex flex-wrap items-start justify-between gap-2"><div className="inline-flex items-center gap-2 text-lg font-semibold text-text-pg"><Sparkles className="h-4 w-4" />{content.quickStart}</div><span className="max-w-full overflow-x-auto whitespace-nowrap border border-border-pg px-2 py-1 font-mono text-[10px] text-text-pg-muted rounded-lg">{selectedId}</span></div><p className="mt-2 text-sm leading-6 text-text-pg-muted">{content.quickDescription}</p></div>
           <div className="space-y-5 p-4 sm:p-5">
             <div><div className="flex gap-3"><span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-bg-panel-muted text-xs font-semibold text-text-pg">1</span><div className="min-w-0"><h2 className="font-semibold text-text-pg">{content.stepKey}</h2><p className="mt-1 text-sm leading-6 text-text-pg-muted">{content.stepKeyDescription}</p><Link href={withLocale(locale, "/gateway")} className="mt-3 inline-flex min-h-10 items-center gap-2 rounded-full border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-2 text-xs font-semibold text-[var(--pg-text-inverse)] transition hover:shadow-card-hover focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"><KeyRound className="h-3.5 w-3.5" />{content.createKey}</Link></div></div><div className="mt-4"><CodeBlock language=".env" value={snippets.env} copyLabel={content.copy} copiedLabel={content.copied} compact /></div></div>
@@ -669,8 +671,8 @@ PUREGAMMA_MODEL=${selectedId}
             <div className="border-t border-border-pg pt-5"><div className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{content.activeModel}</div><div className="mt-2 flex items-center justify-between gap-3"><div className="min-w-0"><div className="text-sm font-semibold text-text-pg">{selectedName}</div><code className="break-all text-xs text-text-pg-muted">{selectedId}</code></div><Code2 className="h-5 w-5 shrink-0 text-text-pg-dim" /></div><p className="mt-3 text-xs leading-5 text-text-pg-muted">{content.stack}</p></div>
           </div>
           <div className="border-t border-border-pg px-4 py-4 text-xs leading-5 text-text-pg-muted sm:px-5"><Terminal className="mr-1.5 inline h-3.5 w-3.5 align-text-bottom" />{content.catalogNote}</div>
-        </aside>
-      </div>
+        </aside> : <aside className="order-1 min-w-0 max-w-full rounded-2xl border border-border-pg bg-bg-panel p-5 shadow-card xl:sticky xl:top-6 xl:order-2"><div className="section-eyebrow">{content.quickStart}</div><h2 className="mt-3 font-display text-xl font-semibold tracking-[-0.04em]">{zh ? "调用尚未开放" : "API calls are not available"}</h2><p className="mt-3 text-sm leading-6 text-text-pg-muted">{zh ? "此部署的 Gateway 尚未启用，或当前模型与价格尚未获准调用。目录可用于了解模型，暂不提供可复制的请求示例。" : "Gateway is disabled here, or this model and its price are not approved for calls. You can review the catalog; request examples are hidden until the route is ready."}</p><div className="mt-5 rounded-xl bg-bg-panel-muted p-3 text-xs text-text-pg-muted">{selectedAvailabilityLabel}</div></aside>}
+      </div> : <div role="status" className="mt-6 rounded-2xl border border-border-pg bg-bg-panel-muted p-6 text-sm text-text-pg-muted">{catalog?.unavailable ? modelCopy.preview.catalogUnavailable : catalog ? modelCopy.preview.catalogEmpty : modelCopy.stateChecking}</div>}
     </div>
   );
 }

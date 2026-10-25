@@ -8,6 +8,7 @@ import type { GatewayCatalog } from "@/lib/api";
 import { FLASH_ALIAS_ID, FLASH_MODEL_ID, compactTokens, flashAvailability, type ModelCatalogState } from "@/lib/model-catalog";
 import { withLocale, type Locale } from "@/i18n/routing";
 import { getMessageNamespace } from "@/lib/translations";
+import { useGatewayBaseUrl } from "@/lib/gateway-base-url";
 
 function availabilityCopy(state: ModelCatalogState, copy: ModelCopy, gatewayEnabled: boolean | null) {
   if (gatewayEnabled === false) {
@@ -80,6 +81,7 @@ function DataRow({ label, value }: { label: string; value: string }) {
  * replaced by an explicit empty state instead of an invented number.
  */
 export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catalog: GatewayCatalog | null }) {
+  const gatewayBaseUrl = useGatewayBaseUrl();
   const copy = getMessageNamespace(locale, "model-upgrade");
   const { state, model } = flashAvailability(catalog);
   const availability = availabilityCopy(state, copy, catalog?.gateway_enabled ?? null);
@@ -92,7 +94,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
   const symbol = currency === "USD" ? "$" : currency === "CNY" ? "¥" : `${currency} `;
   const priceReviewed = model?.pricing?.status === "active" && Boolean(input && output);
 
-  const sampleRequest = `curl -sS https://api.puregamma.ai/v1/chat/completions \\
+  const sampleRequest = `curl -sS ${gatewayBaseUrl}/chat/completions \\
   -H "Authorization: Bearer $PUREGAMMA_API_KEY" \\
   -H "Content-Type: application/json" \\
   -d '{
@@ -192,7 +194,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
           <p className="mt-3 text-[11px] leading-5 text-text-pg-dim">{copy.preview.routesNote}</p>
           <p className="mt-3 text-[11px] leading-5 text-text-pg-dim">{copy.preview.clients}</p>
 
-          <div className="mt-4 border border-border-pg bg-bg-app rounded-xl">
+          {catalog?.gateway_enabled && state === "available" && priceReviewed ? <div className="mt-4 border border-border-pg bg-bg-app rounded-xl">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-pg px-3 py-2">
               <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.preview.demoTitle}</span>
               <button
@@ -205,8 +207,8 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
               </button>
             </div>
             <pre className="touch-pan-x overflow-x-auto overscroll-x-contain p-3 text-[11px] leading-5 text-text-pg"><code>{sampleRequest}</code></pre>
-          </div>
-          <p className="mt-2 text-xs leading-5 text-text-pg-dim">{copy.preview.demoNote}</p>
+          </div> : <p role="status" className="mt-4 rounded-xl border border-border-pg bg-bg-app p-3 text-xs leading-5 text-text-pg-muted">{availability.detail}</p>}
+          {catalog?.gateway_enabled && state === "available" && priceReviewed ? <p className="mt-2 text-xs leading-5 text-text-pg-dim">{copy.preview.demoNote}</p> : null}
           <p className="mt-2 text-xs leading-5 text-text-pg-dim">{copy.preview.technicalNote}</p>
         </div>
       </details>

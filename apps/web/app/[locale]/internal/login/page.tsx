@@ -11,7 +11,7 @@ import { withLocale } from "@/i18n/routing";
 
 
 
-const inputClass = "min-h-11 w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg outline-none focus:border-border-pg-strong";
+const inputClass = "min-h-11 w-full rounded-xl border border-border-pg bg-bg-panel-muted px-3.5 py-2.5 text-sm text-text-pg outline-none transition focus:border-border-pg-strong focus:ring-2 focus:ring-accent-ring";
 
 export default function InternalAdminLoginPage() {
   const locale = useLocale();
@@ -41,7 +41,7 @@ export default function InternalAdminLoginPage() {
 
   return (
     <div className="flex min-h-[80vh] items-center justify-center">
-      <div className="w-full max-w-sm border border-border-pg bg-bg-panel p-6 rounded-2xl">
+      <div className="w-full max-w-sm rounded-3xl border border-border-pg bg-bg-panel p-7 shadow-panel">
         <div className="mb-6 text-center">
           <h1><BrandLockup product="Internal" /></h1>
           <p className="mt-2 text-xs text-text-pg-muted">{zh ? "仅限授权内部人员" : "Authorized personnel only"}</p>

@@ -77,7 +77,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
   };
 
   return (
-    <section className="border border-border-pg bg-bg-panel">
+    <section className="overflow-hidden rounded-xl border border-border-pg bg-bg-panel">
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-border-pg p-4">
         <h2 className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" aria-hidden />{zh ? "交易安全状态" : "Trading safety status"}</h2>
         <div className="flex items-center gap-2">
@@ -88,7 +88,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
 
       <div className="space-y-4 p-4">
         {liveDisabled ? (
-          <div className="flex items-start gap-3 border border-status-warning bg-bg-panel-muted p-3" role="status">
+          <div className="flex items-start gap-3 rounded-lg border border-status-warning bg-bg-panel-muted p-3" role="status">
             {safety ? <ShieldX className="mt-0.5 h-5 w-5 shrink-0 text-status-warning" aria-hidden /> : <Ban className="mt-0.5 h-5 w-5 shrink-0 text-text-pg-muted" aria-hidden />}
             <div>
               <p className="text-sm font-semibold text-status-warning">{zh ? "实盘交易当前未启用" : "LIVE trading is disabled"}</p>
@@ -113,7 +113,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
         ) : null}
 
         {approval ? (
-          <dl className="grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3">
+          <dl className="grid gap-px overflow-hidden rounded-lg border border-border-pg bg-border-pg sm:grid-cols-3">
             <Field label={zh ? "实盘审批" : "LIVE approval"} value={String(approval.status)} />
             <Field label={zh ? "审批名义上限" : "Approved max notional"} value={money(approval.max_total_notional, locale)} />
             <Field label={zh ? "最后审查时间" : "Last reviewed"} value={approval.reviewed_at ? new Date(approval.reviewed_at).toLocaleString(locale) : (zh ? "从未审查" : "never reviewed")} />
@@ -121,7 +121,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
         ) : null}
 
         {activeKillSwitches > 0 ? (
-          <p className="border border-status-negative p-3 text-sm text-status-negative" role="alert">
+          <p className="rounded-lg border border-status-negative p-3 text-sm text-status-negative" role="alert">
             {zh ? `存在 ${activeKillSwitches} 个已激活的熔断开关。所有交易活动已被阻断。` : `${activeKillSwitches} kill switch(es) active. All trading activity is blocked.`}
           </p>
         ) : null}
@@ -131,7 +131,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
         ) : (
           <div className="space-y-4">
             {mandates.map((mandate) => (
-              <div key={mandate.id} className="border border-border-pg">
+              <div key={mandate.id} className="overflow-hidden rounded-xl border border-border-pg">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-pg bg-bg-panel-muted px-3 py-2">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-medium text-text-pg">{zh ? "Mandate" : "Mandate"} {mandate.id.slice(0, 8)}</span>
