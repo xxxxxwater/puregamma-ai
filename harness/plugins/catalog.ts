@@ -81,20 +81,23 @@ export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = 
   {
     id: 'options', packageName: '@puregamma/dsh-options', plane: 'dual', risk: 'read-only',
     services: ['pgOptions'], tools: ['options_chain', 'options_long_gamma', 'options_surface', 'options_surface_tickers', 'options_earnings_gamma'],
-    ui: ['tool.options-chain', 'tool.options-surface'],
+    // tool.call.toolview keys for the options tools ship in @puregamma/dsh-ui-options.
+    ui: ['tool.options-document', 'tool.options-chain', 'tool.options-surface'],
     legacyOwners: ['packages/options', 'apps/web/plugins/builtin/options'],
   },
   {
     id: 'backtest', packageName: '@puregamma/dsh-backtest', plane: 'dual', risk: 'stateful',
     services: ['pgBacktest'],
     tools: ['backtest_status', 'backtest_compile', 'backtest_run', 'backtest_runs', 'backtest_result', 'backtest_cancel', 'backtest_export', 'backtest_save_strategy', 'backtest_refresh_data'],
-    ui: ['tool.backtest', 'resource.backtest-artifact'],
+    // tool.call.toolview keys for the backtest tools ship in @puregamma/dsh-ui-backtest.
+    ui: ['tool.backtest-document', 'tool.backtest', 'resource.backtest-artifact'],
     legacyOwners: ['packages/backtest', 'apps/api/routers/backtest*', 'apps/api/services/*backtest*'],
   },
   {
     id: 'memory', packageName: '@puregamma/dsh-memory', plane: 'dual', risk: 'stateful',
     services: ['pgMemory'], tools: ['memory_settings', 'memory_items', 'memory_proposals', 'memory_export_descriptor'],
-    ui: ['settings.memory', 'resource.memory-export'],
+    // tool.call.toolview keys for the memory tools ship in @puregamma/dsh-ui-memory.
+    ui: ['tool.memory-document', 'settings.memory', 'resource.memory-export'],
     legacyOwners: ['packages/memory', 'apps/api/routers/memory.py', 'docs/developer/MEMORY_ARCHITECTURE.md'],
   },
   {

@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { MemoryDocument } from '@puregamma/dsh-memory'
+import type { MemoryDocument, MemoryDocumentPresentation } from '@puregamma/dsh-memory'
 import type {} from '@puregamma/dsh-memory'
 
 export const name = 'puregamma-tool-memory'
@@ -25,6 +25,20 @@ function renderDocument(value: Pick<MemoryDocument, 'kind' | 'observedAt' | 'sou
   return `${value.kind} memory document as of ${value.observedAt} from ${value.source}.`
 }
 
+/** Counts-only presentation for the client tool view; never model-visible, never contents. */
+function documentMeta(value: Pick<MemoryDocument, 'kind' | 'observedAt' | 'source'> & { payload: unknown }) {
+  const lists = value.payload && typeof value.payload === 'object' && !Array.isArray(value.payload)
+    ? Object.values(value.payload as Record<string, unknown>).filter(Array.isArray).map(list => list.length)
+    : []
+  return {
+    schema: 'puregamma.memory.document/v1',
+    kind: value.kind,
+    observedAt: value.observedAt,
+    source: value.source,
+    count: lists.length ? Math.max(...lists) : null,
+  } satisfies MemoryDocumentPresentation
+}
+
 function settingsTool(ctx: Context) {
   return defineTool({
     name: 'memory_settings',
@@ -33,6 +47,7 @@ function settingsTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     execute: async () => ctx.pgMemory.settings(),
@@ -55,6 +70,7 @@ function itemsTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     execute: async args => ctx.pgMemory.listItems(args.scope ?? 'short_term'),
@@ -72,6 +88,7 @@ function proposalsTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     execute: async args => ctx.pgMemory.listProposals({
@@ -89,6 +106,7 @@ function exportDescriptorTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     execute: async () => ctx.pgMemory.exportDescriptor(),

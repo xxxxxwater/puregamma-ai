@@ -4,6 +4,9 @@ import { createElement } from 'react'
 import { renderToStaticMarkup } from 'react-dom/server'
 import { NavToolView, readNavPresentation } from '../plugins/ui-portfolio/src/client/index.ts'
 import { ResearchToolView, readResearchPresentation } from '../plugins/ui-research/src/client/index.ts'
+import { ToolView as OptionsToolView } from '../plugins/ui-options/src/client/index.ts'
+import { ToolView as BacktestToolView } from '../plugins/ui-backtest/src/client/index.ts'
+import { ToolView as MemoryToolView, readPresentation as readMemoryPresentation } from '../plugins/ui-memory/src/client/index.ts'
 
 // The domain tool views render only the tool result's presentation `meta`.
 // These pin their honesty rules: no zero for a missing NAV, stale and degraded
@@ -54,4 +57,33 @@ test('research views state provenance and degradation, not content', () => {
   assert.match(html, /what_happened, risks/)
   assert.match(html, /degraded/)
   assert.deepEqual(readResearchPresentation({ ...meta, kind: 'not-a-kind' }), null)
+})
+
+test('options views always say research only, and flag a degraded or unavailable provider', () => {
+  const meta = { schema: 'puregamma.options.document/v1', kind: 'chain', underlying: 'BTC', provider: 'deribit', observedAt: '2026-10-28T08:00:00Z', state: 'degraded', executionEnabled: false, source: 'compatibility:options-api', size: 120 }
+  const html = render(OptionsToolView, result(meta))
+  assert.match(html, /data-state="degraded"/)
+  assert.match(html, /chain · BTC/)
+  assert.match(html, /rows: 120/)
+  assert.match(html, /researchOnly/)
+  assert.match(html, /degraded/)
+  assert.match(render(OptionsToolView, result({ ...meta, state: 'unavailable', size: null })), /unavailable/)
+})
+
+test('backtest views copy reported metrics and label the run as simulated', () => {
+  const meta = { schema: 'puregamma.backtest.document/v1', kind: 'run', observedAt: '2026-10-28T08:00:00Z', source: 'compatibility:backtest-api', runId: 'bt-42', status: 'completed', metrics: [{ name: 'sharpe', value: 1.83 }, { name: 'max_drawdown', value: -0.112 }, { name: 'bad', value: 'x' }] }
+  const html = render(BacktestToolView, result(meta))
+  assert.match(html, /run: bt-42 · status: completed/)
+  assert.match(html, /sharpe 1\.83 · max_drawdown -0\.112/)
+  assert.doesNotMatch(html, /bad x/)
+  assert.match(html, /simulated/)
+})
+
+test('memory views show counts only, never contents', () => {
+  const meta = { schema: 'puregamma.memory.document/v1', kind: 'items', observedAt: '2026-10-28T08:00:00Z', source: 'compatibility:memory-api', count: 3, items: [{ content_preview: 'secret note' }] }
+  const html = render(MemoryToolView, result(meta))
+  assert.match(html, /count: 3/)
+  assert.match(html, /private/)
+  assert.doesNotMatch(html, /secret note/)
+  assert.equal(readMemoryPresentation({ ...meta, kind: 'bogus' }), null)
 })

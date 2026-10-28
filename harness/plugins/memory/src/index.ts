@@ -53,6 +53,19 @@ declare module '@deepseek-ai/cordis' {
  * consent checks, secret redaction and write-disabled namespaces such as the
  * trading namespace.
  */
+/**
+ * Client presentation of one memory read, persisted as the tool result's
+ * `meta` (never model-visible). Counts only: memory contents are personal and
+ * stay in the Memory surface the user controls.
+ */
+export interface MemoryDocumentPresentation {
+  readonly schema: 'puregamma.memory.document/v1'
+  readonly kind: MemoryDocument['kind']
+  readonly observedAt: string
+  readonly source: string
+  readonly count: number | null
+}
+
 export abstract class MemoryService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'pgMemory')

@@ -49,7 +49,7 @@
 | 工具审批 | 仅契约：`STATEFUL_TOOLS` 为空，审批流程不会触发；同时提供笼统的“自动执行” | 部分实现：“自动执行”已停用（服务端按 ask 执行）；审批卡显示动作/范围/影响/权限/有效期；服务端一次性、校验所有者、120 s 过期 | `chat_workspace.py`、`tool-approval-card.tsx` | pytest + E2E | 目前没有需要审批的有状态工具 |
 | 组合/NAV | 部分实现：没有账户时返回 **500**；`str(Decimal)` 输出 `0E-8` | 已实现：返回结构化 404；十进制字符串不再出现指数；界面标注口径、币种、版本、计算/价格时间和 stale | `routers/live_trading.py`、`decimal_text.py`、`NavPanel` | `test_live_trading_nav_http.py`；E2E | — |
 | 回测 | 已实现（旧） | 不变 | `backtest-lab.tsx` | — | 尚未有 Harness UI 插件 |
-| 领域 tool-view（Harness） | 仅契约：catalog 里的 `tool.*` UI 没有实现 | 已实现（Portfolio/NAV、Research）：`@puregamma/dsh-ui-portfolio`、`@puregamma/dsh-ui-research` 通过 `tool.call.toolview` 渲染工具结果的 `presentationMeta`（模型不可见），stale/unavailable/degraded 都会明确标出，缺失的 NAV 不显示为 0 | `harness/plugins/ui-portfolio`、`ui-research`、`tool-portfolio`、`tool-research` | `domain-toolviews-check`（5 例） | Options/Backtest/Memory 视图未做 |
+| 领域 tool-view（Harness） | 仅契约：catalog 里的 `tool.*` UI 没有实现 | 已实现（Portfolio/NAV、Research、Options、Backtest、Memory）：`@puregamma/dsh-ui-portfolio`、`@puregamma/dsh-ui-research` 通过 `tool.call.toolview` 渲染工具结果的 `presentationMeta`（模型不可见），stale/unavailable/degraded 都会明确标出，缺失的 NAV 不显示为 0 | `harness/plugins/ui-{portfolio,research,options,backtest,memory}`、对应 `tool-*` | `domain-toolviews-check`（8 例） | 研究产物资源视图（`resource.research-artifact`）未做 |
 | 全路由健壮性 | 不可用：`/daily-push` 在 API 故障时崩溃；`/secretary` 在桌面端横向滚动 | 已实现：51 个路由 × 桌面/手机在 API 不可用时不崩溃、不横向滚动，按钮/链接都有可访问名称 | `route-audit.spec.ts`（CI job） | 114/114 | — |
 | 实盘 | 已实现（默认全部关闭），但界面在结果不明时允许重新预览、UNKNOWN 无解释、成交显示“不可用” | 已实现：审批卡、结果不明时只允许核对或重发**同一意图**、UNKNOWN 有解释、展示成交、可吊销连接 | `live-trading-console.tsx` | E2E `live-trading-workflow`（15 例 × 2 端） | 实盘开关仍由部署方控制，本次没有开启 |
 | 通知 | 已实现（旧） | 不变 | `routers/notifications.py` | — | — |
@@ -156,7 +156,7 @@
 
 - **DSH 多租户**：需要每用户一个隔离 Host，或上游多租户支持；provider 也要能透传每个用户的身份。
 - **Harness 编译依赖对齐**：`@deepseek-ai/*` 从 `0.1.5-rc.2` 升到与 vendored `0.1.7-rc.1` 一致，需要单独评估。
-- **领域 tool-view 插件**：Portfolio/NAV 和 Research 已实现（v0.3.1）；Options、Backtest、Memory 的视图以及 `tool.research-run` 资源视图尚未实现。
+- **领域 tool-view 插件**：五个领域都已实现（v0.3.1–v0.3.2）。研究产物和回测产物的资源视图（`resource.*`）尚未实现。
 - **计费**：`MODEL_RATES` 和 gpt-6 系列模型不匹配。涉及价格，本次没有改，需要产品确认。
 - **上传上限**：Caddy 限制 2 MB，应用允许 10 MB，需要部署侧统一。
 - **有状态工具**：`STATEFUL_TOOLS` 为空，审批卡目前只能通过 stub 和已有的待审批记录验证。
@@ -199,3 +199,10 @@
 - 全路由审计：修复 `/daily-push` 在 API 故障时的崩溃，以及 `/secretary` 在桌面端的横向滚动；审计已加入 CI。
 - Skills 只读面板；上传遇到边缘代理返回的 413 时，按“超出大小限制”提示。
 - Harness 领域 tool-view 插件（Portfolio/NAV、Research），数据来自 `presentationMeta`。
+
+## 12. v0.3.2 追加
+
+- `@puregamma/dsh-ui-options`：标明“仅研究，执行已禁用”，显示数据源状态（degraded/unavailable）和返回条目数。
+- `@puregamma/dsh-ui-backtest`：原样显示服务端上报的指标，并标注“基于历史数据的模拟，不是预测或交易信号”。
+- `@puregamma/dsh-ui-memory`：只显示种类和条目数，不显示记忆内容（隐私）。
+- 对应 tool 插件通过 `presentationMeta` 输出 v1 DTO（模型不可见）；`domain-toolviews-check` 扩展到 8 例。

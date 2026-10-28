@@ -43,6 +43,23 @@ declare module '@deepseek-ai/cordis' {
  * compatibility transport, but execution belongs exclusively to trading
  * services and approval/risk gates.
  */
+/**
+ * Client presentation of one options read, persisted as the tool result's
+ * `meta` (never model-visible): provenance, provider state and size only.
+ */
+export interface OptionsDocumentPresentation {
+  readonly schema: 'puregamma.options.document/v1'
+  readonly kind: OptionsReadKind
+  readonly underlying: string | null
+  readonly provider: string | null
+  readonly observedAt: string
+  readonly state: OptionsProviderState
+  readonly executionEnabled: false
+  readonly source: string
+  /** Rows in the largest list the payload carried (chain rows, candidates); null when none. */
+  readonly size: number | null
+}
+
 export abstract class OptionsService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'pgOptions')

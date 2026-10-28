@@ -69,6 +69,21 @@ declare module '@deepseek-ai/cordis' {
  * while idempotency and lifecycle semantics are part of the stable Harness
  * contract. Streaming resources must be cleanup-aware on plugin unload.
  */
+/**
+ * Client presentation of one backtest read, persisted as the tool result's
+ * `meta` (never model-visible). Metrics are copied verbatim from the payload's
+ * numeric fields; nothing is recomputed client-side.
+ */
+export interface BacktestDocumentPresentation {
+  readonly schema: 'puregamma.backtest.document/v1'
+  readonly kind: BacktestDocumentKind
+  readonly observedAt: string
+  readonly source: string
+  readonly runId: string | null
+  readonly status: string | null
+  readonly metrics: readonly { readonly name: string; readonly value: number }[]
+}
+
 export abstract class BacktestService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'pgBacktest')

@@ -43,6 +43,12 @@
       name: '@puregamma/dsh-ui-portfolio'
     - id: puregamma-ui-research
       name: '@puregamma/dsh-ui-research'
+    - id: puregamma-ui-options
+      name: '@puregamma/dsh-ui-options'
+    - id: puregamma-ui-backtest
+      name: '@puregamma/dsh-ui-backtest'
+    - id: puregamma-ui-memory
+      name: '@puregamma/dsh-ui-memory'
 
     # Account, billing, gateway, ingestion and admin own separate services.
     # Explicit money/account mutations are UI/approval actions, not model tools.

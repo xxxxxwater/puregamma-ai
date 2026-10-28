@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type { OptionsDocument, OptionsSurfaceType } from '@puregamma/dsh-options'
+import type { OptionsDocument, OptionsDocumentPresentation, OptionsSurfaceType } from '@puregamma/dsh-options'
 import type {} from '@puregamma/dsh-options'
 
 export const name = 'puregamma-tool-options'
@@ -41,6 +41,24 @@ function renderDocument(value: {
   return `${value.kind}${instrument} options research${provider} as of ${value.observedAt}: ${value.state}. Execution disabled.`
 }
 
+/** Provenance-only presentation for the client tool view; never model-visible. */
+function documentMeta(value: Pick<OptionsDocument, 'kind' | 'underlying' | 'provider' | 'observedAt' | 'state' | 'source'> & { payload: unknown }) {
+  const lists = value.payload && typeof value.payload === 'object' && !Array.isArray(value.payload)
+    ? Object.values(value.payload as Record<string, unknown>).filter(Array.isArray).map(list => list.length)
+    : []
+  return {
+    schema: 'puregamma.options.document/v1',
+    kind: value.kind,
+    underlying: value.underlying ?? null,
+    provider: value.provider ?? null,
+    observedAt: value.observedAt,
+    state: value.state,
+    executionEnabled: false,
+    source: value.source,
+    size: lists.length ? Math.max(...lists) : null,
+  } satisfies OptionsDocumentPresentation
+}
+
 function chainTool(ctx: Context) {
   return defineTool({
     name: 'options_chain',
@@ -51,6 +69,7 @@ function chainTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     async execute(args) {
@@ -71,6 +90,7 @@ function longGammaTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     async execute(args) {
@@ -91,6 +111,7 @@ function surfaceTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     async execute(args) {
@@ -108,6 +129,7 @@ function surfaceTickersTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     async execute() {
@@ -127,6 +149,7 @@ function earningsGammaTool(ctx: Context) {
     output: {
       schema: documentSchema(),
       render: (_args, value) => [{ type: 'text', text: renderDocument(value) }],
+      presentationMeta: (_args, value) => documentMeta(value),
     },
     isConcurrencySafe: () => true,
     async execute(args) {

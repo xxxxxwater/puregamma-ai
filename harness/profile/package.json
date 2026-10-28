@@ -60,6 +60,9 @@
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
     "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^",
     "@puregamma/dsh-ui-portfolio": "workspace:^",
-    "@puregamma/dsh-ui-research": "workspace:^"
+    "@puregamma/dsh-ui-research": "workspace:^",
+    "@puregamma/dsh-ui-options": "workspace:^",
+    "@puregamma/dsh-ui-backtest": "workspace:^",
+    "@puregamma/dsh-ui-memory": "workspace:^"
   }
 }
