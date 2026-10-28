@@ -38,7 +38,7 @@
 | 刷新恢复 | 不可用：忽略 `active_run_id` | 已实现：根据事件日志重新附着进行中的 run | `agent-chat.tsx#observeRun` | E2E `a reload re-attaches…` | 同上 |
 | 重复提交 | **缺陷**：消息 POST 没有幂等键 | 已实现：`client_request_id`，重复时返回 409 `DUPLICATE_SUBMISSION` 并附着原 run；提供“安全重试” | `agent_service.start_run`、`agent.py` | pytest + E2E | — |
 | 取消 | 已实现（停止生成） | 已实现，并明确说明“已执行的工具不会撤销，按实际用量结算”；同一 run 只取消一次 | 同上 | E2E `stop cancels…` | 聊天里没有后台任务；研究任务的取消在 `/research` |
-| Skills | 部分实现：旧 SkillRegistry；DSH `ctx.skills` 只在 profile 中配置 | 不变 | `harness/profile/skills/*`、`cordis.patch.yml` | profile-check | DSH Web 的 `/skill` 选择器只在 DSH 路径可用 |
+| Skills | 部分实现：旧 SkillRegistry；DSH `ctx.skills` 只在 profile 中配置 | 已实现（只读展示）：研究设置里列出可用 Skill、适用场景、限定工具、是否需要确认、不可用原因，并说明“Skill 说明不会提升工具权限” | `chat-panels.tsx#SkillList`、`harness/profile/skills/*` | E2E `skills are listed…` | DSH Web 的 `/skill` 选择器只在 DSH 路径可用 |
 | 图片附件 | 已实现 | 已实现，并增加上传进度 | `chat-workspace-composer.tsx` | E2E `harness-workspace` | Caddy 限制 2 MB，应用允许 10 MB（§8） |
 | 通用文件附件 | 仅 DSH profile 中禁用 | 不变（保持禁用） | `cordis.patch.yml` | public-profile-check | 需要先有会话级只读沙箱 provider |
 | 研究任务 | 部分实现：SSE **读不到状态变化**（identity map） | 已修复 SSE；完整生命周期 `queued→…→completed/failed/canceled` | `routers/harness_runs.py` | `test_research_run_stream.py`（去掉修复后测试失败） | `HARNESS_RESEARCH_ENABLED` 默认关闭 |
@@ -49,6 +49,8 @@
 | 工具审批 | 仅契约：`STATEFUL_TOOLS` 为空，审批流程不会触发；同时提供笼统的“自动执行” | 部分实现：“自动执行”已停用（服务端按 ask 执行）；审批卡显示动作/范围/影响/权限/有效期；服务端一次性、校验所有者、120 s 过期 | `chat_workspace.py`、`tool-approval-card.tsx` | pytest + E2E | 目前没有需要审批的有状态工具 |
 | 组合/NAV | 部分实现：没有账户时返回 **500**；`str(Decimal)` 输出 `0E-8` | 已实现：返回结构化 404；十进制字符串不再出现指数；界面标注口径、币种、版本、计算/价格时间和 stale | `routers/live_trading.py`、`decimal_text.py`、`NavPanel` | `test_live_trading_nav_http.py`；E2E | — |
 | 回测 | 已实现（旧） | 不变 | `backtest-lab.tsx` | — | 尚未有 Harness UI 插件 |
+| 领域 tool-view（Harness） | 仅契约：catalog 里的 `tool.*` UI 没有实现 | 已实现（Portfolio/NAV、Research）：`@puregamma/dsh-ui-portfolio`、`@puregamma/dsh-ui-research` 通过 `tool.call.toolview` 渲染工具结果的 `presentationMeta`（模型不可见），stale/unavailable/degraded 都会明确标出，缺失的 NAV 不显示为 0 | `harness/plugins/ui-portfolio`、`ui-research`、`tool-portfolio`、`tool-research` | `domain-toolviews-check`（5 例） | Options/Backtest/Memory 视图未做 |
+| 全路由健壮性 | 不可用：`/daily-push` 在 API 故障时崩溃；`/secretary` 在桌面端横向滚动 | 已实现：51 个路由 × 桌面/手机在 API 不可用时不崩溃、不横向滚动，按钮/链接都有可访问名称 | `route-audit.spec.ts`（CI job） | 114/114 | — |
 | 实盘 | 已实现（默认全部关闭），但界面在结果不明时允许重新预览、UNKNOWN 无解释、成交显示“不可用” | 已实现：审批卡、结果不明时只允许核对或重发**同一意图**、UNKNOWN 有解释、展示成交、可吊销连接 | `live-trading-console.tsx` | E2E `live-trading-workflow`（15 例 × 2 端） | 实盘开关仍由部署方控制，本次没有开启 |
 | 通知 | 已实现（旧） | 不变 | `routers/notifications.py` | — | — |
 | 记忆 | 已实现（默认关闭） | 不变 | `routers/memory.py` | — | — |
@@ -139,6 +141,8 @@
 | 后端 CI lint | `ruff check apps packages services scripts tests --select E9,F63,F7,F82` | 通过 |
 | Harness | `pnpm --dir harness run check`（含新增 public-profile-check） | 通过 |
 | Web | `pnpm typecheck`、`pnpm lint`（警告数量与基线相同）、`pnpm build`（CI 环境变量） | 通过 |
+| 全路由审计 | `next build` + `next start`，然后运行 `playwright test route-audit.spec.ts`（API 不可用） | 114/114 通过（v0.3.1） |
+| Harness 领域视图 | `pnpm --dir harness run check`（含 `domain-toolviews-check`） | 通过（v0.3.1） |
 | E2E（本次相关） | `agent-session-reliability`、`chat-design`、`harness-workspace`、`markdown-render`、`live-trading`、`live-trading-workflow`（chromium + mobile-chrome） | 全部通过 |
 | E2E（其余） | theme、visual-style、contrast、i18n、portfolio、dashboard、plugins、mobile-fixes、nautilus、model-upgrade 首页段 | 与 `main` 基线**失败集合完全相同**（这些用例依赖生产 API；本机把代理指向了不可达端口，避免测试流量打到生产） |
 
@@ -152,7 +156,7 @@
 
 - **DSH 多租户**：需要每用户一个隔离 Host，或上游多租户支持；provider 也要能透传每个用户的身份。
 - **Harness 编译依赖对齐**：`@deepseek-ai/*` 从 `0.1.5-rc.2` 升到与 vendored `0.1.7-rc.1` 一致，需要单独评估。
-- **领域 tool-view 插件**：`tool.research-run`、`tool.portfolio-nav` 等还没有实现，catalog 中仅有目标定义。
+- **领域 tool-view 插件**：Portfolio/NAV 和 Research 已实现（v0.3.1）；Options、Backtest、Memory 的视图以及 `tool.research-run` 资源视图尚未实现。
 - **计费**：`MODEL_RATES` 和 gpt-6 系列模型不匹配。涉及价格，本次没有改，需要产品确认。
 - **上传上限**：Caddy 限制 2 MB，应用允许 10 MB，需要部署侧统一。
 - **有状态工具**：`STATEFUL_TOOLS` 为空，审批卡目前只能通过 stub 和已有的待审批记录验证。
@@ -189,3 +193,9 @@
   - 行为变化：`full-access` 按 `workspace-write` 执行；no-account 时返回 404 而不是 500；已删除会话返回 404。
   - 旧版移动端发送 `full-access` 仍会被接受，并保存为 `workspace-write`。
 - **Profile**：若需要恢复被禁用的 preset，删除 `cordis.patch.yml` 中三条 `disabled: true` 即可。但这会重新暴露 shell/文件工具，**不建议**在公开实例中这样做。
+
+## 11. v0.3.1 追加
+
+- 全路由审计：修复 `/daily-push` 在 API 故障时的崩溃，以及 `/secretary` 在桌面端的横向滚动；审计已加入 CI。
+- Skills 只读面板；上传遇到边缘代理返回的 413 时，按“超出大小限制”提示。
+- Harness 领域 tool-view 插件（Portfolio/NAV、Research），数据来自 `presentationMeta`。
