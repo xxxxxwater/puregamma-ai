@@ -66,7 +66,13 @@ jobs:
           markdown-render.spec.ts
           live-trading.spec.ts
           live-trading-workflow.spec.ts
-          --reporter=line
+          --reporter=line,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-results.json
+
+      - name: Report flaky tests
+        if: always()
+        run: node ../../tests/e2e/playwright/report-flaky.mjs playwright-results.json
 
       - name: Upload report on failure
         if: failure()
@@ -125,7 +131,13 @@ jobs:
           pnpm exec playwright test
           --grep-invert "every route survives an API outage"
           --shard=${{ matrix.shard }}/4
-          --reporter=line
+          --reporter=line,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-results.json
+
+      - name: Report flaky tests
+        if: always()
+        run: node ../../tests/e2e/playwright/report-flaky.mjs playwright-results.json
 
       - name: Upload report on failure
         if: failure()

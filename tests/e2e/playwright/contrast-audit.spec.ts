@@ -155,6 +155,20 @@ const MEASURE = () => {
   };
 };
 
+/**
+ * Wait (bounded) for a route's own content before measuring it. On a slow CI
+ * runner the shell paints first; sampling it measures the wrong surface, and
+ * two agreeing samples of the shell look "stable". Thresholds are unchanged.
+ */
+async function waitForContent(page: Page, selectors: string[], what: string) {
+  for (const selector of selectors) {
+    await expect(page.locator(selector).first(), `${what}: ${selector} never mounted`).toBeVisible({ timeout: 20_000 });
+  }
+}
+
+const HOMEPAGE_READY = ['[data-testid="model-upgrade-preview"]'];
+const CHAT_READY = ['[data-testid="chat-composer-input"]', '[data-testid="harness-composer"]'];
+
 async function openWithTheme(page: Page, path: string, theme: Theme) {
   await page.addInitScript((value) => { try { window.localStorage.setItem("pg_theme", value); } catch { /* ignore */ } }, theme);
   await page.goto(path, { waitUntil: "domcontentloaded" });
@@ -333,6 +347,7 @@ test.describe("contrast detector", () => {
   for (const theme of ["light", "dark"] as const) {
     test(`reports known-bad fixtures and clears known-good ones in ${theme}`, async ({ page }) => {
       await openWithTheme(page, "/zh", theme);
+      await waitForContent(page, HOMEPAGE_READY, `homepage (${theme})`);
       await page.evaluate(FIXTURE);
       const audit = await measureStable(page, theme);
 
@@ -369,6 +384,9 @@ test.describe("contrast detector", () => {
 
   test("fixtures stay out of the layout and out of the accessibility tree", async ({ page }) => {
     await openWithTheme(page, "/zh", "light");
+    // Compare widths only once the page has finished mounting, or late content
+    // can change scrollWidth between the two reads.
+    await waitForContent(page, HOMEPAGE_READY, "homepage (light)");
     const before = await page.evaluate(() => ({ sw: document.documentElement.scrollWidth, text: document.body.innerText.length }));
     await page.evaluate(FIXTURE);
     const after = await page.evaluate(() => {
@@ -384,6 +402,7 @@ test.describe("contrast detector", () => {
 
   test("the surface assertions actually fire on a real page", async ({ page }) => {
     await openWithTheme(page, "/zh", "light");
+    await waitForContent(page, HOMEPAGE_READY, "homepage (light)");
     const clean = await measureStable(page, "light");
     expect(clean.failures, `the homepage already fails before the injected defect\n${report(clean)}`).toEqual([]);
 
@@ -435,7 +454,7 @@ test.describe("public surfaces meet WCAG AA", () => {
         const errors = watchErrors(page);
         await stubAnonymous(page);
         await openWithTheme(page, route.path, theme);
-        await expect(page.locator(route.ready).first(), `${route.label} (${theme}): its content never mounted`).toBeVisible({ timeout: 20_000 });
+        await waitForContent(page, [route.ready], `${route.label} (${theme})`);
         const audit = await measureStable(page, theme);
 
         await expectRealSurface(page, true, `${route.label} (${theme})`);
@@ -524,6 +543,9 @@ test.describe("chat workspace meets WCAG AA", () => {
       );
 
       await openWithTheme(page, "/zh/chat", theme);
+      // The chat workspace mounts client-side after its stubbed reads resolve;
+      // measuring before that audits an empty shell ("rendered no text at all").
+      await waitForContent(page, CHAT_READY, `chat (${theme})`);
       const audit = await measureStable(page, theme);
       await page.screenshot({ path: `../../.preview-after/chat-${theme}.png` });
 

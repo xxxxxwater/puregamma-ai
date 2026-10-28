@@ -43,6 +43,10 @@ export default defineConfig({
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
+  // One retry on CI: a deterministic failure still fails (both attempts), a
+  // one-off is reported as "flaky" — and every flaky test is surfaced as a
+  // warning and in the job summary by tests/e2e/playwright/report-flaky.mjs.
+  retries: process.env.CI ? 1 : 0,
   workers: process.env.CI ? 2 : 3,
   reporter: [["list"], ["html", { open: "never", outputFolder: "../../playwright-report" }]],
   use: {
