@@ -6,10 +6,12 @@
   "description": "Standalone PureGamma Harness web profile on the pinned DeepSeek Harness runtime",
   "exports": {
     "./cordis.patch.yml": "./cordis.patch.yml",
+    "./multi-tenant.patch.yml": "./multi-tenant.patch.yml",
     "./package.json": "./package.json"
   },
   "files": [
     "cordis.patch.yml",
+    "multi-tenant.patch.yml",
     "skills"
   ],
   "dsh": {
@@ -24,6 +26,7 @@
   "dependencies": {
     "@puregamma/dsh-ui-brand": "workspace:^",
     "@puregamma/dsh-client-remotes": "workspace:^",
+    "@puregamma/dsh-directory-picker-sandbox": "workspace:^",
     "@puregamma/dsh-ui-account": "workspace:^",
     "@puregamma/dsh-ui-billing": "workspace:^",
     "@puregamma/dsh-ui-notifications": "workspace:^",

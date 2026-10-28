@@ -22,8 +22,10 @@
     "public-profile-check": "node --test scripts/public-profile-surface.test.mjs",
     "domain-toolviews-check": "tsx --test scripts/domain-toolviews.test.mjs",
     "legacy-auth-check": "tsx --test scripts/legacy-auth.test.mjs",
+    "directory-picker-check": "tsx --test scripts/directory-picker-sandbox.test.mjs",
+    "codex-guard-check": "node --test scripts/codex-guard.test.mjs",
     "session-broker-check": "tsx --test --test-timeout=60000 scripts/session-broker.test.mjs",
-    "check": "pnpm run architecture-check && pnpm run retirement-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run trading-observation-check && pnpm run release-boundary-check && pnpm run public-profile-check && pnpm run domain-toolviews-check && pnpm run legacy-auth-check && pnpm run session-broker-check"
+    "check": "pnpm run architecture-check && pnpm run retirement-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run trading-observation-check && pnpm run release-boundary-check && pnpm run public-profile-check && pnpm run domain-toolviews-check && pnpm run legacy-auth-check && pnpm run session-broker-check && pnpm run directory-picker-check && pnpm run codex-guard-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
@@ -36,6 +38,7 @@
     "@deepseek-ai/dsh-client-ui-settings": "0.1.7-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": "0.1.7-rc.1",
     "@deepseek-ai/dsh-client-ui-tool": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-host-directory-picker": "0.1.7-rc.1",
     "@deepseek-ai/dsh-tools": "0.1.7-rc.1",
     "@deepseek-ai/dsh-typert-generator": "0.1.7-rc.1",
     "@deepseek-ai/dsh-typert-protocol": "0.1.7-rc.1",

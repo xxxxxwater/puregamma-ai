@@ -23,12 +23,23 @@
 # docs/architecture/AGENT_WORKSPACE_UPGRADE_20261028.md.
 - id: ui-sidebar
   disabled: true
+# Upstream `directory-picker` auto-mounts a browse backend that lists the whole
+# Host filesystem from $HOME and creates directories. Every PureGamma Host uses
+# the sandbox picker instead: same `directoryPicker` Remote contract, confined
+# to PUREGAMMA_DSH_WORKSPACE_ROOT (realpath + symlink containment), no
+# directory creation, and no root configured means every call fails closed.
+- id: directory-picker
+  name: '@puregamma/dsh-directory-picker-sandbox'
+  config: { root: !!js process.env.PUREGAMMA_DSH_WORKSPACE_ROOT ?? '', maxEntries: 500, showHidden: false }
 - insert:
     - id: puregamma-ui-brand
       name: '@puregamma/dsh-ui-brand'
     # One Typert Remote assembly, Harness-native Resource/Slot clients.
     - id: puregamma-client-remotes
       name: '@puregamma/dsh-client-remotes'
+    # In-app browser for the sandbox picker (upstream mounted it from -auto).
+    - id: puregamma-ui-directory-picker
+      name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'
     - id: puregamma-ui-account
       name: '@puregamma/dsh-ui-account'
     - id: puregamma-ui-billing
@@ -54,59 +65,59 @@
     # Explicit money/account mutations are UI/approval actions, not model tools.
     - id: puregamma-auth-provider
       name: '@puregamma/dsh-auth-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 10000 }
     - id: puregamma-tool-auth
       name: '@puregamma/dsh-tool-auth'
     - id: puregamma-billing-provider
       name: '@puregamma/dsh-billing-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 15000 }
     - id: puregamma-tool-billing
       name: '@puregamma/dsh-tool-billing'
     - id: puregamma-api-gateway-provider
       name: '@puregamma/dsh-api-gateway-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 15000 }
     - id: puregamma-tool-api-gateway
       name: '@puregamma/dsh-tool-api-gateway'
     - id: puregamma-data-sources-provider
       name: '@puregamma/dsh-data-sources-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 30000 }
     - id: puregamma-tool-data-sources
       name: '@puregamma/dsh-tool-data-sources'
     - id: puregamma-admin-provider
       name: '@puregamma/dsh-admin-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 15000 }
     - id: puregamma-tool-admin
       name: '@puregamma/dsh-tool-admin'
 
     # Notification send, verification and devices require explicit actions.
     - id: puregamma-notifications-provider
       name: '@puregamma/dsh-notifications-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 15000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 15000 }
     - id: puregamma-tool-notifications
       name: '@puregamma/dsh-tool-notifications'
     - id: puregamma-market-data-provider
       name: '@puregamma/dsh-market-data-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 10000 }
     - id: puregamma-tool-market-data
       name: '@puregamma/dsh-tool-market-data'
     - id: puregamma-portfolio-provider
       name: '@puregamma/dsh-portfolio-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 10000 }
     - id: puregamma-tool-portfolio
       name: '@puregamma/dsh-tool-portfolio'
     - id: puregamma-research-provider
       name: '@puregamma/dsh-research-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 10000 }
     - id: puregamma-tool-research
       name: '@puregamma/dsh-tool-research'
     - id: puregamma-options-provider
       name: '@puregamma/dsh-options-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 10000 }
     - id: puregamma-tool-options
       name: '@puregamma/dsh-tool-options'
     - id: puregamma-backtest-provider
       name: '@puregamma/dsh-backtest-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 30000 }
     - id: puregamma-tool-backtest
       name: '@puregamma/dsh-tool-backtest'
 
@@ -114,21 +125,21 @@
     # consume redacted content previews as commands and cannot dispatch tools.
     - id: puregamma-memory-provider
       name: '@puregamma/dsh-memory-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 10000 }
     - id: puregamma-tool-memory
       name: '@puregamma/dsh-tool-memory'
     - id: puregamma-rsi-planner
       name: '@puregamma/dsh-rsi-orchestrator'
     - id: puregamma-secretary-provider
       name: '@puregamma/dsh-secretary-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 10000, voiceTimeoutMs: 120000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 10000, voiceTimeoutMs: 120000 }
     - id: puregamma-tool-secretary
       name: '@puregamma/dsh-tool-secretary'
     # Agent Skills are provided by the pinned DeepSeek Harness native
     # ctx.skills registry / filesystem provider / tool-skill pipeline.
     - id: puregamma-research-runner-provider
       name: '@puregamma/dsh-research-runner-legacy-api'
-      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, requestTimeoutMs: 30000, artifactTimeoutMs: 30000 }
+      config: { baseUrl: !!js process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000', authTokenEnv: PUREGAMMA_LEGACY_API_TOKEN, authTokenFile: !!js process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, requestTimeoutMs: 30000, artifactTimeoutMs: 30000 }
     - id: puregamma-tool-research-runner
       name: '@puregamma/dsh-tool-research-runner'
     # pg-tsy-core-bootstrap stays independent. No live trading on install.

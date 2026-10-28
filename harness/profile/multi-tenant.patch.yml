@@ -1,0 +1,18 @@
+# Multi-tenant overlay for the PureGamma profile. Only the session broker
+# (@puregamma/dsh-session-broker, off unless PUREGAMMA_DSH_BROKER_ENABLED=true)
+# applies it, with `dsh puregamma --patch multi-tenant.patch.yml`, to a Host
+# that serves exactly one authenticated user:
+#   - own DSH_HOME/HOME (Session store, credentials, attachments) and cwd;
+#   - PUREGAMMA_DSH_WORKSPACE_ROOT confines the sandbox directory picker;
+#   - PUREGAMMA_LEGACY_API_TOKEN_FILE holds that user's short-lived token;
+#   - the broker authenticates every request and WebSocket and talks to the
+#     Host over loopback with the Host's own launch cookie.
+# Under those conditions the native Session list is that user's alone, so the
+# sidebar (the only declarer of `sidebar.workspaces`/`sidebar.settings`) and
+# ui-workspace come back. Nothing else is relaxed: shell, filesystem tools,
+# terminal, workspace files, plugin manager, file upload and the extra presets
+# stay disabled by the base profile (scripts/public-profile-surface.test.mjs).
+- id: ui-sidebar
+  disabled: false
+- id: ui-workspace
+  disabled: false
