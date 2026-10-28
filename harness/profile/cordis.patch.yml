@@ -13,6 +13,14 @@
       hard-coded into the shell. RSI proposals never grant tool permissions.
 - id: ui-brand-official
   disabled: true
+# Upstream's sidebar is the only declarer of `sidebar.workspaces` (the native
+# Session list from ui-workspace) and `sidebar.settings`. It stays disabled in
+# the public profile on purpose: ui-workspace creates workspaces through the
+# Host directory picker (server directory list/create), and the pinned Web host
+# is a single-operator runtime with one Session store. Enabling it in a shared
+# instance would show every user's Sessions and server directories to everyone.
+# Session history returns with per-user Host isolation; see
+# docs/architecture/AGENT_WORKSPACE_UPGRADE_20261028.md.
 - id: ui-sidebar
   disabled: true
 - insert:
@@ -168,6 +176,22 @@
         name: '@deepseek-ai/dsh-tool-todo'
         config:
           allowParallelInProgress: true
+
+# `@deepseek-ai/dsh-web-app` also inserts the `ptc`, `minimal` and `cordis`
+# agent presets. Each one mounts host shell (tool-bash / tool-pwsh or a
+# persistent PTY), arbitrary filesystem tools, background jobs and/or
+# subagent delegation, and a Web user can pick any installed preset. Hardening
+# only `preset-standard` therefore left those tools one preset switch away, so
+# the public profile removes the other presets entirely instead of trying to
+# re-harden each of them.
+- id: preset-ptc
+  disabled: true
+
+- id: preset-minimal
+  disabled: true
+
+- id: preset-cordis
+  disabled: true
 
 
 # Host/browser surface hardening for the public multi-user website. Upstream Web

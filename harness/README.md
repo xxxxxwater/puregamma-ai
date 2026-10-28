@@ -20,11 +20,20 @@ PureGamma Harness pins both upstream runtimes as git submodules:
 
 ```text
 vendor/deepseek-harness
-  c291e7961a515f6d7af9304e7fd1d257929aef26
+  46a7f68b0922371ce7144b668b90e377d8e799f4   (tag dsh-v0.1.7-rc.1)
 
 vendor/pg-tsy-core-bootstrap
-  d7e719b0b2815a1069df9cb4e25c49946dead699
+  f5a6382438d8a85e282da5d58d22af9fe5887ca3
 ```
+
+`scripts/public-profile-surface.test.mjs` fails `pnpm run check` when these
+lines drift from the gitlinks.
+
+Version caveat: the PureGamma plugin workspace still compiles against the
+npm-published `@deepseek-ai/*@0.1.5-rc.2` packages (`harness/package.json`),
+not against the vendored `dsh-v0.1.7-rc.1` sources. The submodule pins the
+runtime the profile is composed with and the bundle presets the public-profile
+guard inspects; aligning the compile-time packages is a separate upgrade.
 
 DeepSeek Harness supplies the runtime/build contract. `pg-tsy-core-bootstrap`
 remains an independent Rust quantitative trading runtime and is consumed through

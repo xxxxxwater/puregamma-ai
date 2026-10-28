@@ -4,6 +4,15 @@ import type { UserConfig } from 'tsdown'
 export interface ExternalClientBundleOptions {
   /** Runtime module-table entries supplied by the Harness web shell. */
   externals?: readonly string[]
+  /**
+   * Packages the Node half must resolve from the Host instead of bundling.
+   *
+   * A Host half that mounts a Cordis Service (for example a Typert Remote)
+   * must share the Host's `@deepseek-ai/cordis` and Typert identities: a
+   * bundled private copy would register the Service on a different class
+   * hierarchy than the one the Host's gateway discovers.
+   */
+  hostExternals?: readonly string[]
 }
 
 function matches(names: ReadonlySet<string>, specifier: string): boolean {
@@ -47,6 +56,8 @@ export function externalClientBundle(
     ...(options.externals ?? []),
   ])
   const isRequested = (specifier: string): boolean => matches(requested, specifier)
+  const hostExternal = new Set(options.hostExternals ?? [])
+  const isHostExternal = (specifier: string): boolean => isBuiltin(specifier) || matches(hostExternal, specifier)
 
   const host: UserConfig = {
     name: id,
@@ -59,8 +70,8 @@ export function externalClientBundle(
     dts: false,
     clean: false,
     deps: {
-      neverBundle: (specifier: string) => isBuiltin(specifier),
-      alwaysBundle: (specifier: string) => !isBuiltin(specifier),
+      neverBundle: isHostExternal,
+      alwaysBundle: (specifier: string) => !isHostExternal(specifier),
     },
   }
 
