@@ -109,3 +109,24 @@ def test_short_stop_trails_running_min(monkeypatch):
     transitions = [(t["from"], t["to"]) for t in result.trades]
     assert transitions == [(0.0, -1.0), (-1.0, 0.0)]
     assert result.trades[1]["ts"] == _bars(closes)[3].ts.isoformat()
+
+
+def test_stop_reference_is_the_fill_not_the_signal_bar(monkeypatch):
+    _constant_signal(monkeypatch, 1.0)
+    spec = _spec(stop_loss_pct=0.05, rebalance_days=1, fee_bps=0)
+    # Signal on the 100 close, filled at 94. The position is never down 5%
+    # from its fill, so it must not be stopped out on the next bar.
+    closes = [100, 94, 95, 96, 97]
+    result = _run_daily_asset(spec, _bars(closes))
+    assert [(t["from"], t["to"]) for t in result.trades] == [(0.0, 1.0)]
+
+
+def test_cross_sectional_never_reads_the_final_close_early():
+    # Flat prices except a jump on BTC's very last bar. slow (5) is a multiple
+    # of rebalance_days (5): the first rebalance used to index closes[-1].
+    left = [100.0] * 29 + [200.0]
+    right = [100.0] * 30
+    spec = _spec(mode="cross_sectional", signal="relative_strength", assets=["BTC", "ETH"],
+                 long_short=True, slow_window=5, rebalance_days=5)
+    result = run_lab_backtest(spec, {"BTC": _window(left), "ETH": _window(right)})
+    assert result.trades == []

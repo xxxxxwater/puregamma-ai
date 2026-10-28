@@ -123,8 +123,12 @@ def _run_daily_asset(spec: StrategySpec, bars: list[DailyBar], min_count: int | 
         if index < stopped_until:
             target = 0.0
         if target != 0.0 and (previous == 0.0 or (target > 0) != (previous > 0)):
-            # New entry (or flip): the position is opened at the last close.
-            extreme_price = last_close
+            # New entry (or flip): the position starts earning from this bar's
+            # close, so that is its fill and the trailing-stop reference. The
+            # signal bar's close would stop out a position that has not lost
+            # anything whenever price gapped against it before the fill. Only
+            # read on the next bar, so it is not look-ahead.
+            extreme_price = closes[index]
         change = target - previous
         if change:
             trades.append({"ts": bars[index].ts.isoformat(), "from": previous, "to": target})
@@ -159,7 +163,9 @@ def _run_cross_sectional(spec: StrategySpec, universe: dict[str, list[DailyBar]]
     cost_rate = _cost_rate(spec)
     previous_left = previous_right = 0.0
     for index in range(1, len(common_ts)):
-        if index % spec.rebalance_days == 0 and index >= slow:
+        # `index > slow` keeps `index - 1 - slow` non-negative; at `index ==
+        # slow` it was -1, i.e. the series' final close (look-ahead).
+        if index % spec.rebalance_days == 0 and index > slow:
             left_momentum = left_closes[index - 1] / left_closes[index - 1 - slow] - 1
             right_momentum = right_closes[index - 1] / right_closes[index - 1 - slow] - 1
             spread = left_momentum - right_momentum
