@@ -10,7 +10,65 @@
 
 ---
 
-<!-- PART1 -->
+## 一、Playwright 全量离线化
+
+### 1.1 离线基础设施
+
+| 组件 | 作用 |
+| --- | --- |
+| 浏览器请求 | 仍由各 spec 的 `page.route()` stub；未 stub 的 `/__dev-api/*` 经 dev 代理打到关闭端口（`DEV_API_PROXY_TARGET=http://127.0.0.1:9`），表现为接口故障 |
+| 服务端渲染（SSR）请求 | **新增** `tests/e2e/playwright/fixtures/ssr-api.mjs`：`playwright.config.ts` 通过 `webServer` 启动它，并以 `PUREGAMMA_SERVER_API_URL` 指给 Next 服务端。只有列出的路径返回仓库内的 fixture；其余请求无凭证时返回 401（与真实 API 对匿名请求一致），带凭证时返回 503。需要“已登录”服务端页面的 spec 设置 cookie `pg_session=playwright-fixture-session`，带 `auth: true` 的 fixture 只对这个会话返回数据 |
+| 第三方请求 | **新增**：浏览器启动参数 `--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost`，只解析回环地址；Hyperliquid 行情、CDN、统计脚本等外部请求立即失败，页面必须显示不可用状态。`PLAYWRIGHT_ALLOW_EXTERNAL=1` 可关闭 |
+| dev 服务器稳定性 | **新增** `playwright.global-setup.ts`：首个用例前预编译错误页（`/_error`）；`next.config.js` 仅在 `PLAYWRIGHT_DEV_SERVER=1`（测试服务器）时让已编译页面常驻，避免测试中途重新编译。见 1.3 |
+| 端口 | 不再写死 `127.0.0.1:3000`：spec 使用 `PLAYWRIGHT_BASE_URL` 或通配路由 |
+
+### 1.2 逐个 spec 的分类
+
+分类：**过期**＝断言描述的界面/文案已不存在，按当前预期行为改写；**缺 stub**＝依赖真实 API，补 fixture/stub；**产品缺陷**＝修改应用并有测试覆盖；**基础设施**＝测试环境问题。
+
+| Spec | 分类 | 处理 |
+| --- | --- | --- |
+| admin-console | 缺 stub | 服务端 admin 读取原来打到线上（401→“需要管理员权限”）。现由 SSR fixture API 对匿名请求返回 401，同一路径 |
+| admin | 过期 | 旧的“Operational Control Room”单页已被分区后台替代。改为：未登录跳转登录页（带 `returnTo`）；非管理员看不到后台分区 |
+| agent-session-reliability、chat-design、harness-workspace、markdown-render | 原本通过 | 不变 |
+| architecture-visual | 过期 + 产品缺陷 | 徽标由“在线”改为“系统示意”（静态示意图不应声称在线）。另：窗口标题 `PUREGAMMA.AI` 写死 `text-slate-300`，浅色主题对比度 1.48:1，改为主题 token `text-text-pg-muted`（由 contrast-audit 发现） |
+| billing | 占位 fixme | 空的 `test.fixme` 改为真实用例：聊天发送遇到 402 `INSUFFICIENT_CREDITS` 时跳转到用户语言下的 `/billing`（`lib/api.ts` 的现有约定） |
+| contrast-audit | 产品缺陷 + 缺 stub + 测量稳健性 | 修复上述标题对比度；API 文档页补 catalog stub；采样等待有限动画结束（入场动画期间文字透明度 <0.6 会被跳过，导致两次采样“一致”却测不到内容）。断言阈值不变 |
+| daily-push | 过期 + 缺 stub | 旧用例假定所有访客都预选 iMessage。改为：无设置数据时不显示可能覆盖真实设置的表单；登录（fixture）后 Pro 用户只看到套餐包含的渠道，测试发送写入投递记录 |
+| dashboard | 过期 | 旧标题（“Decide what matters today.”等）已不存在。改为：API 不可用时显示 WAITING、账户/计费不可用、无研究简报的空状态，不编造数据（中英文） |
+| i18n | 过期 | 首页主标题、控制台不再有余额卡、每日推送页不再渲染示例简报；手机端语言切换在导航抽屉里 |
+| integrations | 过期 + 缺 stub | 页面不再用演示连接器冒充真实状态。改为：无数据时显示“连接状态暂不可用”且没有演示卡片；登录（fixture）后只显示 API 返回的连接，并显示连接错误 |
+| live-chat-workspace | 仅线上验收 | 设计上需要 `LIVE_TOKEN` 并访问生产环境；离线套件中按设计跳过（运行它就会访问生产 API，违反约束） |
+| live-trading、live-trading-workflow | 原本通过 | 不变（不在本工作范围内修改） |
+| mobile-fixes | 缺 stub | API 文档页的 catalog 在浏览器端读取，补 fixture，表格宽度约束在真实行上测量 |
+| mobile-nav | 过期 | 应用没有底部导航，也没有 “Voice Secretary” 链接。改写为：手机端菜单按钮打开“Primary navigation”对话框并逐项跳转（中英文）；聊天历史抽屉只在打开时是 “Conversation history” 对话框，Escape 关闭并归还焦点；断点间侧栏与菜单按钮互斥；主要页面无横向滚动 |
+| model-upgrade | 缺 stub + 过期 + 第二部分 | 首页公告/模型卡来自 SSR catalog fixture；代码示例只给可调用模型（`77a08f8` 的产品决定），GLM 5.2 显示“调用尚未开放”；Gateway 控制台拆为未登录不可用状态 + fixture 登录后的用量/请求/余额行；Agent 菜单段见第二部分 |
+| mstr-btc | 过期（页面从未入库） | `opportunities/mstr-btc` 页面在仓库任何版本中都不存在（只有 spec 随生产同步提交进入），“Opportunities” 导航也已移除。改为固定当前契约：该地址返回 404，且不渲染半成品研究视图。若将来恢复该页面，需同时恢复原断言 |
+| nautilus | 过期 | 页面现在有两处 “LIVE DISABLED”（头部徽标 + 内嵌实盘安全面板），改为明确断言两处及面板说明 |
+| plugins-runtime、theme-system | 原本通过 | 不变 |
+| portfolio | 过期 | 连接按钮是**有意**启用的（未配置时卡片标 NEEDS CONFIG，点击说明原因）。改为断言说明文案，且不会请求 link-token |
+| public-page-access | 原本通过 + 新 CI job | “受保护页面需要会话”的 4 个用例需要 `REQUIRE_AUTH=true` 的服务器，在套件服务器中按设计跳过；新增 CI job `auth-guard` 专门运行 |
+| route-audit | 原本通过 | 生产构建 + `next start`，保持原 CI job |
+| visual-style | 过期 + 基础设施 | 默认主题是“跟随系统”而非固定深色；手机端外观控件在导航抽屉里；原“仅手机”的溢出检查在两个项目上都成立，去掉 skip。另见 1.3 |
+
+### 1.3 dev 服务器中途编译导致的超时
+
+现象：偶发的 `page.goto` 等不到 `load`、或页面不水合（例如 visual-style 刷新后外观按钮停在服务端默认状态）。trace 显示页面自身的 JS chunk 一直没有响应；同一时刻 dev 日志在编译 `/_error`——第一次有未 stub 的接口经代理返回 500 时，Next 才编译 pages router 的错误页。处理：
+
+- `globalSetup` 在第一个用例前请求 `/__dev-api/warmup` 和一个不存在的路径，提前编译错误页；
+- 测试 dev 服务器上让已编译页面常驻（`onDemandEntries`），避免空闲 60 秒后被回收再在测试中重编译；
+- **没有**预编译全部路由：在 8 GB 共享机器上试过，dev 服务器超过 3 GB，导致整机内存不足（`warm-dev-server.mjs --all` 仅供内存充足的机器使用）。
+
+### 1.4 CI（`.github/workflows/web-e2e.yml`）
+
+| Job | 内容 |
+| --- | --- |
+| `e2e`（原有） | 6 个核心 spec，保持不变 |
+| `full-suite`（新增） | 全部 spec × chromium + mobile-chrome，`--shard=1..4/4`，每片 `timeout-minutes: 25`，排除 route-audit（按标题 `--grep-invert`） |
+| `auth-guard`（新增） | 以 `REQUIRE_AUTH=true` 启动 dev 服务器，只跑 public-page-access 的受保护页面用例 |
+| `route-audit`（原有） | 生产构建 + `next start`，不变 |
+
+
 
 ## 二、模型菜单与计价
 
