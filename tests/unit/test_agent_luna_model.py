@@ -116,7 +116,9 @@ def test_capabilities_report_luna_plan_and_availability(db, normal_user, max_use
     free_option = agent_service.agent_model_options(db, normal_user)[1]
     max_option = agent_service.agent_model_options(db, max_user)[1]
 
-    assert free_option == {
+    # The option now also carries capabilities, a typical-turn estimate and
+    # limits (test_agent_model_pricing.py); the gating fields are unchanged.
+    assert {key: free_option[key] for key in ("id", "display_name", "description", "provider", "available", "reason", "credit_cost", "category")} == {
         "id": "gpt-5.6-luna",
         "display_name": "GPT-5.6 Luna · OpenAI",
         "description": "High-quality deep market research for selective use.",

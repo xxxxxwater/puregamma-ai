@@ -7,6 +7,7 @@ import logging
 import re
 import time
 import uuid
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
 from typing import Generator
 
@@ -20,7 +21,7 @@ from apps.api.services.credit_service import (
     reserve_task,
     settle_task,
 )
-from packages.billing.metering import CreditReservation, CreditSettlement
+from packages.billing.metering import CreditReservation, CreditSettlement, ModelPricingNotConfigured, explicit_model_rate, typical_turn_estimate
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.skill_service import skill_registry
 from packages.agents.chat.tools import AgentToolRegistry, ToolSource
@@ -74,6 +75,10 @@ class AgentDuplicateSubmissionError(RuntimeError):
 
 class AgentModelUnavailableError(RuntimeError):
     pass
+
+
+class AgentModelPricingError(AgentModelUnavailableError):
+    """The selected model has no explicit Credit rate, so it cannot be billed."""
 
 
 def _online_fallback_allowed(
@@ -305,6 +310,7 @@ def quote_agent_run(db: Session, user: User, content: str, context: dict | None 
         enforce_skill_rate_limit=False,
     )
     quote = quote_task(
+        **_model_pricing(selection),
         task_type=_metering_action(clean_context),
         requested_model=selection,
         resolved_model=model,
@@ -367,6 +373,10 @@ def _resolve_agent_model(db: Session, user: User, selected_model: str | None) ->
     # server refuses is a model the user can pick and never run.
     if selection not in {identifier for identifier, _ in settings.openai_agent_models}:
         raise AgentModelInvalidError("AGENT_MODEL_INVALID")
+    # Fail closed before anything else: a model without an explicit rate is
+    # never offered and never billed at the platform default rate.
+    if explicit_model_rate(selection, settings.agent_model_rates) is None:
+        raise AgentModelPricingError("AGENT_MODEL_PRICING_NOT_CONFIGURED")
     plan = get_user_entitlement(db, user.id)["plan"]
     if plan.lower() not in {item.lower() for item in settings.openai_luna_allowed_plans}:
         raise AgentModelPlanError("AGENT_MODEL_PLAN_REQUIRED")
@@ -375,44 +385,106 @@ def _resolve_agent_model(db: Session, user: User, selected_model: str | None) ->
     return selection, selection
 
 
+def _model_pricing(selection: str | None) -> dict:
+    """Rate inputs for ``quote_task``: a selected model must carry its own rate."""
+    selection = selection or "default"
+    return {
+        "model_rates": get_settings().agent_model_rates,
+        "strict_model_rate": selection != "default",
+    }
+
+
+#: Capability flags the menu reports when the gateway catalog lists the model.
+_CATALOG_CAPABILITIES = ("reasoning", "vision", "tool_calling")
+
+
+def _catalog_capabilities(model: str) -> dict:
+    """Known capabilities of an upstream model from the gateway catalog.
+
+    Only flags the reviewed catalog states are reported; a model the catalog
+    does not list reports none rather than guessed ones.
+    """
+    try:
+        from packages.gateway.catalog import configured_providers
+
+        providers = configured_providers()
+    except Exception:  # noqa: BLE001 - a missing catalog means "unknown", not an error
+        return {}
+    for provider in providers.values():
+        for item in provider.get("models") or []:
+            if isinstance(item, dict) and model in {item.get("public_id"), item.get("provider_model_id")}:
+                raw = item.get("capabilities") or {}
+                return {key: bool(raw[key]) for key in _CATALOG_CAPABILITIES if key in raw}
+    return {}
+
+
+def _turn_estimate(selection: str, model: str) -> dict:
+    """A typical-turn Credit range from the same rates and formula as billing."""
+    task = _metering_action({"model": selection})
+    low, high = typical_turn_estimate(task, requested_model=selection, resolved_model=model, **_model_pricing(selection))
+    return {"min": low, "max": high, "unit": "credits", "basis": "typical_turn", "task_type": task}
+
+
 def agent_model_options(db: Session, user: User) -> list[dict]:
     settings = get_settings()
     plan = get_user_entitlement(db, user.id)["plan"]
-    plan_allowed = plan.lower() in {item.lower() for item in settings.openai_luna_allowed_plans}
+    allowed_plans = list(settings.openai_luna_allowed_plans)
+    plan_allowed = plan.lower() in {item.lower() for item in allowed_plans}
     configured = settings.openai_luna_enabled and bool(settings.openai_api_key)
-    reason = None
-    if not plan_allowed:
-        reason = "plan_required"
-    elif not configured:
-        reason = "unavailable"
+    rates = settings.agent_model_rates
     # The default option keeps the id "default" because that is the request
     # semantic older clients send, but it now advertises the model the platform
     # actually resolves to instead of the opaque label "Default model". Clients
     # that ignore display_name are unaffected; clients that show it no longer
     # have to guess which model answers.
     default_label = settings.agent_model or settings.deepseek_display_name or "Default model"
+    from packages.agents.llm.model_router import ModelRouter
+
+    default_route = ModelRouter(settings).route_for_task("agent_chat")
+    _, default_model = _resolve_agent_model(db, user, "default")
+    image_model = settings.deepseek_effective_model
     # Two categories, because these are two different kinds of thing. A
     # generation model writes the reply; an evaluation model returns typed
     # judgement that code consumes. Jev cannot produce prose, so offering it
     # as another chat model would mean a user picking it and getting no
     # answer -- it is listed separately and honestly labelled instead.
     jev_configured = bool(settings.gateway_typesafe_api_key)
+
+    def generation_option(identifier: str, label: str) -> dict:
+        priced = explicit_model_rate(identifier, rates) is not None
+        # Pricing first: a model that cannot be billed is offered to nobody,
+        # so a plan upgrade would not make it runnable either.
+        reason = "pricing_not_configured" if not priced else "plan_required" if not plan_allowed else "unavailable" if not configured else None
+        return {
+            "id": identifier,
+            "display_name": f"{label} · OpenAI",
+            "description": "High-quality deep market research for selective use.",
+            "provider": "openai",
+            "available": reason is None,
+            "reason": reason,
+            "credit_cost": None,
+            "category": "generation",
+            "capabilities": {"chat": True, **_catalog_capabilities(identifier)},
+            "estimate": _turn_estimate(identifier, identifier) if priced else None,
+            "limits": {"plans": allowed_plans, "plan_allowed": plan_allowed, "image_input": identifier == image_model},
+        }
+
     return [
-        {"id": "default", "display_name": default_label, "description": "Uses the existing Agent default configuration.", "provider": "default", "available": True, "reason": None, "credit_cost": None, "category": "generation"},
-        *[
-            {
-                "id": identifier,
-                "display_name": f"{label} · OpenAI",
-                "description": "High-quality deep market research for selective use.",
-                "provider": "openai",
-                "available": plan_allowed and configured,
-                "reason": reason,
-                "credit_cost": None,
-                "category": "generation",
-            }
-            for identifier, label in settings.openai_agent_models
-        ],
-        {"id": "jev", "display_name": "Jev (TypeSafe)", "description": "Evaluation model. Returns typed choices, scores and probabilities for routing and evidence ranking; it does not write replies.", "provider": "typesafe", "available": jev_configured, "reason": None if jev_configured else "unavailable", "credit_cost": None, "category": "evaluation", "capabilities": {"chat": False, "evaluation": True, "endpoint": "/v1/systemone"}},
+        {
+            "id": "default",
+            "display_name": default_label,
+            "description": "Uses the existing Agent default configuration.",
+            "provider": default_route.provider_name or "default",
+            "available": True,
+            "reason": None,
+            "credit_cost": None,
+            "category": "generation",
+            "capabilities": {"chat": True, **_catalog_capabilities(default_model)},
+            "estimate": _turn_estimate("default", default_model),
+            "limits": {"plans": None, "plan_allowed": True, "image_input": default_model == image_model},
+        },
+        *[generation_option(identifier, label) for identifier, label in settings.openai_agent_models],
+        {"id": "jev", "display_name": "Jev (TypeSafe)", "description": "Evaluation model. Returns typed choices, scores and probabilities for routing and evidence ranking; it does not write replies.", "provider": "typesafe", "available": jev_configured, "reason": None if jev_configured else "unavailable", "credit_cost": None, "category": "evaluation", "capabilities": {"chat": False, "evaluation": True, "endpoint": "/v1/systemone"}, "estimate": None, "limits": {"plans": None, "plan_allowed": True, "image_input": False}},
     ]
 
 
@@ -478,7 +550,7 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
     )
     registry = skill_registry(db, user)
     action = _metering_action(clean_context)
-    quote = quote_task(task_type=action, requested_model=selection, resolved_model=model,
+    quote = quote_task(**_model_pricing(selection), task_type=action, requested_model=selection, resolved_model=model,
                        input_tokens=max(1, len(content) // 4), selected_data_sources=clean_context.get("data_sources", []),
                        attachment_bytes=sum(len(item.get("content", "").encode()) for item in clean_context.get("attachments", [])),
                        tool_calls=tool_names)
@@ -635,9 +707,10 @@ def _settle_agent_run(
         .filter(AgentToolCall.run_id == run.id, AgentToolCall.status == "completed")
         .all()
     ]
-    actual_quote = quote_task(
+    selection = run_context.get("model", "default")
+    usage = dict(
         task_type=_metering_action(run_context),
-        requested_model=run_context.get("model", "default"),
+        requested_model=selection,
         resolved_model=response_model,
         input_tokens=max(prompt_tokens, max(1, len(user_message.content) // 4)),
         output_tokens=max(0, completion_tokens),
@@ -648,6 +721,13 @@ def _settle_agent_run(
         tool_calls=actual_tools,
         selected_data_sources=run_context.get("data_sources", []),
     )
+    try:
+        actual_quote = quote_task(**_model_pricing(selection), **usage)
+    except ModelPricingNotConfigured:
+        # The rate was removed while this run was in flight. The reservation
+        # was quoted from an explicit rate, so settle at exactly that amount
+        # rather than re-pricing the usage at some other model's rate.
+        actual_quote = replace(quote_task(**usage), credits=int(run.credit_cost or 0))
     selected_skills = skill_registry(db, user).resolve_many(
         run_context.get("skills", []),
         trigger_source="agent_chat",

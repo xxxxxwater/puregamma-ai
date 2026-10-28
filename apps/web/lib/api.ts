@@ -1738,7 +1738,23 @@ export function getAgentQuota() {
 }
 
 export type AgentCapabilities = { plan: string; allowed_data_sources: string[]; agent_daily_runs: number; agent_concurrent_runs: number; queue_priority: number; credit_balance?: number };
-export type AgentModelOption = { id: string; display_name: string; description: string; provider: string; available: boolean; reason?: "plan_required" | "unavailable" | null; credit_cost?: number | null };
+/** A typical-turn Credit range computed server-side from the billing rates. */
+export type AgentModelEstimate = { min: number; max: number; unit: "credits"; basis: "typical_turn"; task_type: string };
+export type AgentModelOption = {
+  id: string;
+  display_name: string;
+  description: string;
+  provider: string;
+  available: boolean;
+  reason?: "plan_required" | "unavailable" | "pricing_not_configured" | null;
+  credit_cost?: number | null;
+  category?: "generation" | "evaluation";
+  /** Only flags the server knows (gateway catalog); an absent flag means unknown, not false. */
+  capabilities?: { chat?: boolean; reasoning?: boolean; vision?: boolean; tool_calling?: boolean; [key: string]: unknown };
+  /** Absent for a model without an explicit rate: such a model is never available. */
+  estimate?: AgentModelEstimate | null;
+  limits?: { plans: string[] | null; plan_allowed: boolean; image_input: boolean };
+};
 
 export function getAgentCapabilities() {
   return requestStrict<{ capabilities: AgentCapabilities; models: AgentModelOption[]; skills: SkillSummary[]; plugins: AgentPluginEntry[]; plugin_counts: { total: number; enabled: number; tools: number }; quota: { plan: string; used: number; limit: number; remaining: number; concurrent_limit: number; running: number; credit_balance: number } }>("/api/agent/capabilities");
