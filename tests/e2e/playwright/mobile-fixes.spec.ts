@@ -1,5 +1,6 @@
 import { test, expect } from "@playwright/test";
 import { mkdirSync } from "node:fs";
+import catalogFixture from "./fixtures/gateway-catalog.json";
 
 /**
  * Regression cover for the two phone-layout defects fixed this round.
@@ -101,6 +102,9 @@ test.describe("api docs width contract", () => {
     test(`wide tables scroll inside their own box at ${width}px`, async ({ browser }) => {
       const context = await browser.newContext({ viewport: { width, height: 900 } });
       const page = await context.newPage();
+      // The catalog table is read in the browser; serve the checked-in fixture
+      // so the width contract is measured on real rows, not an empty table.
+      await page.route(`${API}/gateway/catalog*`, (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(catalogFixture) }));
       await page.goto("/zh/api", { waitUntil: "domcontentloaded" });
       await page.waitForFunction(() => document.querySelectorAll("table").length >= 2, null, { timeout: 25000 });
       await page.waitForTimeout(400);

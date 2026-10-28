@@ -3,13 +3,13 @@ import { expect, test } from "@playwright/test";
 test.describe("localized routes", () => {
   test("/en landing renders English", async ({ page }) => {
     await page.goto("/en");
-    await expect(page.getByRole("heading", { name: "Decide where to take Beta, where Alpha may exist, Long Gamma NAV 1 > 50." })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Clarity for the next decision." })).toBeVisible();
     await expect(page.getByText("AI SECONDARY-MARKET DECISION SUPPORT").first()).toBeVisible();
   });
 
   test("/zh landing renders Chinese", async ({ page }) => {
     await page.goto("/zh");
-    await expect(page.getByRole("heading", { name: "判断何时承担 Beta、哪里可能存在 Alpha，Long Gamma NAV 1 > 50。" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "让下一步决策更清晰。" })).toBeVisible();
     await expect(page.getByText("面向二级市场的 AI 决策支持").first()).toBeVisible();
   });
 
@@ -31,14 +31,16 @@ test.describe("localized routes", () => {
     // <title> ("PureGamma AI Console"), which the metadata test covers.
     await expect(page.getByRole("heading", { name: "Market intelligence, in motion." })).toBeVisible();
     await expect(page).toHaveTitle("PureGamma AI Console");
-    await expect(page.getByText("Credit Balance")).toBeVisible();
+    // The dashboard no longer carries a credit-balance card (balance lives in
+    // the header and /billing); a localized section label is checked instead.
+    await expect(page.getByText("Today's decisions")).toBeVisible();
   });
 
   test("/zh/dashboard renders Chinese labels", async ({ page }) => {
     await page.goto("/zh/dashboard");
     await expect(page.getByRole("heading", { name: "市场智能，正在演化。" })).toBeVisible();
     await expect(page).toHaveTitle("PureGamma AI 投研控制台");
-    await expect(page.getByText("Credits 余额")).toBeVisible();
+    await expect(page.getByText("今日决策")).toBeVisible();
   });
 
   test("language switcher preserves path and query params", async ({ page }) => {
@@ -73,7 +75,9 @@ test.describe("localized routes", () => {
   test("daily push preview localized", async ({ page }) => {
     await page.goto("/zh/daily-push");
     await expect(page.getByRole("heading", { name: "每日研究推送" })).toBeVisible();
-    await expect(page.getByText("PureGamma AI 每日简报").first()).toBeVisible();
+    // The page no longer renders a sample brief; without the user's settings it
+    // shows a localized unavailable state instead of a pre-filled editor.
+    await expect(page.getByText("暂时无法读取推送设置")).toBeVisible();
   });
 
   test("portfolio partial data warning localized", async ({ page }) => {

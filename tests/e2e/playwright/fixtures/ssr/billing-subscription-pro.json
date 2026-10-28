@@ -1,0 +1,13 @@
+{
+  "plan": "Pro",
+  "subscription_status": "active",
+  "current_period_end": "2026-11-28T00:00:00+00:00",
+  "cancel_at_period_end": false,
+  "cancel_at": null,
+  "credit_balance": 1200,
+  "billing_mode": "mock",
+  "entitlement": { "notification_channels": ["email", "telegram"], "high_cost_tasks": true, "imessage": false },
+  "checkout_mode": "session",
+  "payment_links": {},
+  "primary_payment_link_configured": false
+}

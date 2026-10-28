@@ -1,0 +1,20 @@
+{
+  "preference": {
+    "enabled": true,
+    "timezone": "Asia/Shanghai",
+    "local_time": "08:30",
+    "channel": "email",
+    "locale": "en",
+    "include_portfolio": true,
+    "include_market": true,
+    "include_signals": false,
+    "include_risk": true,
+    "include_sentiment": false,
+    "quiet_hours": {},
+    "max_length": 1200,
+    "next_delivery_at": "2026-10-29T00:30:00+00:00",
+    "recipient": null,
+    "recipient_verified_at": null
+  },
+  "history": []
+}

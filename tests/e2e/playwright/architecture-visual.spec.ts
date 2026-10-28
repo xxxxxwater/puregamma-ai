@@ -47,7 +47,10 @@ test.describe("landing-page architecture visual", () => {
     await page.goto("/zh", { waitUntil: "domcontentloaded" });
 
     const computer = page.getByTestId("architecture-mac-window");
-    await expect(computer).toContainText("在线");
+    // The badge was renamed from "在线" (online) to "系统示意" (system map):
+    // a static diagram must not claim live status.
+    await expect(computer).toContainText("系统示意");
+    await expect(computer).not.toContainText("在线");
     await expect(computer.getByLabel("关闭架构预览")).toBeVisible();
     await expect(page.getByTestId("architecture-system-map")).toContainText("PureGamma 运行图");
   });

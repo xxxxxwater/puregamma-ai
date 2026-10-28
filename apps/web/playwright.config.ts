@@ -13,6 +13,12 @@ const port = process.env.PLAYWRIGHT_PORT || "3000";
 // like Caddy in production, and leaves production CORS untouched.
 const apiUrl = process.env.NEXT_PUBLIC_API_URL || "/__dev-api";
 const apiProxyTarget = process.env.DEV_API_PROXY_TARGET || "https://api.puregamma.ai";
+// Server Components fetch the API from the Next.js process, where no
+// `page.route()` stub can reach. They are pointed at a local fixture API
+// (tests/e2e/playwright/fixtures/ssr-api.mjs) that serves checked-in fixtures
+// and answers 503 for everything else, so the suite runs fully offline.
+const ssrApiPort = process.env.PLAYWRIGHT_SSR_API_PORT || "3599";
+const ssrApiUrl = process.env.PLAYWRIGHT_SSR_API_URL || `http://127.0.0.1:${ssrApiPort}`;
 
 // `set "KEY=VALUE" && ...` rather than `set KEY=VALUE&& ...`: without the space
 // the value keeps the trailing whitespace, so `REQUIRE_AUTH` reads as "false "
@@ -24,6 +30,7 @@ const devEnv: Record<string, string> = {
   NEXT_PUBLIC_API_URL: apiUrl,
   DEV_API_PROXY_TARGET: apiProxyTarget,
   REQUIRE_AUTH: "false",
+  PUREGAMMA_SERVER_API_URL: ssrApiUrl,
 };
 const devCommand = process.platform === "win32"
   ? `${Object.entries(devEnv).map(([key, value]) => `set "${key}=${value}"`).join(" && ")} && node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`
@@ -39,14 +46,29 @@ export default defineConfig({
   use: {
     baseURL: process.env.PLAYWRIGHT_BASE_URL || `http://127.0.0.1:${port}`,
     trace: "retain-on-failure",
-    ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { launchOptions: { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } } : {}),
+    launchOptions: {
+      ...(process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ? { executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH } : {}),
+      // Hermetic by default: the browser resolves only loopback, so a page's
+      // third-party reads (market data sockets, CDNs, analytics) fail fast and
+      // the page must render its unavailable state, instead of the suite
+      // depending on, and waiting for, real external services.
+      ...(process.env.PLAYWRIGHT_ALLOW_EXTERNAL === "1" ? {} : { args: ["--host-resolver-rules=MAP * ~NOTFOUND, EXCLUDE 127.0.0.1, EXCLUDE localhost"] }),
+    },
   },
-  webServer: {
-    command: devCommand,
-    url: `http://127.0.0.1:${port}`,
-    reuseExistingServer: true,
-    timeout: 120_000,
-  },
+  webServer: [
+    {
+      command: `node ../../tests/e2e/playwright/fixtures/ssr-api.mjs ${ssrApiPort}`,
+      url: `http://127.0.0.1:${ssrApiPort}/__health`,
+      reuseExistingServer: true,
+      timeout: 30_000,
+    },
+    {
+      command: devCommand,
+      url: `http://127.0.0.1:${port}`,
+      reuseExistingServer: true,
+      timeout: 120_000,
+    },
+  ],
   projects: [
     { name: "chromium", use: { ...devices["Desktop Chrome"] } },
     { name: "mobile-chrome", use: { ...devices["Pixel 5"] } },

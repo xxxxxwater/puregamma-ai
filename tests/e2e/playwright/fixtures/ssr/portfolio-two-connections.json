@@ -1,0 +1,18 @@
+{
+  "connected": true,
+  "stale": false,
+  "data_as_of": "2026-10-28T08:00:00+00:00",
+  "nav": 125000,
+  "available_cash": 5000,
+  "daily_change": 0,
+  "daily_change_pct": null,
+  "nav_history": [],
+  "holdings": [],
+  "asset_classes": {},
+  "accounts": [],
+  "connections": [
+    { "id": "conn-plaid", "provider": "plaid", "name": "Fixture Brokerage", "status": "CONNECTED", "last_sync": "2026-10-28T08:00:00+00:00", "error": null, "can_refresh": true },
+    { "id": "conn-hl", "provider": "hyperliquid", "name": "Fixture Hyperliquid", "status": "ERROR", "last_sync": null, "error": "Address returned no account state." }
+  ],
+  "providers": { "plaid": true, "ibkr": true, "hyperliquid": true, "evm": false }
+}
