@@ -13,7 +13,7 @@
   },
   "files": ["lib/index.js", "lib/index.d.ts", "lib/index.js.map"],
   "scripts": { "bundle": "tsdown" },
-  "dependencies": { "@puregamma/dsh-skills": "workspace:^" },
+  "dependencies": { "@puregamma/dsh-legacy-auth": "workspace:^", "@puregamma/dsh-skills": "workspace:^" },
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.4",
     "@deepseek-ai/schemastery": "^3.18.4"

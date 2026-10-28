@@ -27,7 +27,8 @@
       "@puregamma/dsh-skills": ["./plugins/skills/src/index.ts"],
       "@puregamma/dsh-research-runner": ["./plugins/research-runner/src/index.ts"],
       "@puregamma/dsh-trading": ["./plugins/trading/src/index.ts"],
-      "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"]
+      "@puregamma/dsh-pg-tsy-runtime": ["./plugins/pg-tsy-runtime/src/index.ts"],
+      "@puregamma/dsh-legacy-auth": ["./plugins/legacy-auth/src/index.ts"]
     }
   },
   "include": ["packages/*/src/**/*.ts", "plugins/contracts.ts", "plugins/catalog.ts", "plugins/*/src/**/*.ts"],

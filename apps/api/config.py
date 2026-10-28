@@ -126,6 +126,12 @@ class Settings:
     session_cookie_domain: str | None = os.getenv("SESSION_COOKIE_DOMAIN") or None
     encryption_master_key: str = os.getenv("ENCRYPTION_MASTER_KEY", "")
     internal_runtime_secret: str = os.getenv("INTERNAL_RUNTIME_SECRET", "")
+    # Multi-tenant DSH Web (one Host per user behind the session broker). Off
+    # by default: the mint endpoint answers 404 until a deployment opts in.
+    dsh_multi_tenant_enabled: bool = os.getenv("DSH_MULTI_TENANT_ENABLED", "false").lower() == "true"
+    dsh_broker_secret: str = os.getenv("DSH_BROKER_SECRET", "")
+    dsh_host_token_ttl_seconds: int = int(os.getenv("DSH_HOST_TOKEN_TTL_SECONDS", "600") or 600)
+    dsh_host_session_max_seconds: int = int(os.getenv("DSH_HOST_SESSION_MAX_SECONDS", "28800") or 28800)
     session_max_age_seconds: int = int(
         os.getenv("SESSION_MAX_AGE_SECONDS", "604800") or 604800
     )
@@ -820,6 +826,8 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("ENCRYPTION_MASTER_KEY must be at least 32 characters")
     if not settings.internal_runtime_secret or len(settings.internal_runtime_secret) < 32:
         errors.append("INTERNAL_RUNTIME_SECRET must be at least 32 characters")
+    if settings.dsh_multi_tenant_enabled and len(settings.dsh_broker_secret) < 32:
+        errors.append("DSH_BROKER_SECRET must be at least 32 characters when DSH_MULTI_TENANT_ENABLED=true")
     if not settings.metrics_bearer_token or len(settings.metrics_bearer_token) < 32:
         errors.append("METRICS_BEARER_TOKEN must be at least 32 characters in production")
     if settings.jwt_secret in {"", "change-me", "dev-only-change-me"} or len(settings.jwt_secret) < 32:

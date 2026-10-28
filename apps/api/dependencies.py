@@ -5,6 +5,7 @@ import hashlib
 import hmac
 import json
 import logging
+import secrets
 import time
 from typing import Generator
 
@@ -42,6 +43,89 @@ def create_access_token(user: User, expires_in_seconds: int = 86400) -> str:
     signing_input = f"{_b64url(json.dumps(header, separators=(',', ':')).encode())}.{_b64url(json.dumps(payload, separators=(',', ':')).encode())}"
     signature = hmac.new(settings.jwt_secret.encode(), signing_input.encode(), hashlib.sha256).digest()
     return f"{signing_input}.{_b64url(signature)}"
+
+
+# ---------------------------------------------------------------------------
+# Per-user DSH Host tokens (multi-tenant DSH Web behind the session broker).
+#
+# A Host token is a normal HS256 session JWT for exactly one user plus an
+# audience/scope pair. It is short-lived, only accepted as a Bearer header
+# (never as the session cookie), carries the user's session_version so logout
+# revokes it, and only reaches the read/act routes the legacy-api providers
+# need. It cannot mint credentials (internal routes, gateway key writes),
+# reach admin, account or session routes, or export the account.
+DSH_HOST_TOKEN_AUDIENCE = "puregamma-dsh-host"
+DSH_HOST_TOKEN_SCOPE = "dsh-host"
+DSH_HOST_TOKEN_MAX_TTL_SECONDS = 900
+
+# (path prefix, allowed methods or None for any). Matched on whole segments;
+# a leading "/api" is ignored so both mount styles of a router match.
+_DSH_HOST_ROUTES: tuple[tuple[str, frozenset[str] | None], ...] = (
+    ("/me", frozenset({"GET"})),
+    ("/market", None),
+    ("/news", frozenset({"GET"})),
+    ("/options", None),
+    ("/research", None),
+    ("/backtest", None),
+    ("/backtest-lab", None),
+    ("/portfolio", None),
+    ("/billing", None),
+    ("/notifications", None),
+    ("/memory", None),
+    ("/secretary", None),
+    ("/gateway", frozenset({"GET"})),
+)
+
+
+def create_dsh_host_token(user: User, *, ttl_seconds: int, auth_time: int) -> tuple[str, int]:
+    settings = get_settings()
+    now = int(time.time())
+    ttl = max(60, min(int(ttl_seconds), DSH_HOST_TOKEN_MAX_TTL_SECONDS))
+    payload = {
+        "sub": user.id,
+        "sv": user.session_version,
+        "aud": DSH_HOST_TOKEN_AUDIENCE,
+        "scope": DSH_HOST_TOKEN_SCOPE,
+        "auth_time": int(auth_time),
+        "jti": secrets.token_urlsafe(12),
+        "iat": now,
+        "exp": now + ttl,
+    }
+    header = {"alg": "HS256", "typ": "JWT"}
+    signing_input = f"{_b64url(json.dumps(header, separators=(',', ':')).encode())}.{_b64url(json.dumps(payload, separators=(',', ':')).encode())}"
+    signature = hmac.new(settings.jwt_secret.encode(), signing_input.encode(), hashlib.sha256).digest()
+    return f"{signing_input}.{_b64url(signature)}", payload["exp"]
+
+
+def is_scoped_token(claims: dict) -> bool:
+    return "aud" in claims or "scope" in claims
+
+
+def dsh_host_route_allowed(method: str, path: str) -> bool:
+    candidates = [path]
+    if path == "/api" or path.startswith("/api/"):
+        candidates.append(path[4:] or "/")
+    for candidate in candidates:
+        for prefix, methods in _DSH_HOST_ROUTES:
+            if candidate == prefix or candidate.startswith(prefix + "/"):
+                if prefix == "/me" and candidate != "/me":
+                    continue
+                if methods is None or method.upper() in methods:
+                    return True
+    return False
+
+
+def check_dsh_host_claims(claims: dict) -> None:
+    """Reject anything that is not a well-formed, short-lived Host token."""
+    if claims.get("aud") != DSH_HOST_TOKEN_AUDIENCE or claims.get("scope") != DSH_HOST_TOKEN_SCOPE:
+        raise HTTPException(status_code=401, detail="Unsupported token audience")
+    try:
+        lifetime = int(claims["exp"]) - int(claims["iat"])
+        int(claims["auth_time"])
+    except (KeyError, TypeError, ValueError) as exc:
+        raise HTTPException(status_code=401, detail="Malformed host token") from exc
+    if lifetime > DSH_HOST_TOKEN_MAX_TTL_SECONDS:
+        raise HTTPException(status_code=401, detail="Host token lifetime exceeds policy")
 
 
 def verify_access_token(token: str) -> dict:
@@ -90,6 +174,13 @@ def get_current_user(request: Request, db: Session = Depends(get_db), authorizat
         token = request.cookies.get(get_settings().session_cookie_name)
     if token:
         claims = verify_access_token(token)
+        if is_scoped_token(claims):
+            # Host tokens are only ever Bearer headers from a broker-managed Host.
+            if not authorization:
+                raise HTTPException(status_code=401, detail="Scoped tokens are not session cookies")
+            check_dsh_host_claims(claims)
+            if not dsh_host_route_allowed(request.method, request.url.path):
+                raise HTTPException(status_code=403, detail={"code": "DSH_HOST_TOKEN_SCOPE", "message": "This route needs a full PureGamma session."})
         user = db.get(User, claims.get("sub"))
         if not user:
             raise HTTPException(status_code=401, detail="User not found")
