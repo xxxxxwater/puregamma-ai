@@ -8,7 +8,11 @@ Execution contract follows the NautilusTrader strategy conventions:
 - ``cross_sectional`` mode ranks the universe each rebalance bar, goes long the
   stronger leg and short the weaker leg when ``long_short`` is enabled
   (market-neutral style), sized by ``max_position`` per leg.
-- Fees are charged on position changes at ``fee_bps`` per unit turnover.
+- Transaction costs are charged on position changes at
+  ``fee_bps + slippage_bps`` per unit turnover.
+- Multi-asset ``daily`` runs allocate capital equally across assets (each
+  sleeve sized by ``max_position``); portfolio returns are averaged per bar,
+  never concatenated.
 
 This is a research simulation consistent with the PureGamma Nautilus contract:
 it reports hypothetical performance and never touches order execution.
@@ -78,6 +82,11 @@ def _daily_signal(spec: StrategySpec, history: list[float], fast: int | None = N
     return 0.0
 
 
+def _cost_rate(spec: StrategySpec) -> float:
+    """Per-unit-turnover transaction cost (fees plus slippage) as a fraction."""
+    return (spec.fee_bps + spec.slippage_bps) / 10_000
+
+
 def _effective_windows(spec: StrategySpec, min_count: int) -> tuple[int, int]:
     slow = min(spec.slow_window, max(3, min_count - 2))
     fast = min(spec.fast_window, max(2, slow - 1))
@@ -92,28 +101,35 @@ def _run_daily_asset(spec: StrategySpec, bars: list[DailyBar], min_count: int | 
     trades: list[dict] = []
     previous = 0.0
     value = 1.0
-    peak_price = closes[0] if closes else 0.0
+    cost_rate = _cost_rate(spec)
+    # Trailing-stop reference since the current position was entered: running
+    # max close for longs, running min close for shorts. Reset on every entry.
+    extreme_price = 0.0
     stopped_until = -1
     for index in range(1, len(bars)):
         history = closes[:index]
         target = _daily_signal(spec, history, fast=fast, slow=slow)
+        last_close = closes[index - 1]
         if spec.stop_loss_pct and previous != 0.0:
             if previous > 0:
-                peak_price = max(peak_price, closes[index - 1])
-                if closes[index - 1] <= peak_price * (1 - spec.stop_loss_pct):
-                    target = 0.0
-                    stopped_until = index + spec.rebalance_days
-            elif closes[index - 1] >= peak_price * (1 + spec.stop_loss_pct):
-                peak_price = min(peak_price, closes[index - 1]) if peak_price else closes[index - 1]
+                extreme_price = max(extreme_price, last_close)
+                stop_hit = last_close <= extreme_price * (1 - spec.stop_loss_pct)
+            else:
+                extreme_price = min(extreme_price, last_close)
+                stop_hit = last_close >= extreme_price * (1 + spec.stop_loss_pct)
+            if stop_hit:
                 target = 0.0
                 stopped_until = index + spec.rebalance_days
         if index < stopped_until:
             target = 0.0
+        if target != 0.0 and (previous == 0.0 or (target > 0) != (previous > 0)):
+            # New entry (or flip): the position is opened at the last close.
+            extreme_price = last_close
         change = target - previous
         if change:
             trades.append({"ts": bars[index].ts.isoformat(), "from": previous, "to": target})
         asset_return = closes[index] / closes[index - 1] - 1
-        period_return = previous * asset_return - abs(change) * spec.fee_bps / 10_000
+        period_return = previous * asset_return - abs(change) * cost_rate
         returns.append(period_return)
         value *= 1 + period_return
         equity.append({"ts": bars[index].ts.isoformat(), "equity": round(value, 6)})
@@ -140,6 +156,7 @@ def _run_cross_sectional(spec: StrategySpec, universe: dict[str, list[DailyBar]]
     equity: list[dict] = []
     trades: list[dict] = []
     value = 1.0
+    cost_rate = _cost_rate(spec)
     previous_left = previous_right = 0.0
     for index in range(1, len(common_ts)):
         if index % spec.rebalance_days == 0 and index >= slow:
@@ -159,7 +176,7 @@ def _run_cross_sectional(spec: StrategySpec, universe: dict[str, list[DailyBar]]
         turnover = abs(target_left - previous_left) + abs(target_right - previous_right)
         if turnover:
             trades.append({"ts": common_ts[index].isoformat(), legs[0]: target_left, legs[1]: target_right})
-        period_return = previous_left * left_return + previous_right * right_return - turnover * spec.fee_bps / 10_000
+        period_return = previous_left * left_return + previous_right * right_return - turnover * cost_rate
         returns.append(period_return)
         value *= 1 + period_return
         equity.append({"ts": common_ts[index].isoformat(), "equity": round(value, 6)})
@@ -181,7 +198,12 @@ def run_lab_backtest(spec: StrategySpec, window: dict[str, list[dict]]) -> Engin
         universe = {asset: _series(window.get(asset, [])) for asset in spec.assets}
         return _run_cross_sectional(spec, universe, min_count=min(bar_counts))
 
-    combined_returns: list[tuple[datetime, float]] = []
+    # Equal-weight portfolio: each asset gets a 1/N capital sleeve (itself
+    # sized by max_position), so per-bar portfolio return is the sum of the
+    # sleeve returns divided by N. An asset with no bar on a date contributes
+    # zero (its sleeve sits in cash) rather than re-levering the others.
+    asset_count = len(spec.assets)
+    returns_by_ts: dict[datetime, float] = {}
     equity: list[dict] = []
     trades: list[dict] = []
     per_asset_metrics: dict[str, dict] = {}
@@ -190,8 +212,10 @@ def run_lab_backtest(spec: StrategySpec, window: dict[str, list[dict]]) -> Engin
         result = _run_daily_asset(spec, bars, min_count=min(bar_counts))
         per_asset_metrics[asset] = result.metrics
         trades.extend({**trade, "asset": asset} for trade in result.trades)
-        combined_returns.extend((bars[index + 1].ts, value) for index, value in enumerate(result.daily_returns))
-    combined_returns.sort(key=lambda item: item[0])
+        for index, asset_return in enumerate(result.daily_returns):
+            ts = bars[index + 1].ts
+            returns_by_ts[ts] = returns_by_ts.get(ts, 0.0) + asset_return / asset_count
+    combined_returns = sorted(returns_by_ts.items(), key=lambda item: item[0])
     returns = [value for _, value in combined_returns]
     metrics = calculate_metrics(returns)
     metrics["trade_count"] = len(trades)
