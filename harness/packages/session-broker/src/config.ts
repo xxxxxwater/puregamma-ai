@@ -37,6 +37,8 @@ export interface BrokerConfig {
   envPassthrough: string[]
   /** Base URL Hosts use for FastAPI (defaults to apiBaseUrl). */
   hostApiBaseUrl: string
+  /** V8 old-space cap per Host process, in MB. */
+  hostHeapMb: number
 }
 
 const bool = (value: string | undefined) => value?.toLowerCase() === 'true'
@@ -71,6 +73,7 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BrokerConfig {
     authCacheMs: int(env.PUREGAMMA_DSH_AUTH_CACHE_MS, 15_000, 0, 60_000),
     envPassthrough: list(env.PUREGAMMA_DSH_HOST_ENV_PASSTHROUGH).filter(name => !NEVER_PASSED.has(name)),
     hostApiBaseUrl: (env.PUREGAMMA_DSH_HOST_API_URL ?? apiBaseUrl).replace(/\/+$/, ''),
+    hostHeapMb: int(env.PUREGAMMA_DSH_HOST_HEAP_MB, 1024, 256, 8192),
   }
 }
 

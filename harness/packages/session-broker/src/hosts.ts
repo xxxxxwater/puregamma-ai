@@ -53,7 +53,7 @@ export function hostEnv(config: BrokerConfig, paths: HostPaths, source: NodeJS.P
     HOME: paths.home,
     DSH_HOME: paths.home,
     NODE_ENV: 'production',
-    NODE_OPTIONS: '--max-old-space-size=1024',
+    NODE_OPTIONS: `--max-old-space-size=${config.hostHeapMb}`,
     PUREGAMMA_LEGACY_API_URL: config.hostApiBaseUrl,
     PUREGAMMA_LEGACY_API_TOKEN_FILE: paths.tokenFile,
     PUREGAMMA_DSH_WORKSPACE_ROOT: paths.workspace,
