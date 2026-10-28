@@ -202,9 +202,21 @@ PUREGAMMA_DSH_PUBLIC_ORIGIN=https://<站点> node harness/packages/session-broke
 | 真实 DSH 隔离 | `session-broker.integration.mjs`（`@deepseek-ai/dsh@0.1.7-rc.1`，两个真实 Host） | 见下表 |
 | 变异测试 | 去掉 picker 的符号链接或目标包含校验、恢复 toolview 的旧判定、恢复改名行 | 对应测试均失败 |
 
-真实 DSH 集成结果（`<结果待填>`）：
+真实 DSH 集成结果（`@deepseek-ai/dsh@0.1.7-rc.1`，PureGamma profile + multi-tenant 叠加层，两个真实 Host；`# pass 9 / # fail 0`）：
 
-<!-- INTEGRATION-RESULTS -->
+| # | 检查 | 结果 |
+| --- | --- | --- |
+| 1 | 未认证的 HTTP、RPC（`session/list`）和 WebSocket 都返回 401，且没有启动任何 Host | ok |
+| 2 | A、B 各自启动独立的真实 DSH Web Host（端口、`DSH_HOME` 都不同），首页 200 | ok |
+| 3 | A 创建并命名 Session 后，A 的 `session/list` 中有这个 Session，B 的列表为 `{"items":[]}` | ok |
+| 4 | B 按 id 重命名 A 的 Session 失败，A 的列表不受影响 | ok |
+| 5 | B 按 id 读取 A 的 Session 历史（`session/page`）失败 | ok |
+| 6 | Session 文件只出现在 A 的 `DSH_HOME/sessions` 中 | ok |
+| 7 | `directoryPicker/list` 默认列出 A 的工作区；`/`、`/etc`、B 的 root、`root/..` 都返回 `directory-picker/unreadable`；`createDirectory` 返回 `directory-picker/create-failed` | ok |
+| 8 | WebSocket `/api/remote.mux`：不带 Origin 或 Origin 错误返回 403，未认证返回 401，认证且 Origin 正确时返回 101 | ok |
+| 9 | 跨站 Origin 的 HTTP 请求在 broker 返回 403 | ok |
+
+在 §5 的两处修复之前，同一脚本中第 3、6、7 项失败。
 
 ## 9. 回滚
 
