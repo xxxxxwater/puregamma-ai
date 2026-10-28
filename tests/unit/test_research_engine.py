@@ -302,7 +302,10 @@ def _synthetic_holdings(db, user) -> None:
     db.commit()
 
 
-def test_user_portfolio_impacts_and_actions_with_synthetic_holdings(db, demo_user):
+def test_user_portfolio_impacts_and_actions_with_synthetic_holdings(db, demo_user, monkeypatch):
+    # The rule-based macro calendar is date-driven: near FOMC/NFP/CPI it yields
+    # confidence-1.0 events that outrank the BTC move for the top-3 action slots.
+    monkeypatch.setattr(research_event_service.macro_calendar, "events_for", lambda day, locale: [])
     _synthetic_holdings(db, demo_user)
     db.add(_quote("BTCUSDT", "BTC", 7.5))
     db.commit()
