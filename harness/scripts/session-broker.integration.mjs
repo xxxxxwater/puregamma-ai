@@ -105,7 +105,7 @@ const flat = value => JSON.stringify(value)
 try {
   await step('unauthenticated HTTP, RPC and WebSocket get 401 and start no Host', async () => {
     assert.equal((await fetch(`${base}/`)).status, 401)
-    assert.equal((await rpc('forged', 'session/list', { request: {} })).status, 401)
+    assert.equal((await rpc('forged', 'session/list', { _request: {} })).status, 401)
     assert.equal(await upgrade({ origin: config.publicOrigin }), 401)
     assert.equal(broker.hosts.size, 0)
   })
@@ -128,11 +128,13 @@ try {
     // A blank Session is not persisted until it has an event; a title is one.
     const renamed = await rpc('sess-a', 'session/rename', { request: { sessionId: sessionA, title: 'A private plan' } })
     assert.equal(renamed.body?.result?.ok, true, flat(renamed.body))
-    const listA = await rpc('sess-a', 'session/list', { request: {} })
-    const listB = await rpc('sess-b', 'session/list', { request: {} })
+    const listA = await rpc('sess-a', 'session/list', { _request: {} })
+    const listB = await rpc('sess-b', 'session/list', { _request: {} })
     assert.equal(listA.status, 200, flat(listA.body))
     assert.equal(listB.status, 200, flat(listB.body))
     console.log(`  A list: ${flat(listA.body).slice(0, 300)}\n  B list: ${flat(listB.body).slice(0, 300)}`)
+    assert.equal(listA.body?.result?.ok, true, flat(listA.body))
+    assert.equal(listB.body?.result?.ok, true, flat(listB.body))
     assert.ok(flat(listA.body).includes(sessionA), 'A sees its Session')
     assert.ok(!flat(listB.body).includes('A private plan'), 'B must not see A\'s title')
     assert.ok(!flat(listB.body).includes(sessionA), 'B must not see A\'s Session')
@@ -141,7 +143,7 @@ try {
   await step('B cannot rename A\'s Session by id', async () => {
     const hijack = await rpc('sess-b', 'session/rename', { request: { sessionId: sessionA, title: 'owned by B' } })
     assert.notEqual(hijack.body?.result?.ok, true, flat(hijack.body))
-    const listA = await rpc('sess-a', 'session/list', { request: {} })
+    const listA = await rpc('sess-a', 'session/list', { _request: {} })
     assert.ok(!flat(listA.body).includes('owned by B'))
   })
 
