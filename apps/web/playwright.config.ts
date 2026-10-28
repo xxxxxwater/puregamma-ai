@@ -39,6 +39,7 @@ const devCommand = process.platform === "win32"
 
 export default defineConfig({
   testDir: "../../tests/e2e/playwright",
+  globalSetup: "./playwright.global-setup.ts",
   timeout: 30_000,
   expect: { timeout: 10_000 },
   fullyParallel: false,
