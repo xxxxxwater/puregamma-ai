@@ -141,7 +141,9 @@ class RSSProvider(DataSourceProvider):
                 for entry in parsed.entries[:100]:
                     title = clean_html(entry.get("title"), 500)
                     url = entry.get("link")
-                    if not title or not url:
+                    # Links are rendered as hrefs; a feed must not hand the UI a
+                    # javascript: (or any non-web) URL.
+                    if not title or not url or urlsplit(url).scheme.lower() not in {"http", "https"}:
                         continue
                     body = clean_html(entry.get("content", [{}])[0].get("value") if entry.get("content") else entry.get("summary") or entry.get("description"), 5000) or ""
                     text = f"{title} {body}"

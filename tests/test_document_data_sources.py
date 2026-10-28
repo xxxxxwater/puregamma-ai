@@ -50,6 +50,17 @@ def test_rss_xml_parse_dedup_symbols_topics(monkeypatch):
     assert fetched.documents[0].url == "https://news.example.com/a"
 
 
+def test_rss_drops_items_whose_link_is_not_a_web_url(monkeypatch):
+    source = RSSSource(id="schemes", name="Schemes", url="https://news.example.com/feed")
+    feed = b'<rss><channel><item><guid>1</guid><title>Bitcoin rally</title><link>javascript:alert(document.cookie)</link></item><item><guid>2</guid><title>Ether rally</title><link>data:text/html,x</link></item><item><guid>3</guid><title>Solana rally</title><link>HTTPS://news.example.com/s</link></item></channel></rss>'
+    provider = RSSProvider(sources=[source])
+    monkeypatch.setattr(provider, "_fetch", lambda _: feed)
+
+    fetched = provider.fetch_latest()
+
+    assert [document.url for document in fetched.documents] == ["https://news.example.com/s"]
+
+
 def test_rss_etag_and_last_modified_are_reused(monkeypatch):
     requests = []
     responses = [FakeResponse(headers={"etag": '"v1"', "last-modified": "Fri, 10 Jul 2026 00:00:00 GMT"}, content=b"<rss><channel /></rss>"), FakeResponse(status_code=304)]
