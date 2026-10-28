@@ -160,10 +160,18 @@ const MEASURE = () => {
  * runner the shell paints first; sampling it measures the wrong surface, and
  * two agreeing samples of the shell look "stable". Thresholds are unchanged.
  */
-async function waitForContent(page: Page, selectors: string[], what: string) {
+async function waitForContent(page: Page, selectors: string[], what: string, attached: string[] = []) {
   for (const selector of selectors) {
     await expect(page.locator(selector).first(), `${what}: ${selector} never mounted`).toBeVisible({ timeout: 20_000 });
   }
+  // Elements that exist only once data arrived but are not "visible" in the
+  // Playwright sense (e.g. <option>s of a closed <select>).
+  for (const selector of attached) {
+    await expect.poll(() => page.locator(selector).count(), { message: `${what}: ${selector} never populated`, timeout: 20_000 }).toBeGreaterThan(0);
+  }
+  // A shell can mount its controls before its content: the chat composer is
+  // visible while the transcript is still an aria-busy loading placeholder.
+  await expect(page.locator('main [aria-busy="true"]'), `${what}: still loading`).toHaveCount(0, { timeout: 20_000 });
 }
 
 const HOMEPAGE_READY = ['[data-testid="model-upgrade-preview"]'];
@@ -543,9 +551,10 @@ test.describe("chat workspace meets WCAG AA", () => {
       );
 
       await openWithTheme(page, "/zh/chat", theme);
-      // The chat workspace mounts client-side after its stubbed reads resolve;
-      // measuring before that audits an empty shell ("rendered no text at all").
-      await waitForContent(page, CHAT_READY, `chat (${theme})`);
+      // The chat workspace fills in client-side after its stubbed reads resolve
+      // (the composer mounts first, the transcript and model menu after);
+      // measuring before that audits a shell ("rendered no text at all").
+      await waitForContent(page, CHAT_READY, `chat (${theme})`, ["#agent-model option"]);
       const audit = await measureStable(page, theme);
       await page.screenshot({ path: `../../.preview-after/chat-${theme}.png` });
 
