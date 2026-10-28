@@ -54,7 +54,7 @@ function PinField({ value, copy, canManage, onRotate, onCustom }: {
       <form onSubmit={(event) => { event.preventDefault(); if (draft.trim()) onCustom(draft.trim()); }} className="flex flex-wrap items-center gap-2">
         <label className="sr-only">{copy.customPin}</label>
         <input value={draft} onChange={(event) => setDraft(event.target.value)} inputMode="numeric" pattern="[0-9]{8}" maxLength={8} placeholder={copy.customPlaceholder} className="h-9 w-40 rounded-lg border border-border-pg bg-bg-app px-3 text-sm tracking-[0.25em] outline-none focus:border-border-pg-strong" />
-        <button type="submit" className="h-9 rounded-lg border border-border-pg-strong bg-pg-white px-3 text-xs font-semibold text-pg-black">{copy.apply}</button>
+        <button type="submit" className="h-9 rounded-lg border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 text-xs font-semibold text-[var(--pg-text-inverse)]">{copy.apply}</button>
         <span className="text-xs text-text-pg-dim">{copy.customPin}</span>
       </form>
       ) : null}
@@ -122,7 +122,7 @@ export function MobileAccessPanel({ copy }: { copy: RemoteCopy }) {
             <div className="flex items-center gap-2 text-sm font-semibold"><Globe className="h-4 w-4 text-status-positive" />{copy.public}</div>
             <div className="flex items-center gap-3">
               <span className="text-xs text-text-pg-muted">{status.public.running ? copy.running : copy.stopped}</span>
-              {isAdmin ? <button type="button" disabled={busy} onClick={() => void toggleTunnel()} className="rounded-lg border border-border-pg-strong bg-pg-white px-3 py-2 text-xs font-semibold text-pg-black disabled:opacity-50">{status.public.running ? copy.stopTunnel : copy.startTunnel}</button> : null}
+              {isAdmin ? <button type="button" disabled={busy} onClick={() => void toggleTunnel()} className="rounded-lg border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-2 text-xs font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50">{status.public.running ? copy.stopTunnel : copy.startTunnel}</button> : null}
             </div>
           </div>
           {status.public.running ? (

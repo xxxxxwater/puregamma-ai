@@ -171,7 +171,7 @@ export default async function AdminPage({ params }: { params: { locale: Locale }
             {zh ? "Provider 健康、价格审批、用户限额与全站用量。" : "Provider health, price approvals, user limits, and platform usage."}
           </p>
         </div>
-        <Link href={withLocale(locale, "/admin/gateway")} className="inline-flex min-h-10 items-center border border-border-pg-strong bg-pg-white px-3 py-2 text-sm font-semibold text-pg-black rounded-lg">
+        <Link href={withLocale(locale, "/admin/gateway")} className="inline-flex min-h-10 items-center border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 py-2 text-sm font-semibold text-[var(--pg-text-inverse)] rounded-lg">
           {zh ? "打开管理台" : "Open console"}
         </Link>
       </ResearchCard>

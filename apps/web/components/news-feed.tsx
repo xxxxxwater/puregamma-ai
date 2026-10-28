@@ -94,7 +94,7 @@ function FilterButton({ active, children, onClick }: { active: boolean; children
       type="button"
       onClick={onClick}
       aria-pressed={active}
-      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${active ? "border-border-pg-strong bg-pg-white text-pg-black" : "border-border-pg bg-bg-panel text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"}`}
+      className={`rounded-lg border px-3 py-1.5 text-xs font-medium transition ${active ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)]" : "border-border-pg bg-bg-panel text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"}`}
     >
       {children}
     </button>
@@ -207,7 +207,7 @@ export function NewsFeed({ locale, initial, copy }: { locale: Locale; initial: N
           </div></div>
           <form onSubmit={submitSearch} className="flex min-w-0 gap-2 xl:justify-self-end">
             <label className="relative min-w-0 flex-1 xl:w-72"><span className="sr-only">{copy.searchPlaceholder}</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-pg-dim" /><input value={draftQuery} onChange={(event) => setDraftQuery(event.target.value)} maxLength={100} placeholder={copy.searchPlaceholder} className="h-9 w-full rounded-lg border border-border-pg bg-bg-app pl-9 pr-3 text-sm outline-none focus:border-border-pg-strong" /></label>
-            <button type="submit" className="h-9 rounded-lg border border-border-pg-strong bg-pg-white px-3 text-xs font-semibold text-pg-black">{copy.search}</button>
+            <button type="submit" className="h-9 rounded-lg border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 text-xs font-semibold text-[var(--pg-text-inverse)]">{copy.search}</button>
             {filters.q ? <button type="button" onClick={clearSearch} className="h-9 rounded-lg border border-border-pg px-3 text-xs text-text-pg-muted">{copy.clear}</button> : null}
           </form>
         </div>

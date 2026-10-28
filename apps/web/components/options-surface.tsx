@@ -128,7 +128,7 @@ export function OptionsSurface({ locale, initialCurrency = "BTC" }: { locale: Lo
 
       <div className="mt-3 flex flex-wrap items-center gap-2">
         {SURFACE_TYPES.map((type) => (
-          <button key={type} type="button" disabled={loading} onClick={() => setSurfaceType(type)} className={`border px-2.5 py-1 text-xs disabled:opacity-50  rounded-lg ${surfaceType === type ? "border-border-pg-strong bg-pg-white font-semibold text-pg-black" : "border-border-pg text-text-pg-muted"}`}>{surfaceLabel(copy, type)}</button>
+          <button key={type} type="button" disabled={loading} onClick={() => setSurfaceType(type)} className={`border px-2.5 py-1 text-xs disabled:opacity-50  rounded-lg ${surfaceType === type ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] font-semibold text-[var(--pg-text-inverse)]" : "border-border-pg text-text-pg-muted"}`}>{surfaceLabel(copy, type)}</button>
         ))}
         <button type="button" disabled={loading} onClick={() => void load(currency, surfaceType)} className="ml-auto inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1 text-xs text-text-pg-muted disabled:opacity-50 rounded-lg"><RefreshCw className="h-3 w-3" />{copy.refresh}</button>
       </div>

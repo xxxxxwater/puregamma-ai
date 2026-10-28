@@ -257,7 +257,7 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
               <td className="px-4 py-3"><div className="flex items-center gap-2.5"><AssetIcon coin={assetCoin(instrument.id)} synthetic={instrument.id.startsWith("xyz:")} /><span className="font-semibold text-text-pg">{instrument.symbol}</span></div><div className="mt-1 text-[10px] text-text-pg-dim">{instrument.leverage}x · {instrument.venue}</div></td>
               <td key={`px-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right text-text-pg">{price(last)}</td>
               <td key={`chg-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right">
-                <span className="inline-block border border-border-pg-strong bg-pg-white px-1.5 py-0.5 font-semibold text-pg-black rounded-lg">{percent(change)}</span>
+                <span className="inline-block border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-1.5 py-0.5 font-semibold text-[var(--pg-text-inverse)] rounded-lg">{percent(change)}</span>
               </td>
               <td className="px-3 py-3 text-right text-text-pg-muted">{compactUsd(context?.dayNtlVlm)}</td>
               <td className="px-3 py-3 text-right text-text-pg-muted">{compactUsd(openInterestUsd)}</td>

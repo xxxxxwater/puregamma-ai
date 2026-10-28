@@ -124,7 +124,7 @@ export default function PricingPage({ params }: { params: { locale: Locale } }) 
             ) : (
               <Link
                 href={plan.id === "Enterprise" ? "mailto:hello@puregamma.ai" : withLocale(params.locale, "/billing")}
-                className={`mt-6 inline-flex items-center justify-center border px-4 py-2.5 text-sm font-semibold rounded-lg ${plan.id === "Pro" || plan.id === "Max" ? "border-border-pg-strong bg-pg-white text-pg-black" : "border-border-pg text-text-pg hover:border-border-pg-strong"}`}
+                className={`mt-6 inline-flex items-center justify-center border px-4 py-2.5 text-sm font-semibold rounded-lg ${plan.id === "Pro" || plan.id === "Max" ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)]" : "border-border-pg text-text-pg hover:border-border-pg-strong"}`}
               >
                 {zh ? plan.ctaZh : plan.ctaEn}
               </Link>

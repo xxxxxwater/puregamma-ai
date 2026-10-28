@@ -18,7 +18,7 @@ export function ResearchModeSwitch({
       onClick={() => onChange(!enabled)}
       className={`inline-flex h-6 w-[4.25rem] shrink-0 cursor-pointer items-center justify-center rounded-full border px-1 text-[0.6rem] font-bold uppercase tracking-[0.12em] transition-colors duration-200 ${
         enabled
-          ? "border-border-pg-strong bg-pg-white text-pg-black"
+          ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)]"
           : "border-border-pg-strong bg-pg-black text-pg-white"
       }`}
     >

@@ -1,7 +1,11 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}"],
+  content: ["./app/**/*.{ts,tsx}", "./components/**/*.{ts,tsx}", "./lib/**/*.{ts,tsx}", "./plugins/**/*.{ts,tsx}"],
+  // Guard rail: a `dark:` variant must follow the app's theme switch
+  // (<html data-theme="dark">), never silently the OS setting (Tailwind's
+  // default `media` strategy). Components should still use theme tokens.
+  darkMode: ["selector", '[data-theme="dark"]'],
   theme: {
     extend: {
       colors: {

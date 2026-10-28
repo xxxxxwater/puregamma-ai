@@ -122,10 +122,10 @@ export default function LocalizedOnboardingChannelsPage({ params }: { params: { 
                 <button
                   onClick={() => !locked && toggle(channel.id)}
                   disabled={locked}
-                  className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center border transition  rounded-lg ${active ? "border-border-pg-strong bg-pg-white" : "border-border-pg"} ${locked ? "cursor-not-allowed opacity-30" : ""}`}
+                  className={`mt-1 flex h-5 w-5 shrink-0 items-center justify-center border transition  rounded-lg ${active ? "border-border-pg-strong bg-[var(--pg-surface-inverse)]" : "border-border-pg"} ${locked ? "cursor-not-allowed opacity-30" : ""}`}
                   aria-label={channel.label}
                 >
-                  {active ? <span className="text-xs text-pg-black">✓</span> : null}
+                  {active ? <span className="text-xs text-[var(--pg-text-inverse)]">✓</span> : null}
                 </button>
               </div>
               {locked ? <p className="mt-3 ml-[3.25rem] text-xs text-status-warning">{copy.locked}</p> : null}
@@ -142,7 +142,7 @@ export default function LocalizedOnboardingChannelsPage({ params }: { params: { 
         <button
           onClick={handleComplete}
           disabled={busy || selectedCount === 0}
-          className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-5 py-2.5 text-sm font-semibold text-pg-black transition hover:bg-pg-white-soft disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
+          className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-5 py-2.5 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
         >
           {busy ? copy.settingUp : copy.complete}
           {!busy ? <ArrowRight className="h-4 w-4" aria-hidden /> : null}

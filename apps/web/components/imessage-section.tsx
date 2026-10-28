@@ -124,12 +124,12 @@ export function IMessageSection({ copy }: { copy: IMessageCopy }) {
             {!challenge ? (
               <form onSubmit={sendCode} className="flex flex-wrap items-center gap-2">
                 <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder={copy.recipientPlaceholder} inputMode="tel" className="h-9 min-w-0 flex-1 rounded-lg border border-border-pg bg-bg-app px-3 text-sm outline-none focus:border-border-pg-strong sm:w-64" />
-                <button type="submit" disabled={busy} className="h-9 rounded-lg border border-border-pg-strong bg-pg-white px-3 text-xs font-semibold text-pg-black disabled:opacity-50">{busy ? copy.sending : copy.sendCode}</button>
+                <button type="submit" disabled={busy} className="h-9 rounded-lg border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 text-xs font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50">{busy ? copy.sending : copy.sendCode}</button>
               </form>
             ) : (
               <form onSubmit={confirm} className="flex flex-wrap items-center gap-2">
                 <input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder={copy.codePlaceholder} className="h-9 w-40 rounded-lg border border-border-pg bg-bg-app px-3 text-sm tracking-[0.25em] outline-none focus:border-border-pg-strong" />
-                <button type="submit" disabled={busy} className="h-9 rounded-lg border border-border-pg-strong bg-pg-white px-3 text-xs font-semibold text-pg-black disabled:opacity-50">{copy.confirm}</button>
+                <button type="submit" disabled={busy} className="h-9 rounded-lg border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 text-xs font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50">{copy.confirm}</button>
               </form>
             )}
           </div>

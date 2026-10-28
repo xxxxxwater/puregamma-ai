@@ -80,7 +80,7 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
         <button
           onClick={handleContinue}
           disabled={selected.size === 0}
-          className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-5 py-2.5 text-sm font-semibold text-pg-black transition hover:bg-pg-white-soft disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
+          className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-5 py-2.5 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
         >
           {copy.continue} <ArrowRight className="h-4 w-4" aria-hidden />
         </button>

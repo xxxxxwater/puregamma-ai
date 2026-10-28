@@ -419,7 +419,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
                 ) : ownRecording ? (
                   <BubblePlayer dark playing={playing} loading={loading} ratio={ratio} currentTime={active ? audioProgress : 0} remaining={remaining} knownDuration={knownDuration} stopLabel={copy.stop} playLabel={copy.play} speakingLabel={copy.speaking} onToggle={() => void playMessage(message)} title={copy.play} />
                 ) : (
-                  <div className="max-w-[86%] border border-border-pg-strong bg-pg-white px-4 py-3 text-sm leading-6 text-pg-black rounded-lg">
+                  <div className="max-w-[86%] border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-3 text-sm leading-6 text-[var(--pg-text-inverse)] rounded-lg">
                     <div className="whitespace-pre-wrap">{String(message.content || "")}</div>
                   </div>
                 )}
@@ -449,7 +449,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
               <Mic className="h-4 w-4" />{recording ? `${copy.releaseToSend} ${formatTime(recordingRemaining)}` : copy.holdToTalk}
             </button>
             <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendContent(input); } }} rows={2} maxLength={4000} placeholder={copy.placeholder} className="min-h-11 min-w-0 flex-1 resize-none border border-border-pg bg-bg-app px-3 py-2 text-sm outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong rounded-lg" />
-            <button type="button" title={copy.send} disabled={!input.trim() || busy || transcribing} onClick={() => void sendContent(input)} className="flex h-11 w-11 shrink-0 items-center justify-center border border-border-pg-strong bg-pg-white text-pg-black disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"><Send className="h-4 w-4" /></button>
+            <button type="button" title={copy.send} disabled={!input.trim() || busy || transcribing} onClick={() => void sendContent(input)} className="flex h-11 w-11 shrink-0 items-center justify-center border border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)] disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"><Send className="h-4 w-4" /></button>
           </div>
         </div>
       </section>

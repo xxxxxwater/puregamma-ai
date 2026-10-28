@@ -181,7 +181,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
             <input type="checkbox" checked={useMemory} onChange={(event) => setUseMemory(event.target.checked)} className="accent-[var(--foreground)]" />
             {copy.generate.useMemory}
           </label>
-          <button type="button" onClick={handleGenerate} disabled={generating} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-2 text-sm font-semibold text-pg-black disabled:opacity-50 rounded-lg">
+          <button type="button" onClick={handleGenerate} disabled={generating} className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-2 text-sm font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50 rounded-lg">
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {generating ? copy.generate.generating : copy.generate.button}
           </button>
@@ -200,11 +200,11 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <span className="text-text-pg-muted">{copy.run.window}</span>
             {WINDOW_OPTIONS.map((option) => (
-              <button key={option.days} type="button" onClick={() => setWindowDays(option.days)} className={`border px-2.5 py-1  rounded-lg ${windowDays === option.days ? "border-border-pg-strong bg-pg-white text-pg-black font-semibold" : "border-border-pg text-text-pg-muted"}`}>
+              <button key={option.days} type="button" onClick={() => setWindowDays(option.days)} className={`border px-2.5 py-1  rounded-lg ${windowDays === option.days ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)] font-semibold" : "border-border-pg text-text-pg-muted"}`}>
                 {copy.run[option.key]}
               </button>
             ))}
-            <button type="button" onClick={handleRun} disabled={!parsedSpec || running} className="ml-auto inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-4 py-2 text-sm font-semibold text-pg-black disabled:opacity-50 rounded-lg">
+            <button type="button" onClick={handleRun} disabled={!parsedSpec || running} className="ml-auto inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-2 text-sm font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50 rounded-lg">
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               {running ? copy.run.running : `${copy.run.button} · 50 ${copy.run.creditsHint}`}
             </button>

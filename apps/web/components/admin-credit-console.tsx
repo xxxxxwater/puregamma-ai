@@ -221,7 +221,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
                       className={`border px-3 py-1.5 font-semibold rounded-lg capitalize transition ${
                         detail.account.membership_tier === tier
                           ? "border-border-pg-strong bg-bg-panel-muted text-text-pg"
-                          : "border-border-pg bg-pg-white text-pg-black hover:border-border-pg-strong"
+                          : "border-border-pg bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)] hover:border-border-pg-strong"
                       } disabled:cursor-not-allowed disabled:opacity-60`}
                     >
                       {tier}

@@ -74,7 +74,7 @@ export default function LocalizedOnboardingStylePage({ params }: { params: { loc
           <Info className="h-4 w-4 shrink-0" aria-hidden />
           {t(locale, "onboarding.style.riskProfile", { label: selectedStyle.label, risk: selectedStyle.risk })}
         </div>
-        <button onClick={handleContinue} className="inline-flex items-center gap-2 border border-border-pg-strong bg-pg-white px-5 py-2.5 text-sm font-semibold text-pg-black transition hover:bg-pg-white-soft rounded-lg">
+        <button onClick={handleContinue} className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-5 py-2.5 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:opacity-90 rounded-lg">
           {copy.continue} <ArrowRight className="h-4 w-4" aria-hidden />
         </button>
       </div>
