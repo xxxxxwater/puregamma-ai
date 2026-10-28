@@ -29,11 +29,16 @@ vendor/pg-tsy-core-bootstrap
 `scripts/public-profile-surface.test.mjs` fails `pnpm run check` when these
 lines drift from the gitlinks.
 
-Version caveat: the PureGamma plugin workspace still compiles against the
-npm-published `@deepseek-ai/*@0.1.5-rc.2` packages (`harness/package.json`),
-not against the vendored `dsh-v0.1.7-rc.1` sources. The submodule pins the
-runtime the profile is composed with and the bundle presets the public-profile
-guard inspects; aligning the compile-time packages is a separate upgrade.
+Compile-time packages match the gitlink: the PureGamma plugin workspace
+compiles against the npm-published `@deepseek-ai/*@0.1.7-rc.1` packages
+(`@deepseek-ai/cordis@4.0.4`, `@deepseek-ai/schemastery@3.18.4`), the same
+versions the `dsh-v0.1.7-rc.1` tag declares. Every plugin's peer range names
+the same exact pre-release. A runtime bump must move the gitlink, the root
+devDependencies and the plugin peers together.
+
+API note for 0.1.7: `tool.call.toolview` owners are phase-based
+(`{ phase: 'preparing' | 'start' | 'result', block }`); the domain tool views
+render figures only for `phase === 'result'` (`scripts/domain-toolviews.test.mjs`).
 
 DeepSeek Harness supplies the runtime/build contract. `pg-tsy-core-bootstrap`
 remains an independent Rust quantitative trading runtime and is consumed through

@@ -20,7 +20,7 @@
     "@puregamma/dsh-market-data": "workspace:^"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.2",
-    "@deepseek-ai/dsh-tools": "^0.1.5-rc.2"
+    "@deepseek-ai/cordis": "^4.0.4",
+    "@deepseek-ai/dsh-tools": "^0.1.7-rc.1"
   }
 }
