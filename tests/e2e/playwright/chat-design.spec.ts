@@ -129,7 +129,7 @@ test.describe("chat workspace", () => {
     const trigger = page.getByTestId("chat-history-trigger");
     await expect(trigger, "a phone needs a way into the conversation list").toBeVisible();
 
-    const panel = page.locator("#chat-history-panel");
+    const panel = page.locator("#chat-history-drawer");
     await expect(panel, "drawer starts closed").toBeHidden();
     await expect(trigger).toHaveAttribute("aria-expanded", "false");
 
@@ -137,8 +137,8 @@ test.describe("chat workspace", () => {
     await expect(panel).toBeVisible();
     // Open on a phone, it is a labelled modal dialog the trigger controls.
     await expect(page.getByRole("dialog", { name: /历史对话|Conversation history/ })).toBeVisible();
-    await expect(trigger).toHaveAttribute("aria-controls", "chat-history-panel");
-    await expect(page.getByText("长内容复核")).toBeVisible();
+    await expect(trigger).toHaveAttribute("aria-controls", "chat-history-drawer");
+    await expect(panel.getByText("长内容复核")).toBeVisible();
 
     // Escape closes it and focus returns to the trigger.
     await page.keyboard.press("Escape");

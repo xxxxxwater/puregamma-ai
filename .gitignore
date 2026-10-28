@@ -71,3 +71,6 @@ tests/e2e/.auth/
 # every plugin/package; none of it is source.
 harness/**/lib/
 harness/pnpm-lock.yaml
+
+# Screenshots written by local Playwright runs
+.preview-*

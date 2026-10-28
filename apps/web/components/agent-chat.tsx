@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { Archive, ArchiveRestore, CheckCircle2, Compass, Database, FlaskConical, Loader2, MessageSquarePlus, PanelLeftClose, PanelLeftOpen, RefreshCw, Search, SearchCheck, ShieldCheck, Target, Trash2, WifiOff, X } from "lucide-react";
 import { ChatWorkspaceComposer, AttachmentCards } from "@/components/chat-workspace-composer";
 import { setAgentPermission, approveAgentTool, archiveAgentConversation, type AgentPermissionMode } from "@/lib/api";
@@ -796,27 +797,13 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
       {/* A backdrop is only rendered on small screens, where the history aside
           becomes a drawer. Without it the drawer would cover the transcript
           with no visible way back. */}
-      {mobileHistoryOpen ? (
-        <button
-          type="button"
-          aria-label={zh ? "关闭历史对话" : "Close conversation history"}
-          onClick={closeMobileHistory}
-          className="fixed inset-0 z-40 bg-black/40 lg:hidden"
-        />
-      ) : null}
       {historyCollapsed ? (
         <aside className="hidden border-r border-border-pg bg-bg-panel-muted lg:flex lg:flex-col lg:items-center lg:py-3">
           <button type="button" onClick={() => setHistoryCollapsed(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong" aria-label={zh ? "展开历史对话" : "Expand conversation history"} aria-expanded={false}><PanelLeftOpen className="h-4 w-4" /></button>
         </aside>
       ) : null}
-      <aside
-        ref={historyPanelRef}
-        id="chat-history-panel"
-        aria-label={zh ? "历史对话" : "Conversation history"}
-        role={mobileHistoryOpen ? "dialog" : undefined}
-        aria-modal={mobileHistoryOpen ? true : undefined}
-        className={`${mobileHistoryOpen ? "flex" : "hidden"} ${historyCollapsed ? "lg:hidden" : "lg:flex"} fixed inset-y-3 left-3 z-50 w-80 max-w-[85vw] flex-col rounded-2xl border border-border-pg bg-bg-panel shadow-2xl lg:static lg:z-auto lg:w-auto lg:max-w-none lg:rounded-none lg:border-0 lg:border-r lg:border-b-0 lg:bg-bg-panel-muted lg:shadow-none`}
-      >
+      {historyCollapsed ? null : (
+        <aside id="chat-history-panel" aria-label={zh ? "历史对话" : "Conversation history"} className="hidden border-r border-border-pg bg-bg-panel-muted lg:flex lg:min-h-0 lg:flex-col">
         <div className="flex items-center justify-between border-b border-border-pg p-3">
           <div className="min-w-0"><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 truncate text-[11px] text-text-pg-dim" data-testid="chat-usage-summary">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "left today"} · ${quota.credit_balance} Credits` : "-"}</div></div>
           <div className="flex items-center gap-1">
@@ -860,7 +847,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             </button>
           </div>
         ) : null}
-      </aside>
+        </aside>
+      )}
 
       {/* `min-w-0` plus no `overflow-hidden` on the ancestors: the inner scroll
           container needs to be the element that clips, otherwise wide content
@@ -916,7 +904,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         </div>
         <div className="shrink-0 border-t border-border-pg bg-bg-panel p-3 md:p-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 lg:hidden">
-            <button ref={historyTriggerRef} type="button" onClick={() => setMobileHistoryOpen(true)} aria-label={zh ? "历史对话" : "Conversation history"} aria-expanded={mobileHistoryOpen} aria-controls="chat-history-panel" aria-haspopup="dialog" data-testid="chat-history-trigger" className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm hover:bg-[var(--pg-surface-hover)]"><PanelLeftOpen className="h-4 w-4" />{zh ? "历史" : "History"}</button>
+            <button ref={historyTriggerRef} type="button" onClick={() => setMobileHistoryOpen(true)} aria-label={zh ? "历史对话" : "Conversation history"} aria-expanded={mobileHistoryOpen} aria-controls={mobileHistoryOpen ? "chat-history-drawer" : undefined} aria-haspopup="dialog" data-testid="chat-history-trigger" className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm hover:bg-[var(--pg-surface-hover)]"><PanelLeftOpen className="h-4 w-4" />{zh ? "历史" : "History"}</button>
             <button type="button" onClick={() => void createNew()} aria-label={zh ? "新会话" : "New conversation"} data-testid="chat-new-trigger" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-[var(--pg-surface-hover)]"><MessageSquarePlus className="h-4 w-4" /></button>
           </div>
           {recovered ? (
@@ -950,6 +938,61 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         </div>
       </section>
       </div>
+      {/* Phone history drawer, portalled to <body>: inside the chat card the
+          glass skin's backdrop-filter made "fixed" relative to the card, so
+          the drawer was clipped under the app header with its close button
+          hidden, and the transcript showed through it. */}
+      {mobileHistoryOpen ? createPortal(
+        <>
+          <button type="button" aria-label={zh ? "关闭历史对话" : "Close conversation history"} onClick={closeMobileHistory} className="fixed inset-0 z-[60] bg-black/40 lg:hidden" />
+          <aside ref={historyPanelRef} id="chat-history-drawer" role="dialog" aria-modal="true" aria-label={zh ? "历史对话" : "Conversation history"} className="fixed inset-y-3 left-3 z-[61] flex w-80 max-w-[85vw] flex-col overflow-hidden rounded-2xl border border-border-pg shadow-2xl lg:hidden" style={{ background: "var(--pg-bg-page)", paddingBottom: "env(safe-area-inset-bottom)" }}>
+        <div className="flex items-center justify-between border-b border-border-pg p-3">
+          <div className="min-w-0"><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 truncate text-[11px] text-text-pg-dim" data-testid="chat-usage-summary">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "left today"} · ${quota.credit_balance} Credits` : "-"}</div></div>
+          <div className="flex items-center gap-1">
+            <button type="button" onClick={() => setHistoryCollapsed(true)} className="hidden h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong lg:grid" aria-label={zh ? "收起历史对话" : "Collapse conversation history"} aria-expanded><PanelLeftClose className="h-4 w-4" /></button>
+            <button type="button" onClick={closeMobileHistory} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong lg:hidden" aria-label={zh ? "关闭历史对话" : "Close conversation history"}><X className="h-4 w-4" /></button>
+            <button type="button" onClick={() => void createNew()} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong" aria-label={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
+          </div>
+        </div>
+        <div className="space-y-2 border-b border-border-pg p-2">
+          <label className="flex items-center gap-2 rounded-lg bg-bg-panel px-2 focus-within:ring-2 focus-within:ring-[var(--pg-focus-ring)]">
+            <Search className="h-3.5 w-3.5 shrink-0 text-text-pg-dim" aria-hidden />
+            <span className="sr-only">{zh ? "搜索历史对话" : "Search conversations"}</span>
+            <input type="search" value={historyQuery} onChange={(event) => setHistoryQuery(event.target.value)} placeholder={zh ? "搜索标题" : "Search titles"} className="min-h-9 min-w-0 flex-1 bg-transparent text-sm outline-none" data-testid="chat-history-search" />
+          </label>
+          <div className="flex gap-1 text-xs" role="group" aria-label={zh ? "历史筛选" : "History filter"}>
+            <button type="button" aria-pressed={!showArchived} onClick={() => setShowArchived(false)} className={`min-h-8 flex-1 rounded-md px-2 ${!showArchived ? "bg-bg-panel text-text-pg" : "text-text-pg-muted hover:text-text-pg"}`}>{zh ? "进行中" : "Active"}</button>
+            <button type="button" aria-pressed={showArchived} onClick={() => setShowArchived(true)} className={`min-h-8 flex-1 rounded-md px-2 ${showArchived ? "bg-bg-panel text-text-pg" : "text-text-pg-muted hover:text-text-pg"}`}>{zh ? `已归档 ${archivedCount}` : `Archived ${archivedCount}`}</button>
+          </div>
+        </div>
+        {historyError ? <p role="alert" className="mx-2 mt-2 rounded-md px-2 py-1.5 text-xs text-status-negative">{historyError}</p> : null}
+        <div className="flex-1 overflow-y-auto p-2 lg:space-y-1">
+          {visibleConversations.map((conversation) => (
+            <div key={conversation.id} className="group flex items-center">
+              <button type="button" aria-current={conversation.id === conversationId ? "page" : undefined} onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); void openConversation(conversation.id); if (mobileHistoryOpen) closeMobileHistory(); }} className={`min-w-0 flex-1 rounded-xl border px-3 py-2 text-left text-sm ${conversation.id === conversationId ? "border-border-pg bg-bg-panel shadow-card" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel"}`}>
+                <div className="truncate font-medium">{conversation.title}</div>
+                <div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div>
+              </button>
+              <div className="ml-0.5 flex shrink-0 lg:invisible lg:group-hover:visible lg:group-focus-within:visible">
+                <button type="button" onClick={(event) => { event.stopPropagation(); void setArchived(conversation.id, !conversation.archived_at); }} aria-label={conversation.archived_at ? (zh ? `取消归档：${conversation.title}` : `Unarchive: ${conversation.title}`) : (zh ? `归档：${conversation.title}` : `Archive: ${conversation.title}`)} className="grid h-9 w-8 place-items-center rounded-lg border border-transparent text-text-pg-dim hover:border-border-pg hover:text-text-pg">{conversation.archived_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</button>
+                <button type="button" onClick={(event) => { event.stopPropagation(); void deleteConversation(conversation.id); }} aria-label={zh ? `删除会话：${conversation.title}` : `Delete conversation: ${conversation.title}`} className="grid h-9 w-8 place-items-center rounded-lg border border-transparent text-text-pg-dim hover:border-status-negative hover:text-status-negative"><Trash2 className="h-3.5 w-3.5" /></button>
+              </div>
+            </div>
+          ))}
+          {visibleConversations.length === 0 ? <div className="px-3 py-4 text-center text-xs text-text-pg-dim">{query ? (zh ? "没有匹配的对话" : "No matching conversations") : showArchived ? (zh ? "没有已归档的对话" : "No archived conversations") : (zh ? "暂无历史对话" : "No conversation history")}</div> : null}
+        </div>
+        {conversations.length ? (
+          <div className="border-t border-border-pg p-2">
+            <button type="button" onClick={() => void deleteAll()} className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-pg px-3 py-2 text-xs text-text-pg-dim transition-colors hover:border-status-negative hover:text-status-negative" aria-label={zh ? "删除全部历史对话" : "Delete all conversation history"}>
+              <Trash2 className="h-3.5 w-3.5" />
+              <span>{zh ? "删除全部历史对话" : "Delete all history"}</span>
+            </button>
+          </div>
+        ) : null}
+          </aside>
+        </>,
+        document.body,
+      ) : null}
       {inspector && inspectorMessage ? <EvidenceInspector locale={locale} messageId={inspectorMessage.id} sources={inspectorMessage.sources} evidence={inspectorMessage.context?.evidence} focus={inspector.focus} onClose={closeInspector} /> : null}
     </OceanShell>
   );

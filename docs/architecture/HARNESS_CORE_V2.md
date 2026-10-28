@@ -1,10 +1,13 @@
 # PureGamma Harness — Everything Is a Plugin
 
-Status: **the trunk, work in progress.** `refactor/harness-core-v2` is the
-repository default branch and is currently identical to `main` (`5d0cdea`). The
-migration below is not finished — legacy FastAPI routers still serve traffic and
-`harness/` is the migration target, not yet the only path. Verified against
-`5d0cdea`.
+Status: **work in progress on `main`.** `refactor/harness-core-v2` is still the
+repository default branch but is a historical reference: at 2026-10-28 it lags
+`main` by 130 commits (`34ae868` vs `eae35c4`). The migration below is not
+finished — legacy FastAPI routers still serve traffic and `harness/` is the
+migration target, not yet the only path. Counts below were verified against
+`5d0cdea`; the 2026-10-28 public-profile hardening and the multi-tenancy
+blocker for the DSH Session path are recorded in
+[AGENT_WORKSPACE_UPGRADE_20261028.md](./AGENT_WORKSPACE_UPGRADE_20261028.md).
 
 ## Architectural decision
 

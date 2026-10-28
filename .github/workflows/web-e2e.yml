@@ -1,0 +1,79 @@
+name: PureGamma Web E2E
+
+# Browser regression gate for the Agent workspace and the LIVE trading console.
+# Every endpoint is stubbed inside the specs; the dev proxy points at a closed
+# local port so no test request can reach a real API.
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'tests/e2e/playwright/**'
+      - '.github/workflows/web-e2e.yml'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'apps/web/**'
+      - 'tests/e2e/playwright/**'
+      - '.github/workflows/web-e2e.yml'
+
+concurrency:
+  group: web-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  e2e:
+    name: Agent workspace + LIVE console (desktop & mobile)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      CI: 'true'
+      PLAYWRIGHT_PORT: '3000'
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      DEV_API_PROXY_TARGET: http://127.0.0.1:9
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+
+      - name: Pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run curated specs
+        run: >-
+          pnpm exec playwright test
+          agent-session-reliability.spec.ts
+          chat-design.spec.ts
+          harness-workspace.spec.ts
+          markdown-render.spec.ts
+          live-trading.spec.ts
+          live-trading-workflow.spec.ts
+          --reporter=line
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-report
+          path: |
+            playwright-report
+            apps/web/test-results
+          retention-days: 7

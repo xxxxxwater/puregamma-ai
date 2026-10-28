@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { ArrowUpRight, CornerUpLeft, SearchCheck, X } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
 import type { AgentEvidenceSummary, AgentSource } from "@/lib/api";
@@ -56,16 +57,22 @@ export function EvidenceInspector({ locale, messageId, sources, evidence, focus,
   const copy = COPY[locale === "zh" ? "zh" : "en"];
   const panelRef = useRef<HTMLDivElement | null>(null);
   const closeRef = useRef<HTMLButtonElement | null>(null);
-  useDialogFocus(true, panelRef, onClose, closeRef);
 
+
+  // Rendered into <body>: inside the chat card it inherited that card's
+  // stacking context and slid under the app header.
+  const [host, setHost] = useState<HTMLElement | null>(null);
+  useEffect(() => setHost(document.body), []);
+  // Focus handling starts once the portal (and so the panel) exists.
+  useDialogFocus(host !== null, panelRef, onClose, closeRef);
   useEffect(() => {
-    if (focus == null) return;
+    if (focus == null || !host) return;
     const target = panelRef.current?.querySelector<HTMLElement>(`[data-citation-index="${focus}"]`);
     if (target) {
       target.scrollIntoView({ block: "nearest" });
       target.focus();
     }
-  }, [focus]);
+  }, [focus, host]);
 
   const ordered = [...sources].sort((a, b) => a.citation_index - b.citation_index);
   const backToAnswer = (index: number) => {
@@ -77,17 +84,20 @@ export function EvidenceInspector({ locale, messageId, sources, evidence, focus,
     }, 0);
   };
 
-  return (
+  if (!host) return null;
+  return createPortal(
     <>
-      <div className="fixed inset-0 z-40 bg-black/30" aria-hidden onClick={onClose} />
+      <div className="fixed inset-0 z-[60] bg-black/40" aria-hidden onClick={onClose} />
       <aside
         ref={panelRef}
         role="dialog"
         aria-modal="true"
         aria-labelledby="evidence-inspector-title"
         data-testid="evidence-inspector"
-        className="fixed inset-y-0 right-0 z-50 flex w-[min(26rem,100vw)] flex-col border-l border-border-pg bg-bg-panel shadow-2xl"
-        style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+        className="fixed inset-y-0 right-0 z-[61] flex w-[min(26rem,100vw)] flex-col border-l border-border-pg shadow-2xl"
+        // Opaque page surface on purpose: the glass skin makes panels
+        // translucent, and evidence must never be read through the answer.
+        style={{ paddingBottom: "env(safe-area-inset-bottom)", background: "var(--pg-bg-page)" }}
       >
         <div className="flex items-center justify-between gap-2 border-b border-border-pg p-4">
           <h2 id="evidence-inspector-title" className="flex items-center gap-2 text-sm font-semibold"><SearchCheck className="h-4 w-4" aria-hidden />{copy.title} · {copy.sources(ordered.length)}</h2>
@@ -127,6 +137,7 @@ export function EvidenceInspector({ locale, messageId, sources, evidence, focus,
           </ol>
         </div>
       </aside>
-    </>
+    </>,
+    host,
   );
 }

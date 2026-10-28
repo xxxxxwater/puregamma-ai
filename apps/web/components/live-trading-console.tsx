@@ -1125,7 +1125,7 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
         </section>
       ) : null}
 
-      {preview ? (
+      {preview && !ambiguous ? (
         <section data-testid="live-order-approval" aria-labelledby="live-approval-title" className="rounded-xl border border-status-warning bg-bg-panel p-4">
           <h3 id="live-approval-title" className="flex items-center gap-2 font-semibold"><AlertTriangle className="h-4 w-4 text-status-warning" aria-hidden />{t(locale, "live-trading.workflow.approval.title")}</h3>
           <dl className="mt-4 grid gap-x-6 gap-y-3 text-sm sm:grid-cols-[minmax(0,10rem)_minmax(0,1fr)]">

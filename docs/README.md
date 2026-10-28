@@ -56,6 +56,7 @@ document contradicts the code, the code wins — please fix the document.
 - [Architecture](./developer/ARCHITECTURE.md) — workspace layout, runtime components, request flows, verified gaps
 - [Harness Core V2 — Everything Is a Plugin](./architecture/HARNESS_CORE_V2.md)
 - [DSH v0.1.7-rc.1 Agent / Skill / NAV PM upgrade design](./architecture/DSH_0_1_7_RC1_AGENT_SKILL_NAVPM_UPGRADE.md) **[zh]**
+- [Agent workspace upgrade — 2026-10-28 (status matrix, decisions, tests, rollback)](./architecture/AGENT_WORKSPACE_UPGRADE_20261028.md) **[zh]**
 - [Target Architecture](./review/TARGET_ARCHITECTURE.md)
 - [Agent Chat Architecture](./AGENT_CHAT_ARCHITECTURE.md)
 - [Dream-RSI Control Plane](./DREAM_RSI_CONTROL_PLANE.md)
