@@ -17,6 +17,7 @@
   "files": ["lib/index.js", "lib/index.d.ts", "lib/index.js.map"],
   "scripts": { "bundle": "tsdown" },
   "dependencies": {
+    "@puregamma/dsh-legacy-auth": "workspace:^",
     "@puregamma/dsh-backtest": "workspace:^"
   },
   "peerDependencies": {

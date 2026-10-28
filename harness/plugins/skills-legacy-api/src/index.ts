@@ -1,4 +1,5 @@
 import type { Context } from '@deepseek-ai/cordis'
+import { createBearerSource, type BearerSource } from '@puregamma/dsh-legacy-auth'
 import z from '@deepseek-ai/schemastery'
 import SkillsService, {
   type SkillDocument,
@@ -10,13 +11,16 @@ import SkillsService, {
 
 export interface Config {
   baseUrl?: string
-  authTokenEnv?: string
+  authTokenEnv?: string; authTokenFile?: string; authTokenCacheMs?: number
   requestTimeoutMs?: number
 }
 
 export const Config: z<Config> = z.object({
   baseUrl: z.string().default('http://127.0.0.1:8000'),
   authTokenEnv: z.string().default('PUREGAMMA_LEGACY_API_TOKEN'),
+  // Multi-tenant Hosts: a per-user token file the session broker rotates; never falls back to the env token.
+  authTokenFile: z.string(),
+  authTokenCacheMs: z.number().min(0).max(60000).default(5000),
   requestTimeoutMs: z.number().min(100).max(120000).default(30000),
 })
 
@@ -55,13 +59,15 @@ export class LegacyApiSkillsProvider extends SkillsService {
   static Config = Config
   private readonly baseUrl: string
   private readonly tokenEnv: string
+  private readonly bearer: BearerSource
   private readonly timeoutMs: number
   private readonly controllers = new Set<AbortController>()
 
   constructor(ctx: Context, config: Config = {}) {
     super(ctx)
     this.baseUrl = trimSlash(config.baseUrl ?? process.env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000')
-    this.tokenEnv = config.authTokenEnv ?? 'PUREGAMMA_LEGACY_API_TOKEN'
+    this.bearer = createBearerSource(config)
+    this.tokenEnv = this.bearer.description
     this.timeoutMs = config.requestTimeoutMs ?? 30000
     ctx.effect(() => () => {
       for (const controller of this.controllers) controller.abort()
@@ -70,7 +76,7 @@ export class LegacyApiSkillsProvider extends SkillsService {
   }
 
   private token(): string {
-    const token = process.env[this.tokenEnv]
+    const token = this.bearer()
     if (!token) throw new Error(`PureGamma Harness skills compatibility provider requires bearer token in ${this.tokenEnv}`)
     return token
   }

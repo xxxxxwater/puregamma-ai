@@ -21,7 +21,8 @@
     "release-boundary-check": "node --test scripts/release-boundary.test.mjs",
     "public-profile-check": "node --test scripts/public-profile-surface.test.mjs",
     "domain-toolviews-check": "tsx --test scripts/domain-toolviews.test.mjs",
-    "check": "pnpm run architecture-check && pnpm run retirement-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run trading-observation-check && pnpm run release-boundary-check && pnpm run public-profile-check && pnpm run domain-toolviews-check"
+    "legacy-auth-check": "tsx --test scripts/legacy-auth.test.mjs",
+    "check": "pnpm run architecture-check && pnpm run retirement-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run trading-observation-check && pnpm run release-boundary-check && pnpm run public-profile-check && pnpm run domain-toolviews-check && pnpm run legacy-auth-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
