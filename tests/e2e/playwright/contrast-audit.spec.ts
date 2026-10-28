@@ -76,7 +76,7 @@ interface Audit {
   failures: Violation[];
   clipped: Clip[];
   doc: { sw: number; cw: number };
-  stats: { measured: number; skipped: number; samples: number };
+  stats: { measured: number; skipped: number; skippedOpacity: number; samples: number };
 }
 
 /** Composites each element's computed colour over the nearest painted
@@ -113,12 +113,16 @@ const MEASURE = () => {
   const clipped: any[] = [];
   let measured = 0;
   let skipped = 0;
+  // Text skipped only because it is (still) faded: entrance animations and
+  // late-mounting content. Tracked apart so sampling can wait for it to settle.
+  let skippedOpacity = 0;
 
   for (const el of Array.from(document.querySelectorAll("p, span, a, li, td, th, dt, dd, h1, h2, h3, h4, label, button, summary"))) {
     const own = Array.from(el.childNodes).filter((n) => n.nodeType === 3).map((n) => n.textContent || "").join("").trim();
     if (!own) continue;
     const style = getComputedStyle(el);
-    if (style.visibility === "hidden" || style.display === "none" || parseFloat(style.opacity) < 0.6) { skipped += 1; continue; }
+    if (style.visibility === "hidden" || style.display === "none") { skipped += 1; continue; }
+    if (parseFloat(style.opacity) < 0.6) { skipped += 1; skippedOpacity += 1; continue; }
     const rect = el.getBoundingClientRect();
     if (rect.width < 4 || rect.height < 4) { skipped += 1; continue; }
     const fg = toRgb(style.color || "");
@@ -147,7 +151,7 @@ const MEASURE = () => {
     failures,
     clipped,
     doc: { sw: document.documentElement.scrollWidth, cw: document.documentElement.clientWidth },
-    stats: { measured, skipped, samples: 1 },
+    stats: { measured, skipped, skippedOpacity, samples: 1 },
   };
 };
 
@@ -188,10 +192,15 @@ async function measureStable(page: Page, theme: Theme, timeoutMs = 20000): Promi
       return animation.playState === "running" && timing?.iterations !== Infinity;
     }));
     last = (await page.evaluate(MEASURE)) as Audit;
-    const key = JSON.stringify(last.failures) + JSON.stringify(last.clipped) + last.stats.measured;
+    const key = JSON.stringify(last.failures) + JSON.stringify(last.clipped) + last.stats.measured + "/" + last.stats.skippedOpacity;
     stable = key === previous && !animating ? stable + 1 : 0;
     previous = key;
-    if (stable >= 1 && last.stats.measured > 0) {
+    // With nothing faded, two agreeing samples are enough. While text is still
+    // skipped for opacity (a slow runner can be mid-reveal with no animation
+    // object to observe), require the count to hold for ~2s before trusting
+    // it. Bounded by `timeoutMs`; the thresholds asserted afterwards are unchanged.
+    const needed = last.stats.skippedOpacity === 0 ? 1 : 5;
+    if (stable >= needed && last.stats.measured > 0) {
       last.stats.samples += 1;
       last.theme = theme;
       return last;
@@ -403,9 +412,12 @@ test.describe("contrast detector", () => {
  * `probe` is a selector that must be mounted for this route, which is what makes
  * the audit's silence mean "this surface is fine" instead of "nothing rendered".
  */
-const PUBLIC_ROUTES: Array<{ path: string; label: string; minText: number; probe: string }> = [
-  { path: "/zh", label: "homepage", minText: 40, probe: "main" },
-  { path: "/zh/api", label: "api docs", minText: 40, probe: "main" },
+const PUBLIC_ROUTES: Array<{ path: string; label: string; minText: number; probe: string; ready: string }> = [
+  // `ready` is the route's own content, loaded after the shell (the API docs
+  // catalog is fetched in the browser). Measuring before it mounts audits only
+  // the shell — 39 nodes on the API docs page, which is what a slow CI runner hit.
+  { path: "/zh", label: "homepage", minText: 40, probe: "main", ready: '[data-testid="model-upgrade-preview"]' },
+  { path: "/zh/api", label: "api docs", minText: 40, probe: "main", ready: '[data-testid="catalog-model-table"] tbody tr' },
 ];
 
 async function stubAnonymous(page: Page) {
@@ -423,6 +435,7 @@ test.describe("public surfaces meet WCAG AA", () => {
         const errors = watchErrors(page);
         await stubAnonymous(page);
         await openWithTheme(page, route.path, theme);
+        await expect(page.locator(route.ready).first(), `${route.label} (${theme}): its content never mounted`).toBeVisible({ timeout: 20_000 });
         const audit = await measureStable(page, theme);
 
         await expectRealSurface(page, true, `${route.label} (${theme})`);
