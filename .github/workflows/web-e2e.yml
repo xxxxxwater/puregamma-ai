@@ -77,3 +77,66 @@ jobs:
             playwright-report
             apps/web/test-results
           retention-days: 7
+
+  route-audit:
+    name: Every route survives an API outage (desktop & mobile)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+
+      - name: Pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      # Production build: no on-demand compilation, and the browser API is the
+      # same-origin /__dev-api path the spec stubs to 503. Server-side fetches
+      # have no backend at all, which is the outage being tested.
+      - name: Build
+        env:
+          NEXT_PUBLIC_API_URL: /__dev-api
+          NEXT_PUBLIC_INITIAL_LAUNCH_MODE: 'false'
+          REQUIRE_AUTH: 'false'
+          NEXT_DIST_DIR: .next-playwright-audit
+        run: pnpm build
+
+      - name: Start
+        env:
+          NEXT_DIST_DIR: .next-playwright-audit
+          REQUIRE_AUTH: 'false'
+        run: |
+          nohup node ./node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3319 > /tmp/next-audit.log 2>&1 &
+          for i in $(seq 1 60); do curl -sf -o /dev/null http://127.0.0.1:3319/en && exit 0; sleep 1; done
+          cat /tmp/next-audit.log; exit 1
+
+      - name: Audit every route
+        env:
+          PLAYWRIGHT_PORT: '3319'
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3319
+        run: pnpm exec playwright test route-audit.spec.ts --reporter=line
+
+      - name: Upload results on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: route-audit
+          path: apps/web/test-results
+          retention-days: 7

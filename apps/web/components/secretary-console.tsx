@@ -394,7 +394,9 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
   }
 
   return (
-    <div className="relative xl:pr-[300px]">
+    // `overflow-x-clip`: the decorative portrait deliberately hangs past the
+    // panel edge; clipping (not scrolling) keeps it from widening the page.
+    <div className="relative overflow-x-clip xl:pr-[300px]">
       <div className="grid border border-border-pg bg-bg-panel lg:h-[calc(100dvh-6.5rem)] lg:min-h-[520px] lg:grid-cols-[minmax(0,1fr)_260px] lg:overflow-hidden xl:grid-cols-[minmax(0,1fr)_240px] rounded-2xl">
       <section className="flex h-[calc(100dvh-10rem)] min-h-[408px] min-w-0 flex-col overflow-hidden lg:h-auto lg:min-h-0">
         <header className="shrink-0 flex flex-wrap items-start justify-between gap-4 border-b border-border-pg p-5">
