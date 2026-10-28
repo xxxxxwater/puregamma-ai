@@ -169,39 +169,54 @@ def stream_events(
     transaction open between polls.
     """
     row = _own_run(db, user, run_id)
-    last_status = row.status
+    return StreamingResponse(
+        run_event_stream(db, user.id, run_id, row.status, str(row.updated_at)),
+        media_type="text/event-stream",
+    )
 
-    def event_stream():
-        nonlocal last_status
-        yield _sse("run.state", {"run_id": run_id, "status": last_status, "updated_at": str(row.updated_at)})
-        deadline = time.monotonic() + 90
-        while time.monotonic() < deadline:
-            time.sleep(2)
-            fresh = db.get(HarnessResearchRun, run_id)
-            if fresh is None or fresh.user_id != user.id:
-                yield _sse("run.failed", {"run_id": run_id, "message": "run disappeared"})
-                return
-            if fresh.status != last_status:
-                last_status = fresh.status
-                yield _sse("run.state", {"run_id": run_id, "status": fresh.status, "updated_at": str(fresh.updated_at)})
-            if fresh.status == "completed":
-                yield _sse("run.completed", {"run_id": run_id, "verified": True, "degraded": False})
-                return
-            if fresh.status == "degraded":
-                yield _sse("run.completed", {"run_id": run_id, "verified": False, "degraded": True})
-                return
-            if fresh.status == "failed":
-                yield _sse("run.failed", {"run_id": run_id, "message": fresh.error_summary or "failed"})
-                return
-            if fresh.status == "canceled":
-                yield _sse("run.canceled", {"run_id": run_id})
-                return
-            if fresh.status == "timed_out":
-                yield _sse("run.failed", {"run_id": run_id, "message": "timed out"})
-                return
-        yield _sse("run.state", {"run_id": run_id, "status": last_status, "updated_at": str(fresh.updated_at) if fresh else None})
 
-    return StreamingResponse(event_stream(), media_type="text/event-stream")
+def run_event_stream(db: Session, user_id: str, run_id: str, status: str, updated_at: str, *, sleep=time.sleep, clock=time.monotonic, budget_seconds: float = 90):
+    """Poll one run's status and emit state changes until it is terminal.
+
+    Each poll ends the session's transaction first. Re-reading with
+    ``db.get`` alone returned the object already in the identity map, inside
+    the transaction opened by the ownership check, so a status the worker
+    committed afterwards was never seen and the stream sat on "queued" until
+    its budget ran out. Ending the transaction expires the cached row and
+    releases the connection between polls.
+    """
+    last_status = status
+    fresh = None
+    yield _sse("run.state", {"run_id": run_id, "status": last_status, "updated_at": updated_at})
+    deadline = clock() + budget_seconds
+    while clock() < deadline:
+        db.rollback()
+        sleep(2)
+        fresh = db.get(HarnessResearchRun, run_id)
+        if fresh is None or fresh.user_id != user_id:
+            yield _sse("run.failed", {"run_id": run_id, "message": "run disappeared"})
+            return
+        if fresh.status != last_status:
+            last_status = fresh.status
+            yield _sse("run.state", {"run_id": run_id, "status": fresh.status, "updated_at": str(fresh.updated_at)})
+        if fresh.status == "completed":
+            yield _sse("run.completed", {"run_id": run_id, "verified": True, "degraded": False})
+            return
+        if fresh.status == "degraded":
+            yield _sse("run.completed", {"run_id": run_id, "verified": False, "degraded": True})
+            return
+        if fresh.status == "failed":
+            yield _sse("run.failed", {"run_id": run_id, "message": fresh.error_summary or "failed"})
+            return
+        if fresh.status == "canceled":
+            yield _sse("run.canceled", {"run_id": run_id})
+            return
+        if fresh.status == "timed_out":
+            yield _sse("run.failed", {"run_id": run_id, "message": "timed out"})
+            return
+    db.rollback()
+    yield _sse("run.state", {"run_id": run_id, "status": last_status, "updated_at": str(fresh.updated_at) if fresh else updated_at})
+
 
 
 def _sse(event: str, data: dict) -> str:

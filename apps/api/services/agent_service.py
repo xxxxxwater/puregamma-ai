@@ -4,6 +4,7 @@ from apps.api.services.chat_workspace import resolve_attachments, permission_mod
 
 import json
 import logging
+import re
 import time
 import uuid
 from datetime import datetime, timedelta, timezone
@@ -54,6 +55,23 @@ class AgentModelPlanError(PermissionError):
     pass
 
 
+class AgentDuplicateSubmissionError(RuntimeError):
+    """The client already submitted this exact turn; nothing new was started.
+
+    A browser that lost the response to a send cannot know whether the server
+    received it. Retrying with the same ``client_request_id`` lands here instead
+    of starting (and charging for) a second run, and the caller reattaches to
+    the run the first attempt created.
+    """
+
+    def __init__(self, run: "AgentRun | None", message: AgentMessage):
+        super().__init__("DUPLICATE_SUBMISSION")
+        self.run_id = run.id if run else None
+        self.status = run.status if run else None
+        self.assistant_message_id = run.assistant_message_id if run else None
+        self.user_message_id = message.id
+
+
 class AgentModelUnavailableError(RuntimeError):
     pass
 
@@ -96,7 +114,13 @@ def create_conversation(db: Session, user: User, title: str | None = None) -> Ag
 
 
 def owned_conversation(db: Session, user: User, conversation_id: str) -> AgentConversation:
-    row = db.query(AgentConversation).filter_by(id=conversation_id, user_id=user.id).one_or_none()
+    # A deleted conversation is gone for its owner too: listing already hides
+    # it, so reading or posting to it by a remembered id must not resurrect it.
+    row = (
+        db.query(AgentConversation)
+        .filter(AgentConversation.id == conversation_id, AgentConversation.user_id == user.id, AgentConversation.status != "deleted")
+        .one_or_none()
+    )
     if not row:
         raise LookupError("Conversation not found")
     return row
@@ -404,8 +428,38 @@ def _entitled_context(db: Session, user: User, context: dict) -> dict:
     return {**context, "data_sources": permitted, "denied_data_sources": [{"provider": source, "reason": "plan_required"} for source in denied]}
 
 
-def start_run(db: Session, user: User, conversation: AgentConversation, content: str, context: dict | None = None) -> AgentRun:
+#: How far back a repeated ``client_request_id`` is recognised. A retry that
+#: arrives later than this is treated as a new question.
+CLIENT_REQUEST_WINDOW = timedelta(hours=24)
+
+
+def _previous_submission(db: Session, user: User, conversation: AgentConversation, client_request_id: str) -> AgentMessage | None:
+    since = utcnow() - CLIENT_REQUEST_WINDOW
+    recent = (
+        db.query(AgentMessage)
+        .filter(
+            AgentMessage.conversation_id == conversation.id,
+            AgentMessage.user_id == user.id,
+            AgentMessage.role == "user",
+            AgentMessage.created_at >= since,
+        )
+        .order_by(AgentMessage.created_at.desc())
+        .limit(50)
+        .all()
+    )
+    return next((row for row in recent if (row.context_json or {}).get("client_request_id") == client_request_id), None)
+
+
+def start_run(db: Session, user: User, conversation: AgentConversation, content: str, context: dict | None = None, *, client_request_id: str | None = None) -> AgentRun:
     conversation = db.query(AgentConversation).filter_by(id=conversation.id, user_id=user.id).with_for_update().one()
+    if client_request_id:
+        # Checked under the conversation row lock, so two copies of the same
+        # submission racing each other serialise here and only one starts a run.
+        previous = _previous_submission(db, user, conversation, client_request_id)
+        if previous is not None:
+            existing = db.query(AgentRun).filter_by(user_message_id=previous.id, user_id=user.id).order_by(AgentRun.started_at.desc()).first()
+            db.rollback()
+            raise AgentDuplicateSubmissionError(existing, previous)
     context = {**(context or {}), "permission_mode": conversation.permission_mode or "workspace-write"}
     content = content.strip()
     if not content or len(content) > 12_000:
@@ -438,6 +492,8 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
         f"agent-charge:{run_id}",
         {"run_id": run_id},
     )
+    if client_request_id:
+        clean_context = {**clean_context, "client_request_id": client_request_id}
     user_message = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="user", content=content, status="completed", context_json=clean_context)
     assistant = AgentMessage(conversation_id=conversation.id, user_id=user.id, role="assistant", content="", status="pending", model=model)
     db.add_all([user_message, assistant])
@@ -461,6 +517,27 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
     return run
 
 
+_SECRET_ARGUMENT = re.compile(r"(secret|token|password|passphrase|api[_-]?key|authorization|cookie|credential|private[_-]?key|account[_-]?number|iban|ssn)", re.I)
+
+
+def redact_tool_arguments(value: object, depth: int = 0) -> object:
+    """A display copy of tool arguments with credential-like fields masked.
+
+    The model writes these arguments, so they can echo anything the user typed;
+    the copy shown in the Agent timeline never carries a key, token or account
+    number even when the stored row does.
+    """
+    if depth > 4:
+        return "…"
+    if isinstance(value, dict):
+        return {str(key): ("••••" if _SECRET_ARGUMENT.search(str(key)) else redact_tool_arguments(item, depth + 1)) for key, item in list(value.items())[:40]}
+    if isinstance(value, list):
+        return [redact_tool_arguments(item, depth + 1) for item in value[:40]]
+    if isinstance(value, str):
+        return value if len(value) <= 500 else value[:500] + "…"
+    return value
+
+
 def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
@@ -468,7 +545,10 @@ def _sse(event: str, data: dict) -> str:
 #: Frames that are stream noise rather than transcript. Upstream keeps the same
 #: split between durable session events and `assistant-stream` frames, so a
 #: replay never re-emits a token and this table holds one row per real step.
-EPHEMERAL_STREAM_EVENTS = frozenset({"message.delta"})
+#: ``approval.waiting`` is a once-a-second heartbeat while a call awaits the
+#: user; ``approval.required`` (with its expiry) is the durable record of that
+#: wait, so storing every heartbeat only bloated the replay a reconnect reads.
+EPHEMERAL_STREAM_EVENTS = frozenset({"message.delta", "approval.waiting"})
 
 #: A replay is bounded so one pathological run cannot return an unbounded body.
 RUN_EVENT_PAGE_LIMIT = 500
@@ -521,7 +601,9 @@ def with_run_events(frames: Generator[str, None, None], run_id: str, *, persist=
         event, data = parsed
         seq += 1
         payload = data if isinstance(data, dict) else {"value": data}
-        payload = {**payload, "seq": seq}
+        # `at` is the server's own clock for the step, so a timeline drawn from
+        # live frames and one drawn from a replay show the same times.
+        payload = {**payload, "seq": seq, "at": payload.get("at") or utcnow().isoformat()}
         if event not in EPHEMERAL_STREAM_EVENTS:
             persist(run_id, seq, event, payload)
         yield _sse(event, payload)
@@ -899,7 +981,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                 call.status = "awaiting_approval"
                 call.approval_expires_at = utcnow() + timedelta(seconds=120)
                 db.commit()
-                yield _sse("approval.required", {"toolCallId": call.id, "tool": tool_name, "arguments": arguments, "expiresAt": call.approval_expires_at.isoformat()})
+                yield _sse("approval.required", {"toolCallId": call.id, "tool": tool_name, "arguments": redact_tool_arguments(arguments), "expiresAt": call.approval_expires_at.isoformat(), "runId": run.id, "conversationId": run.conversation_id, "permissionMode": run_context.get("permission_mode", "workspace-write")})
                 wait_started = time.perf_counter()
                 while time.perf_counter() - wait_started < 120:
                     db.refresh(call)
@@ -918,7 +1000,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                     continue
                 call.status = "running"
                 db.commit()
-            yield _sse("tool.started", {"toolCallId": call.id, "tool": tool_name})
+            yield _sse("tool.started", {"toolCallId": call.id, "tool": tool_name, "arguments": redact_tool_arguments(arguments)})
             if tool_name == "run_dream_strategy_search":
                 yield _sse(
                     "dream.started",
@@ -971,7 +1053,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
                         },
                     )
                 db.commit()
-                yield _sse("tool.completed", {"toolCallId": call.id, "tool": tool_name, "summary": result.summary, "data": result.data})
+                yield _sse("tool.completed", {"toolCallId": call.id, "tool": tool_name, "summary": result.summary, "data": result.data, "latencyMs": call.latency_ms})
             except Exception as exc:
                 call.status = "failed"
                 call.error_message = str(exc)[:500]
@@ -1001,7 +1083,7 @@ def stream_run(db: Session, user: User, run_id: str, locale: str = "en") -> Gene
             )
             db.add(call)
             db.commit()
-            yield _sse("tool.started", {"toolCallId": call.id, "tool": tool_name})
+            yield _sse("tool.started", {"toolCallId": call.id, "tool": tool_name, "arguments": redact_tool_arguments(arguments)})
             if tool_name == "run_dream_strategy_search":
                 yield _sse(
                     "dream.started",

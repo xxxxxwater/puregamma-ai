@@ -6,13 +6,13 @@ from starlette.concurrency import run_in_threadpool
 from datetime import timedelta
 from urllib.parse import quote
 from typing import Literal
-from apps.api.services.chat_workspace import MAX_FILE_BYTES, MAX_FILES, MAX_USER_BYTES, save_attachment, owned_attachment, permission_mode, attachment_metadata, remove_attachment, release_conversation_attachments
+from apps.api.services.chat_workspace import MAX_FILE_BYTES, MAX_FILES, MAX_USER_BYTES, save_attachment, owned_attachment, effective_permission_mode, SELECTABLE_PERMISSION_MODES, attachment_metadata, remove_attachment, release_conversation_attachments
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
-from apps.api.services.agent_service import RUN_EVENT_PAGE_LIMIT, with_run_events, AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from apps.api.services.agent_service import RUN_EVENT_PAGE_LIMIT, with_run_events, AgentDuplicateSubmissionError, AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
 from apps.api.services.credit_service import InsufficientCreditsError, refund_task
 from apps.api.services.agent_plugins import inventory as agent_plugin_inventory
 from apps.api.services.entitlement_service import get_user_entitlement
@@ -38,6 +38,9 @@ class ConversationPatch(BaseModel):
 
 class MessageRequest(BaseModel):
     content: str
+    # Stable per send attempt. A client that lost the response retries with
+    # the same value and is pointed at the run the first attempt started.
+    client_request_id: str | None = Field(default=None, pattern=r"^[A-Za-z0-9_.:-]{8,80}$")
     locale: str = "en"
     research_mode: bool = True
     data_sources: list[str] = Field(default_factory=list)
@@ -100,9 +103,9 @@ def agent_quote(payload: AgentQuoteRequest, db: Session = Depends(get_db), user:
     except AgentModelInvalidError as exc:
         raise HTTPException(status_code=400, detail={"code": str(exc), "message": "The selected Agent model is invalid."}) from exc
     except AgentModelPlanError as exc:
-        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "GPT-5.6 Luna requires an eligible plan."}) from exc
+        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "The selected Agent model requires an eligible plan."}) from exc
     except AgentModelUnavailableError as exc:
-        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "GPT-5.6 Luna is currently unavailable."}) from exc
+        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "The selected Agent model is currently unavailable."}) from exc
     except SkillResolutionError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
     except ValueError as exc:
@@ -159,7 +162,10 @@ def update_conversation(conversation_id: str, payload: ConversationPatch, db: Se
             raise HTTPException(status_code=400, detail="FULL_ACCESS_ACKNOWLEDGEMENT_REQUIRED")
         if db.query(AgentRun).filter(AgentRun.conversation_id == row.id, AgentRun.status.in_(["pending", "running"])).count():
             raise HTTPException(status_code=409, detail="CONVERSATION_BUSY")
-        row.permission_mode = permission_mode(payload.permission_mode)
+        # Older clients may still send the retired full-access; it is stored as
+        # what the gate enforces so the conversation never claims more authority
+        # than it has.
+        row.permission_mode = effective_permission_mode(payload.permission_mode)
     if payload.title is not None:
         row.title = payload.title.strip()[:160] or row.title
     if payload.archived is not None:
@@ -204,7 +210,10 @@ def delete_all_conversations(db: Session = Depends(get_db), user: User = Depends
 
 @router.get("/conversations/{conversation_id}/messages")
 def messages(conversation_id: str, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
-    owned_conversation(db, user, conversation_id)
+    try:
+        owned_conversation(db, user, conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     rows = db.query(AgentMessage).filter_by(conversation_id=conversation_id, user_id=user.id).order_by(AgentMessage.created_at).all()
     return {"messages": [serialize_message(db, row) for row in rows]}
 
@@ -213,17 +222,19 @@ def messages(conversation_id: str, db: Session = Depends(get_db), user: User = D
 def send_message(conversation_id: str, payload: MessageRequest, db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> StreamingResponse:
     try:
         row = owned_conversation(db, user, conversation_id)
-        run = start_run(db, user, row, payload.content, context={"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model, "permission_mode": row.permission_mode})
+        run = start_run(db, user, row, payload.content, context={"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model, "permission_mode": row.permission_mode}, client_request_id=payload.client_request_id)
     except LookupError as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except AgentDuplicateSubmissionError as exc:
+        raise HTTPException(status_code=409, detail={"code": "DUPLICATE_SUBMISSION", "runId": exc.run_id, "status": exc.status, "messageId": exc.assistant_message_id, "userMessageId": exc.user_message_id}) from exc
     except AgentLimitError as exc:
         raise HTTPException(status_code=429, detail={"code": str(exc)}) from exc
     except AgentModelInvalidError as exc:
         raise HTTPException(status_code=400, detail={"code": str(exc), "message": "The selected Agent model is invalid."}) from exc
     except AgentModelPlanError as exc:
-        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "GPT-5.6 Luna requires an eligible plan."}) from exc
+        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "The selected Agent model requires an eligible plan."}) from exc
     except AgentModelUnavailableError as exc:
-        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "GPT-5.6 Luna is currently unavailable."}) from exc
+        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "The selected Agent model is currently unavailable."}) from exc
     except SkillResolutionError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
     except ValueError as exc:
@@ -251,9 +262,9 @@ def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(g
     except AgentModelInvalidError as exc:
         raise HTTPException(status_code=400, detail={"code": str(exc), "message": "The selected Agent model is invalid."}) from exc
     except AgentModelPlanError as exc:
-        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "GPT-5.6 Luna requires an eligible plan."}) from exc
+        raise HTTPException(status_code=403, detail={"code": str(exc), "message": "The selected Agent model requires an eligible plan."}) from exc
     except AgentModelUnavailableError as exc:
-        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "GPT-5.6 Luna is currently unavailable."}) from exc
+        raise HTTPException(status_code=503, detail={"code": str(exc), "message": "The selected Agent model is currently unavailable."}) from exc
     except InsufficientCreditsError as exc:
         raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_CREDITS"}) from exc
     except SkillResolutionError as exc:
@@ -318,7 +329,7 @@ def cancel_run(run_id: str, db: Session = Depends(get_db), user: User = Depends(
 
 @router.get("/workspace-capabilities")
 def workspace_capabilities(user: User = Depends(get_current_user)) -> dict:
-    return {"permission_modes": ["read-only", "workspace-write", "full-access"],
+    return {"permission_modes": list(SELECTABLE_PERMISSION_MODES),
             "default_permission_mode": "workspace-write", "max_file_bytes": MAX_FILE_BYTES,
             "max_files": MAX_FILES, "storage_bytes": MAX_USER_BYTES,
             "file_types": ["txt", "md", "csv", "tsv", "json", "log", "py", "js", "ts", "yaml", "yml", "pdf", "docx", "png", "jpg", "jpeg", "webp", "gif"],

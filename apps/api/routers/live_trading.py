@@ -24,6 +24,7 @@ from packages.database.models import TradingAccount, User
 from packages.live_trading import control_plane, nav as nav_service, ledger as ledger_service
 from packages.live_trading import price_feed as price_feed_service
 from packages.live_trading.control_plane import ControlPlaneError, OrderRejected
+from packages.live_trading.decimal_text import decimal_text
 from packages.live_trading.enums import OrderSource
 from packages.live_trading.gateway_adapter import GatewayError
 from packages.live_trading.secret_store import SecretStoreError
@@ -90,12 +91,12 @@ def _serialize_nav(row) -> dict:
     return {
         "id": row.id,
         "account_id": row.account_id,
-        "nav": str(row.nav) if row.nav is not None else None,
-        "cash": str(row.cash),
-        "gross_exposure": str(row.gross_exposure),
-        "net_exposure": str(row.net_exposure),
-        "realized_pnl": str(row.realized_pnl),
-        "unrealized_pnl": str(row.unrealized_pnl),
+        "nav": decimal_text(row.nav),
+        "cash": decimal_text(row.cash),
+        "gross_exposure": decimal_text(row.gross_exposure),
+        "net_exposure": decimal_text(row.net_exposure),
+        "realized_pnl": decimal_text(row.realized_pnl),
+        "unrealized_pnl": decimal_text(row.unrealized_pnl),
         "currency": row.currency,
         "price_timestamp": row.price_timestamp.isoformat() if row.price_timestamp else None,
         "calculated_at": row.calculated_at.isoformat(),
@@ -124,6 +125,23 @@ def _default_account(db: Session, user_id: str) -> TradingAccount:
     if not row:
         raise LookupError("No active trading account")
     return row
+
+
+def _resolve_account(db: Session, user_id: str, account_id: str | None) -> TradingAccount:
+    """The caller's account for a NAV read, or an explicit 404.
+
+    A user without an active LIVE account used to get an unhandled
+    ``LookupError`` (HTTP 500), which clients rendered as an outage. The honest
+    answer is "no account": a structured 404 the UI shows as unavailable, never
+    a fabricated zero NAV.
+    """
+    try:
+        return _owned_account(db, user_id, account_id) if account_id else _default_account(db, user_id)
+    except LookupError as exc:
+        raise HTTPException(
+            status_code=404,
+            detail={"code": "TRADING_ACCOUNT_NOT_FOUND", "message": str(exc)},
+        ) from exc
 
 
 # ---------------------------------------------------------------------------
@@ -305,9 +323,9 @@ def order_preview(
                 "mandate_id": intent.mandate_id,
                 "symbol": intent.symbol,
                 "side": intent.side,
-                "quantity": str(intent.quantity),
+                "quantity": decimal_text(intent.quantity),
                 "order_type": intent.order_type,
-                "limit_price": str(intent.limit_price) if intent.limit_price is not None else None,
+                "limit_price": decimal_text(intent.limit_price),
                 "source": intent.source,
                 "status": intent.status,
                 "requested_at": intent.requested_at.isoformat(),
@@ -371,9 +389,7 @@ def current_nav(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    account = (
-        _owned_account(db, user.id, account_id) if account_id else _default_account(db, user.id)
-    )
+    account = _resolve_account(db, user.id, account_id)
     snapshot = nav_service.latest_snapshot(db, user.id, account.id)
     if not snapshot:
         # Compute one on demand rather than fabricate; prices may be missing.
@@ -387,9 +403,9 @@ def current_nav(
     if snapshot.nav is not None and len(history) >= 2:
         previous = history[1]
         if previous.nav is not None:
-            daily_pnl = str(snapshot.nav - previous.nav)
+            daily_pnl = decimal_text(snapshot.nav - previous.nav)
             if previous.nav != 0:
-                daily_return = str(
+                daily_return = decimal_text(
                     (snapshot.nav - previous.nav) / previous.nav
                 )
     return {
@@ -406,9 +422,7 @@ def nav_history(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    account = (
-        _owned_account(db, user.id, account_id) if account_id else _default_account(db, user.id)
-    )
+    account = _resolve_account(db, user.id, account_id)
     rows = nav_service.history(db, user.id, account.id, limit=limit)
     return {"history": [_serialize_nav(row) for row in rows]}
 
@@ -419,9 +433,7 @@ def positions(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
-    account = (
-        _owned_account(db, user.id, account_id) if account_id else _default_account(db, user.id)
-    )
+    account = _resolve_account(db, user.id, account_id)
     quantities = ledger_service.position_quantities(db, account.id)
     rows = []
     for symbol, qty in sorted(quantities.items()):
@@ -432,9 +444,9 @@ def positions(
         rows.append(
             {
                 "symbol": symbol,
-                "quantity": str(qty),
-                "mark_price": str(price) if price is not None else None,
-                "market_value": str(qty * price) if price is not None else None,
+                "quantity": decimal_text(qty),
+                "mark_price": decimal_text(price),
+                "market_value": decimal_text(qty * price) if price is not None else None,
                 "price_timestamp": price_at.isoformat() if price_at else None,
                 "stale": stale,
             }

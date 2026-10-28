@@ -314,7 +314,9 @@ def test_a_format_we_do_not_serve_is_converted_and_a_truncated_file_is_refused()
 @pytest.mark.parametrize("mode,unknown,stateful", [
     ("read-only", "deny", "deny"),
     ("workspace-write", "deny", "ask"),
-    ("full-access", "allow", "allow"),
+    # Retired: a stored full-access must never skip the per-call approval or
+    # promote an unclassified tool.
+    ("full-access", "deny", "ask"),
 ])
 def test_permissions_fail_closed_for_unknown_tools(mode, unknown, stateful, monkeypatch):
     import apps.api.services.chat_workspace as workspace
@@ -326,15 +328,20 @@ def test_permissions_fail_closed_for_unknown_tools(mode, unknown, stateful, monk
     assert tool_permission(mode, "write_action") == stateful
 
 
-def test_persisted_permission_and_explicit_full_access(api_client, normal_user, max_user):
+def test_persisted_permission_and_retired_full_access(api_client, normal_user, max_user):
     h = auth_headers(normal_user)
     item = api_client.post("/api/agent/conversations", json={}, headers=h).json()["conversation"]
     url = "/api/agent/conversations/" + item["id"]
     assert item["permission_mode"] == "workspace-write"
     assert api_client.patch(url, json={"permission_mode": "full-access"}, headers=h).status_code == 400
+    # An older client may still acknowledge full-access; the conversation stores
+    # what the gate enforces instead of advertising authority it does not grant.
     assert api_client.patch(url, json={"permission_mode": "full-access", "acknowledge_full_access": True}, headers=h).status_code == 200
-    assert api_client.get(url, headers=h).json()["conversation"]["permission_mode"] == "full-access"
+    assert api_client.get(url, headers=h).json()["conversation"]["permission_mode"] == "workspace-write"
+    assert api_client.patch(url, json={"permission_mode": "read-only"}, headers=h).json()["conversation"]["permission_mode"] == "read-only"
     assert api_client.patch(url, json={"permission_mode": "read-only"}, headers=auth_headers(max_user)).status_code == 404
+    capabilities = api_client.get("/api/agent/workspace-capabilities", headers=h).json()
+    assert capabilities["permission_modes"] == ["read-only", "workspace-write"]
 
 
 def test_approval_tenant_expiry_and_replay(api_client, db, normal_user, max_user):

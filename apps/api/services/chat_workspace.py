@@ -42,6 +42,13 @@ READ_TOOLS = frozenset({
 STATEFUL_TOOLS = frozenset()
 
 
+#: Modes a client may still select. ``full-access`` stays a recognised stored
+#: value (older conversations and app builds carry it) but no longer grants
+#: anything beyond ``workspace-write``: a blanket "auto execute" switch is not a
+#: substitute for approving each state-changing call.
+SELECTABLE_PERMISSION_MODES = ("read-only", "workspace-write")
+
+
 def permission_mode(value: str | None) -> str:
     mode = value or "workspace-write"
     if mode not in PERMISSION_MODES:
@@ -49,18 +56,24 @@ def permission_mode(value: str | None) -> str:
     return mode
 
 
+def effective_permission_mode(value: str | None) -> str:
+    """The mode the tool gate enforces; the retired full-access maps to ask."""
+    mode = permission_mode(value)
+    return "workspace-write" if mode == "full-access" else mode
+
+
 def tool_permission(mode: str, tool: str) -> str:
     """Additional restriction only; existing entitlement/control-plane gates still apply.
 
     Read-only tools are allowed in every mode; tools that change state require an
-    explicit confirmation in "workspace-write" and are refused in "read-only"; a
-    tool nobody has classified is refused in the two restrictive modes rather
-    than silently promoted to a confirmation the user did not expect.
+    explicit, single-use confirmation in "workspace-write" and are refused in
+    "read-only"; a tool nobody has classified is refused rather than silently
+    promoted to a confirmation the user did not expect. The retired
+    "full-access" value is enforced as "workspace-write": it never skips the
+    per-call approval.
     """
-    mode = permission_mode(mode)
+    mode = effective_permission_mode(mode)
     if tool in READ_TOOLS:
-        return "allow"
-    if mode == "full-access":
         return "allow"
     if mode == "read-only":
         return "deny"
