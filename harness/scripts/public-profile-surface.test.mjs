@@ -197,3 +197,17 @@ test('profile rows that name an existing id never rename its plugin (the launche
     if (upstream?.name && row.name) assert.equal(row.name, upstream.name, `${id} renames ${upstream.name}`)
   }
 })
+
+test('the Session controller gets a fileUploads provider that admits nothing, while upstream uploads stay off', async () => {
+  assert.equal(profileRows.get('file-upload')?.disabled, true)
+  assert.equal(profileRows.get('puregamma-file-uploads-refused')?.name, '@puregamma/dsh-file-uploads-refused')
+  const source = await fs.readFile(path.join(harnessRoot, 'plugins', 'file-uploads-refused', 'src', 'index.ts'), 'utf8')
+  assert.doesNotMatch(source, /connection\.fetch|@Remote|TypertRemoteService|admitEncodedFile/, 'no upload route, Remote or admission')
+  const { default: Refused } = await import('../plugins/file-uploads-refused/src/index.ts')
+  const refused = Object.create(Refused.prototype)
+  assert.equal(refused.resolve({}, 'receipt-1'), undefined)
+  assert.throws(() => refused.bindPrompt({}, ['receipt-1'], 'r'), /disabled/)
+  const binding = refused.bindPrompt({}, [], 'r')
+  binding.commit()
+  binding[Symbol.dispose]()
+})

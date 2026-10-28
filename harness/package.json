@@ -19,7 +19,7 @@
     "pg-tsy-health-check": "tsx --test scripts/pg-tsy-health.test.mjs",
     "trading-observation-check": "node --test scripts/trading-observation.test.mjs",
     "release-boundary-check": "node --test scripts/release-boundary.test.mjs",
-    "public-profile-check": "node --test scripts/public-profile-surface.test.mjs",
+    "public-profile-check": "tsx --test scripts/public-profile-surface.test.mjs",
     "domain-toolviews-check": "tsx --test scripts/domain-toolviews.test.mjs",
     "legacy-auth-check": "tsx --test scripts/legacy-auth.test.mjs",
     "directory-picker-check": "tsx --test scripts/directory-picker-sandbox.test.mjs",

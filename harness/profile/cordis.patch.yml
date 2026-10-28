@@ -38,6 +38,11 @@
     # One Typert Remote assembly, Harness-native Resource/Slot clients.
     - id: puregamma-client-remotes
       name: '@puregamma/dsh-client-remotes'
+    # Upstream file-upload stays disabled (below). The native Session
+    # controller injects `fileUploads`, so this provider admits nothing and
+    # lets Sessions mount; see plugins/file-uploads-refused.
+    - id: puregamma-file-uploads-refused
+      name: '@puregamma/dsh-file-uploads-refused'
     - id: puregamma-directory-picker
       name: '@puregamma/dsh-directory-picker-sandbox'
       config: { root: !!js process.env.PUREGAMMA_DSH_WORKSPACE_ROOT ?? '', maxEntries: 500, showHidden: false }

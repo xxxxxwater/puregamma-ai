@@ -27,6 +27,7 @@
     "@puregamma/dsh-ui-brand": "workspace:^",
     "@puregamma/dsh-client-remotes": "workspace:^",
     "@puregamma/dsh-directory-picker-sandbox": "workspace:^",
+    "@puregamma/dsh-file-uploads-refused": "workspace:^",
     "@puregamma/dsh-ui-account": "workspace:^",
     "@puregamma/dsh-ui-billing": "workspace:^",
     "@puregamma/dsh-ui-notifications": "workspace:^",
