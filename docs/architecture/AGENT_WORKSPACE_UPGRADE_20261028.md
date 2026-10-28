@@ -31,7 +31,7 @@
 
 | 能力 | 之前 | 之后 | 代码位置 | 运行证据 | 仍存在的缺口 |
 | --- | --- | --- | --- | --- | --- |
-| 会话创建/继续 | 已实现（旧） | 已实现（旧） | `apps/api/routers/agent.py`、`components/agent-chat.tsx` | `test_agent_session_reliability.py`；E2E `agent-session-reliability` | DSH 路径缺多租户（§3） |
+| 会话创建/继续 | 已实现（旧） | 已实现（旧） | `apps/api/routers/agent.py`、`components/agent-chat.tsx` | `test_agent_session_reliability.py`；E2E `agent-session-reliability` | DSH 路径：v0.3.3 已有每用户隔离 Host 的 session broker（默认关闭，见 §13），尚未接入 Caddy/Next 入口，也没有 OS 级隔离 |
 | 历史搜索/归档 | 不可用（后端已支持 `archived`，前端未用；没有搜索） | 部分实现：标题搜索在前端完成，归档/取消归档走服务端，失败时回滚 | 同上 | E2E `history: search, archive…` | 服务端全文搜索接口不存在 |
 | 已删除会话 | **缺陷**：按 ID 仍可读、可继续发送 | 已修复：返回 404 | `agent_service.owned_conversation` | `test_a_deleted_conversation_cannot_be_read_or_continued` | — |
 | 流式与重连 | 部分实现：轮询事件，但事件**从未应用到界面**；没有按 seq 去重 | 已实现（旧路径）：按 seq 去重、忽略其他 run 的帧、显示“连接中断/正在恢复”、按服务端记录给出结论 | `lib/agent-run-events.ts`、`agent-chat.tsx` | E2E dedup / reconnect / re-attach | 服务端在客户端断开时会把 run 标为 `interrupted`（不在后台继续），这是旧架构的限制，由 DSH Session 解决 |
@@ -39,12 +39,12 @@
 | 重复提交 | **缺陷**：消息 POST 没有幂等键 | 已实现：`client_request_id`，重复时返回 409 `DUPLICATE_SUBMISSION` 并附着原 run；提供“安全重试” | `agent_service.start_run`、`agent.py` | pytest + E2E | — |
 | 取消 | 已实现（停止生成） | 已实现，并明确说明“已执行的工具不会撤销，按实际用量结算”；同一 run 只取消一次 | 同上 | E2E `stop cancels…` | 聊天里没有后台任务；研究任务的取消在 `/research` |
 | Skills | 部分实现：旧 SkillRegistry；DSH `ctx.skills` 只在 profile 中配置 | 已实现（只读展示）：研究设置里列出可用 Skill、适用场景、限定工具、是否需要确认、不可用原因，并说明“Skill 说明不会提升工具权限” | `chat-panels.tsx#SkillList`、`harness/profile/skills/*` | E2E `skills are listed…` | DSH Web 的 `/skill` 选择器只在 DSH 路径可用 |
-| 图片附件 | 已实现 | 已实现，并增加上传进度 | `chat-workspace-composer.tsx` | E2E `harness-workspace` | Caddy 限制 2 MB，应用允许 10 MB（§8） |
+| 图片附件 | 已实现 | 已实现，并增加上传进度 | `chat-workspace-composer.tsx` | E2E `harness-workspace` | Caddy 已在 `7f61371` 对 `/api/agent/attachments` 放行到 10 MiB，其余路径仍为 2 MB |
 | 通用文件附件 | 仅 DSH profile 中禁用 | 不变（保持禁用） | `cordis.patch.yml` | public-profile-check | 需要先有会话级只读沙箱 provider |
 | 研究任务 | 部分实现：SSE **读不到状态变化**（identity map） | 已修复 SSE；完整生命周期 `queued→…→completed/failed/canceled` | `routers/harness_runs.py` | `test_research_run_stream.py`（去掉修复后测试失败） | `HARNESS_RESEARCH_ENABLED` 默认关闭 |
 | 证据引用 | 部分实现：只有来源 chip，`[n]` 不可点 | 已实现：`[n]` 链接到按需打开的证据 Inspector（抓取时间、新鲜度、缺口），可回跳到正文，焦点会返回 | `components/agent/evidence-inspector.tsx` | E2E `citation marker…` | 段落级锚点只到消息和引用标记粒度 |
 | 产物 | 已实现（`/research/[runId]`） | 不变 | `research-run-detail.tsx` | — | 聊天内没有产物下载 |
-| 模型路由 | 部分实现：菜单里有不可用模型，并硬编码 “DeepSeek V4 Pro” | 已实现：只列出当前可用的模型（含 provider），另注明有几个受套餐限制 | `agent-chat.tsx`、`agent.py` | E2E `model-upgrade` | 后端 `MODEL_RATES` 只认 `gpt-5.6-luna`，`gpt-6-*` 按默认费率计费（§8，未改动计价） |
+| 模型路由 | 部分实现：菜单里有不可用模型，并硬编码 “DeepSeek V4 Pro” | 已实现：只列出当前可用且已定价的模型，显示 provider 和服务端给出的每轮预估；未列出的模型按原因（需升级套餐 / 未配置计价 / 不可用）计数说明（v0.3.3） | `agent-chat.tsx`、`agent.py`、`agent_service.py`、`packages/billing/metering.py` | `test_agent_model_pricing.py`；E2E `model-upgrade` | 没有显式费率的模型（目前 `gpt-6-*`）一律拒绝、不按默认费率计费；需由产品批准费率后通过 `AGENT_MODEL_CREDIT_RATES` 配置（§8） |
 | 用量 | 已实现 | 已实现：发送前显示预估和预留，完成后显示实际扣费/退款（均为服务端值） | `agent-chat.tsx` | E2E `model-upgrade` billing | — |
 | 工具审批 | 仅契约：`STATEFUL_TOOLS` 为空，审批流程不会触发；同时提供笼统的“自动执行” | 部分实现：“自动执行”已停用（服务端按 ask 执行）；审批卡显示动作/范围/影响/权限/有效期；服务端一次性、校验所有者、120 s 过期 | `chat_workspace.py`、`tool-approval-card.tsx` | pytest + E2E | 目前没有需要审批的有状态工具 |
 | 组合/NAV | 部分实现：没有账户时返回 **500**；`str(Decimal)` 输出 `0E-8` | 已实现：返回结构化 404；十进制字符串不再出现指数；界面标注口径、币种、版本、计算/价格时间和 stale | `routers/live_trading.py`、`decimal_text.py`、`NavPanel` | `test_live_trading_nav_http.py`；E2E | — |
@@ -77,6 +77,7 @@
    在共享实例中打开它，所有用户会互相看到 Session 和服务器目录。所以：
    - `ui-sidebar` **保持禁用**，原因已写在 profile 注释里；
    - 恢复历史功能的前提是“每个用户一个隔离的 Host”，或者上游提供多租户支持。
+   - v0.3.3：已实现“每个用户一个隔离的 Host”的 session broker（默认关闭），侧栏只在 broker 管理的单用户 Host 上通过 overlay 重新启用，基础 profile 不变（§13）。
 
    本次**没有**在 Next.js 新建持久会话状态机。旧聊天客户端只把服务端事件投影到界面（`lib/agent-run-events.ts` 是纯函数，不持久化），直到 DSH 路径具备多租户能力后退役。
 2. **Profile 安全收口。** `@deepseek-ai/dsh-web-app` 还会插入 `ptc`、`minimal`、`cordis` 三个 preset。它们会暴露 bash/pwsh、PTY、任意文件读写、后台 job、subagent、workflow、ralph 和 plugin-manager 工具，用户只需切换 preset 就能拿到。本次全部禁用，并新增 `public-profile-check`：它解析上游 bundle 的 preset，叠加 profile 的覆盖，一旦出现上述工具就让 CI 失败（已用变异测试确认守卫有效）。
@@ -154,11 +155,11 @@
 
 ## 8. 尚未上线 / 已知缺口
 
-- **DSH 多租户**：需要每用户一个隔离 Host，或上游多租户支持；provider 也要能透传每个用户的身份。
-- **Harness 编译依赖对齐**：`@deepseek-ai/*` 从 `0.1.5-rc.2` 升到与 vendored `0.1.7-rc.1` 一致，需要单独评估。
+- **DSH 多租户**：v0.3.3 已实现每用户隔离 Host 的 session broker、用户级 Host token 和按请求读取的 token 文件（默认关闭，§13）。仍未上线：Caddy/Next 到 broker 的入口；所有 Host 以同一 OS 用户运行（公开实例需要独立 uid/容器或 seccomp/AppArmor）；broker 不做速率限制（应由边缘代理负责）；没有用真实模型 key 做过端到端对话。
+- **Harness 编译依赖对齐**：v0.3.3 已把 npm 上的 `@deepseek-ai/*` 升到 `0.1.7-rc.1`（与 vendored gitlink 同 tag）。vendored 源码本身没有在本机构建（磁盘和内存不足），用的是同 tag 的 npm 包。
 - **领域 tool-view 插件**：五个领域都已实现（v0.3.1–v0.3.2）。研究产物和回测产物的资源视图（`resource.*`）尚未实现。
-- **计费**：`MODEL_RATES` 和 gpt-6 系列模型不匹配。涉及价格，本次没有改，需要产品确认。
-- **上传上限**：Caddy 限制 2 MB，应用允许 10 MB，需要部署侧统一。
+- **计费**：v0.3.3 起没有显式费率的模型直接拒绝（`AGENT_MODEL_PRICING_NOT_CONFIGURED`），不再按默认费率计费；代码里没有新增任何价格。`gpt-6-luna/sol/astra` 因此在菜单中显示“未配置计价”，需要产品批准费率后通过 `AGENT_MODEL_CREDIT_RATES` 配置。
+- **上传上限**：已在 `7f61371` 统一（`/api/agent/attachments` 放行到 10 MiB，其余路径保持 2 MB）；需要随下次部署生效。
 - **有状态工具**：`STATEFUL_TOOLS` 为空，审批卡目前只能通过 stub 和已有的待审批记录验证。
 - **外部 MCP 和子任务**：没有实现。原因：没有可分解的真实任务，底层也不支持多租户，按要求不添加装饰性界面。
 
@@ -206,3 +207,33 @@
 - `@puregamma/dsh-ui-backtest`：原样显示服务端上报的指标，并标注“基于历史数据的模拟，不是预测或交易信号”。
 - `@puregamma/dsh-ui-memory`：只显示种类和条目数，不显示记忆内容（隐私）。
 - 对应 tool 插件通过 `presentationMeta` 输出 v1 DTO（模型不可见）；`domain-toolviews-check` 扩展到 8 例。
+
+## 13. v0.3.3 追加
+
+v0.3.2 之后合入 `main` 的变更（均未执行生产部署、数据库迁移、切流或实盘开启）：
+
+- `588b386`：LIVE mandate 暂停后可以恢复；控制台解释被阻止的门禁。
+- `7f61371`：Caddy 对 `/api/agent/attachments` 放行到 10 MiB，其余路径仍为 2 MB。
+- `4d2cf70`：PAPER/SHADOW 运行时控制台不再把缺失数据显示为 0。
+- DSH 多租户（`150a0c3`…`61e4e56`，详见 [upgrade-20261028/dsh-multi-tenant.md](upgrade-20261028/dsh-multi-tenant.md)）：
+  - npm 上的 `@deepseek-ai/*` 对齐到 `0.1.7-rc.1`，tool view 改为按 phase 渲染；
+  - session broker：每个 PureGamma 用户一个隔离的 DSH Web Host，认证在查找 Host 之前完成，不会回退到其他 Host；`PUREGAMMA_DSH_BROKER_ENABLED` 默认关闭；
+  - FastAPI `POST /internal/dsh/host-tokens`：需要 broker 密钥加用户本人凭证，token ≤15 分钟、只作 Bearer、路由白名单、登出即失效；`DSH_MULTI_TENANT_ENABLED` 默认关闭；
+  - 沙箱目录选择器（只在用户 root 内，不能创建目录，未配置 root 时一律失败）；多租户 overlay 只在 broker 管理的单用户 Host 上重新启用 `ui-sidebar`/`ui-workspace`，**基础 profile 仍然禁用侧栏**，shell/文件/终端/plugin-manager/通用上传保持禁用；
+  - 修复 `main` 上已有的问题：PureGamma profile 禁用 `file-upload` 后原生 Session Controller 从未激活，现由拒绝一切的 `fileUploads` provider 补上；
+  - Codex guard：没有 profile 行挂载 Codex/ChatGPT 登录 provider，仓库代码不读取 Codex CLI 凭证（§9 结论不变）。
+- E2E 与模型计价（`3a7f2bc`…`6ee50b7`，详见 [upgrade-20261028/e2e-and-model-pricing.md](upgrade-20261028/e2e-and-model-pricing.md)）：
+  - 模型显式费率，未定价即拒绝（报价、预留、结算一致）；`/api/agent/capabilities` 返回 provider、能力、每轮预估和限制；菜单显示 provider 和预估，不再提供只做评估的 Jev；
+  - Playwright 全量离线化（SSR fixture API、只解析回环地址的浏览器），过期 spec 按当前行为改写；CI 新增全量 4 分片和 auth-guard job。
+
+验证（协调会话在 rebase 后的树上复跑，另附各工作会话的报告）：
+
+| 项目 | 结果 |
+| --- | --- |
+| `pnpm --dir harness run check`（含 legacy-auth、session-broker、directory-picker、codex-guard、public-profile、domain-toolviews） | 通过 |
+| `pytest tests`（合并后全量） | 1295 项，0 失败，7 跳过 |
+| `apps/web` typecheck / lint | 通过（9 个已有警告） |
+| Playwright（model-upgrade、billing、agent-session-reliability、visual-style × chromium + mobile-chrome） | 84 通过 |
+| 工作会话报告：真实 DSH `0.1.7-rc.1` 两个 Host 的隔离集成测试 | 9/9（未认证 401、A/B Session 互不可见、选择器越界被拒、跨站 403） |
+| 工作会话报告：Playwright 全量（除 route-audit）× 2 端 | 300 通过、0 失败、8 跳过（live-only）；route-audit 114/114 |
+| GitHub Actions（Harness、Commercial Release Gate、commercial readiness、Web E2E） | 见 v0.3.3 release 对应提交 |
