@@ -1,6 +1,6 @@
-import { Boxes, FilePlus2, X } from "lucide-react";
+import { Boxes } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
-import type { AgentAttachment, AgentPluginEntry } from "@/lib/api";
+import type { AgentPluginEntry } from "@/lib/api";
 
 /**
  * Response preferences and files - and nothing else.
@@ -10,7 +10,7 @@ import type { AgentAttachment, AgentPluginEntry } from "@/lib/api";
  * so a per-message switch is a way to configure a worse answer, not a feature.
  * See docs/architecture/DSH_0_1_7_RC1_AGENT_SKILL_NAVPM_UPGRADE.md.
  */
-export function ContextControls({ locale, plugins, pluginCounts, customPrompt, attachments, onPrompt, onRemoveFile }: { locale: Locale; plugins: AgentPluginEntry[]; pluginCounts: { total: number; enabled: number; tools: number } | null; customPrompt: string; attachments: AgentAttachment[]; onPrompt: (value: string) => void; onRemoveFile: (name: string) => void }) {
+export function ContextControls({ locale, plugins, pluginCounts, customPrompt, onPrompt }: { locale: Locale; plugins: AgentPluginEntry[]; pluginCounts: { total: number; enabled: number; tools: number } | null; customPrompt: string; onPrompt: (value: string) => void }) {
   const zh = locale === "zh";
   return <div className="space-y-6">
     {/* Built-in capabilities. Read-only on purpose: capability is installed by
@@ -26,7 +26,6 @@ export function ContextControls({ locale, plugins, pluginCounts, customPrompt, a
       </div>)}</div>
     </section>
     <section><label className="mb-1 block text-xs font-semibold">{zh ? "回答偏好" : "Response preferences"}</label><p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "只控制表达方式，不改变事实、权限或风险规则。" : "Controls presentation only, not evidence, permissions, or risk rules."}</p><textarea value={customPrompt} onChange={(event) => onPrompt(event.target.value.slice(0, 2000))} rows={4} placeholder={zh ? "例如：使用简洁中文，先结论后证据，列出反方观点。" : "Example: concise answer, conclusion first, include counter-evidence."} className="w-full resize-y border border-border-pg bg-bg-panel p-2 text-xs leading-5 outline-none focus:border-border-pg-strong rounded-lg" /><div className="mt-1 text-right text-[10px] text-text-pg-dim">{customPrompt.length}/2000</div></section>
-    <section><div className="mb-2 flex items-center gap-2 text-xs font-semibold"><FilePlus2 className="h-3.5 w-3.5" />{zh ? "文件" : "Files"}<span className="ml-auto font-normal text-text-pg-dim">{attachments.length}/5</span></div>{attachments.length ? <div className="space-y-1.5">{attachments.map((file) => <div key={file.name} className="flex items-center gap-2 border border-border-pg bg-bg-panel px-2 py-2 text-xs rounded-lg"><span className="min-w-0 flex-1 truncate">{file.name}</span><button type="button" onClick={() => onRemoveFile(file.name)} title={zh ? "移除" : "Remove"}><X className="h-3.5 w-3.5" /></button></div>)}</div> : <p className="text-[11px] leading-5 text-text-pg-dim">{zh ? "支持 TXT、MD、CSV、JSON；单文件 20KB，总计 50KB。" : "TXT, MD, CSV, JSON; 20KB each and 50KB total."}</p>}</section>
   </div>;
 }
 

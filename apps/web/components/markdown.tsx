@@ -99,16 +99,23 @@ export function MarkdownContent({ content }: { content: string }) {
 
           hr: () => <hr className="my-6 border-0 border-t border-border-pg" />,
 
-          a: ({ href, children }: MdProps) => (
-            <a
-              href={href}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-accent underline decoration-transparent underline-offset-2 transition hover:decoration-current"
-            >
-              {children}
-            </a>
-          ),
+          a: ({ href, children }: MdProps) =>
+            href?.startsWith("#") ? (
+              // In-page reference (an answer's citation marker): stays in the
+              // page and is handled by the surrounding view.
+              <a href={href} data-internal-link="" className="pg-citation-link text-accent underline decoration-transparent underline-offset-2 transition hover:decoration-current focus-visible:decoration-current">
+                {children}
+              </a>
+            ) : (
+              <a
+                href={href}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-accent underline decoration-transparent underline-offset-2 transition hover:decoration-current"
+              >
+                {children}
+              </a>
+            ),
 
           strong: ({ children }: MdProps) => <strong className="font-medium text-text-pg">{children}</strong>,
           em: ({ children }: MdProps) => <em className="italic">{children}</em>,

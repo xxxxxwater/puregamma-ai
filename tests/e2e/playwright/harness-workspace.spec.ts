@@ -94,7 +94,7 @@ for (const theme of ["light", "dark"]) {
     await page.route(`${API}/api/agent/tool-calls/t1/approval`, async r => { approved = r.request().postDataJSON().decision === "approved"; await r.fulfill({json:{id:"t1", decision:"approved"}}); });
     await page.goto("/zh/chat/c1");
     await expect(page.getByTestId("harness-composer")).toBeVisible();
-    await page.getByRole("button", {name:"允许此次操作"}).click(); expect(approved).toBe(true);
+    await page.getByRole("button", {name:"允许这一次"}).click(); await expect.poll(() => approved).toBe(true);
     await page.getByLabel("对话权限", {exact:true}).selectOption("read-only");
     await expect.poll(() => permission).toBe("read-only");
     await page.locator('input[type="file"]').setInputFiles({name:"notes.txt", mimeType:"text/plain", buffer:Buffer.from("attachment body")});

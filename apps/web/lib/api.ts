@@ -2203,7 +2203,8 @@ export async function streamAgentMessage(
   locale: Locale,
   signal: AbortSignal,
   onEvent: (event: AgentStreamEvent) => void,
-  context?: Partial<AgentContext>
+  context?: Partial<AgentContext>,
+  clientRequestId?: string
 ) {
   const response = await fetch(`${await resolveApiUrl()}/api/agent/conversations/${encodeURIComponent(conversationId)}/messages`, {
     method: "POST",
@@ -2218,7 +2219,8 @@ export async function streamAgentMessage(
       custom_prompt: context?.custom_prompt || "",
       attachments: context?.attachments || [],
       model: context?.model || "default",
-      permission_mode: context?.permission_mode || "workspace-write"
+      permission_mode: context?.permission_mode || "workspace-write",
+      ...(clientRequestId ? { client_request_id: clientRequestId } : {})
     }),
     signal
   });
@@ -2226,14 +2228,23 @@ export async function streamAgentMessage(
     if (response.status === 402) redirectIfInsufficientCredits();
     const raw = await response.text();
     let message = raw || `Agent request failed (${response.status})`;
+    let code: string | undefined;
+    let detail: Record<string, unknown> | undefined;
     try {
-      const parsed = JSON.parse(raw) as { detail?: { message?: string } | string };
+      const parsed = JSON.parse(raw) as { detail?: { message?: string; code?: string } | string };
       message = typeof parsed.detail === "string" ? parsed.detail : parsed.detail?.message || message;
+      if (parsed.detail && typeof parsed.detail === "object") {
+        code = parsed.detail.code;
+        detail = parsed.detail as Record<string, unknown>;
+      }
     } catch { /* Keep the server response when it is not JSON. */ }
     // Carry the HTTP status and a safe request id so the chat UI can localize
     // the failure and still offer a reference without echoing the raw body.
-    const error = new Error(message) as Error & { status?: number; requestId?: string };
+    // `code`/`detail` let a 409 DUPLICATE_SUBMISSION point at the existing run.
+    const error = new Error(message) as Error & { status?: number; requestId?: string; code?: string; detail?: Record<string, unknown> };
     error.status = response.status;
+    error.code = code;
+    error.detail = detail;
     let requestId: string | undefined;
     for (const header of ["x-request-id", "x-correlation-id", "request-id"]) {
       const value = response.headers.get(header)?.trim();
@@ -2675,6 +2686,11 @@ export function deleteAgentAttachment(id: string) {
     method: "DELETE"
   });
 }
+export function archiveAgentConversation(id: string, archived: boolean) {
+  return requestStrict<{conversation: AgentConversation}>(`/api/agent/conversations/${encodeURIComponent(id)}`, {
+    method: "PATCH", body: JSON.stringify({archived})
+  });
+}
 export function setAgentPermission(id: string, permission_mode: AgentPermissionMode, acknowledge_full_access = false) {
   return requestStrict<{conversation: AgentConversation}>(`/api/agent/conversations/${encodeURIComponent(id)}`, {
     method: "PATCH", body: JSON.stringify({permission_mode, acknowledge_full_access})
@@ -2685,8 +2701,31 @@ export function approveAgentTool(id: string, decision: "approved" | "denied") {
     method: "POST", body: JSON.stringify({decision})
   });
 }
+/** Upload with byte progress (XHR: fetch has no upload progress). */
+export async function uploadAgentAttachmentWithProgress(file: File, onProgress: (fraction: number) => void): Promise<{attachment: AgentAttachment}> {
+  const base = await resolveApiUrl();
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${base}/api/agent/attachments?name=${encodeURIComponent(file.name)}`);
+    xhr.withCredentials = true;
+    xhr.setRequestHeader("Content-Type", "application/octet-stream");
+    xhr.upload.onprogress = (event) => { if (event.lengthComputable && event.total > 0) onProgress(event.loaded / event.total); };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        try { onProgress(1); resolve(JSON.parse(xhr.responseText)); } catch (error) { reject(error); }
+        return;
+      }
+      if (xhr.status === 401) notifyAuthExpired();
+      const error = new Error(xhr.responseText || `Upload failed (HTTP ${xhr.status})`) as Error & { status?: number };
+      error.status = xhr.status;
+      reject(error);
+    };
+    xhr.onerror = () => reject(Object.assign(new Error("Upload interrupted"), { status: 0 }));
+    xhr.send(file);
+  });
+}
 export function getChatWorkspaceCapabilities() {
-  return requestStrict<{max_file_bytes: number; max_files: number; file_types: string[]}>("/api/agent/workspace-capabilities");
+  return requestStrict<{max_file_bytes: number; max_files: number; file_types: string[]; permission_modes?: AgentPermissionMode[]}>("/api/agent/workspace-capabilities");
 }
 
 export type JevAdvisoryStatus = {

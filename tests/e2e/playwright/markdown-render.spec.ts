@@ -117,8 +117,12 @@ test.describe("assistant markdown", () => {
       await renderAnswer(page);
 
       const measured = await page.evaluate(() => {
+        // Scoped to the answer: the page shell has its own <h1>, and measuring
+        // that one instead of the markdown heading made this check fail on a
+        // correctly styled answer.
+        const root = document.querySelector(".pg-markdown") ?? document;
         const pick = (sel: string) => {
-          const el = document.querySelector(sel);
+          const el = root.querySelector(sel);
           if (!el) return null;
           const cs = getComputedStyle(el);
           return {
@@ -132,7 +136,7 @@ test.describe("assistant markdown", () => {
             color: cs.color,
           };
         };
-        const pre = document.querySelector("pre");
+        const pre = root.querySelector("pre");
         return {
           h1: pick("h1"),
           h2: pick("h2"),

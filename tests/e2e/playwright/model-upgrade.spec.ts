@@ -367,8 +367,10 @@ test.describe("Agent Chat model label", () => {
     await expect(select).toHaveValue("default");
     await expect(select.locator("option[value='default']")).toHaveText(/DeepSeek V4\.1 Flash/);
     await expect(select.locator("option[value='default']")).toHaveText(/平台默认路由/);
-    // Other vendors keep their own name and are not rewritten.
-    await expect(select.locator("option[value='gpt-5.6-luna']")).toHaveText(/GPT-5\.6 Luna/);
+    // The menu lists only models this user can run now. A plan-locked model is
+    // not an option; the composer says how many exist instead.
+    await expect(select.locator("option[value='gpt-5.6-luna']")).toHaveCount(0);
+    await expect(page.getByTestId("model-note")).toContainText("1");
     // The current model is stated exactly once. A normal state stays quiet, so
     // the abnormal-state notice must not be on the page.
     await expect(page.getByTestId("chat-model-badge")).toHaveCount(0);
