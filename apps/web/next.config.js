@@ -33,6 +33,14 @@ const nextConfig = (phase) => {
     // Deriving it here keeps `next build` scripts portable across shells.
     distDir: process.env.NEXT_DIST_DIR || (isDev ? ".next" : ".next-build"),
     transpilePackages: ["lucide-react"],
+    // Test servers only (PLAYWRIGHT_DEV_SERVER=1, set by playwright.config.ts
+    // and the CI jobs): keep every compiled page resident. By default `next dev`
+    // disposes pages idle for 60s and recompiles them on the next visit; a
+    // recompile in the middle of a browser test holds that page's chunk
+    // requests long enough to time the test out.
+    ...(isDev && process.env.PLAYWRIGHT_DEV_SERVER === "1"
+      ? { onDemandEntries: { maxInactiveAge: 24 * 60 * 60 * 1000, pagesBufferLength: 1000 } }
+      : {}),
     ...(isDev && devTarget
       ? {
           async rewrites() {
