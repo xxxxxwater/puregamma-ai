@@ -19,7 +19,7 @@ import { Badge, DataSourceStatusBadge, StatusDot } from "@/components/puregamma"
 import { StatusBadge } from "@/components/ocean/status-badge";
 import type { Locale } from "@/i18n/routing";
 import { withLocale } from "@/i18n/routing";
-import { t, type TranslationKey } from "@/lib/translations";
+import { hasTranslation, t, type TranslationKey } from "@/lib/translations";
 import {
   cancelLiveOrder,
   confirmLiveOrder,
@@ -35,6 +35,7 @@ import {
   LiveOrderRejectedError,
   pauseTradingMandate,
   previewLiveOrder,
+  resumeTradingMandate,
   revokeLiveConnection,
   testLiveConnection,
   type LiveBrokerConnection,
@@ -172,7 +173,7 @@ export function LiveTradingConsole({ locale, view }: { locale: Locale; view: Liv
           {view === "overview" ? <OverviewView locale={locale} safety={safety} state={state} onReload={() => void reload()} /> : null}
           {view === "connect" ? <ConnectView locale={locale} /> : null}
           {view === "orders" ? <OrdersView locale={locale} state={state} safety={safety} /> : null}
-          {view === "account" ? <AccountView locale={locale} /> : null}
+          {view === "account" ? <AccountView locale={locale} safety={safety} onReload={() => void reload()} /> : null}
         </>
       )}
     </div>
@@ -483,6 +484,7 @@ function OverviewView({ locale, safety, state, onReload }: { locale: Locale; saf
   const [connections, setConnections] = useState<LiveBrokerConnection[] | null>(null);
   const [mandates, setMandates] = useState<TradingMandate[] | null>(null);
   const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
 
   const load = useCallback(async () => {
     setBusy(true);
@@ -502,6 +504,7 @@ function OverviewView({ locale, safety, state, onReload }: { locale: Locale; saf
 
   return (
     <div className="space-y-5">
+      {notice ? <p role="status" className="text-sm text-status-positive" data-testid="live-overview-notice">{notice}</p> : null}
       <section className="grid gap-px border border-border-pg bg-border-pg sm:grid-cols-2 xl:grid-cols-4 rounded-xl overflow-hidden">
         <Field label={t(locale, "live-trading.overview.safetyBar")} value={stateTitle(locale, state)} />
         <Field label={t(locale, "live-trading.overview.navCard")} value={navResolution.kind === "value" ? `${formatDecimalString(navResolution.value, 2)} ${nav?.currency || ""}` : t(locale, "live-trading.common.noValue")} />
@@ -565,6 +568,8 @@ function OverviewView({ locale, safety, state, onReload }: { locale: Locale; saf
                   <div className="flex justify-between gap-3"><dt>{t(locale, "live-trading.overview.mandateExpiry")}</dt><dd className="text-text-pg">{mandate.expires_at ? new Date(mandate.expires_at).toLocaleString(locale) : t(locale, "live-trading.account.neverExpires")}</dd></div>
                 </dl>
                 <p className="mt-2 truncate text-xs text-text-pg-dim">{t(locale, "live-trading.overview.mandateSymbols")}: {(mandate.allowed_symbols || []).join(", ") || t(locale, "live-trading.common.noValue")}</p>
+                <MandateGateList locale={locale} gate={safety?.mandates?.[mandate.id]} />
+                {mandate.paused ? <div className="mt-3"><ResumeMandate locale={locale} mandate={mandate} killSwitchEngaged={killSwitches.length > 0} onDone={() => { setNotice(t(locale, "live-trading.workflow.resume.done")); void load(); onReload(); }} /></div> : null}
               </div>
             ))}
           </div>
@@ -1324,19 +1329,23 @@ function OrderStatusBadge({ status, locale }: { status: string; locale: Locale }
 
 // ── Account view ──────────────────────────────────────────────────────────
 
-function AccountView({ locale }: { locale: Locale }) {
+function AccountView({ locale, safety, onReload }: { locale: Locale; safety: TradingSafetyStatus | null; onReload: () => void }) {
   const [navLoad, setNavLoad] = useState<NavLoad>({ kind: "loading" });
   const [positions, setPositions] = useState<Array<{ symbol: string; quantity: string; mark_price: string | null; market_value: string | null; price_timestamp?: string | null; stale: boolean }> | null>(null);
   const [mandates, setMandates] = useState<TradingMandate[] | null>(null);
 
+  const reloadMandates = useCallback(async () => {
+    const mandateResult = await getTradingMandates().catch(() => null);
+    if (mandateResult) setMandates((mandateResult.mandates || []).filter((mandate) => mandate.execution_mode === "live"));
+  }, []);
   useEffect(() => {
     void (async () => {
-      const [navResult, positionResult, mandateResult] = await Promise.all([loadNav(), getLivePortfolioPositions().catch(() => null), getTradingMandates().catch(() => null)]);
+      const [navResult, positionResult] = await Promise.all([loadNav(), getLivePortfolioPositions().catch(() => null)]);
       setNavLoad(navResult);
       if (positionResult) setPositions(positionResult.positions || []);
-      if (mandateResult) setMandates((mandateResult.mandates || []).filter((mandate) => mandate.execution_mode === "live"));
+      await reloadMandates();
     })();
-  }, []);
+  }, [reloadMandates]);
 
   const liveMandates = mandates || [];
 
@@ -1407,6 +1416,8 @@ function AccountView({ locale }: { locale: Locale }) {
                 <Field label={t(locale, "live-trading.account.mandateExpiry")} value={mandate.expires_at ? new Date(mandate.expires_at).toLocaleString(locale) : t(locale, "live-trading.account.neverExpires")} />
               </div>
               <p className="mt-2 truncate text-xs text-text-pg-dim">{t(locale, "live-trading.account.mandateWhitelist")}: {(mandate.allowed_symbols || []).join(", ") || t(locale, "live-trading.common.noValue")}</p>
+              <MandateGateList locale={locale} gate={safety?.mandates?.[mandate.id]} />
+              {mandate.paused ? <div className="mt-3"><ResumeMandate locale={locale} mandate={mandate} killSwitchEngaged={(safety?.kill_switches || []).length > 0} onDone={() => { void reloadMandates(); onReload(); }} /></div> : null}
             </div>
           ))}
         </div>
@@ -1421,6 +1432,92 @@ function reconciliationLabel(status: string, locale: Locale): string {
   if (status === "pending") return zh ? "待处理" : "pending";
   if (status === "mismatch") return zh ? "存在差异（已暂停 Mandate）" : "mismatch (mandate paused)";
   return status || t(locale, "live-trading.common.noValue");
+}
+
+type MandateGate = TradingSafetyStatus["mandates"][string];
+
+/**
+ * Why a mandate cannot trade, from the server's own gate evaluation. Only
+ * failing checks are listed (with the server's detail); a passing mandate
+ * says how many checks passed. The browser never decides eligibility.
+ */
+function MandateGateList({ locale, gate }: { locale: Locale; gate: MandateGate | undefined }) {
+  if (!gate) return <p className="mt-2 text-xs text-text-pg-dim">{t(locale, "live-trading.workflow.gates.unknown")}</p>;
+  const entries = Object.entries(gate.checks || {});
+  const failing = entries.filter(([, check]) => !check.ok);
+  if (!failing.length) return <p className="mt-2 text-xs text-status-positive" data-testid="mandate-gates-pass">{t(locale, "live-trading.workflow.gates.allPass", { count: entries.length })}</p>;
+  return (
+    <div className="mt-3 rounded-lg border border-status-warning px-3 py-2" data-testid="mandate-gates-failing">
+      <p className="text-xs font-semibold text-status-warning">{t(locale, "live-trading.workflow.gates.title")}</p>
+      <ul className="mt-1 space-y-0.5 text-xs">
+        {failing.map(([name, check]) => {
+          const key = `live-trading.workflow.gates.labels.${name}` as TranslationKey;
+          const label = hasTranslation(locale, key) ? t(locale, key) : name;
+          const detail = check.detail === undefined || check.detail === "" || check.detail === false ? "" : String(check.detail);
+          return <li key={name} className="flex flex-wrap gap-x-2"><span>{label}</span>{detail ? <span className="font-mono text-text-pg-dim">{detail}</span> : null}</li>;
+        })}
+      </ul>
+    </div>
+  );
+}
+
+/**
+ * Resume a paused mandate. The server requires the exact phrase
+ * `RESUME <mandate id>`, refuses reconciliation- or kill-switch-triggered
+ * pauses, and re-checks every gate; this dialog states all of that up front
+ * and shows the server's answer verbatim when it refuses.
+ */
+function ResumeMandate({ locale, mandate, killSwitchEngaged, onDone }: { locale: Locale; mandate: TradingMandate; killSwitchEngaged: boolean; onDone: () => void }) {
+  const [open, setOpen] = useState(false);
+  const [phrase, setPhrase] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  const backRef = useRef<HTMLButtonElement | null>(null);
+  const close = useCallback(() => setOpen(false), []);
+  useDialogFocus(open, panelRef, close, backRef);
+  const expected = `RESUME ${mandate.id}`;
+  const reconciliation = (mandate.pause_reason || "").startsWith("reconciliation");
+  const blockedReason = reconciliation ? t(locale, "live-trading.workflow.resume.reconciliation") : killSwitchEngaged ? t(locale, "live-trading.workflow.resume.killSwitch") : "";
+  const submit = async () => {
+    setBusy(true);
+    setError("");
+    try {
+      await resumeTradingMandate(mandate.id, phrase.trim());
+      setOpen(false);
+      onDone();
+    } catch (cause) {
+      setError(describeApiError(cause).message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <>
+      <button type="button" onClick={() => { setOpen(true); setPhrase(""); setError(""); }} className="min-h-9 rounded-lg border border-border-pg px-3 text-xs hover:border-border-pg-strong" data-testid={`resume-mandate-${mandate.id}`}>{t(locale, "live-trading.workflow.resume.button")}</button>
+      {open ? (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
+          <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={`resume-title-${mandate.id}`} className="w-full max-w-md rounded-xl border border-status-warning bg-bg-panel p-5">
+            <h3 id={`resume-title-${mandate.id}`} className="font-semibold text-status-warning">{t(locale, "live-trading.workflow.resume.title")}</h3>
+            <p className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "live-trading.workflow.resume.body")}</p>
+            {mandate.pause_reason ? <p className="mt-2 text-xs text-text-pg-dim">{t(locale, "live-trading.workflow.resume.reason")}: {mandate.pause_reason}</p> : null}
+            {blockedReason ? <p role="status" className="mt-3 text-sm text-status-warning">{blockedReason}</p> : (
+              <>
+                <p className="mt-3 text-xs text-text-pg-muted">{t(locale, "live-trading.workflow.resume.typePhrase")}</p>
+                <code className="mt-1 block break-all rounded-lg border border-border-pg bg-bg-panel-muted p-2 text-xs">{expected}</code>
+                <input value={phrase} onChange={(event) => setPhrase(event.target.value)} aria-label={t(locale, "live-trading.workflow.resume.typePhrase")} autoComplete="off" spellCheck={false} className="mt-2 w-full rounded-lg border border-border-pg bg-bg-panel-muted px-3 py-2 font-mono text-sm" />
+              </>
+            )}
+            {error ? <p role="alert" className="mt-2 text-sm text-status-negative">{error}</p> : null}
+            <div className="mt-4 flex gap-2">
+              <button ref={backRef} type="button" onClick={close} className="min-h-10 flex-1 rounded-lg border border-border-pg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</button>
+              {blockedReason ? null : <button type="button" onClick={() => void submit()} disabled={busy || phrase.trim() !== expected} className="min-h-10 flex-1 rounded-lg border border-status-warning px-3 text-sm font-semibold text-status-warning disabled:opacity-40">{t(locale, "live-trading.workflow.resume.confirm")}</button>}
+            </div>
+          </div>
+        </div>
+      ) : null}
+    </>
+  );
 }
 
 function Field({ label, value }: { label: string; value: string }) {

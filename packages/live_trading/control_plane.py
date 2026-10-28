@@ -746,13 +746,18 @@ def resume_mandate(
         db, "global"
     ):
         raise ControlPlaneError("A kill switch is engaged; resume requires admin resolution")
+    # Evaluate the state being requested. The gate's `mandate_approved` check
+    # requires `not paused`, so evaluating it on the still-paused row failed
+    # every resume. The row is locked, and any other failing check rolls the
+    # flag back, so a resume that is refused leaves the pause exactly as it was.
+    mandate.paused = False
     gate = flags_service.evaluate_full_gate(
         db, user_id, mandate, _mandate_connection(db, mandate)
     )
     if not gate.enabled:
         failed = [name for name, value in gate.checks.items() if not value["ok"]]
+        db.rollback()
         raise ControlPlaneError("LIVE gates not satisfied: " + ", ".join(sorted(failed)[:8]))
-    mandate.paused = False
     mandate.pause_reason = None
     mandate.status = MandateStatus.ACTIVE.value
     audit_service.audit(

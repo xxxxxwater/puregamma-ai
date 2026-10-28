@@ -289,6 +289,42 @@
     "emergencyResult": {
       "paused": "Paused {id}",
       "failed": "Could not pause {id} — retry or contact support"
+    },
+    "gates": {
+      "title": "Why this mandate cannot trade",
+      "allPass": "All {count} gate checks pass",
+      "unknown": "Gate status unavailable",
+      "labels": {
+        "live_trading_enabled": "LIVE trading enabled for this deployment",
+        "deployment_approved": "Deployment approved for LIVE",
+        "provider_configured": "Execution provider configured",
+        "withdrawal_disabled": "Withdrawals disabled",
+        "transfer_disabled": "Transfers disabled",
+        "legacy_runtime_live_off": "Legacy runtime LIVE switch off",
+        "legacy_live_order_off": "Legacy LIVE order path off",
+        "user_live_approved": "Your LIVE eligibility approval",
+        "kill_switch_global": "Global kill switch off",
+        "kill_switch_user": "Account kill switch off",
+        "mandate_approved": "Mandate approved and not paused",
+        "mandate_live_mode": "Mandate is LIVE / production",
+        "mandate_status_active": "Mandate within its active lifecycle",
+        "mandate_kill_switch": "Mandate kill switch off",
+        "connection_kill_switch": "Connection kill switch off",
+        "reconciliation_healthy": "Latest reconciliation OK",
+        "broker_connection_healthy": "Broker connection healthy",
+        "risk_config_complete": "Risk limits configured"
+      }
+    },
+    "resume": {
+      "button": "Resume",
+      "title": "Resume this mandate?",
+      "body": "LIVE trading under this mandate restarts only if every gate passes again. The server re-checks your approval, the broker connection, reconciliation, kill switches and risk limits; if any fails, the mandate stays paused.",
+      "typePhrase": "Type this phrase exactly to confirm:",
+      "confirm": "Resume mandate",
+      "done": "Mandate resumed; all gates passed.",
+      "reconciliation": "Paused by reconciliation — an administrator must resolve it before it can resume.",
+      "killSwitch": "A kill switch is engaged — an administrator must release it before resuming.",
+      "reason": "Pause reason"
     }
   }
 }
