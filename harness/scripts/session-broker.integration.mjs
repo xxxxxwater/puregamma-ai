@@ -11,7 +11,7 @@
 // fence, the Session store, the directoryPicker Remote and the WebSocket mux.
 import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
-import { existsSync, mkdtempSync, readdirSync, rmSync } from 'node:fs'
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync } from 'node:fs'
 import http from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
@@ -22,6 +22,12 @@ const dshBin = process.env.PUREGAMMA_DSH_BIN
 if (!dshBin || !existsSync(dshBin)) {
   console.error('set PUREGAMMA_DSH_BIN to the pinned DSH launcher (lib/bin.js)')
   process.exit(2)
+}
+// Two real Hosts on a shared machine: refuse to start without headroom.
+const availableMb = Number(/MemAvailable:\s+(\d+)/.exec(readFileSync('/proc/meminfo', 'utf8'))?.[1] ?? 0) / 1024
+if (availableMb < Number(process.env.PG_BROKER_IT_MIN_MB ?? 2000)) {
+  console.error(`only ${Math.round(availableMb)} MB available; not starting two DSH Hosts`)
+  process.exit(3)
 }
 const harness = process.cwd()
 const SECRET = randomBytes(24).toString('hex')
@@ -66,6 +72,7 @@ const config = {
   patchFiles: [path.join(harness, 'profile', 'multi-tenant.patch.yml')],
   maxHosts: 2,
   startTimeoutMs: 180_000,
+  hostHeapMb: Number(process.env.PG_BROKER_IT_HOST_HEAP_MB ?? 512),
 }
 const broker = createBroker(config, { log: message => console.log(`  [broker] ${message}`) })
 await new Promise(resolve => broker.server.listen(Number(process.env.PG_BROKER_IT_PORT ?? 0), '127.0.0.1', resolve))
