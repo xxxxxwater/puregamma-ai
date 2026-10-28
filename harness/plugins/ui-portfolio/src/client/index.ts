@@ -59,9 +59,10 @@ function fmt(value: string | null): string | null {
 type InjectedProps = { t: (key: Key) => string }
 
 export function NavToolView(props: ToolCallViewProps & InjectedProps): ReactElement {
-  const { block, t } = props
-  const settled = 'kind' in block && block.kind === 'tool-result'
-  if (!settled) return createElement('div', { style: muted, role: 'status' }, t('reading'))
+  const { t } = props
+  // 0.1.7 toolview owners are phase-based; only `result` carries the settled node.
+  if (props.phase !== 'result') return createElement('div', { style: muted, role: 'status' }, t('reading'))
+  const { block } = props
   if (block.isError) return createElement('div', { style: { ...card, ...warn }, role: 'status' }, t('failed'))
   const view = readNavPresentation(block.meta)
   if (!view) return createElement('div', { style: muted }, t('noMeta'))

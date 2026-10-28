@@ -13,10 +13,12 @@ import { ToolView as MemoryToolView, readPresentation as readMemoryPresentation 
 // are said out loud, and anything that is not the v1 DTO renders nothing.
 
 const t = key => key
-const result = (meta, isError = false) => ({ kind: 'tool-result', seq: 1, time: 0, callId: 'c', call: null, callTime: null, content: [], isError, meta, subCalls: [] })
-const running = { callId: 'c', name: 'portfolio_nav', argsRaw: '{}', turn: 1, step: 1, time: 0, subCalls: [] }
+// dsh-v0.1.7 owners are phase-based: `{ phase: 'preparing' | 'start' | 'result', block }`.
+const result = (meta, isError = false) => ({ phase: 'result', block: { kind: 'tool-result', seq: 1, time: 0, callId: 'c', call: null, callTime: null, content: [], isError, meta, subCalls: [] } })
+const running = { phase: 'start', block: { callId: 'c', name: 'portfolio_nav', argsRaw: '{}', turn: 1, step: 1, time: 0, subCalls: [] } }
+const preparing = { phase: 'preparing', block: { callId: 'c', name: 'portfolio_nav', turn: 1, step: 1 } }
 const nav = overrides => ({ schema: 'puregamma.portfolio.nav/v1', available: true, stale: false, currency: 'USD', nav: '1234567.8912', cash: '45000.00', observedAt: '2026-10-28T08:00:00Z', priceObservedAt: '2026-10-28T07:59:30Z', calculationVersion: '3', positions: null, reason: null, ...overrides })
-const render = (View, block) => renderToStaticMarkup(createElement(View, { block, t, callId: 'c', toolName: 'x', openFile: () => {}, loadImage: async () => '' }))
+const render = (View, owner) => renderToStaticMarkup(createElement(View, { ...owner, t, callId: 'c', toolName: 'x', useDisclosure: () => [false, () => {}], openFile: () => {}, loadImage: async () => '' }))
 
 test('a live NAV states amount, currency, times and calculation, with every decimal kept', () => {
   const html = render(NavToolView, result(nav({})))
@@ -41,6 +43,7 @@ test('a missing NAV is unavailable with the server reason, never zero', () => {
 })
 
 test('running, failed and malformed results never show a figure', () => {
+  assert.match(render(NavToolView, preparing), /reading/)
   assert.match(render(NavToolView, running), /reading/)
   assert.match(render(NavToolView, result(nav({}), true)), /failed/)
   assert.match(render(NavToolView, result({ schema: 'something-else', nav: '1' })), /noMeta/)
@@ -86,4 +89,16 @@ test('memory views show counts only, never contents', () => {
   assert.match(html, /private/)
   assert.doesNotMatch(html, /secret note/)
   assert.equal(readMemoryPresentation({ ...meta, kind: 'bogus' }), null)
+})
+
+test('only the result phase renders a figure, even if an earlier phase carries a result-shaped block', () => {
+  const views = [NavToolView, ResearchToolView, OptionsToolView, BacktestToolView, MemoryToolView]
+  const settled = result(nav({})).block
+  for (const View of views) {
+    for (const phase of ['preparing', 'start']) {
+      const html = render(View, { phase, block: settled })
+      assert.match(html, /reading|role="status"/, `${View.name} must treat ${phase} as in progress`)
+      assert.doesNotMatch(html, /USD/)
+    }
+  }
 })

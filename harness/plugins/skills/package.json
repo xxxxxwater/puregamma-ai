@@ -13,5 +13,5 @@
   },
   "files": ["lib/index.js", "lib/index.d.ts", "lib/index.js.map"],
   "scripts": { "bundle": "tsdown" },
-  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.2" }
+  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.4" }
 }
