@@ -127,7 +127,7 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
               <span role="img" aria-label={copy.minimizePreview} className="h-2.5 w-2.5 rounded-full bg-border-pg-strong" />
               <span role="img" aria-label={copy.expandPreview} className="h-2.5 w-2.5 rounded-full bg-border-pg-strong" />
             </div>
-            <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 font-medium tracking-[0.08em] text-slate-300">
+            <div className="absolute left-1/2 flex -translate-x-1/2 items-center gap-2 font-medium tracking-[0.08em] text-text-pg-muted">
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
               <span>PUREGAMMA.AI</span>
             </div>

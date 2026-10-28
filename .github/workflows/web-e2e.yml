@@ -78,6 +78,65 @@ jobs:
             apps/web/test-results
           retention-days: 7
 
+  full-suite:
+    # Every spec in tests/e2e/playwright on both projects (chromium,
+    # mobile-chrome), fully offline: browser calls are stubbed per spec, the
+    # dev proxy points at a closed port, and server-rendered reads go to the
+    # checked-in fixture API (tests/e2e/playwright/fixtures/ssr-api.mjs) that
+    # playwright.config.ts starts. Sharded so each job stays well under 25 min.
+    # route-audit needs a production build and has its own job below.
+    name: Full suite shard ${{ matrix.shard }}/4 (desktop & mobile)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      CI: 'true'
+      PLAYWRIGHT_PORT: '3000'
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      DEV_API_PROXY_TARGET: http://127.0.0.1:9
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+
+      - name: Pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Run shard
+        run: >-
+          pnpm exec playwright test
+          --grep-invert "every route survives an API outage"
+          --shard=${{ matrix.shard }}/4
+          --reporter=line
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-full-suite-${{ matrix.shard }}
+          path: |
+            playwright-report
+            apps/web/test-results
+          retention-days: 7
+
   route-audit:
     name: Every route survives an API outage (desktop & mobile)
     runs-on: ubuntu-24.04

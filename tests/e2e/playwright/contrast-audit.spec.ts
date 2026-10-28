@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import catalogFixture from "./fixtures/gateway-catalog.json";
 
 /**
  * Rendered contrast + clipping measurement for the surfaces this round touched.
@@ -400,6 +401,9 @@ const PUBLIC_ROUTES: Array<{ path: string; label: string; minText: number; probe
 ];
 
 async function stubAnonymous(page: Page) {
+  // The API docs page reads the model catalog in the browser; without it the
+  // page renders only its shell and the audit would measure an empty table.
+  await page.route(`${API}/gateway/catalog*`, (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify(catalogFixture) }));
   await page.route(`${API}/me`, (r) => r.fulfill({ status: 401, contentType: "application/json", body: "{}" }));
   await page.route(`${API}/auth/x/config`, (r) => r.fulfill({ contentType: "application/json", body: JSON.stringify({ x_login_enabled: false }) }));
 }

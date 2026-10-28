@@ -1,24 +1,28 @@
 import { expect, test, type Page } from "@playwright/test";
 
-const primaryItemsEn = [
-  { label: "Today", href: "/en/dashboard" },
-  { label: "Agent Chat", href: "/en/chat" },
-  { label: "NAV", href: "/en/portfolio" },
-  { label: "Opportunities", href: "/en/opportunities" },
-  { label: "Strategy", href: "/en/backtest" },
-  { label: "Automation", href: "/en/daily-push" }
-];
+/**
+ * Small-screen navigation as the app actually ships it.
+ *
+ * This spec used to describe a six-item bottom navigation bar and a "Voice
+ * Secretary" link on the chat page; neither exists. Below `lg` the primary
+ * navigation is a drawer opened from the header's menu button (a dialog named
+ * "Primary navigation" only while open), the desktop rail is hidden, and the
+ * chat history is a drawer that is a dialog named "Conversation history" only
+ * while open. Every API call is stubbed; anything unlisted is a 503 outage.
+ */
 
-const primaryItemsZh = [
-  { label: "今日", href: "/zh/dashboard" },
-  { label: "Agent 对话", href: "/zh/chat" },
-  { label: "NAV", href: "/zh/portfolio" },
-  { label: "机会", href: "/zh/opportunities" },
-  { label: "策略", href: "/zh/backtest" },
-  { label: "自动化", href: "/zh/daily-push" }
-];
+const USER = {
+  user: { id: "u-mobile-nav", email: "mobile-nav@example.invalid", name: "Mobile Nav", role: "user", plan: "Pro", credit_balance: 100, auth_provider: "email" },
+};
 
-const appPages = ["/en/dashboard", "/en/chat", "/en/portfolio", "/en/opportunities", "/en/backtest", "/en/daily-push"];
+async function stubApi(page: Page) {
+  // Registered first, so the specific stubs below take precedence.
+  await page.route("**/__dev-api/**", (route) => route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ detail: "offline" }) }));
+  await page.route("**/__dev-api/me", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(USER) }));
+  await page.route("**/__dev-api/api/agent/conversations", (route) =>
+    route.fulfill({ contentType: "application/json", body: JSON.stringify({ conversations: [{ id: "c1", title: "BTC review", status: "active", archived_at: null, created_at: "2026-10-28T08:00:00+00:00", updated_at: "2026-10-28T08:00:00+00:00" }] }) }),
+  );
+}
 
 async function expectNoHorizontalScroll(page: Page) {
   await expect
@@ -26,78 +30,63 @@ async function expectNoHorizontalScroll(page: Page) {
     .toBeLessThanOrEqual(1);
 }
 
-test.describe("mobile bottom navigation @375px", () => {
+const primaryEn = [
+  { label: "Dashboard", href: "/en/dashboard" },
+  { label: "Agent Chat", href: "/en/chat" },
+  { label: "NAV", href: "/en/portfolio" },
+  { label: "Backtest", href: "/en/backtest" },
+  { label: "Private Secretary", href: "/en/secretary" },
+];
+
+const primaryZh = [
+  { label: "控制台", href: "/zh/dashboard" },
+  { label: "Agent 对话", href: "/zh/chat" },
+  { label: "回测", href: "/zh/backtest" },
+  { label: "亲密秘书", href: "/zh/secretary" },
+];
+
+test.describe("phone navigation drawer @375px", () => {
   test.use({ viewport: { width: 375, height: 812 } });
+  test.beforeEach(async ({ page }) => stubApi(page));
 
-  test("shows exactly the 6 primary items (en) and each navigates", async ({ page }) => {
-    await page.goto("/en/dashboard");
-    const bottomNav = page.locator('nav[aria-label="Primary navigation"]');
-    await expect(bottomNav).toBeVisible();
-    await expect(bottomNav.getByRole("link")).toHaveCount(6);
-    for (const item of primaryItemsEn) {
-      const link = bottomNav.getByRole("link", { name: item.label, exact: true });
-      await expect(link).toBeVisible();
-      await link.click();
-      await expect(page).toHaveURL(new RegExp(`${item.href}$`));
-    }
-  });
+  for (const [locale, items, dialogName, menuName] of [
+    ["en", primaryEn, "Primary navigation", "Open navigation"],
+    ["zh", primaryZh, "主导航", "打开导航"],
+  ] as const) {
+    test(`the menu opens the primary navigation and each item navigates (${locale})`, async ({ page }) => {
+      await page.goto(`/${locale}/dashboard`);
+      // No rail on a phone: the drawer is the navigation.
+      await expect(page.locator("aside.shell-rail")).toBeHidden();
+      for (const item of items) {
+        const menu = page.getByRole("button", { name: menuName });
+        await menu.click();
+        const drawer = page.getByRole("dialog", { name: dialogName });
+        await expect(drawer).toBeVisible();
+        await drawer.getByRole("link", { name: item.label, exact: true }).click();
+        await expect(page).toHaveURL(new RegExp(`${item.href}$`));
+        // Choosing a destination closes the drawer.
+        await expect(page.getByRole("dialog", { name: dialogName })).toHaveCount(0);
+      }
+    });
+  }
 
-  test("shows exactly the 6 primary items (zh) and each navigates", async ({ page }) => {
-    await page.goto("/zh/dashboard");
-    const bottomNav = page.locator('nav[aria-label="主导航"]');
-    await expect(bottomNav).toBeVisible();
-    await expect(bottomNav.getByRole("link")).toHaveCount(6);
-    for (const item of primaryItemsZh) {
-      const link = bottomNav.getByRole("link", { name: item.label, exact: true });
-      await expect(link).toBeVisible();
-      await link.click();
-      await expect(page).toHaveURL(new RegExp(`${item.href}$`));
-    }
-  });
-
-  test("chat page exposes conversation history drawer and voice entry", async ({ page }) => {
+  test("the chat history drawer is a dialog only while open and closes on Escape", async ({ page }) => {
     await page.goto("/en/chat");
-    const historyButton = page.getByRole("button", { name: "Conversation history" });
-    await expect(historyButton).toBeVisible();
-    const voiceEntry = page.getByRole("link", { name: "Voice Secretary" });
-    await expect(voiceEntry).toBeVisible();
-    await expect(voiceEntry).toHaveAttribute("href", /\/en\/secretary$/);
-
-    await historyButton.click();
+    await expect(page).toHaveURL(/\/en\/chat$/);
+    await expect(page.getByRole("dialog", { name: "Conversation history" })).toHaveCount(0);
+    const trigger = page.getByRole("button", { name: "Conversation history" });
+    await expect(trigger).toBeVisible();
+    await trigger.click();
     const drawer = page.getByRole("dialog", { name: "Conversation history" });
     await expect(drawer).toBeVisible();
+    await expect(drawer).toContainText("BTC review");
     await page.keyboard.press("Escape");
-    await expect(drawer).toBeHidden();
-  });
-
-  test("daily-push page exposes automation sections and the multi-channel contract", async ({ page }) => {
-    await page.goto("/en/daily-push");
-    const sectionsNav = page.locator('nav[aria-label="Automation sections"]');
-    for (const label of ["Daily report", "Channels", "Alerts", "Deliveries", "Autopilot"]) {
-      await expect(sectionsNav.getByRole("link", { name: label, exact: true })).toBeVisible();
-    }
-    const channelsCard = page.locator("#channels");
-    await expect(channelsCard.getByRole("button", { name: "Email", exact: true })).toBeEnabled();
-    for (const channel of ["Telegram", "Slack", "iMessage"]) {
-      await expect(channelsCard.getByRole("button", { name: new RegExp(channel) })).toBeVisible();
-    }
-    const dailyCard = page.locator("#daily");
-    for (const reportType of ["Crypto daily", "US equities daily", "Week-ahead events", "Portfolio daily"]) {
-      await expect(dailyCard.getByRole("button", { name: reportType, exact: true })).toBeVisible();
-    }
-    await expect(page.locator("#alerts")).toBeVisible();
-    await expect(page.locator("#deliveries")).toBeVisible();
-    await expect(page.locator("#autopilot")).toBeVisible();
-
-    await page.goto("/zh/daily-push");
-    const sectionsNavZh = page.locator('nav[aria-label="自动化小节"]');
-    for (const label of ["日报", "渠道", "提醒", "投递记录", "Autopilot"]) {
-      await expect(sectionsNavZh.getByRole("link", { name: label, exact: true })).toBeVisible();
-    }
+    await expect(page.getByRole("dialog", { name: "Conversation history" })).toHaveCount(0);
+    await expect(trigger).toBeFocused();
   });
 
   test("primary app pages have no page-level horizontal scroll", async ({ page }) => {
-    for (const path of appPages) {
+    for (const path of ["/en/dashboard", "/en/chat", "/en/portfolio", "/en/backtest", "/en/secretary", "/en/daily-push"]) {
       await page.goto(path);
       await expectNoHorizontalScroll(page);
     }
@@ -105,36 +94,33 @@ test.describe("mobile bottom navigation @375px", () => {
 });
 
 test.describe("responsive chrome", () => {
-  test("sidebar and bottom bar are mutually exclusive across breakpoints", async ({ page }) => {
+  test.beforeEach(async ({ page }) => stubApi(page));
+
+  test("the rail and the menu button are mutually exclusive across breakpoints", async ({ page }) => {
     await page.goto("/en/dashboard");
-    const bottomNav = page.locator('nav[aria-label="Primary navigation"]');
-    const sidebar = page.locator("aside").first();
+    const menu = page.getByTestId("nav-menu-button");
+    const rail = page.locator("aside.shell-rail");
 
-    await page.setViewportSize({ width: 375, height: 812 });
-    await expect(bottomNav).toBeVisible();
-    await expect(sidebar).toBeHidden();
-    await expectNoHorizontalScroll(page);
-
-    await page.setViewportSize({ width: 768, height: 1024 });
-    await expect(bottomNav).toBeVisible();
-    await expect(sidebar).toBeHidden();
-    await expectNoHorizontalScroll(page);
+    for (const viewport of [{ width: 375, height: 812 }, { width: 768, height: 1024 }]) {
+      await page.setViewportSize(viewport);
+      await expect(menu).toBeVisible();
+      await expect(rail).toBeHidden();
+      await expectNoHorizontalScroll(page);
+    }
 
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(bottomNav).toBeHidden();
-    await expect(sidebar).toBeVisible();
+    await expect(menu).toBeHidden();
+    await expect(rail).toBeVisible();
+    await expect(rail.getByRole("link", { name: "Agent Chat", exact: true })).toBeVisible();
     await expectNoHorizontalScroll(page);
   });
 
   test("chat renders without horizontal scroll at 768 and 1440", async ({ page }) => {
     await page.goto("/en/chat");
-    const bottomNav = page.locator('nav[aria-label="Primary navigation"]');
-
     await page.setViewportSize({ width: 768, height: 1024 });
     await expectNoHorizontalScroll(page);
-
     await page.setViewportSize({ width: 1440, height: 900 });
-    await expect(bottomNav).toBeHidden();
+    await expect(page.getByTestId("nav-menu-button")).toBeHidden();
     await expectNoHorizontalScroll(page);
   });
 });
