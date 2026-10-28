@@ -32,6 +32,10 @@ const ROUTES = {
   "/notifications/preferences/daily-brief": { auth: true, body: () => fixture("ssr/daily-brief-preferences.json") },
   "/billing/subscription": { auth: true, body: () => fixture("ssr/billing-subscription-pro.json") },
   "/portfolio": { auth: true, body: () => fixture("ssr/portfolio-two-connections.json") },
+  "/gateway/dashboard": { auth: true, body: () => fixture("ssr/gateway-dashboard.json") },
+  "/gateway/keys": { auth: true, body: () => fixture("ssr/gateway-keys.json") },
+  "/gateway/requests": { auth: true, body: () => fixture("ssr/gateway-requests.json") },
+  "/gateway/usage": { auth: true, body: () => fixture("ssr/gateway-usage.json") },
 };
 
 const port = Number(process.env.SSR_API_PORT || process.argv[2] || 3599);

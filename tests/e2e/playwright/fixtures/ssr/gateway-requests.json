@@ -1,0 +1,1 @@
+{ "requests": [ { "id": "grl-1", "request_id": "req_fixture_flash_1", "model": "deepseek-flash", "status": "completed", "http_status": 200, "latency_ms": 840, "input_tokens": 400, "output_tokens": 300, "cache_tokens": 0, "reasoning_tokens": 0, "cost_usd": "0.0041", "provider_cost_usd": "0.0032", "error_code": null, "created_at": "2026-10-28T08:05:00+00:00" } ], "total": 1 }

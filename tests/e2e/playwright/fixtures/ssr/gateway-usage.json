@@ -1,0 +1,7 @@
+{
+  "start": "2026-10-21T00:00:00+00:00", "end": "2026-10-28T00:00:00+00:00", "granularity": "day",
+  "buckets": [ { "bucket": "2026-10-28T00:00:00+00:00", "requests": 3, "success": 3, "errors": 0, "input_tokens": 1200, "output_tokens": 800, "cache_tokens": 0, "reasoning_tokens": 0, "avg_latency_ms": 820, "max_latency_ms": 900, "cost_usd": "0.0123" } ],
+  "totals": { "requests": 3, "success": 3, "errors": 0, "input_tokens": 1200, "output_tokens": 800, "cache_tokens": 0, "reasoning_tokens": 0, "avg_latency_ms": 820, "max_latency_ms": 900, "cost_usd": "0.0123" },
+  "by_model": [ { "model": "deepseek-flash", "requests": 3, "success": 3, "errors": 0, "input_tokens": 1200, "output_tokens": 800, "cache_tokens": 0, "reasoning_tokens": 0, "avg_latency_ms": 820, "cost_usd": "0.0123" } ],
+  "by_key": []
+}

@@ -1,23 +1,26 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("MSTR–BTC dashboard", () => {
-  test("shows source provenance, safe unavailable state, scenario inputs, and Agent handoff", async ({ page }) => {
-    await page.goto("/en/opportunities/mstr-btc");
+/**
+ * The MSTR–BTC research view (`/[locale]/opportunities/mstr-btc`).
+ *
+ * This spec used to assert a full dashboard (Strategy.com provenance, scenario
+ * inputs, "Ask Agent" handoff). That page is not part of this codebase: no
+ * revision of apps/web ever contained an `opportunities` route — only the spec
+ * arrived, in a production-state sync — and the "Opportunities" navigation
+ * item was removed with the rest of that surface. Asserting a page that does
+ * not exist can only fail, so the spec now pins the current contract: the
+ * address answers an honest 404 and renders no half-built research view. If
+ * the view is (re)introduced, restore the dashboard assertions with it.
+ */
+test.describe("MSTR–BTC dashboard (not shipped)", () => {
+  for (const locale of ["en", "zh"] as const) {
+    test(`the retired address answers 404 without a partial research view (${locale})`, async ({ page }) => {
+      const response = await page.goto(`/${locale}/opportunities/mstr-btc`);
 
-    await expect(page.getByRole("heading", { name: "MSTR–BTC Dashboard" })).toBeVisible();
-    await expect(page.getByText("Live data source: Strategy.com")).toBeVisible();
-    await expect(page.getByText("Reserves & capital structure")).toBeVisible();
-    await expect(page.getByText("Scenario assumptions")).toBeVisible();
-    await expect(page.getByText("No verified time series is available for this view.").first()).toBeVisible();
-    await page.getByLabel(/BTC price assumption/).fill("100000");
-    await expect(page.getByRole("link", { name: /Ask Agent:/ }).first()).toHaveAttribute("href", /prompt=/);
-  });
-
-  test("keeps the research view inside the mobile viewport", async ({ page }) => {
-    await page.goto("/en/opportunities/mstr-btc");
-
-    await expect(page.getByRole("heading", { name: "MSTR–BTC Dashboard" })).toBeVisible();
-    await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
-    await expect(page.getByLabel(/BTC price assumption/)).toBeVisible();
-  });
+      expect(response?.status()).toBe(404);
+      await expect(page.getByText(/404/).first()).toBeVisible();
+      await expect(page.getByRole("heading", { name: "MSTR–BTC Dashboard" })).toHaveCount(0);
+      await expect(page.getByLabel(/BTC price assumption/)).toHaveCount(0);
+    });
+  }
 });

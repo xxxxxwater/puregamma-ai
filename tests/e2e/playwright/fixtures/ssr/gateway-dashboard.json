@@ -1,0 +1,12 @@
+{
+  "account": { "status": "active", "monthly_spend_limit_usd": "0", "current_month_spend_usd": "0.0123", "month_started_at": "2026-10-01T00:00:00+00:00" },
+  "wallet": { "currency": "USD", "available_balance_usd": "19.9877", "lifetime_credited_usd": "20.00", "lifetime_debited_usd": "0.0123", "topup_min_usd": "5.00", "topup_max_usd": "10000.00" },
+  "subscription": { "plan": "Pro", "stripe_customer_id": null },
+  "spend_usd": { "today": "0.0123", "month": "0.0123", "lifetime": "0.0123" },
+  "models": [ { "model": "deepseek-flash", "requests": 3, "input_tokens": 1200, "output_tokens": 800, "cost_usd": "0.0123" } ],
+  "wallet_ledger": [
+    { "id": "wl-2", "entry_type": "request_debit", "amount_usd": "-0.0123", "balance_after_usd": "19.9877", "topup_intent_id": null, "gateway_request_log_id": "grl-1", "metadata": {}, "created_at": "2026-10-28T08:05:00+00:00" },
+    { "id": "wl-1", "entry_type": "topup_credit", "amount_usd": "20.00", "balance_after_usd": "20.00", "topup_intent_id": "ti-1", "gateway_request_log_id": null, "metadata": {}, "created_at": "2026-10-27T08:00:00+00:00" }
+  ],
+  "topups": []
+}
