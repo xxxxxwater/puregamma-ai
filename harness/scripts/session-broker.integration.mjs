@@ -125,13 +125,24 @@ try {
     assert.equal(created.status, 200, flat(created.body))
     sessionA = created.body?.result?.value?.sessionId ?? created.body?.value?.sessionId ?? created.body?.result?.sessionId
     assert.ok(sessionA, `no session id in ${flat(created.body)}`)
+    // A blank Session is not persisted until it has an event; a title is one.
+    const renamed = await rpc('sess-a', 'session/rename', { request: { sessionId: sessionA, title: 'A private plan' } })
+    assert.equal(renamed.body?.result?.ok, true, flat(renamed.body))
     const listA = await rpc('sess-a', 'session/list', { request: {} })
     const listB = await rpc('sess-b', 'session/list', { request: {} })
     assert.equal(listA.status, 200, flat(listA.body))
     assert.equal(listB.status, 200, flat(listB.body))
+    console.log(`  A list: ${flat(listA.body).slice(0, 300)}\n  B list: ${flat(listB.body).slice(0, 300)}`)
     assert.ok(flat(listA.body).includes(sessionA), 'A sees its Session')
+    assert.ok(!flat(listB.body).includes('A private plan'), 'B must not see A\'s title')
     assert.ok(!flat(listB.body).includes(sessionA), 'B must not see A\'s Session')
-    console.log(`  A list: ${flat(listA.body).slice(0, 200)}\n  B list: ${flat(listB.body).slice(0, 200)}`)
+  })
+
+  await step('B cannot rename A\'s Session by id', async () => {
+    const hijack = await rpc('sess-b', 'session/rename', { request: { sessionId: sessionA, title: 'owned by B' } })
+    assert.notEqual(hijack.body?.result?.ok, true, flat(hijack.body))
+    const listA = await rpc('sess-a', 'session/list', { request: {} })
+    assert.ok(!flat(listA.body).includes('owned by B'))
   })
 
   await step('B cannot read A\'s Session history by id', async () => {
