@@ -242,6 +242,27 @@ test.describe("Agent session reliability", () => {
     await expect(history.getByText("Old idea")).toBeVisible();
   });
 
+  test("skills are listed with their tools and the reason one is unavailable", async ({ page }) => {
+    await stubChat(page, { snapshot: () => ({ messages: [] }) });
+    const skill = (name: string, extra: Record<string, unknown>) => ({ skill_id: name, slug: name, name, description: `${name} description`, publisher: "PureGamma", scope: "official", status: "published", current_version: "1.0.0", asset_classes: [], data_sources: [], tool_allowlist: ["get_market_quote", "search_news"], risk_level: "low", allow_autopilot: false, allow_order_intent: false, billing_type: "included", evidence: { required: true, require_source_timestamp: true, require_citation_links: true }, runtime: { max_calls_per_hour: 10, max_credits_per_run: 5, timeout_seconds: 60, human_confirmation_required: false }, installed: true, enabled: true, ...extra });
+    await page.route("**/api/agent/capabilities", (route) => route.fulfill({ json: { ...CAPABILITIES, skills: [skill("Market research", {}), skill("Options analysis", { status: "review" })] } }));
+    await page.goto("/en/chat/c1");
+    await page.getByText("Research settings").click();
+    const panel = page.getByTestId("agent-skills");
+    await expect(panel).toContainText("1/2 available");
+    await expect(panel).toContainText("get_market_quote, search_news");
+    await expect(panel).toContainText("In review, not published");
+    await expect(panel).toContainText("never raise a tool permission");
+  });
+
+  test("an upload refused by the edge proxy (bare 413) is reported as a size limit", async ({ page }) => {
+    await stubChat(page, { snapshot: () => ({ messages: [] }) });
+    await page.route("**/api/agent/attachments?*", (route) => route.fulfill({ status: 413, contentType: "text/html", body: "<html><body>413 Request Entity Too Large</body></html>" }));
+    await page.goto("/en/chat/c1");
+    await page.locator('input[type="file"]').setInputFiles({ name: "big.txt", mimeType: "text/plain", buffer: Buffer.from("x") });
+    await expect(page.getByRole("alert").filter({ hasText: "big.txt: File count or size limit exceeded" })).toBeVisible();
+  });
+
   test("desktop collapse survives a reload", async ({ page }) => {
     await page.setViewportSize({ width: 1280, height: 800 });
     await stubChat(page, { snapshot: () => ({ messages: [] }) });

@@ -96,8 +96,11 @@ export function ChatWorkspaceComposer(p: Props) {
           // is the wrong advice for all of them: a full allowance needs a file
           // removed, and an oversize file needs a smaller one.
           const detail = String((reason as Error)?.message || "");
+          // A 413 can come from the edge proxy, whose body carries none of the
+          // app's codes; it is still a size limit, not a format problem.
+          const status = (reason as { status?: number } | null)?.status;
           setError(detail.includes("ATTACHMENT_STORAGE_LIMIT") ? t.storage
-            : detail.includes("ATTACHMENT_SIZE_LIMIT") ? `${file.name}: ${t.limit}`
+            : detail.includes("ATTACHMENT_SIZE_LIMIT") || status === 413 ? `${file.name}: ${t.limit}`
             : t.error);
         }
       }

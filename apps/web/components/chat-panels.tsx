@@ -1,6 +1,6 @@
-import { Boxes } from "lucide-react";
+import { Boxes, Sparkles } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
-import type { AgentPluginEntry } from "@/lib/api";
+import type { AgentPluginEntry, SkillSummary } from "@/lib/api";
 
 /**
  * Response preferences and files - and nothing else.
@@ -10,7 +10,7 @@ import type { AgentPluginEntry } from "@/lib/api";
  * so a per-message switch is a way to configure a worse answer, not a feature.
  * See docs/architecture/DSH_0_1_7_RC1_AGENT_SKILL_NAVPM_UPGRADE.md.
  */
-export function ContextControls({ locale, plugins, pluginCounts, customPrompt, onPrompt }: { locale: Locale; plugins: AgentPluginEntry[]; pluginCounts: { total: number; enabled: number; tools: number } | null; customPrompt: string; onPrompt: (value: string) => void }) {
+export function ContextControls({ locale, plugins, pluginCounts, skills = [], customPrompt, onPrompt }: { locale: Locale; plugins: AgentPluginEntry[]; pluginCounts: { total: number; enabled: number; tools: number } | null; skills?: SkillSummary[]; customPrompt: string; onPrompt: (value: string) => void }) {
   const zh = locale === "zh";
   return <div className="space-y-6">
     {/* Built-in capabilities. Read-only on purpose: capability is installed by
@@ -25,8 +25,40 @@ export function ContextControls({ locale, plugins, pluginCounts, customPrompt, o
         <span className="mt-1 block truncate font-mono text-[10px] text-text-pg-dim">{plugin.service}{plugin.tools.length ? ` · ${plugin.tools.length} ${zh ? "个工具" : "tools"}` : ""}</span>
       </div>)}</div>
     </section>
+    {skills.length ? <SkillList locale={locale} skills={skills} /> : null}
     <section><label className="mb-1 block text-xs font-semibold">{zh ? "回答偏好" : "Response preferences"}</label><p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "只控制表达方式，不改变事实、权限或风险规则。" : "Controls presentation only, not evidence, permissions, or risk rules."}</p><textarea value={customPrompt} onChange={(event) => onPrompt(event.target.value.slice(0, 2000))} rows={4} placeholder={zh ? "例如：使用简洁中文，先结论后证据，列出反方观点。" : "Example: concise answer, conclusion first, include counter-evidence."} className="w-full resize-y border border-border-pg bg-bg-panel p-2 text-xs leading-5 outline-none focus:border-border-pg-strong rounded-lg" /><div className="mt-1 text-right text-[10px] text-text-pg-dim">{customPrompt.length}/2000</div></section>
   </div>;
+}
+
+/** Why a skill is not in use, from the server's own fields. */
+function skillUnavailableReason(skill: SkillSummary, zh: boolean): string | null {
+  if (skill.status !== "published") return zh ? "审核中，尚未发布" : "In review, not published";
+  if (!skill.installed) return zh ? "未安装" : "Not installed";
+  if (!skill.enabled) return zh ? "已停用" : "Disabled";
+  return null;
+}
+
+/**
+ * Skills the Agent may load, read-only. The Agent picks them from the goal;
+ * what this shows is what each is for, which tools it is limited to, and why
+ * one is unavailable. A Skill's text never grants a tool permission.
+ */
+function SkillList({ locale, skills }: { locale: Locale; skills: SkillSummary[] }) {
+  const zh = locale === "zh";
+  const ready = skills.filter((skill) => !skillUnavailableReason(skill, zh)).length;
+  return <section data-testid="agent-skills">
+    <div className="mb-1 flex items-center gap-2 text-xs font-semibold"><Sparkles className="h-3.5 w-3.5" />Skills<span className="ml-auto font-normal text-text-pg-dim">{ready}/{skills.length} {zh ? "可用" : "available"}</span></div>
+    <p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "Agent 按目标自动选用；Skill 说明不会提升任何工具权限，工具仍受账户、套餐与审批限制。" : "The Agent picks these from the goal. A Skill's instructions never raise a tool permission; tools stay bound by account, plan and approval."}</p>
+    <ul className="space-y-1.5">{skills.map((skill) => {
+      const reason = skillUnavailableReason(skill, zh);
+      return <li key={skill.skill_id} className="rounded-lg border border-border-pg px-2.5 py-2 text-xs">
+        <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate font-medium">{skill.name}</span><span className={`shrink-0 rounded-lg border px-1.5 py-0.5 text-[10px] ${reason ? "border-border-pg text-text-pg-dim" : "border-status-positive text-status-positive"}`}>{reason ?? (zh ? "可用" : "Available")}</span></div>
+        <span className="mt-1 block leading-4 text-text-pg-dim">{skill.description}</span>
+        {skill.tool_allowlist?.length ? <span className="mt-1 block break-words font-mono text-[10px] text-text-pg-dim">{zh ? "可用工具" : "Tools"}: {skill.tool_allowlist.join(", ")}</span> : null}
+        {skill.runtime?.human_confirmation_required ? <span className="mt-1 block text-[10px] text-status-warning">{zh ? "执行前需要你的确认" : "Needs your confirmation before acting"}</span> : null}
+      </li>;
+    })}</ul>
+  </section>;
 }
 
 export function nextActionLabel(action: string, zh: boolean) {

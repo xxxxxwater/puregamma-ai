@@ -16,7 +16,7 @@ import { ContextControls, nextActionLabel, nextActionPrompt, StrategyToolResult 
 import { AgentStageIndicator, nextAgentStage, type AgentStage } from "@/components/ocean/agent-stage-indicator";
 import { OceanShell } from "@/components/ocean/ocean-shell";
 import { type Locale, withLocale } from "@/i18n/routing";
-import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentPluginEntry, AgentSource, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getAgentRunEvents, getGatewayCatalog, getMe, streamAgentMessage } from "@/lib/api";
+import { AgentAttachment, AgentCapabilities, AgentConversation, AgentEvidenceSummary, AgentMessage, AgentModelOption, AgentRuntimePlan, AgentPluginEntry, AgentSource, SkillSummary, cancelAgentRun, createAgentConversation, deleteAgentConversation, deleteAllAgentConversations, getAgentCapabilities, getAgentConversation, getAgentConversations, getAgentQuota, getAgentQuote, getAgentRunEvents, getGatewayCatalog, getMe, streamAgentMessage } from "@/lib/api";
 import { billingNotice, describeChatFailure, type ChatFailure } from "@/lib/chat-errors";
 import { FLASH_ALIAS_ID, FLASH_MODEL_ID, flashAvailability, platformDefaultModelName } from "@/lib/model-catalog";
 import { getMessageNamespace } from "@/lib/translations";
@@ -110,6 +110,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
   const [models, setModels] = useState<AgentModelOption[]>([]);
   // Built-in capability inventory, straight from `/agent/capabilities`.
   const [plugins, setPlugins] = useState<AgentPluginEntry[]>([]);
+  const [skills, setSkills] = useState<SkillSummary[]>([]);
   const [pluginCounts, setPluginCounts] = useState<{ total: number; enabled: number; tools: number } | null>(null);
   const [selectedModel, setSelectedModel] = useState("default");
   const [dataSources, setDataSources] = useState<string[]>([]);
@@ -329,6 +330,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         setModels(Array.isArray(access.models) ? access.models : []);
         // The built-in capability inventory was fetched but never shown.
         setPlugins(Array.isArray(access.plugins) ? access.plugins : []);
+        setSkills(Array.isArray(access.skills) ? access.skills : []);
         setPluginCounts(access.plugin_counts ?? null);
         const target = initialConversationId || rows.find((row) => !row.archived_at)?.id;
         if (target) await openConversation(target);
@@ -917,7 +919,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
             researchMode={researchMode} onResearch={setResearchMode} onTextarea={node => { composerRef.current = node; }}
             modelControl={<select id="agent-model" aria-label={zh ? "模型" : "Model"} value={selectedModel} onChange={event => setSelectedModel(event.target.value)} disabled={working} className="min-h-10 max-w-[220px] rounded-xl border border-border-pg bg-bg-panel-muted px-3 text-xs font-medium text-text-pg disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg">{usableModels.map(model => <option key={model.id} value={model.id}>{agentModelLabel(model, modelCopy, defaultModelName, zh)}{model.provider && model.id !== "default" ? ` · ${model.provider}` : ""}</option>)}</select>}
             modelNote={lockedModels > 0 ? (zh ? `另有 ${lockedModels} 个模型需要升级套餐或当前不可用` : `${lockedModels} more model${lockedModels === 1 ? "" : "s"} need a plan upgrade or are unavailable`) : undefined}
-            settings={<ContextControls locale={locale} plugins={plugins} pluginCounts={pluginCounts} customPrompt={customPrompt} onPrompt={setCustomPrompt} />} />
+            settings={<ContextControls locale={locale} plugins={plugins} pluginCounts={pluginCounts} skills={skills} customPrompt={customPrompt} onPrompt={setCustomPrompt} />} />
           {input.trim() && creditQuote && !creditQuote.unavailable ? <p className="mx-auto mt-2 max-w-3xl text-right text-xs text-text-pg-muted" data-testid="chat-estimate">{zh ? "预计" : "Estimated"} {estimatedCredits} Credits{creditQuote.reservation_amount ? (zh ? ` · 发送时预留 ${creditQuote.reservation_amount}，按实际结算` : ` · ${creditQuote.reservation_amount} reserved on send, settled on actual use`) : ""}</p> : null}
           {failure ? (
             <div className="mx-auto mt-2 max-w-3xl rounded-lg border border-status-negative px-3 py-2 text-xs text-status-negative" role="alert" data-testid="chat-error">
