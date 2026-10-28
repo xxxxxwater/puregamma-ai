@@ -225,6 +225,7 @@ v0.3.2 之后合入 `main` 的变更（均未执行生产部署、数据库迁�
 - E2E 与模型计价（`3a7f2bc`…`6ee50b7`，详见 [upgrade-20261028/e2e-and-model-pricing.md](upgrade-20261028/e2e-and-model-pricing.md)）：
   - 模型显式费率，未定价即拒绝（报价、预留、结算一致）；`/api/agent/capabilities` 返回 provider、能力、每轮预估和限制；菜单显示 provider 和预估，不再提供只做评估的 Jev；
   - Playwright 全量离线化（SSR fixture API、只解析回环地址的浏览器），过期 spec 按当前行为改写；CI 新增全量 4 分片和 auth-guard job。
+  - CI 稳定性（`3c5a9d8`、`2d4af59`、`63fa2a0`）：contrast-audit 在取样前等待页面内容就绪（有上限，阈值不变）；CI 上失败重试一次，只在重试后通过的用例由 `report-flaky.mjs` 以 warning 注释和 job summary 列出，确定性失败仍然失败。
 
 验证（协调会话在 rebase 后的树上复跑，另附各工作会话的报告）：
 
