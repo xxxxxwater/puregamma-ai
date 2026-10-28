@@ -902,3 +902,105 @@ def test_profitable_round_trip_does_not_trigger_max_daily_loss(db, user_factory,
         order_type="market", limit_price=None, ctx=ctx,
     )
     assert verdict.result == "PASS", verdict.rejection_reason
+
+
+def _evaluate(db, world, **overrides):
+    params = dict(
+        user_id=world["mandate"].user_id,
+        symbol="BTCUSDT",
+        side="buy",
+        quantity="1",
+        order_type="market",
+        limit_price=None,
+    )
+    params.update(overrides)
+    ctx = risk_engine.RiskContext(
+        mandate=world["mandate"],
+        connection=world["connection"],
+        available_cash=Decimal("100000"),
+    )
+    return risk_engine.RiskEngine(db).evaluate(ctx=ctx, **params)
+
+
+def test_risk_engine_baseline_passes(db, user_factory, monkeypatch):
+    user = user_factory("risk-baseline@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    verdict = _evaluate(db, world)
+    assert verdict.result == "PASS", verdict.rejection_reason
+
+
+@pytest.mark.parametrize(
+    ("overrides", "check", "code"),
+    [
+        ({"quantity": "0"}, "quantity_positive", "INVALID_QUANTITY"),
+        ({"quantity": "-1"}, "quantity_positive", "INVALID_QUANTITY"),
+        ({"side": "short"}, "side_valid", "INVALID_SIDE"),
+        ({"order_type": "stop"}, "order_type_valid", "INVALID_ORDER_TYPE"),
+    ],
+)
+def test_risk_engine_rejects_invalid_order_fields(
+    db, user_factory, monkeypatch, overrides, check, code
+):
+    user = user_factory(f"risk-invalid-{check}-{overrides}@test.com".replace(" ", ""))
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    verdict = _evaluate(db, world, **overrides)
+    failed = {item["check"] for item in verdict.checks if not item["ok"]}
+    assert check in failed
+    assert verdict.result == "REJECT"
+    assert code in (verdict.rejection_reason or "")
+
+
+def test_risk_engine_rejects_foreign_mandate(db, user_factory, monkeypatch):
+    owner = user_factory("risk-owner@test.com")
+    intruder = user_factory("risk-intruder@test.com")
+    world = _make_live_world(db, owner, monkeypatch=monkeypatch)
+    verdict = _evaluate(db, world, user_id=intruder.id)
+    assert verdict.result == "REJECT"
+    assert "MANDATE_OWNERSHIP_MISMATCH" in (verdict.rejection_reason or "")
+
+
+@pytest.mark.parametrize(
+    "mandate_kwargs",
+    [{"paused": True}, {"status": "revoked"}, {"kill_switch_state": "active"}],
+)
+def test_risk_engine_rejects_inactive_mandate(db, user_factory, monkeypatch, mandate_kwargs):
+    user = user_factory(f"risk-state-{next(iter(mandate_kwargs))}@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch, **mandate_kwargs)
+    verdict = _evaluate(db, world)
+    assert verdict.result == "REJECT"
+    assert "MANDATE_NOT_ACTIVE" in (verdict.rejection_reason or "")
+
+
+class _ZeroAvailableGateway(FakeGateway):
+    def account_balances(self, account_id, *, connection_id=None):
+        # Numeric zero (e.g. Nautilus gateway available_margin) is falsy.
+        return {"cash": 50000, "available": 0, "equity": 50000}
+
+
+def test_build_ctx_respects_zero_available_balance(db, user_factory, monkeypatch):
+    user = user_factory("zero-available@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    ctx = risk_engine.build_ctx(
+        db, mandate=world["mandate"], connection=world["connection"],
+        gateway=_ZeroAvailableGateway(),
+    )
+    assert ctx.available_cash == Decimal("0")
+    verdict = risk_engine.RiskEngine(db).evaluate(
+        user_id=user.id, symbol="BTCUSDT", side="buy", quantity="1",
+        order_type="market", limit_price=None, ctx=ctx,
+    )
+    assert verdict.result == "REJECT"
+    assert "INSUFFICIENT_BALANCE" in (verdict.rejection_reason or "")
+
+
+def test_nav_respects_zero_available_balance(db, user_factory, monkeypatch):
+    user = user_factory("nav-zero-available@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    snapshot = nav.calculate_nav(
+        db,
+        user_id=user.id,
+        account_id=world["account"].id,
+        mandate_id=world["mandate"].id,
+        gateway=_ZeroAvailableGateway(),
+    )
+    assert snapshot.cash == Decimal("0")

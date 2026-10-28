@@ -109,14 +109,16 @@ class RiskEngine:
 
         # --- 1-2. ownership & mandate state (pre-validated by control plane,
         #         re-checked here so the engine is independently safe) ------
-        add("mandate_ownership", mandate.user_id == user_id, "mandate owner matches user")
-        add(
+        if not add("mandate_ownership", mandate.user_id == user_id, "mandate owner matches user"):
+            rejections.append("MANDATE_OWNERSHIP_MISMATCH")
+        if not add(
             "mandate_state",
             not mandate.paused
             and mandate.status in {"active", "draft"}
             and mandate.kill_switch_state != "active",
             f"paused={mandate.paused} status={mandate.status}",
-        )
+        ):
+            rejections.append("MANDATE_NOT_ACTIVE")
 
         # --- 3-4. feature gate + user approval (gate result) ---------------
         gate = evaluate_full_gate(self.db, user_id, mandate, ctx.connection)
@@ -148,17 +150,20 @@ class RiskEngine:
             rejections.append("SYMBOL_NOT_ALLOWED")
 
         # --- 7. quantity / price / notional sanity -------------------------
-        add("quantity_positive", qty > _ZERO, f"quantity={qty}")
-        add(
+        if not add("quantity_positive", qty > _ZERO, f"quantity={qty}"):
+            rejections.append("INVALID_QUANTITY")
+        if not add(
             "side_valid",
             side_lower in {Side.BUY.value, Side.SELL.value},
             f"side={side_lower}",
-        )
-        add(
+        ):
+            rejections.append("INVALID_SIDE")
+        if not add(
             "order_type_valid",
             order_type_lower in {OrderType.MARKET.value, OrderType.LIMIT.value},
             f"order_type={order_type_lower}",
-        )
+        ):
+            rejections.append("INVALID_ORDER_TYPE")
         if order_type_lower == OrderType.LIMIT.value and (limit is None or limit <= _ZERO):
             add("limit_price_valid", False, "limit order requires a positive limit_price")
             rejections.append("INVALID_LIMIT_PRICE")
@@ -303,7 +308,8 @@ def build_ctx(
             for item in positions
         }
         balances = gw.account_balances(mandate.account_id, connection_id=connection_id)
-        ctx.available_cash = _decimal(balances.get("available") or balances.get("cash"))
+        available = balances.get("available")
+        ctx.available_cash = _decimal(available if available is not None else balances.get("cash"))
     except GatewayError:
         # Gateway unavailable: keep None so balance check rejects honestly.
         ctx.available_cash = available_cash

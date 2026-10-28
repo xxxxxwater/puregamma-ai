@@ -72,7 +72,10 @@ def calculate_nav(
             balances = gateway.account_balances(
                 account_id, connection_id=connection_id
             )
-            broker_available = _decimal(balances.get("available") or balances.get("cash"))
+            available = balances.get("available")
+            broker_available = _decimal(
+                available if available is not None else balances.get("cash")
+            )
             cash = broker_available
         except GatewayError:
             pass
