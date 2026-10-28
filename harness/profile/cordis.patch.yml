@@ -28,15 +28,19 @@
 # the sandbox picker instead: same `directoryPicker` Remote contract, confined
 # to PUREGAMMA_DSH_WORKSPACE_ROOT (realpath + symlink containment), no
 # directory creation, and no root configured means every call fails closed.
+# A patch row cannot rename a plugin, so the upstream row is disabled and the
+# sandbox picker is inserted under its own id.
 - id: directory-picker
-  name: '@puregamma/dsh-directory-picker-sandbox'
-  config: { root: !!js process.env.PUREGAMMA_DSH_WORKSPACE_ROOT ?? '', maxEntries: 500, showHidden: false }
+  disabled: true
 - insert:
     - id: puregamma-ui-brand
       name: '@puregamma/dsh-ui-brand'
     # One Typert Remote assembly, Harness-native Resource/Slot clients.
     - id: puregamma-client-remotes
       name: '@puregamma/dsh-client-remotes'
+    - id: puregamma-directory-picker
+      name: '@puregamma/dsh-directory-picker-sandbox'
+      config: { root: !!js process.env.PUREGAMMA_DSH_WORKSPACE_ROOT ?? '', maxEntries: 500, showHidden: false }
     # In-app browser for the sandbox picker (upstream mounted it from -auto).
     - id: puregamma-ui-directory-picker
       name: '@deepseek-ai/dsh-client-ui-directory-picker-browse'

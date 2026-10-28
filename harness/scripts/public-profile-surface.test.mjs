@@ -83,11 +83,19 @@ async function bundleRows() {
   return rows
 }
 
-/** Apply profile-style overrides (field merge by id; name/config replace) the way the launcher layers them. */
+/**
+ * Layer patch rows by id the way the launcher does: a later row merges into
+ * the earlier one, but a row naming a different plugin is skipped (the
+ * launcher logs "name mismatch ... skipping"), so a rename never takes effect.
+ */
 function compose(...layers) {
   const out = new Map()
   for (const layer of layers) {
-    for (const [id, row] of layer) out.set(id, { ...(out.get(id) ?? {}), ...row })
+    for (const [id, row] of layer) {
+      const prior = out.get(id)
+      if (prior?.name && row.name && row.name !== prior.name) continue
+      out.set(id, { ...(prior ?? {}), ...row })
+    }
   }
   return out
 }
@@ -147,7 +155,9 @@ test('the single-operator profile keeps the Session sidebar off', () => {
 })
 
 test('every Host uses the sandboxed directory picker, never the Host-wide upstream backends', async () => {
-  const picker = profileRows.get('directory-picker')
+  assert.equal(profileRows.get('directory-picker')?.disabled, true, 'the Host-wide upstream picker row stays disabled')
+  assert.equal(profileRows.get('directory-picker')?.name, undefined, 'a patch row cannot rename a plugin')
+  const picker = profileRows.get('puregamma-directory-picker')
   assert.equal(picker?.name, '@puregamma/dsh-directory-picker-sandbox')
   assert.deepEqual(picker?.config?.root, { __jsExpr: "process.env.PUREGAMMA_DSH_WORKSPACE_ROOT ?? ''" })
   assert.equal(picker?.config?.showHidden, false)
@@ -168,7 +178,8 @@ test('the multi-tenant overlay only re-enables the Session list and relaxes noth
   for (const id of ['file-upload', 'terminal-controller', 'workspace-files', 'ui-sidebar-terminal', 'ui-sidebar-files', 'ui-plugin-manager', 'preset-ptc', 'preset-minimal', 'preset-cordis']) {
     assert.equal(effective.get(id)?.disabled, true, `${id} must stay disabled with the multi-tenant overlay`)
   }
-  assert.equal(effective.get('directory-picker')?.name, '@puregamma/dsh-directory-picker-sandbox')
+  assert.equal(effective.get('directory-picker')?.disabled, true)
+  assert.equal(effective.get('puregamma-directory-picker')?.name, '@puregamma/dsh-directory-picker-sandbox')
 })
 
 test('every legacy-api provider can take a per-user token file and never needs the shared token in a broker Host', () => {
@@ -176,5 +187,13 @@ test('every legacy-api provider can take a per-user token file and never needs t
   assert.ok(providers.length >= 14)
   for (const row of providers) {
     assert.deepEqual(row.config?.authTokenFile, { __jsExpr: 'process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE' }, `${row.id} must read PUREGAMMA_LEGACY_API_TOKEN_FILE`)
+  }
+})
+
+test('profile rows that name an existing id never rename its plugin (the launcher would skip them)', async () => {
+  const bundle = await bundleRows()
+  for (const [id, row] of [...profileRows, ...overlayRows]) {
+    const upstream = bundle.get(id)
+    if (upstream?.name && row.name) assert.equal(row.name, upstream.name, `${id} renames ${upstream.name}`)
   }
 })
