@@ -71,6 +71,26 @@ async function bundlePresets() {
 }
 
 const profileRows = topLevelRows(await loadPatch(path.join(harnessRoot, 'profile', 'cordis.patch.yml')))
+const overlayRows = topLevelRows(await loadPatch(path.join(harnessRoot, 'profile', 'multi-tenant.patch.yml')))
+
+/** Bundle rows (every patch layer the pinned web-app bundle declares), keyed by id. */
+async function bundleRows() {
+  const manifest = JSON.parse(await fs.readFile(path.join(webAppDir, 'package.json'), 'utf8'))
+  const rows = new Map()
+  for (const relative of manifest.dsh?.bundle?.patch ?? []) {
+    for (const [id, row] of topLevelRows(await loadPatch(path.join(webAppDir, relative)))) rows.set(id, row)
+  }
+  return rows
+}
+
+/** Apply profile-style overrides (field merge by id; name/config replace) the way the launcher layers them. */
+function compose(...layers) {
+  const out = new Map()
+  for (const layer of layers) {
+    for (const [id, row] of layer) out.set(id, { ...(out.get(id) ?? {}), ...row })
+  }
+  return out
+}
 
 test('every agent preset still enabled in the public profile is free of host shell, filesystem and delegation tools', async () => {
   const presets = await bundlePresets()
@@ -119,5 +139,42 @@ test('README pins match the gitlinks CI verifies', async () => {
     const sha = line.split(/\s+/)[2]
     assert.match(sha ?? '', /^[0-9a-f]{40}$/, `cannot read gitlink for ${submodule}`)
     assert.ok(readme.includes(sha), `harness/README.md must name the ${submodule} gitlink ${sha}`)
+  }
+})
+
+test('the single-operator profile keeps the Session sidebar off', () => {
+  assert.equal(profileRows.get('ui-sidebar')?.disabled, true, 'ui-sidebar only returns through the broker-applied multi-tenant overlay')
+})
+
+test('every Host uses the sandboxed directory picker, never the Host-wide upstream backends', async () => {
+  const picker = profileRows.get('directory-picker')
+  assert.equal(picker?.name, '@puregamma/dsh-directory-picker-sandbox')
+  assert.deepEqual(picker?.config?.root, { __jsExpr: "process.env.PUREGAMMA_DSH_WORKSPACE_ROOT ?? ''" })
+  assert.equal(picker?.config?.showHidden, false)
+  const effective = compose(await bundleRows(), profileRows, overlayRows)
+  const names = [...effective.values()].filter(row => row.disabled !== true).map(row => row.name)
+  for (const upstream of ['@deepseek-ai/dsh-host-directory-picker-auto', '@deepseek-ai/dsh-host-directory-picker-browse', '@deepseek-ai/dsh-host-directory-picker-native']) {
+    assert.ok(!names.includes(upstream), `${upstream} must not be mounted`)
+  }
+})
+
+test('the multi-tenant overlay only re-enables the Session list and relaxes nothing else', async () => {
+  assert.deepEqual([...overlayRows.keys()].sort(), ['ui-sidebar', 'ui-workspace'])
+  for (const row of overlayRows.values()) assert.deepEqual(Object.keys(row).sort(), ['disabled', 'id'])
+  const effective = compose(await bundleRows(), profileRows, overlayRows)
+  assert.equal(effective.get('ui-sidebar')?.disabled, false)
+  assert.equal(effective.get('ui-workspace')?.disabled, false)
+  assert.equal(effective.get('ui-workspace')?.name, '@deepseek-ai/dsh-client-ui-workspace')
+  for (const id of ['file-upload', 'terminal-controller', 'workspace-files', 'ui-sidebar-terminal', 'ui-sidebar-files', 'ui-plugin-manager', 'preset-ptc', 'preset-minimal', 'preset-cordis']) {
+    assert.equal(effective.get(id)?.disabled, true, `${id} must stay disabled with the multi-tenant overlay`)
+  }
+  assert.equal(effective.get('directory-picker')?.name, '@puregamma/dsh-directory-picker-sandbox')
+})
+
+test('every legacy-api provider can take a per-user token file and never needs the shared token in a broker Host', () => {
+  const providers = [...profileRows.values()].filter(row => /-legacy-api'?$/.test(row.name ?? ''))
+  assert.ok(providers.length >= 14)
+  for (const row of providers) {
+    assert.deepEqual(row.config?.authTokenFile, { __jsExpr: 'process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE' }, `${row.id} must read PUREGAMMA_LEGACY_API_TOKEN_FILE`)
   }
 })
