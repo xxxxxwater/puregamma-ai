@@ -43,9 +43,11 @@ test.describe("localized routes", () => {
     await expect(page.getByText("今日决策")).toBeVisible();
   });
 
-  test("language switcher preserves path and query params", async ({ page }) => {
+  test("language switcher preserves path and query params", async ({ page, isMobile }) => {
     await page.goto("/en/portfolio?tab=risk");
-    await page.getByRole("button", { name: "Switch language to Simplified Chinese" }).first().click();
+    // On phones the language switcher lives in the navigation drawer.
+    if (isMobile) await page.getByTestId("nav-menu-button").click();
+    await page.getByRole("button", { name: "Switch language to Simplified Chinese" }).filter({ visible: true }).first().click();
     await expect(page).toHaveURL(/\/zh\/portfolio\?tab=risk$/);
   });
 

@@ -586,7 +586,10 @@ test.describe("Gateway console with the upgraded model", () => {
     const usage = page.locator("section, div").filter({ has: page.getByRole("heading", { name: "模型使用" }) }).last();
     await expect(usage).toContainText(FLASH);
     const requests = page.locator("section, div").filter({ has: page.getByRole("heading", { name: "最近请求" }) }).last();
-    await expect(requests).toContainText("req_fixture_flash_1");
+    // A request row shows the model, token counts, latency, status and cost.
+    await expect(requests).toContainText(FLASH);
+    await expect(requests).toContainText("400 in / 300 out · 840ms");
+    await expect(requests).toContainText("$0.0041");
     const wallet = page.locator("section, div").filter({ has: page.getByRole("heading", { name: "余额记录" }) }).last();
     await expect(wallet).toContainText("19.9877");
   });

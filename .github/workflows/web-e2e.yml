@@ -137,6 +137,59 @@ jobs:
             apps/web/test-results
           retention-days: 7
 
+  auth-guard:
+    # public-page-access.spec.ts "protected surfaces still require a session"
+    # needs a server whose middleware enforces sign-in, which the suite's own
+    # server turns off (REQUIRE_AUTH=false). Those tests skip there and run here.
+    name: Protected routes require a session (desktop & mobile)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      CI: 'true'
+      NEXT_TELEMETRY_DISABLED: '1'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+
+      - name: Pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Start a dev server that requires a session
+        env:
+          NEXT_DIST_DIR: .next-playwright
+          NEXT_PUBLIC_INITIAL_LAUNCH_MODE: 'false'
+          NEXT_PUBLIC_API_URL: /__dev-api
+          DEV_API_PROXY_TARGET: http://127.0.0.1:9
+          PUREGAMMA_SERVER_API_URL: http://127.0.0.1:3599
+          REQUIRE_AUTH: 'true'
+        run: |
+          nohup node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3002 > /tmp/next-auth.log 2>&1 &
+          for i in $(seq 1 90); do curl -s -o /dev/null http://127.0.0.1:3002/en && exit 0; sleep 1; done
+          cat /tmp/next-auth.log; exit 1
+
+      - name: Protected surfaces redirect a logged-out visitor
+        env:
+          REQUIRE_AUTH: 'true'
+          PLAYWRIGHT_PORT: '3002'
+          PLAYWRIGHT_BASE_URL: http://127.0.0.1:3002
+          DEV_API_PROXY_TARGET: http://127.0.0.1:9
+        run: pnpm exec playwright test public-page-access.spec.ts --grep "protected surfaces" --reporter=line
+
   route-audit:
     name: Every route survives an API outage (desktop & mobile)
     runs-on: ubuntu-24.04
