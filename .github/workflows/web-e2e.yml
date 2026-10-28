@@ -176,6 +176,7 @@ jobs:
           NEXT_PUBLIC_API_URL: /__dev-api
           DEV_API_PROXY_TARGET: http://127.0.0.1:9
           PUREGAMMA_SERVER_API_URL: http://127.0.0.1:3599
+          PLAYWRIGHT_DEV_SERVER: '1'
           REQUIRE_AUTH: 'true'
         run: |
           nohup node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port 3002 > /tmp/next-auth.log 2>&1 &
