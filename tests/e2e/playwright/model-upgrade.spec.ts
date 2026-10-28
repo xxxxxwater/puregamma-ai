@@ -294,7 +294,14 @@ test.describe("API docs model catalog", () => {
     await page.goto("/zh/api");
     await page.getByTestId("catalog-model-table").getByRole("button", { name: "glm-5.2", exact: true }).click();
     await expect(page.getByRole("heading", { name: "GLM 5.2" }).first()).toBeVisible();
-    await expect(page.locator("pre", { hasText: '"model": "glm-5.2"' }).first()).toBeVisible();
+    // GLM 5.2 is still being set up in this catalog, so no runnable request
+    // sample is offered for it (77a08f8: examples follow deployment
+    // availability); the quick start says calls are not open yet.
+    await expect(page.getByRole("heading", { name: "调用尚未开放" })).toBeVisible();
+    await expect(page.locator("pre", { hasText: '"model": "glm-5.2"' })).toHaveCount(0);
+    // Switching back to the callable Flash model brings its sample back.
+    await page.getByTestId("catalog-model-table").getByRole("button", { name: FLASH, exact: true }).click();
+    await expect(page.locator("pre", { hasText: `"model": "${FLASH}"` }).first()).toBeVisible();
   });
 
   test("a model without a curated narrative still renders from the catalog", async ({ page }) => {
@@ -550,13 +557,37 @@ test.describe("Agent Chat billing copy follows the settlement record", () => {
   });
 });
 
+/**
+ * The Gateway console is server-rendered from /gateway/{dashboard,keys,
+ * requests,usage}. Those reads go to the offline fixture API
+ * (fixtures/ssr-api.mjs); with the fixture session they return rows that carry
+ * the upgraded model id, without one they are a 401 like any anonymous read.
+ */
 test.describe("Gateway console with the upgraded model", () => {
-  test("model usage, request history and wallet rows still render", async ({ page }) => {
+  test.beforeEach(async ({ page }) => {
     await page.route("**/me", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify(USER) }));
+  });
+
+  test("without a session the console says it is unavailable and points at the directory", async ({ page }) => {
     await page.goto("/zh/gateway");
     await expect(page.getByRole("heading", { name: "AI API Gateway" })).toBeVisible();
-    // Usage/keys/requests fall back to their empty states without a session; the
-    // page must stay usable rather than breaking on the new model id.
-    await expect(page.getByText(/Gateway 数据暂不可用|API 可用余额/).first()).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Gateway 当前不可用" })).toBeVisible();
+    await expect(page.getByRole("link", { name: "查看模型目录" })).toHaveAttribute("href", "/zh/api");
+    await expect(page.getByText("API 可用余额")).toHaveCount(0);
+  });
+
+  test("model usage, request history and wallet rows still render", async ({ page, baseURL }) => {
+    await page.context().addCookies([{ name: "pg_session", value: "playwright-fixture-session", url: baseURL ?? "http://127.0.0.1:3000" }]);
+    await page.goto("/zh/gateway");
+    await expect(page.getByRole("heading", { name: "AI API Gateway" })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Gateway 当前不可用" })).toHaveCount(0);
+    await expect(page.getByText("API 可用余额")).toBeVisible();
+    await expect(page.getByText("$19.9877").first()).toBeVisible();
+    const usage = page.locator("section, div").filter({ has: page.getByRole("heading", { name: "模型使用" }) }).last();
+    await expect(usage).toContainText(FLASH);
+    const requests = page.locator("section, div").filter({ has: page.getByRole("heading", { name: "最近请求" }) }).last();
+    await expect(requests).toContainText("req_fixture_flash_1");
+    const wallet = page.locator("section, div").filter({ has: page.getByRole("heading", { name: "余额记录" }) }).last();
+    await expect(wallet).toContainText("19.9877");
   });
 });

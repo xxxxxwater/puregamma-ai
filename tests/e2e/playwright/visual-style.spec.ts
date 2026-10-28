@@ -39,8 +39,23 @@ function visibleControl(page: Page, title: string) {
   return page.locator(`button[title="${title}"]:visible`).first();
 }
 
+/**
+ * Below `md` the appearance controls live in the navigation drawer (they were
+ * moved out of the phone header so the brand is not squeezed), so open it.
+ */
+async function openAppearance(page: Page, isMobile: boolean) {
+  if (!isMobile) return;
+  if (await page.getByRole("dialog", { name: "Primary navigation" }).count()) return;
+  await page.getByTestId("nav-menu-button").click();
+  await expect(page.getByTestId("nav-secondary-controls")).toBeVisible();
+}
+
+function themeControl(page: Page) {
+  return page.locator("button[data-theme-preference]:visible").first();
+}
+
 test.describe("glass visual system", () => {
-  test("glass is the default, toggles to classic, persists across reloads", async ({ page }) => {
+  test("glass is the default, toggles to classic, persists across reloads", async ({ page, isMobile }) => {
     await page.goto("/en/options");
 
     // Default: glass, applied before paint by the inline root script.
@@ -49,6 +64,7 @@ test.describe("glass visual system", () => {
     await expect.poll(() => backdropOf(page, "aside")).toContain("blur(");
 
     // Switch to classic through the Appearance control.
+    await openAppearance(page, isMobile);
     await visibleControl(page, "Switch to classic appearance").click();
     await expect(page.locator('html[data-visual-style="classic"]')).toHaveCount(1);
     expect(await page.evaluate(() => window.localStorage.getItem("pg_visual_style"))).toBe("classic");
@@ -59,6 +75,7 @@ test.describe("glass visual system", () => {
     await expect(page.locator('html[data-visual-style="classic"]')).toHaveCount(1);
 
     // Switch back to glass for the remaining assertions.
+    await openAppearance(page, isMobile);
     await visibleControl(page, "Switch to glass appearance").click();
     await expect(page.locator('html[data-visual-style="glass"]')).toHaveCount(1);
     expect(await page.evaluate(() => window.localStorage.getItem("pg_visual_style"))).toBe("glass");
@@ -85,13 +102,18 @@ test.describe("glass visual system", () => {
   });
 
   test("dark/light theming and font scale keep working with glass", async ({ page, isMobile }) => {
+    // The default preference is "System" (theme-system.spec.ts), so emulate a
+    // dark OS: the page must start dark without any stored choice. This test
+    // used to assume an unconditional dark default.
+    await page.emulateMedia({ colorScheme: "dark" });
     await page.goto("/en/options");
-    // The theme attribute is applied by the AppearanceControls effect (not
-    // pre-paint), so poll for it.
     await expect.poll(() => htmlDataset(page).then((d) => d.theme)).toBe("dark");
+    await openAppearance(page, isMobile);
+    await expect(themeControl(page)).toHaveAttribute("data-theme-preference", "system");
 
-    await visibleControl(page, "Toggle theme").click();
-    expect((await htmlDataset(page)).theme).toBe("light");
+    // system -> light
+    await themeControl(page).click();
+    await expect.poll(() => htmlDataset(page).then((d) => d.theme)).toBe("light");
     // Light glass tokens are active and the surface stays translucent.
     expect(await panelOpacity(page)).toBeGreaterThanOrEqual(0.9);
     await expect.poll(() => backdropOf(page, "aside")).toContain("blur(");
@@ -101,12 +123,14 @@ test.describe("glass visual system", () => {
       expect(await page.evaluate(() => document.documentElement.dataset.fontScale)).toBe("large");
     }
 
-    await visibleControl(page, "Toggle theme").click();
-    expect((await htmlDataset(page)).theme).toBe("dark");
+    // light -> dark (an explicit choice, independent of the OS)
+    await themeControl(page).click();
+    await expect.poll(() => htmlDataset(page).then((d) => d.theme)).toBe("dark");
+    await expect(themeControl(page)).toHaveAttribute("data-theme-preference", "dark");
   });
 
-  test("mobile dashboard has no document-level horizontal overflow", async ({ page, isMobile }) => {
-    test.skip(!isMobile, "This is a mobile layout regression test.");
+  test("the dashboard has no document-level horizontal overflow", async ({ page }) => {
+    // Was mobile-only (skipped on desktop); the contract holds on both projects.
     await page.goto("/en/dashboard");
     await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(
       await page.evaluate(() => document.documentElement.clientWidth)
