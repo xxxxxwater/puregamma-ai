@@ -289,6 +289,42 @@
     "emergencyResult": {
       "paused": "已暂停 {id}",
       "failed": "暂停 {id} 失败——请重试或联系支持"
+    },
+    "gates": {
+      "title": "该 Mandate 不能交易的原因",
+      "allPass": "{count} 项门禁检查全部通过",
+      "unknown": "门禁状态暂不可用",
+      "labels": {
+        "live_trading_enabled": "本部署已启用实盘交易",
+        "deployment_approved": "部署已获实盘批准",
+        "provider_configured": "执行通道已配置",
+        "withdrawal_disabled": "提币已禁用",
+        "transfer_disabled": "划转已禁用",
+        "legacy_runtime_live_off": "旧运行时实盘开关已关闭",
+        "legacy_live_order_off": "旧实盘下单通道已关闭",
+        "user_live_approved": "你的实盘资格审批",
+        "kill_switch_global": "全局熔断已关闭",
+        "kill_switch_user": "账户熔断已关闭",
+        "mandate_approved": "Mandate 已审批且未暂停",
+        "mandate_live_mode": "Mandate 为实盘/生产环境",
+        "mandate_status_active": "Mandate 处于有效期内",
+        "mandate_kill_switch": "Mandate 熔断已关闭",
+        "connection_kill_switch": "连接熔断已关闭",
+        "reconciliation_healthy": "最近一次对账正常",
+        "broker_connection_healthy": "券商连接正常",
+        "risk_config_complete": "风控限额已配置"
+      }
+    },
+    "resume": {
+      "button": "恢复",
+      "title": "恢复此 Mandate？",
+      "body": "只有所有门禁再次通过，此 Mandate 下的实盘交易才会恢复。服务端会重新检查你的审批、券商连接、对账、熔断和风控限额；任一不通过，Mandate 保持暂停。",
+      "typePhrase": "请完整输入以下短语确认：",
+      "confirm": "恢复 Mandate",
+      "done": "Mandate 已恢复，所有门禁均通过。",
+      "reconciliation": "因对账暂停——需要管理员处理后才能恢复。",
+      "killSwitch": "熔断已触发——需要管理员解除后才能恢复。",
+      "reason": "暂停原因"
     }
   }
 }

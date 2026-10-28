@@ -259,6 +259,54 @@ test.describe("LIVE order workflow", () => {
     expect(revoked).toBe(1);
   });
 
+  test("a paused mandate explains its failing gates and resumes only with the exact phrase", async ({ page }) => {
+    const paused = { ...mandate, paused: true, pause_reason: "user stepped away", status: "paused" };
+    let resumeBody: { confirmation?: string } | null = null;
+    let resumed = false;
+    await mockLive(page);
+    await page.route("**/api/trading/mandates", (route) => route.fulfill({ json: { mandates: [resumed ? mandate : paused] } }));
+    await page.route("**/api/trading/safety-status", (route) => route.fulfill({ json: { safety: { ...safety.safety, mandates: { [mandate.id]: { enabled: false, state: "LIVE_DISABLED", checks: { mandate_approved: { ok: false, detail: "approval=approved paused=True" }, reconciliation_healthy: { ok: true, detail: "" } } } } } } }));
+    await page.route(`**/api/trading/mandates/${mandate.id}/resume`, (route) => { resumeBody = route.request().postDataJSON(); resumed = true; return route.fulfill({ json: { mandate } }); });
+    await page.goto("/en/trading/live/account");
+
+    const gates = page.getByTestId("mandate-gates-failing");
+    await expect(gates).toContainText("Why this mandate cannot trade");
+    await expect(gates).toContainText("Mandate approved and not paused");
+    await expect(gates).toContainText("paused=True");
+
+    const trigger = page.getByTestId(`resume-mandate-${mandate.id}`);
+    await trigger.click();
+    const dialog = page.getByRole("dialog", { name: "Resume this mandate?" });
+    await expect(dialog).toContainText("re-checks your approval");
+    const confirm = dialog.getByRole("button", { name: "Resume mandate" });
+    await dialog.getByRole("textbox").fill(`RESUME ${mandate.id.slice(0, 4)}`);
+    await expect(confirm).toBeDisabled();
+    await dialog.getByRole("textbox").fill(`RESUME ${mandate.id}`);
+    await confirm.click();
+    await expect(dialog).toHaveCount(0);
+    expect(resumeBody).toEqual({ confirmation: `RESUME ${mandate.id}` });
+  });
+
+  test("a reconciliation pause needs an administrator and the server's refusal is shown verbatim", async ({ page }) => {
+    await mockLive(page);
+    await page.route("**/api/trading/mandates", (route) => route.fulfill({ json: { mandates: [{ ...mandate, id: "m-recon", paused: true, pause_reason: "reconciliation mismatch BTCUSDT" }, { ...mandate, id: "m-gate", paused: true, pause_reason: "user" }] } }));
+    await page.route("**/api/trading/mandates/m-gate/resume", (route) => route.fulfill({ status: 400, json: { detail: "LIVE gates not satisfied: broker_connection_healthy" } }));
+    await page.goto("/en/trading/live/account");
+
+    await page.getByTestId("resume-mandate-m-recon").click();
+    const recon = page.getByRole("dialog", { name: "Resume this mandate?" });
+    await expect(recon).toContainText("an administrator must resolve it");
+    await expect(recon.getByRole("button", { name: "Resume mandate" })).toHaveCount(0);
+    await page.keyboard.press("Escape");
+    await expect(page.getByTestId("resume-mandate-m-recon")).toBeFocused();
+
+    await page.getByTestId("resume-mandate-m-gate").click();
+    const gate = page.getByRole("dialog", { name: "Resume this mandate?" });
+    await gate.getByRole("textbox").fill("RESUME m-gate");
+    await gate.getByRole("button", { name: "Resume mandate" }).click();
+    await expect(gate.getByRole("alert")).toHaveText("LIVE gates not satisfied: broker_connection_healthy");
+  });
+
   test("orders view fits a phone without horizontal page scroll", async ({ page }) => {
     await page.setViewportSize({ width: 390, height: 844 });
     await mockLive(page, { orders: () => [order({ status: "unknown" })] });

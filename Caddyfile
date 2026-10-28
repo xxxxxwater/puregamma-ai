@@ -17,7 +17,25 @@ puregamma.ai, www.puregamma.ai {
 
 {$API_DOMAIN} {
 	encode zstd gzip
-	request_body {
+	# Agent attachment uploads are streamed and size-checked by the API itself
+	# (AGENT_ATTACHMENT_MAX_BYTES, default 10 MiB, plus a per-user quota). Under
+	# the API-wide 2 MB cap every 2-10 MiB upload died here with a bare 413 the
+	# client could not explain. The two matchers are mutually exclusive, so
+	# each request is wrapped by exactly one limit.
+	@agent_upload {
+		method POST
+		path /api/agent/attachments
+	}
+	@other_requests {
+		not {
+			method POST
+			path /api/agent/attachments
+		}
+	}
+	request_body @agent_upload {
+		max_size 10MiB
+	}
+	request_body @other_requests {
 		max_size 2MB
 	}
 	header {
