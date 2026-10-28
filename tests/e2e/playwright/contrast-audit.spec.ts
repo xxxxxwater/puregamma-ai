@@ -179,9 +179,17 @@ async function measureStable(page: Page, theme: Theme, timeoutMs = 20000): Promi
   let stable = 0;
   let last: Audit | null = null;
   while (Date.now() - started < timeoutMs) {
+    // A sample taken during an entrance animation sees text at partial opacity
+    // and skips it, so two such samples can agree while the page is still
+    // revealing itself. Only count a sample once no finite animation or
+    // transition is running (infinite ones, e.g. status pulses, never settle).
+    const animating = await page.evaluate(() => document.getAnimations().some((animation) => {
+      const timing = animation.effect?.getComputedTiming();
+      return animation.playState === "running" && timing?.iterations !== Infinity;
+    }));
     last = (await page.evaluate(MEASURE)) as Audit;
     const key = JSON.stringify(last.failures) + JSON.stringify(last.clipped) + last.stats.measured;
-    stable = key === previous ? stable + 1 : 0;
+    stable = key === previous && !animating ? stable + 1 : 0;
     previous = key;
     if (stable >= 1 && last.stats.measured > 0) {
       last.stats.samples += 1;
