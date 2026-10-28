@@ -68,6 +68,27 @@ declare module '@deepseek-ai/cordis' {
  * Numeric money/quantity values cross the JavaScript boundary as decimal
  * strings so later native providers can preserve venue precision.
  */
+/**
+ * Client presentation of one NAV read, persisted as the tool result's `meta`
+ * (`output.presentationMeta`). It is never model-visible. Money stays a
+ * decimal string; a missing NAV is `null` with a reason, never `"0"`.
+ */
+export interface PortfolioNavPresentation {
+  readonly schema: 'puregamma.portfolio.nav/v1'
+  readonly available: boolean
+  readonly stale: boolean
+  readonly currency: string
+  readonly nav: string | null
+  readonly cash: string | null
+  /** When the server calculated or observed the figure. */
+  readonly observedAt: string
+  readonly priceObservedAt: string | null
+  readonly calculationVersion: string | null
+  /** Position count when the read included positions; null when it did not. */
+  readonly positions: number | null
+  readonly reason: string | null
+}
+
 export abstract class PortfolioService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'pgPortfolio')

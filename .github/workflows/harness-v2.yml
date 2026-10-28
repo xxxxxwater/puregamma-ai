@@ -104,7 +104,7 @@ jobs:
       - name: Verify Harness client bundle contract
         run: |
           set -euo pipefail
-          for pkg in brand client-remotes ui-account ui-billing ui-notifications ui-pg-tsy-runtime; do
+          for pkg in brand client-remotes ui-account ui-billing ui-notifications ui-pg-tsy-runtime ui-portfolio ui-research; do
             test -f "harness/plugins/$pkg/lib/index.js"
             test -f "harness/plugins/$pkg/lib/client.js"
             test -f "harness/plugins/$pkg/lib/types/client/index.d.ts"

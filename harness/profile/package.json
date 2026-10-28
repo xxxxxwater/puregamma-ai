@@ -58,6 +58,8 @@
     "@puregamma/dsh-research-runner-legacy-api": "workspace:^",
     "@puregamma/dsh-tool-research-runner": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime-http": "workspace:^",
-    "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^"
+    "@puregamma/dsh-tool-pg-tsy-runtime": "workspace:^",
+    "@puregamma/dsh-ui-portfolio": "workspace:^",
+    "@puregamma/dsh-ui-research": "workspace:^"
   }
 }

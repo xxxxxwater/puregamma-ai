@@ -37,6 +37,12 @@
       name: '@puregamma/dsh-ui-notifications'
     - id: puregamma-ui-pg-tsy-runtime
       name: '@puregamma/dsh-ui-pg-tsy-runtime'
+    # Domain tool views: the portfolio and research tools' results render
+    # through their own plugins (tool.call.toolview), not through the shell.
+    - id: puregamma-ui-portfolio
+      name: '@puregamma/dsh-ui-portfolio'
+    - id: puregamma-ui-research
+      name: '@puregamma/dsh-ui-research'
 
     # Account, billing, gateway, ingestion and admin own separate services.
     # Explicit money/account mutations are UI/approval actions, not model tools.

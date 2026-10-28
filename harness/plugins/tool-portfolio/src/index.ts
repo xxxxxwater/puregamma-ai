@@ -1,6 +1,6 @@
 import type { Context } from '@deepseek-ai/cordis'
 import { defineTool } from '@deepseek-ai/dsh-tools'
-import type {} from '@puregamma/dsh-portfolio'
+import type { PortfolioNavPresentation } from '@puregamma/dsh-portfolio'
 
 export const name = 'puregamma-tool-portfolio'
 export const inject = ['tools', 'pgPortfolio']
@@ -78,6 +78,19 @@ function portfolioSnapshotTool(ctx: Context) {
           ? `Portfolio as of ${value.observedAt}: NAV ${value.nav ?? 'n/a'} ${value.currency}, cash ${value.cash ?? 'n/a'}, ${value.positions.length} positions${value.stale ? ' (stale)' : ''}.`
           : `Portfolio unavailable as of ${value.observedAt}: ${value.reason ?? 'no connected portfolio snapshot'}.`,
       }],
+      presentationMeta: (_args, value) => ({
+        schema: 'puregamma.portfolio.nav/v1',
+        available: value.available,
+        stale: value.stale,
+        currency: value.currency,
+        nav: value.nav ?? null,
+        cash: value.cash ?? null,
+        observedAt: value.observedAt,
+        priceObservedAt: null,
+        calculationVersion: null,
+        positions: value.positions.length,
+        reason: value.reason ?? null,
+      } satisfies PortfolioNavPresentation),
     },
     isConcurrencySafe: () => true,
     async execute(args) {
@@ -220,6 +233,19 @@ function portfolioNavTool(ctx: Context) {
           ? `NAV ${value.nav} ${value.currency}; cash ${value.cash ?? 'n/a'}; calculated ${value.calculatedAt}${value.stale ? ' (stale)' : ''}.`
           : `NAV unavailable: ${value.reason ?? 'no connected portfolio snapshot'}.`,
       }],
+      presentationMeta: (_args, value) => ({
+        schema: 'puregamma.portfolio.nav/v1',
+        available: value.available,
+        stale: value.stale,
+        currency: value.currency,
+        nav: value.nav ?? null,
+        cash: value.cash ?? null,
+        observedAt: value.calculatedAt,
+        priceObservedAt: value.priceObservedAt ?? null,
+        calculationVersion: value.calculationVersion,
+        positions: null,
+        reason: value.reason ?? null,
+      } satisfies PortfolioNavPresentation),
     },
     isConcurrencySafe: () => true,
     async execute(args) {

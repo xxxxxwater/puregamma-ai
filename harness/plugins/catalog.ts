@@ -43,7 +43,8 @@ export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = 
     id: 'research', packageName: '@puregamma/dsh-research', plane: 'dual', risk: 'read-only',
     services: ['pgResearch'],
     tools: ['research_today', 'research_overnight', 'research_portfolio_impact', 'research_upcoming_events', 'research_opportunities', 'research_alerts'],
-    ui: ['tool.research-run', 'resource.research-artifact'],
+    // tool.call.toolview keys for the six research tools ship in @puregamma/dsh-ui-research.
+    ui: ['tool.research-document', 'tool.research-run', 'resource.research-artifact'],
     legacyOwners: ['packages/agents', 'packages/harness', 'apps/web/plugins/builtin/research', 'docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md'],
   },
   {
@@ -67,7 +68,8 @@ export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = 
   {
     id: 'portfolio', packageName: '@puregamma/dsh-portfolio', plane: 'dual', risk: 'read-only',
     services: ['pgPortfolio', 'pgNav'], tools: ['portfolio_snapshot', 'portfolio_positions', 'portfolio_nav'],
-    ui: ['tool.portfolio', 'resource.portfolio'],
+    // tool.call.toolview keys portfolio_nav/portfolio_snapshot ship in @puregamma/dsh-ui-portfolio.
+    ui: ['tool.portfolio-nav', 'resource.portfolio'],
     legacyOwners: ['packages/portfolio', 'apps/web/plugins/builtin/portfolio', 'apps/api/services/portfolio_service.py'],
   },
   {

@@ -42,6 +42,22 @@ declare module '@deepseek-ai/cordis' {
  * deliberately does not own sandbox/deep-research execution; that belongs to a
  * separate research-runner plugin which may depend on this service.
  */
+/**
+ * Client presentation of one research read, persisted as the tool result's
+ * `meta`. It carries provenance (as-of, observed, source, degraded) and the
+ * payload's section names only, never the payload itself, so the view states
+ * freshness without duplicating content the model already received.
+ */
+export interface ResearchDocumentPresentation {
+  readonly schema: 'puregamma.research.document/v1'
+  readonly kind: ResearchKind
+  readonly asOf: string | null
+  readonly observedAt: string
+  readonly degraded: boolean
+  readonly source: string
+  readonly sections: readonly string[]
+}
+
 export abstract class ResearchService extends Service {
   constructor(ctx: Context) {
     super(ctx, 'pgResearch')
