@@ -174,6 +174,12 @@ class Settings:
         )
         if parsed is not None
     )
+    # Explicit Credit rates for selectable Agent models that have no rate in
+    # packages/billing/metering.py MODEL_RATES: `id=base/input_per_1k/
+    # output_per_1k`, comma separated. A listed model without a rate here or
+    # in MODEL_RATES is reported `pricing_not_configured` and refused; it is
+    # never billed at the platform default rate.
+    agent_model_credit_rates: str = os.getenv("AGENT_MODEL_CREDIT_RATES", "")
     openai_luna_allowed_plans: tuple[str, ...] = tuple(
         _csv(os.getenv("OPENAI_LUNA_ALLOWED_PLANS", "Max,Enterprise"))
     )
@@ -713,6 +719,13 @@ class Settings:
         truthful instead of recording an alias.
         """
         return normalize_deepseek_model(self.deepseek_model)
+
+    @property
+    def agent_model_rates(self) -> dict[str, tuple[float, float, float]]:
+        """Deployment-configured Agent model rates (see AGENT_MODEL_CREDIT_RATES)."""
+        from packages.billing.metering import parse_model_rates
+
+        return parse_model_rates(self.agent_model_credit_rates)
 
     @property
     def deepseek_display_name(self) -> str:

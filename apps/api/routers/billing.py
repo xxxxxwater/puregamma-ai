@@ -10,6 +10,7 @@ from apps.api.services import billing_service
 from packages.database.models import User
 from apps.api.services.entitlement_service import get_user_entitlement
 from apps.api.services.credit_service import quote_task
+from packages.billing.metering import explicit_model_rate
 
 
 router = APIRouter(prefix="/billing", tags=["billing"])
@@ -132,6 +133,9 @@ def quote(
     if requested_model != "default" and requested_model not in offered:
         raise HTTPException(status_code=400, detail={"code": "AGENT_MODEL_INVALID"})
     entitlement = get_user_entitlement(db, user.id)
+    if requested_model in offered and explicit_model_rate(requested_model, settings.agent_model_rates) is None:
+        # Same fail-closed rule as the Agent: no explicit rate, no quote.
+        raise HTTPException(status_code=503, detail={"code": "AGENT_MODEL_PRICING_NOT_CONFIGURED"})
     if requested_model in offered:
         allowed_plans = {name.lower() for name in settings.openai_luna_allowed_plans}
         if entitlement["plan"].lower() not in allowed_plans:
@@ -144,6 +148,8 @@ def quote(
         selected_sources = [source for source in selected_sources if source in allowed_sources]
     result = quote_task(
         **payload.model_dump(exclude={"selected_data_sources"}),
+        model_rates=settings.agent_model_rates,
+        strict_model_rate=requested_model != "default",
         resolved_model=requested_model,
         selected_data_sources=selected_sources,
     )

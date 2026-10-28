@@ -36,14 +36,51 @@ const HISTORY_COLLAPSED_KEY = "pg:chat-history-collapsed";
  */
 function agentModelLabel(model: AgentModelOption, copy: ModelUpgradeCopy, catalogName: string | null, zh: boolean) {
   const name = model.id === "default" ? catalogName || copy.chat.badgeLive : model.display_name;
-  return `${name}${agentModelSuffix(model, zh)}`;
+  const provider = providerLabel(model.provider);
+  // Server display names may already carry the provider ("GPT-6 Sol · OpenAI").
+  const providerPart = provider && !name.toLowerCase().includes(provider.toLowerCase()) ? ` · ${provider}` : "";
+  return `${name}${providerPart}${agentModelSuffix(model, zh)}${agentModelEstimate(model, zh)}`;
+}
+
+const PROVIDER_LABELS: Record<string, string> = { openai: "OpenAI", deepseek: "DeepSeek", moonshot: "Moonshot", kimi: "Kimi", glm: "GLM", typesafe: "TypeSafe" };
+
+function providerLabel(provider: string | null | undefined) {
+  if (!provider || provider === "default" || provider === "mock") return "";
+  return PROVIDER_LABELS[provider.toLowerCase()] ?? provider;
 }
 
 function agentModelSuffix(model: AgentModelOption, zh: boolean) {
   if (model.id === "default") return zh ? " · 平台默认路由" : " · platform default route";
-  if (model.available) return zh ? " · 按实际使用计费" : " · usage-metered";
+  if (model.available) return "";
+  if (model.reason === "pricing_not_configured") return zh ? " · 未配置计价" : " · pricing not configured";
   if (model.reason === "plan_required") return zh ? " · 需要 Max/Enterprise" : " · Max/Enterprise required";
   return zh ? " · 当前不可用" : " · unavailable";
+}
+
+/**
+ * The server's typical-turn range, from the same rates billing uses. It is a
+ * menu hint only: the composer's estimate line remains the quote for the
+ * actual message, and the settled amount is what is charged.
+ */
+function agentModelEstimate(model: AgentModelOption, zh: boolean) {
+  const estimate = model.estimate;
+  if (!estimate || !Number.isFinite(estimate.min) || !Number.isFinite(estimate.max)) return "";
+  const range = estimate.min === estimate.max ? `${estimate.min}` : `${estimate.min}–${estimate.max}`;
+  return zh ? ` · 每轮约 ${range} Credits` : ` · ~${range} Credits/turn`;
+}
+
+/** Why the models missing from the menu are missing, counted by server reason. */
+function lockedModelNote(models: AgentModelOption[], zh: boolean) {
+  const locked = models.filter((model) => !model.available && model.category !== "evaluation");
+  if (!locked.length) return undefined;
+  const plan = locked.filter((model) => model.reason === "plan_required").length;
+  const pricing = locked.filter((model) => model.reason === "pricing_not_configured").length;
+  const other = locked.length - plan - pricing;
+  const parts = zh
+    ? [plan ? `${plan} 个需要升级套餐` : "", pricing ? `${pricing} 个尚未配置计价` : "", other ? `${other} 个当前不可用` : ""]
+    : [plan ? `${plan} need a plan upgrade` : "", pricing ? `${pricing} have no pricing configured` : "", other ? `${other} unavailable` : ""];
+  const detail = parts.filter(Boolean).join(zh ? "，" : ", ");
+  return zh ? `另有 ${locked.length} 个模型不在列表中：${detail}` : `${locked.length} more model${locked.length === 1 ? "" : "s"} not listed: ${detail}`;
 }
 
 type ModelUpgradeCopy = ReturnType<typeof getMessageNamespace<"model-upgrade">>;
@@ -753,8 +790,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     window.setTimeout(() => composerRef.current?.focus(), 0);
   };
 
-  const usableModels = models.filter((model) => model.available);
-  const lockedModels = models.length - usableModels.length;
+  const usableModels = models.filter((model) => model.available && model.category !== "evaluation");
   const query = historyQuery.trim().toLowerCase();
   const visibleConversations = conversations.filter((conversation) => Boolean(conversation.archived_at) === showArchived && (!query || conversation.title.toLowerCase().includes(query)));
   const archivedCount = conversations.filter((conversation) => conversation.archived_at).length;
@@ -917,8 +953,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           <ChatWorkspaceComposer locale={locale} input={input} onInput={setInput} busy={working} onSend={() => void send()} onStop={() => void stop()} attachments={attachments} onAttachments={setAttachments} permission={permission} onUploading={setUploading}
             onPermission={async (mode) => { if (conversationId) await setAgentPermission(conversationId, mode); setPermission(mode); }}
             researchMode={researchMode} onResearch={setResearchMode} onTextarea={node => { composerRef.current = node; }}
-            modelControl={<select id="agent-model" aria-label={zh ? "模型" : "Model"} value={selectedModel} onChange={event => setSelectedModel(event.target.value)} disabled={working} className="min-h-10 max-w-[220px] rounded-xl border border-border-pg bg-bg-panel-muted px-3 text-xs font-medium text-text-pg disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg">{usableModels.map(model => <option key={model.id} value={model.id}>{agentModelLabel(model, modelCopy, defaultModelName, zh)}{model.provider && model.id !== "default" ? ` · ${model.provider}` : ""}</option>)}</select>}
-            modelNote={lockedModels > 0 ? (zh ? `另有 ${lockedModels} 个模型需要升级套餐或当前不可用` : `${lockedModels} more model${lockedModels === 1 ? "" : "s"} need a plan upgrade or are unavailable`) : undefined}
+            modelControl={<select id="agent-model" aria-label={zh ? "模型" : "Model"} value={selectedModel} onChange={event => setSelectedModel(event.target.value)} disabled={working} className="min-h-10 max-w-[220px] rounded-xl border border-border-pg bg-bg-panel-muted px-3 text-xs font-medium text-text-pg disabled:opacity-50 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg">{usableModels.map(model => <option key={model.id} value={model.id} data-provider={model.provider}>{agentModelLabel(model, modelCopy, defaultModelName, zh)}</option>)}</select>}
+            modelNote={lockedModelNote(models, zh)}
             settings={<ContextControls locale={locale} plugins={plugins} pluginCounts={pluginCounts} skills={skills} customPrompt={customPrompt} onPrompt={setCustomPrompt} />} />
           {input.trim() && creditQuote && !creditQuote.unavailable ? <p className="mx-auto mt-2 max-w-3xl text-right text-xs text-text-pg-muted" data-testid="chat-estimate">{zh ? "预计" : "Estimated"} {estimatedCredits} Credits{creditQuote.reservation_amount ? (zh ? ` · 发送时预留 ${creditQuote.reservation_amount}，按实际结算` : ` · ${creditQuote.reservation_amount} reserved on send, settled on actual use`) : ""}</p> : null}
           {failure ? (

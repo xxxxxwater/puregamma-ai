@@ -49,9 +49,13 @@ const CAPABILITIES = {
     max_attachments: 5,
   },
   quota: { plan: "Pro", used: 3, limit: 200, remaining: 197, concurrent_limit: 2, running: 0, credit_balance: 1200 },
+  // Shaped like `agent_model_options`: provider, known capabilities, a
+  // typical-turn estimate from the billing rates, and limits.
   models: [
-    { id: "default", display_name: "Default model", description: "Uses the existing Agent default configuration.", provider: "default", available: true, reason: null, credit_cost: null },
-    { id: "gpt-5.6-luna", display_name: "GPT-5.6 Luna", description: "High-quality deep market research for selective use.", provider: "openai", available: false, reason: "plan_required", credit_cost: null },
+    { id: "default", display_name: "Default model", description: "Uses the existing Agent default configuration.", provider: "deepseek", available: true, reason: null, credit_cost: null, category: "generation", capabilities: { chat: true, reasoning: true, vision: true, tool_calling: true }, estimate: { min: 2, max: 6, unit: "credits", basis: "typical_turn", task_type: "agent_chat_basic" }, limits: { plans: null, plan_allowed: true, image_input: true } },
+    { id: "gpt-5.6-luna", display_name: "GPT-5.6 Luna · OpenAI", description: "High-quality deep market research for selective use.", provider: "openai", available: false, reason: "plan_required", credit_cost: null, category: "generation", capabilities: { chat: true }, estimate: { min: 6, max: 12, unit: "credits", basis: "typical_turn", task_type: "agent_luna_research" }, limits: { plans: ["Max", "Enterprise"], plan_allowed: false, image_input: false } },
+    { id: "gpt-6-sol", display_name: "GPT-6 Sol · OpenAI", description: "High-quality deep market research for selective use.", provider: "openai", available: false, reason: "pricing_not_configured", credit_cost: null, category: "generation", capabilities: { chat: true }, estimate: null, limits: { plans: ["Max", "Enterprise"], plan_allowed: false, image_input: false } },
+    { id: "jev", display_name: "Jev (TypeSafe)", description: "Evaluation model.", provider: "typesafe", available: true, reason: null, credit_cost: null, category: "evaluation", capabilities: { chat: false, evaluation: true }, estimate: null, limits: { plans: null, plan_allowed: true, image_input: false } },
   ],
   skills: [],
 };
@@ -367,10 +371,17 @@ test.describe("Agent Chat model label", () => {
     await expect(select).toHaveValue("default");
     await expect(select.locator("option[value='default']")).toHaveText(/DeepSeek V4\.1 Flash/);
     await expect(select.locator("option[value='default']")).toHaveText(/平台默认路由/);
-    // The menu lists only models this user can run now. A plan-locked model is
-    // not an option; the composer says how many exist instead.
+    // The menu lists only models this user can run now. A plan-locked or
+    // unpriced model is not an option, and neither is the evaluation-only Jev
+    // (the server refuses it as a chat model); the note says why per reason.
     await expect(select.locator("option[value='gpt-5.6-luna']")).toHaveCount(0);
-    await expect(page.getByTestId("model-note")).toContainText("1");
+    await expect(select.locator("option[value='gpt-6-sol']")).toHaveCount(0);
+    await expect(select.locator("option[value='jev']")).toHaveCount(0);
+    await expect(page.getByTestId("model-note")).toContainText("另有 2 个模型");
+    await expect(page.getByTestId("model-note")).toContainText("1 个需要升级套餐");
+    await expect(page.getByTestId("model-note")).toContainText("1 个尚未配置计价");
+    // Provider and the server's typical-turn estimate are on the option.
+    await expect(select.locator("option[value='default']")).toHaveText(/DeepSeek V4\.1 Flash · 平台默认路由 · 每轮约 2–6 Credits/);
     // The current model is stated exactly once. A normal state stays quiet, so
     // the abnormal-state notice must not be on the page.
     await expect(page.getByTestId("chat-model-badge")).toHaveCount(0);
@@ -381,6 +392,20 @@ test.describe("Agent Chat model label", () => {
     await expect(page).toHaveURL(/\/en\/chat$/);
     await expect(page.locator("#agent-model option[value='default']")).toHaveText(/DeepSeek V4\.1 Flash/);
     await expect(page.locator("#agent-model option[value='default']")).toHaveText(/platform default route/);
+    await expect(page.locator("#agent-model option[value='default']")).toHaveText(/~2–6 Credits\/turn/);
+    await expect(page.getByTestId("model-note")).toContainText("2 more models not listed: 1 need a plan upgrade, 1 have no pricing configured");
+  });
+
+  test("an eligible user sees each runnable model with its provider and estimate", async ({ page }) => {
+    const models = CAPABILITIES.models.map((model) => model.id === "gpt-5.6-luna" ? { ...model, available: true, reason: null, limits: { ...model.limits, plan_allowed: true } } : model);
+    await page.route("**/api/agent/capabilities", (route) => route.fulfill({ contentType: "application/json", body: JSON.stringify({ ...CAPABILITIES, models }) }));
+    await page.goto("/en/chat");
+    await expect(page).toHaveURL(/\/en\/chat$/);
+    const luna = page.locator("#agent-model option[value='gpt-5.6-luna']");
+    // The provider is stated once even though the server name already carries it.
+    await expect(luna).toHaveText("GPT-5.6 Luna · OpenAI · ~6–12 Credits/turn");
+    await expect(page.locator("#agent-model option[value='gpt-6-sol']")).toHaveCount(0);
+    await expect(page.getByTestId("model-note")).toContainText("1 more model not listed: 1 have no pricing configured");
   });
 
   test("a stored answer from another model is not relabelled as Flash", async ({ page }) => {
