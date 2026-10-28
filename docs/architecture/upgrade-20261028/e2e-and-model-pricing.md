@@ -134,4 +134,34 @@
 3. 照旧满足 `OPENAI_LUNA_ENABLED=true`、`OPENAI_API_KEY` 和 `OPENAI_LUNA_ALLOWED_PLANS`；
 4. 用 `GET /api/agent/capabilities` 确认对应模型 `available: true` 且 `estimate` 符合预期。
 
-<!-- PART3 -->
+## 三、测试证据（共享 8 GB 机器，本地实测）
+
+运行方式：每个 spec 单独启动一个 `next dev`（`NODE_OPTIONS=--max-old-space-size=2048`，跑完即关闭），`--workers=1`，两个项目（chromium、mobile-chrome），`DEV_API_PROXY_TARGET=http://127.0.0.1:9`，SSR 走 fixture API，浏览器只解析回环地址。
+
+| 范围 | 命令 | 结果 |
+| --- | --- | --- |
+| Playwright 全部 spec（除 route-audit） | 26 个 spec × 2 项目 | **300 通过，0 失败**；8 个跳过：live-chat-workspace 4 个（仅线上验收，需要 `LIVE_TOKEN`）＋ public-page-access 4 个（需要 `REQUIRE_AUTH=true`，见下一行） |
+| 受保护页面（auth-guard） | `REQUIRE_AUTH=true` 的 dev 服务器，`--grep "protected surfaces"` | 4 通过 |
+| route-audit | `next build`（`NEXT_PUBLIC_API_URL=/__dev-api`）+ `next start` | 114/114 通过 |
+| 合入最新 main 后复测 | nautilus、trading-runtime（main 新增）、live-trading、live-trading-workflow | 2 + 6 + 10 + 24 通过 |
+| Web | `pnpm typecheck`、`pnpm lint` | 通过；lint 9 条 warning，均为既有代码（`agent-chat.tsx` 那条是未改动的 hook） |
+| Web 构建 | `NEXT_PUBLIC_API_URL=https://api.puregamma.ai NEXT_PUBLIC_INITIAL_LAUNCH_MODE=true pnpm build` | 通过 |
+| 后端全量 | `PYTHONPATH=. PYTEST_DISABLE_PLUGIN_AUTOLOAD=1 python -m pytest -o addopts=--import-mode=importlib -q tests` | 1273 通过、3 跳过、4 xfail |
+| 计价相关 | `tests/unit/test_agent_model_pricing.py` 等 5 个文件 | 31 通过 |
+| ruff（CI 规则） | `ruff check apps packages services scripts tests --select E9,F63,F7,F82` | 通过 |
+
+新增的后端测试（`tests/unit/test_agent_model_pricing.py`）覆盖：费率配置严格解析；严格模式下未定价模型抛错、按选择 id 计价；能力接口对未定价模型报告 `pricing_not_configured` 且优先于 `plan_required`；配置费率后可用；`quote_agent_run` / `start_run` / `POST /api/agent/quote` / 发送消息 / `POST /billing/quote` 都拒绝未定价模型且不扣费；菜单估算等于用同一费率调用 `quote_credits` 的结果；预留金额等于报价；运行中费率被删除时按预留结算；GPT-6 系列在代码中没有费率。套餐门槛不变（`test_agent_luna_model.py` 全部通过）。
+
+## 四、回滚
+
+- 每部分是独立提交，可以单独 `git revert`：计价（`feat(billing): explicit per-model Agent rates…`）、E2E 各提交、CI、文档。
+- **计价回滚的影响**：回滚后 GPT-6 系列会重新按平台默认费率被报价、预留、结算（即本次修复前的状态）。若只想临时放开某个模型，不必回滚代码，按 2.5 配置 `AGENT_MODEL_CREDIT_RATES` 即可。
+- **数据库**：无迁移。
+- **API 兼容性**：`/api/agent/capabilities` 只新增字段（`capabilities`、`estimate`、`limits`，`provider` 对默认路由改为实际 provider）；`credit_cost` 仍为 `null`。新错误码 `AGENT_MODEL_PRICING_NOT_CONFIGURED`（HTTP 503，和原 `AGENT_MODEL_UNAVAILABLE` 同一状态码，旧客户端按“不可用”处理）。
+- **E2E 基础设施**：`playwright.config.ts` 的 SSR fixture 服务器、浏览器 DNS 限制、`globalSetup` 都可独立删除；`PLAYWRIGHT_ALLOW_EXTERNAL=1` 可临时恢复外部网络；`next.config.js` 的 `onDemandEntries` 只在 `PLAYWRIGHT_DEV_SERVER=1` 时生效，对生产构建和普通开发没有影响。
+
+## 五、范围外发现
+
+- 无需要其他工作流处理的缺陷。`live-trading*` 相关 spec 在本分支的离线环境下全部通过，未修改这些文件。
+- 本地跑测时，一次“预编译全部路由”的尝试让 dev 服务器超过 3 GB，导致共享机器内存不足重启；已改为只预编译错误页，并给本地运行脚本加了可用内存低于 700 MB 即中止的保护。
+
