@@ -523,6 +523,11 @@ def _previous_submission(db: Session, user: User, conversation: AgentConversatio
 
 
 def start_run(db: Session, user: User, conversation: AgentConversation, content: str, context: dict | None = None, *, client_request_id: str | None = None) -> AgentRun:
+    # Stale-run recovery commits, so it runs before the conversation lock is
+    # taken: committing after the duplicate check would release the lock and
+    # let a retry of the same submission pass the check too (two runs, two
+    # charges).
+    recover_stale_runs(db)
     conversation = db.query(AgentConversation).filter_by(id=conversation.id, user_id=user.id).with_for_update().one()
     if client_request_id:
         # Checked under the conversation row lock, so two copies of the same
@@ -536,7 +541,6 @@ def start_run(db: Session, user: User, conversation: AgentConversation, content:
     content = content.strip()
     if not content or len(content) > 12_000:
         raise ValueError("Message must contain 1 to 12000 characters")
-    recover_stale_runs(db)
     if db.bind and db.bind.dialect.name == "postgresql":
         db.execute(text("SELECT pg_advisory_xact_lock(73002001)"))
     user = db.query(User).filter(User.id == user.id).with_for_update().one()
