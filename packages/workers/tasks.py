@@ -36,6 +36,7 @@ from packages.database.models import (
 )
 from packages.database.session import SessionLocal
 from packages.billing.budgets import AutomationBudgetExceeded, pause_automation_budget
+from packages.notifications.market_brief import brief_locale, fetch_market_brief
 from packages.reports.templates import disclaimer_for
 from packages.trading.runtime_client import NautilusRuntimeClient
 from packages.workers.celery_app import celery_app
@@ -254,6 +255,24 @@ def _combined_email_message(preference: DailyBriefPreference, reports: list) -> 
     return "\n\n---\n\n".join(parts)
 
 
+def _daily_brief_subject(locale: str, local_date: date) -> str:
+    if brief_locale(locale) == "zh":
+        return f"PureGamma AI 每日简报 · {local_date.month}月{local_date.day}日"
+    return f"PureGamma AI Daily Brief · {local_date:%b} {local_date.day}"
+
+
+def _daily_brief_email(preference: DailyBriefPreference, report_digest: str, local_date: date) -> tuple[str, dict]:
+    """Daily brief email: the Coinbase market brief from the market-brief sidecar when a
+    fresh one is available, otherwise the consolidated report digest (rendered from
+    Markdown by the email provider). Returns the plain-text message and email metadata."""
+    brief = fetch_market_brief(preference.locale)
+    if brief:
+        logger.info("daily_brief_email_content content=market_brief snapshot_id=%s", brief["snapshot_id"])
+        return brief["text"], {"email_subject": brief["subject"], "email_html": brief["html"]}
+    logger.info("daily_brief_email_content content=report_digest")
+    return report_digest, {"email_subject": _daily_brief_subject(preference.locale, local_date)}
+
+
 def _process_due_preference(db, user: User, preference: DailyBriefPreference, scheduled_for) -> dict:
     """Generate cached typed reports for one due preference and dispatch them.
 
@@ -316,8 +335,10 @@ def _process_due_preference(db, user: User, preference: DailyBriefPreference, sc
             else:
                 skipped += 1
     if email_bundle:
-        email_message = _combined_email_message(preference, email_bundle)
         email_report_ids = [report.id for _report_type, report in email_bundle]
+        email_message, email_content = _daily_brief_email(
+            preference, _combined_email_message(preference, email_bundle), local_date
+        )
         try:
             delivery = send_notification(
                 db,
@@ -329,6 +350,7 @@ def _process_due_preference(db, user: User, preference: DailyBriefPreference, sc
                     "locale": preference.locale,
                     "report_ids": email_report_ids,
                     "automation_key": "daily_brief_delivery",
+                    **email_content,
                 },
             )
         except Exception:

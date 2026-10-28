@@ -225,6 +225,9 @@ services:
       REDIS_URL: redis://:${REDIS_PASSWORD:?REDIS_PASSWORD is required}@redis:6379/0
       NAUTILUS_RUNTIME_URL: http://nautilus-runtime:8090
       BACKTEST_ARTIFACT_DIR: ${BACKTEST_ARTIFACT_DIR:-/var/lib/puregamma/backtests}
+      # Daily brief e-mail content from the market-brief sidecar (/puregamma/market-brief).
+      # Unreachable or stale -> the report digest is sent instead; MARKET_BRIEF_URL= (empty) turns it off.
+      MARKET_BRIEF_URL: ${MARKET_BRIEF_URL-http://market-brief:8790}
       # LIVE Trading Control Plane (additive; EVERY gate defaults OFF)
       LIVE_TRADING_ENABLED: ${LIVE_TRADING_ENABLED:-false}
       LIVE_TRADING_DEPLOYMENT_APPROVED: ${LIVE_TRADING_DEPLOYMENT_APPROVED:-false}

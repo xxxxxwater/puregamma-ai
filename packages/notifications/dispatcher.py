@@ -283,8 +283,15 @@ class NotificationDispatcher:
             provider = APNsProvider(db, devices)
         else:
             provider = self._provider(channel)
+        # Email may carry its own subject and a pre-rendered HTML document (the daily
+        # market brief); the plain-text ``message`` stays the stored/retried payload.
+        email_overrides = {
+            key: metadata[key]
+            for key in ("email_subject", "email_html")
+            if channel == "email" and metadata.get(key)
+        }
         try:
-            result = provider.send(recipient, message, idempotency_key)
+            result = provider.send(recipient, message, idempotency_key, **email_overrides)
         except Exception as exc:
             if reservation:
                 refund_task(

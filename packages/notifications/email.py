@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import html as html_lib
 import logging
-import os
 import re
 import smtplib
 import time
@@ -13,41 +12,167 @@ from packages.notifications.base import NotificationResult
 
 logger = logging.getLogger("puregamma.notifications.email")
 
-_LOGO_PATH = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "..", "apps", "web", "public", "logo.png"))
-_LOGO_CID = "puregamma-logo"
-_logo_cache: bytes | None = None
+_FONT = "Arial,Helvetica,sans-serif"
+_LINK_STYLE = "color:#2563eb;text-decoration:underline;"
+_P_STYLE = "margin:0 0 14px 0;"
+_LIST_STYLE = "margin:0 0 14px 0;padding-left:22px;"
+_HEADING_STYLES = {
+    1: "margin:4px 0 12px 0;font-size:20px;line-height:1.4;font-weight:bold;color:#030303;",
+    2: "margin:18px 0 10px 0;font-size:17px;line-height:1.4;font-weight:bold;color:#030303;",
+    3: "margin:14px 0 8px 0;font-size:15px;line-height:1.4;font-weight:bold;color:#171717;",
+}
+_HR = '<hr style="border:0;border-top:1px solid #e7e8ea;margin:20px 0;"/>'
+_CELL = "padding:6px 8px;border-bottom:1px solid #e7e8ea;text-align:left;vertical-align:top;"
+
+_HEADING = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
+_RULE = re.compile(r"^\s*([-*_])(?:\s*\1){2,}\s*$")
+_BULLET = re.compile(r"^\s*[-*+•]\s+(.*)$")
+_NUMBERED = re.compile(r"^\s*\d{1,3}[.)]\s+(.*)$")
+_TABLE_ROW = re.compile(r"^\s*\|.*\|\s*$")
+_TABLE_RULE = re.compile(r"^\s*\|?\s*:?-{2,}:?\s*(?:\|\s*:?-{2,}:?\s*)*\|?\s*$")
+_INLINE = re.compile(
+    r"`(?P<code>[^`\n]+)`"
+    r"|\[(?P<label>[^\]\n]+)\]\((?P<href>https?://[^\s()<>]+)\)"
+    r"|(?P<url>https?://[A-Za-z0-9\-._~:/?#@!$&*+,;=%]+)"
+)
+_BOLD = re.compile(r"\*\*(?=\S)(.+?)(?<=\S)\*\*")
+_ITALIC = re.compile(r"(?<![*A-Za-z0-9])\*(?=[^\s*])([^*]+?)(?<=[^\s*])\*(?![*A-Za-z0-9])")
 
 
-def _logo_bytes() -> bytes | None:
-    """Inline brand logo for CID-embedded emails; cached, tolerant of absence."""
-    global _logo_cache
-    if _logo_cache is not None:
-        return _logo_cache
-    try:
-        with open(_LOGO_PATH, "rb") as handle:
-            _logo_cache = handle.read()
-    except OSError:
-        _logo_cache = b""
-    return _logo_cache or None
+def _link(href: str, label: str) -> str:
+    return f'<a href="{html_lib.escape(href, quote=True)}" style="{_LINK_STYLE}">{label}</a>'
+
+
+def _emphasis(escaped: str) -> str:
+    return _ITALIC.sub(r"<em>\1</em>", _BOLD.sub(r"<strong>\1</strong>", escaped))
+
+
+def _inline(text: str) -> str:
+    """Escape one line and render **bold**, *italic*, `code`, [label](url) and bare links."""
+    parts, last = [], 0
+    for match in _INLINE.finditer(text):
+        parts.append(_emphasis(html_lib.escape(text[last:match.start()])))
+        if match.group("code"):
+            parts.append(
+                '<code style="font-family:Menlo,Consolas,monospace;font-size:13px;background-color:#f3f4f6;'
+                f'padding:1px 4px;">{html_lib.escape(match.group("code"))}</code>'
+            )
+        elif match.group("href"):
+            parts.append(_link(match.group("href"), _emphasis(html_lib.escape(match.group("label")))))
+        else:
+            url = match.group("url")
+            trimmed = url.rstrip(".,;:!?")
+            parts.append(_link(trimmed, html_lib.escape(trimmed)) + html_lib.escape(url[len(trimmed):]))
+        last = match.end()
+    parts.append(_emphasis(html_lib.escape(text[last:])))
+    return "".join(parts)
+
+
+def _table_html(rows: list[list[str]], header: bool) -> str:
+    cells = []
+    for index, row in enumerate(rows):
+        tag, weight = ("th", "font-weight:bold;") if header and index == 0 else ("td", "")
+        cells.append("<tr>" + "".join(f'<{tag} style="{_CELL}{weight}">{_inline(cell)}</{tag}>' for cell in row) + "</tr>")
+    return (
+        '<div style="overflow-x:auto;margin:0 0 14px 0;"><table role="presentation" cellpadding="0" cellspacing="0" '
+        f'style="border-collapse:collapse;font-size:13px;line-height:1.5;">{"".join(cells)}</table></div>'
+    )
 
 
 def _text_to_html(body: str) -> str:
-    escaped = html_lib.escape(body or "")
-    escaped = re.sub(
-        r"(https?://[^\s<]+)",
-        r'<a href="\1" style="color:#2563eb;text-decoration:underline;">\1</a>',
-        escaped,
-    )
-    paragraphs = [
-        f'<p style="margin:0 0 14px 0;">{chunk.replace(chr(10), "<br/>")}</p>'
-        for chunk in escaped.split("\n\n")
-        if chunk.strip()
-    ]
-    return "".join(paragraphs)
+    """Render a report digest written in light Markdown as email-safe HTML.
+
+    Supports headings, bold/italic, inline code, links, bullet and numbered lists, block
+    quotes, horizontal rules and pipe tables; everything else stays escaped plain text.
+    """
+    blocks: list[str] = []
+    paragraph: list[str] = []
+    items: list[str] = []
+    rows: list[list[str]] = []
+    state = {"list": None, "header": False}
+
+    def flush_paragraph() -> None:
+        if paragraph:
+            blocks.append(f'<p style="{_P_STYLE}">' + "<br/>".join(_inline(line) for line in paragraph) + "</p>")
+            paragraph.clear()
+
+    def flush_list() -> None:
+        if items:
+            tag = state["list"]
+            blocks.append(
+                f'<{tag} style="{_LIST_STYLE}">'
+                + "".join(f'<li style="margin:0 0 6px 0;">{_inline(item)}</li>' for item in items)
+                + f"</{tag}>"
+            )
+            items.clear()
+        state["list"] = None
+
+    def flush_table() -> None:
+        if rows:
+            blocks.append(_table_html(rows, state["header"]))
+            rows.clear()
+        state["header"] = False
+
+    def flush() -> None:
+        flush_paragraph()
+        flush_list()
+        flush_table()
+
+    for raw in (body or "").replace("\r\n", "\n").split("\n"):
+        line = raw.strip()
+        if not line:
+            flush()
+            continue
+        if _TABLE_ROW.match(line):
+            flush_paragraph()
+            flush_list()
+            if _TABLE_RULE.match(line):
+                state["header"] = state["header"] or len(rows) == 1
+            else:
+                rows.append([cell.strip() for cell in line.strip("|").split("|")])
+            continue
+        flush_table()
+        heading = _HEADING.match(line)
+        if heading:
+            flush()
+            level = min(len(heading.group(1)), 3)
+            blocks.append(f'<div style="{_HEADING_STYLES[level]}">{_inline(heading.group(2))}</div>')
+            continue
+        if _RULE.match(line):
+            flush()
+            blocks.append(_HR)
+            continue
+        bullet, numbered = _BULLET.match(line), _NUMBERED.match(line)
+        if bullet or numbered:
+            flush_paragraph()
+            tag = "ul" if bullet else "ol"
+            if state["list"] != tag:
+                flush_list()
+                state["list"] = tag
+            items.append((bullet or numbered).group(1))
+            continue
+        if line.startswith(">"):
+            flush()
+            blocks.append(
+                '<div style="margin:0 0 14px 0;padding:2px 0 2px 12px;border-left:3px solid #e7e8ea;color:#4b5563;">'
+                f"{_inline(line.lstrip('>').strip())}</div>"
+            )
+            continue
+        if items and raw[:1] in (" ", "\t"):
+            items[-1] = f"{items[-1]} {line}"
+            continue
+        flush_list()
+        paragraph.append(line)
+    flush()
+    return "".join(blocks)
 
 
 def branded_email_html(body: str) -> str:
-    """Wrap a plain-text body in the PureGamma brand frame (logo header + footer)."""
+    """Wrap a plain-text or light-Markdown body in the PureGamma brand frame (wordmark header + footer).
+
+    The header is a text wordmark: the monochrome PNG logo is invisible on the dark header and
+    inline (CID) images are blocked or shown broken by several mail clients.
+    """
     content = _text_to_html(body)
     return f"""<!DOCTYPE html>
 <html lang="en"><head><meta charset="utf-8"/><meta name="viewport" content="width=device-width,initial-scale=1"/></head>
@@ -55,8 +180,7 @@ def branded_email_html(body: str) -> str:
 <table role="presentation" width="100%" cellpadding="0" cellspacing="0" style="background-color:#f6f7f8;"><tr><td align="center" style="padding:28px 12px;">
 <table role="presentation" width="560" cellpadding="0" cellspacing="0" style="width:100%;max-width:560px;background-color:#ffffff;border:1px solid #e7e8ea;">
   <tr><td style="background-color:#030303;padding:16px 24px;">
-    <img src="cid:{_LOGO_CID}" width="28" height="28" alt="PureGamma" style="display:inline-block;vertical-align:middle;border:0;"/>
-    <span style="display:inline-block;vertical-align:middle;margin-left:10px;color:#ffffff;font-family:Arial,Helvetica,sans-serif;font-size:17px;font-weight:bold;letter-spacing:0.2px;">PureGamma AI</span>
+    <span style="color:#ffffff;font-family:{_FONT};font-size:18px;font-weight:bold;letter-spacing:0.3px;">PureGamma AI</span>
   </td></tr>
   <tr><td style="padding:26px 24px 8px 24px;color:#171717;font-family:Arial,Helvetica,sans-serif;font-size:14px;line-height:1.75;">
     {content}
@@ -70,18 +194,16 @@ def branded_email_html(body: str) -> str:
 </body></html>"""
 
 
-def _build_message(recipient: str, subject: str, body: str, sender: str) -> EmailMessage:
+def _build_message(recipient: str, subject: str, body: str, sender: str, html: str | None = None) -> EmailMessage:
+    """Plain-text body plus an HTML alternative: ``html`` when given (a complete email-safe
+    document such as the market brief), otherwise the branded rendering of ``body``."""
     message = EmailMessage()
-    message["Subject"] = subject
+    message["Subject"] = " ".join((subject or "PureGamma AI").split())
     message["From"] = sender
     message["To"] = recipient
     message["Reply-To"] = sender
     message.set_content(body or "", charset="utf-8")
-    message.add_alternative(branded_email_html(body), subtype="html")
-    logo = _logo_bytes()
-    if logo:
-        html_part = message.get_payload()[-1]
-        html_part.add_related(logo, maintype="image", subtype="png", cid=f"<{_LOGO_CID}>", filename="logo.png")
+    message.add_alternative(html or branded_email_html(body), subtype="html")
     return message
 
 
@@ -126,19 +248,28 @@ def _deliver(message: EmailMessage) -> None:
 class EmailProvider:
     channel = "email"
 
-    def send(self, recipient: str, message: str, idempotency_key: str) -> NotificationResult:
+    def send(
+        self,
+        recipient: str,
+        message: str,
+        idempotency_key: str,
+        email_subject: str | None = None,
+        email_html: str | None = None,
+    ) -> NotificationResult:
         settings = get_settings()
         if not settings.smtp_host:
             return NotificationResult(True, self.channel, {"mode": "mock", "recipient": recipient, "idempotency_key": idempotency_key})
-        email = _build_message(recipient, "PureGamma AI", message, f"PureGamma AI <{settings.smtp_user}>")
+        email = _build_message(
+            recipient, email_subject or "PureGamma AI", message, f"PureGamma AI <{settings.smtp_user}>", html=email_html
+        )
         _deliver(email)
-        return NotificationResult(True, self.channel, {"mode": "smtp", "branded": True})
+        return NotificationResult(True, self.channel, {"mode": "smtp", "branded": True, **({"html": "provided"} if email_html else {})})
 
 
-def send_email(recipient: str, subject: str, body: str) -> bool:
+def send_email(recipient: str, subject: str, body: str, html: str | None = None) -> bool:
     settings = get_settings()
     if not settings.smtp_host:
         return False
-    email = _build_message(recipient, subject, body, f"PureGamma AI <{settings.smtp_user}>")
+    email = _build_message(recipient, subject, body, f"PureGamma AI <{settings.smtp_user}>", html=html)
     _deliver(email)
     return True
