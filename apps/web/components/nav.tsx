@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useCallback, useEffect, useState, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 import { Bell, BookOpen, Bot, BrainCircuit, BriefcaseBusiness, Chrome, Code2, CreditCard, FlaskConical, Gauge, HeartHandshake, LayoutDashboard, LifeBuoy, Menu, MessageCircle, Network, Newspaper, Smartphone, UserRound, X, type LucideIcon } from "lucide-react";
 import { AppearanceControls } from "@/components/appearance-controls";
@@ -17,6 +17,7 @@ import { getMe, AUTH_EXPIRED_EVENT } from "@/lib/api";
 import { formatClockTime, formatUtcTime, useClockNow } from "@/lib/chrono";
 import { publishUserState, USER_STATE_EVENT, type SessionUserState } from "@/lib/user-state";
 import { applySurfaceTier, surfaceTierForPath } from "@/lib/visual-style";
+import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { Chronosphere } from "@/components/chrono/chronosphere";
 import { PluginRuntime } from "@/plugins/core/runtime";
 import { usePluginNavItems } from "@/plugins/core/services/navigation";
@@ -137,14 +138,7 @@ export function AppShell({ children, locale }: { children: ReactNode; locale: Lo
     applySurfaceTier(surfaceTierForPath(pathname || "/"));
     return () => applySurfaceTier(null);
   }, [pathname]);
-  useEffect(() => {
-    if (!mobileNavOpen) return;
-    const onKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") setMobileNavOpen(false);
-    };
-    window.addEventListener("keydown", onKeyDown);
-    return () => window.removeEventListener("keydown", onKeyDown);
-  }, [mobileNavOpen]);
+  const closeMobileNav = useCallback(() => setMobileNavOpen(false), []);
   return (
     <LocaleProvider locale={locale}>
       <PluginRuntime>
@@ -152,10 +146,10 @@ export function AppShell({ children, locale }: { children: ReactNode; locale: Lo
           <Chronosphere />
           <AuthExpiredRedirector locale={locale} />
         <SidebarNav locale={locale} />
-        <MobileNavDrawer locale={locale} open={mobileNavOpen} onClose={() => setMobileNavOpen(false)} />
+        <MobileNavDrawer locale={locale} open={mobileNavOpen} onClose={closeMobileNav} />
 
         <div className="lg:pl-[284px]">
-          <TopStatusBar locale={locale} onMenuClick={() => setMobileNavOpen(true)} />
+          <TopStatusBar locale={locale} menuOpen={mobileNavOpen} onMenuClick={() => setMobileNavOpen(true)} />
 
             <main className="mx-auto max-w-[1440px] px-4 py-5 md:px-6">
               {children}
@@ -170,10 +164,30 @@ export function AppShell({ children, locale }: { children: ReactNode; locale: Lo
 export function MobileNavDrawer({ locale, open, onClose }: { locale: Locale; open: boolean; onClose: () => void }) {
   const pathname = usePathname();
   const activePathname = stripLocale(pathname);
+  const panelRef = useRef<HTMLDivElement | null>(null);
+  // Focus moves in, Tab stays in, Escape closes, focus returns to the menu
+  // button. While closed the panel is `invisible` and `inert`: it was only
+  // translated by its own width, so with `left-3` a 12px strip and its shadow
+  // stayed on screen, its links stayed in the Tab order, and assistive tech
+  // was told a modal dialog was open on every page.
+  // `inert` must be cleared before focus moves in (effects run in order).
+  useEffect(() => {
+    if (panelRef.current) panelRef.current.inert = !open;
+  }, [open]);
+  useDialogFocus(open, panelRef, onClose);
   return (
     <>
       {open ? <div className="fixed inset-0 z-40 bg-black/40 backdrop-blur-sm lg:hidden" onClick={onClose} aria-hidden /> : null}
-      <div role="dialog" aria-modal="true" aria-label={locale === "zh" ? "主导航" : "Primary navigation"} className={`fixed inset-y-3 left-3 z-50 flex w-80 max-w-[85vw] transform flex-col rounded-2xl border border-border-pg bg-bg-app p-5 shadow-2xl transition-transform duration-200 lg:hidden ${open ? "translate-x-0" : "-translate-x-full"}`}>
+      <div
+        ref={panelRef}
+        id="mobile-primary-nav"
+        role={open ? "dialog" : undefined}
+        aria-modal={open ? true : undefined}
+        aria-hidden={open ? undefined : true}
+        aria-label={locale === "zh" ? "主导航" : "Primary navigation"}
+        data-state={open ? "open" : "closed"}
+        className={`fixed inset-y-3 left-3 z-50 flex w-80 max-w-[85vw] transform flex-col rounded-2xl border border-border-pg bg-bg-app p-5 shadow-2xl duration-200 motion-reduce:transition-none lg:hidden ${open ? "visible translate-x-0 transition-transform" : "invisible -translate-x-[calc(100%+1.5rem)] transition-[transform,visibility]"}`}
+      >
         <div className="flex items-center justify-between gap-2">
           <Link href={withLocale(locale, "/")} className="flex min-w-0 items-center text-text-pg">
             <BrandLockup size="compact" />
@@ -267,7 +281,7 @@ export function SidebarNav({ locale }: { locale: Locale }) {
   );
 }
 
-export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuClick: () => void }) {
+export function TopStatusBar({ locale, onMenuClick, menuOpen = false }: { locale: Locale; onMenuClick: () => void; menuOpen?: boolean }) {
   const [storedUser, setStoredUser] = useState<StoredUser | null>(null);
   const pathname = usePathname();
   const dashboardRoute = stripLocale(pathname || "/") === "/dashboard";
@@ -323,7 +337,7 @@ export function TopStatusBar({ locale, onMenuClick }: { locale: Locale; onMenuCl
           reachable, and the brand is no longer compressible. Font size was not
           reduced to make things fit.
         */}
-        <button type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong lg:hidden rounded-lg" data-testid="nav-menu-button"><Menu className="h-4 w-4" /></button>
+        <button type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} aria-expanded={menuOpen} aria-controls="mobile-primary-nav" aria-haspopup="dialog" className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong lg:hidden rounded-lg" data-testid="nav-menu-button"><Menu className="h-4 w-4" /></button>
         <Link
           href={withLocale(locale, "/")}
           className="flex shrink-0 items-center whitespace-nowrap text-text-pg lg:hidden"
