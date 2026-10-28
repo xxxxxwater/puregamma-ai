@@ -31,6 +31,7 @@ const devEnv: Record<string, string> = {
   DEV_API_PROXY_TARGET: apiProxyTarget,
   REQUIRE_AUTH: "false",
   PUREGAMMA_SERVER_API_URL: ssrApiUrl,
+  PLAYWRIGHT_DEV_SERVER: "1",
 };
 const devCommand = process.platform === "win32"
   ? `${Object.entries(devEnv).map(([key, value]) => `set "${key}=${value}"`).join(" && ")} && node ./node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`
