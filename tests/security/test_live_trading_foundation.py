@@ -8,6 +8,7 @@ No test ever requires a real broker — a fake gateway stands in.
 
 from __future__ import annotations
 
+import time
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -24,18 +25,15 @@ from packages.database.models import (
     RiskCheck,
     StrategyRelease,
     TradingAccount,
-    TradingKillSwitch,
     TradingMandate,
     TradingReconciliation,
     TradingStrategy,
-    utcnow,
 )
 from packages.live_trading import control_plane, flags, kill_switch, ledger, nav
 from packages.live_trading import price_feed as price_feed_service
 from packages.live_trading import reconciliation as reconciliation_service
 from packages.live_trading import risk_engine
 from packages.live_trading.enums import LiveOrderStatus, OrderSource
-from packages.live_trading.gateway_adapter import GatewayError
 from packages.live_trading.secret_store import decrypt_secrets, encrypt_secrets
 
 
@@ -449,7 +447,9 @@ def test_live_order_source_is_reserved(db, user_factory, monkeypatch):
     ("side", "trade_type", "trade_amount", "cash_balance", "realized_pnl"),
     [
         ("buy", "trade_buy", Decimal("-200"), Decimal("-203"), Decimal("-3")),
-        ("sell", "trade_sell", Decimal("200"), Decimal("197"), Decimal("197")),
+        # Sale proceeds are cash, not profit: with no prior position the sell
+        # opens at its own price and only the fee is realized.
+        ("sell", "trade_sell", Decimal("200"), Decimal("197"), Decimal("-3")),
     ],
 )
 def test_fill_fee_is_recorded_once(
@@ -795,3 +795,110 @@ def test_full_gate_requires_user_approval(db, user_factory, monkeypatch):
     gate = flags.evaluate_full_gate(db, user.id, world["mandate"])
     assert gate.enabled is False
     assert gate.checks["user_live_approved"]["ok"] is False
+
+
+# ---------------------------------------------------------------------------
+# Review fixes: realized PnL, rejection codes, available-cash fallback
+# ---------------------------------------------------------------------------
+
+
+def _post_trade(db, user, world, *, key: str, side: str, quantity: str, price: str):
+    qty = Decimal(quantity)
+    px = Decimal(price)
+    ledger.post_entry(
+        db,
+        user_id=user.id,
+        account_id=world["account"].id,
+        entry_type="trade_buy" if side == "buy" else "trade_sell",
+        amount=-(qty * px) if side == "buy" else qty * px,
+        symbol="BTCUSDT",
+        quantity=qty if side == "buy" else -qty,
+        price=px,
+        idempotency_key=f"test:{key}",
+        trace_id="test",
+    )
+
+
+def test_realized_pnl_uses_average_cost_basis(db, user_factory, monkeypatch):
+    user = user_factory("realized-avg@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    account_id = world["account"].id
+    ledger.post_entry(
+        db,
+        user_id=user.id,
+        account_id=account_id,
+        entry_type="cash_deposit",
+        amount="10000",
+        idempotency_key="test:deposit",
+        trace_id="test",
+    )
+    _post_trade(db, user, world, key="b1", side="buy", quantity="1", price="100")
+    _post_trade(db, user, world, key="b2", side="buy", quantity="1", price="200")
+    # Average cost 150; selling 1 @ 180 realizes +30, not the 180 proceeds.
+    _post_trade(db, user, world, key="s1", side="sell", quantity="1", price="180")
+    assert ledger.realized_pnl(db, account_id) == Decimal("30")
+    # Remaining unit sold @ 120 realizes -30; deposits are never PnL.
+    _post_trade(db, user, world, key="s2", side="sell", quantity="1", price="120")
+    assert ledger.realized_pnl(db, account_id) == Decimal("0")
+    assert ledger.daily_realized_pnl(db, account_id) == Decimal("0")
+
+
+def test_realized_pnl_since_uses_basis_from_earlier_entries(db, user_factory, monkeypatch):
+    user = user_factory("realized-since@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    account_id = world["account"].id
+    _post_trade(db, user, world, key="b1", side="buy", quantity="2", price="100")
+    time.sleep(0.01)
+    cutoff = datetime.now(timezone.utc)
+    time.sleep(0.01)
+    _post_trade(db, user, world, key="s1", side="sell", quantity="2", price="70")
+    assert ledger.realized_pnl(db, account_id, since=cutoff) == Decimal("-60")
+
+
+def test_losing_round_trip_triggers_max_daily_loss(db, user_factory, monkeypatch):
+    user = user_factory("daily-loss@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)  # max_daily_loss=500
+    account_id = world["account"].id
+    buy = _make_fill_order(db, user, world, side="buy", quantity="10")
+    control_plane._apply_fill(
+        db, buy, account_id=account_id, broker_fill_id="loss-buy",
+        quantity=Decimal("10"), price=Decimal("100"), fee=Decimal("1"),
+        fee_currency="USD", executed_at=datetime.now(timezone.utc), raw={},
+    )
+    sell = _make_fill_order(db, user, world, side="sell", quantity="10")
+    control_plane._apply_fill(
+        db, sell, account_id=account_id, broker_fill_id="loss-sell",
+        quantity=Decimal("10"), price=Decimal("40"), fee=Decimal("1"),
+        fee_currency="USD", executed_at=datetime.now(timezone.utc), raw={},
+    )
+    db.commit()
+    # (40 - 100) * 10 - 2 fees; gross sale proceeds (+400) must not mask it.
+    assert ledger.daily_realized_pnl(db, account_id) == Decimal("-602")
+
+    ctx = risk_engine.build_ctx(
+        db, mandate=world["mandate"], connection=world["connection"], gateway=FakeGateway()
+    )
+    assert ctx.daily_realized_pnl == Decimal("-602")
+    verdict = risk_engine.RiskEngine(db).evaluate(
+        user_id=user.id, symbol="BTCUSDT", side="buy", quantity="1",
+        order_type="market", limit_price=None, ctx=ctx,
+    )
+    assert verdict.result == "REJECT"
+    assert "MAX_DAILY_LOSS" in (verdict.rejection_reason or "")
+
+
+def test_profitable_round_trip_does_not_trigger_max_daily_loss(db, user_factory, monkeypatch):
+    user = user_factory("daily-gain@test.com")
+    world = _make_live_world(db, user, monkeypatch=monkeypatch)
+    _post_trade(db, user, world, key="b1", side="buy", quantity="10", price="100")
+    _post_trade(db, user, world, key="s1", side="sell", quantity="10", price="110")
+    db.commit()
+    ctx = risk_engine.build_ctx(
+        db, mandate=world["mandate"], connection=world["connection"], gateway=FakeGateway()
+    )
+    assert ctx.daily_realized_pnl == Decimal("100")
+    verdict = risk_engine.RiskEngine(db).evaluate(
+        user_id=user.id, symbol="BTCUSDT", side="buy", quantity="1",
+        order_type="market", limit_price=None, ctx=ctx,
+    )
+    assert verdict.result == "PASS", verdict.rejection_reason
