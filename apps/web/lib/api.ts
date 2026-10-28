@@ -2045,23 +2045,50 @@ export async function previewLiveOrder(payload: {
   if (!response.ok) {
     if (response.status === 401) notifyAuthExpired();
     const raw = await response.text();
-    let message = raw || `Order preview failed (HTTP ${response.status})`;
-    let checks: LiveRiskCheckEntry[] = [];
-    try {
-      const parsed = JSON.parse(raw) as {
-        detail?: { code?: string; message?: string; checks?: LiveRiskCheckEntry[] } | string;
-      };
-      const detail = typeof parsed.detail === "string" ? null : parsed.detail;
-      if (detail?.message) message = detail.message;
-      if (Array.isArray(detail?.checks)) checks = detail.checks;
-    } catch {
-      /* non-JSON error body — keep the raw message */
+    const parsed = parseApiErrorBody(raw);
+    // Only a 4xx is the control plane answering "no" (with its RiskCheck
+    // list). A 5xx or proxy error means the preview never ran; showing it as a
+    // risk rejection would tell the user their order failed a check it was
+    // never put through.
+    if (response.status >= 400 && response.status < 500) {
+      throw new LiveOrderRejectedError(parsed.message || `Order preview failed (HTTP ${response.status})`, response.status, parsed.checks);
     }
-    throw new LiveOrderRejectedError(message, response.status, checks);
+    const error = new Error(parsed.message || `Order preview unavailable (HTTP ${response.status})`) as Error & { status?: number; code?: string };
+    error.status = response.status;
+    error.code = parsed.code;
+    throw error;
   }
   const result = (await response.json()) as LiveOrderPreviewResult;
   syncUserStateFromPayload(result);
   return result;
+}
+
+/** Normalise a FastAPI error body (`{detail: string | {code, message, checks}}`). */
+export function parseApiErrorBody(raw: string): { code?: string; message: string; checks: LiveRiskCheckEntry[] } {
+  try {
+    const parsed = JSON.parse(raw) as { detail?: unknown };
+    const detail = parsed.detail;
+    if (typeof detail === "string") return { message: detail, checks: [] };
+    if (detail && typeof detail === "object") {
+      const record = detail as { code?: unknown; message?: unknown; checks?: unknown };
+      return {
+        code: typeof record.code === "string" ? record.code : undefined,
+        message: typeof record.message === "string" ? record.message : typeof record.code === "string" ? record.code : "",
+        checks: Array.isArray(record.checks) ? (record.checks as LiveRiskCheckEntry[]) : [],
+      };
+    }
+  } catch {
+    /* not JSON */
+  }
+  return { message: raw.slice(0, 300), checks: [] };
+}
+
+/** A thrown API error reduced to what a UI may show: status, code, one line. */
+export function describeApiError(error: unknown): { status?: number; code?: string; message: string } {
+  const status = (error as { status?: number } | null)?.status;
+  const raw = error instanceof Error ? error.message : String(error ?? "");
+  const parsed = parseApiErrorBody(raw);
+  return { status, code: (error as { code?: string } | null)?.code || parsed.code, message: parsed.message || raw };
 }
 
 export function confirmLiveOrder(orderIntentId: string, confirmation: string) {
@@ -2076,6 +2103,28 @@ export function cancelLiveOrder(clientOrderId: string) {
     method: "POST",
     body: JSON.stringify({ client_order_id: clientOrderId }),
   });
+}
+
+export type LiveFillRow = {
+  id: string;
+  order_id: string;
+  symbol: string;
+  side: string;
+  quantity: string;
+  price: string;
+  fee: string;
+  fee_currency: string | null;
+  executed_at: string | null;
+  broker_fill_id: string | null;
+};
+
+export function getLiveFills(orderId?: string) {
+  const query = orderId ? `?order_id=${encodeURIComponent(orderId)}` : "";
+  return requestStrict<{ fills: LiveFillRow[] }>(`/api/trading/fills${query}`);
+}
+
+export function revokeLiveConnection(connectionId: string) {
+  return requestStrict<{ connection: LiveBrokerConnection }>(`/api/trading/connections/${encodeURIComponent(connectionId)}/revoke`, { method: "POST" });
 }
 
 export function getLivePortfolioPositions() {

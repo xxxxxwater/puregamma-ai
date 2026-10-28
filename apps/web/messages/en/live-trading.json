@@ -210,5 +210,85 @@
     "loading": "Loading…",
     "retry": "Retry",
     "noValue": "—"
+  },
+  "workflow": {
+    "approval": {
+      "title": "Review before submitting a LIVE order",
+      "action": "Proposed action",
+      "scope": "Account & scope",
+      "scopeValue": "Mandate {mandate} · allowed symbols {symbols}",
+      "impact": "Impact",
+      "notionalLimit": "≈ {value} quote notional (quantity × limit price), within the per-order cap {limit}",
+      "notionalMarket": "Fills at the market price; the control plane caps it at this mandate's per-order limit {limit}",
+      "permission": "Authority used",
+      "permissionValue": "LIVE spot trading under mandate approval “{approval}”; your LIVE approval caps total notional at {cap}",
+      "validity": "Valid for",
+      "expiresIn": "{seconds}s left · expires {time}",
+      "expired": "This preview expired. Preview again for a new confirmation phrase.",
+      "typeToken": "Type the confirmation phrase exactly to approve this one order:",
+      "approve": "Approve and submit",
+      "deny": "Reject this intent",
+      "denied": "Intent rejected. Nothing was submitted; the server lets it expire.",
+      "noRiskEstimate": "Risk checks run again on the server at submit time; this preview is not a guarantee of execution."
+    },
+    "submission": {
+      "submitting": "Submitting to the control plane…",
+      "ambiguousTitle": "Submission result unknown",
+      "ambiguousBody": "The request did not get a definite answer, so the order may already exist at the venue. Do not preview a new order for the same trade. Check the order list, or re-send this same intent — the server accepts each intent at most once.",
+      "checking": "Checking the order list…",
+      "checkAgain": "Check again",
+      "resendSame": "Re-send the same intent",
+      "found": "Order {client} exists with status {status}.",
+      "notFound": "No order for this intent is visible yet.",
+      "rejectedTitle": "Not submitted",
+      "clear": "I verified this at the venue — clear",
+      "previewBlocked": "Resolve the unknown submission above before previewing another order.",
+      "unavailable": "The order preview service is unavailable; no intent was created."
+    },
+    "unknown": {
+      "banner": "{count} order(s) have an unknown venue status. They are never retried automatically; reconciliation queries the venue. Do not place a replacement order.",
+      "row": "Unknown at venue — reconciling, never retried",
+      "lastSync": "Last synced {time}",
+      "neverSynced": "Not synced yet"
+    },
+    "details": {
+      "show": "Details",
+      "averagePrice": "Average price",
+      "submittedAt": "Submitted",
+      "lastSync": "Last sync",
+      "error": "Error",
+      "trace": "Trace",
+      "intent": "Intent"
+    },
+    "fills": {
+      "colTime": "Executed",
+      "colPrice": "Price",
+      "colFee": "Fee",
+      "empty": "No fills recorded yet.",
+      "unavailable": "Fills could not be loaded; order status above is unaffected."
+    },
+    "refresh": {
+      "auto": "Refreshing every 10 s while orders are open",
+      "now": "Refresh",
+      "updated": "Updated {time}"
+    },
+    "revoke": {
+      "button": "Revoke",
+      "title": "Revoke this connection?",
+      "body": "The connection is marked revoked and every LIVE mandate bound to it is paused. Open orders are not canceled by revoking — cancel them separately.",
+      "done": "Connection revoked; bound mandates paused.",
+      "revoked": "Revoked"
+    },
+    "nav": {
+      "provenance": "Server-computed · NAV = cash + Σ(quantity × latest valid price) · {currency} · calculation v{version}",
+      "asOf": "Calculated {calculated} · prices as of {price}",
+      "staleComponents": "Stale snapshot: the components below are from {calculated} and are not current values.",
+      "noAccount": "No LIVE trading account yet. NAV appears once an account is provisioned — it is not zero.",
+      "noPrice": "no valid price"
+    },
+    "emergencyResult": {
+      "paused": "Paused {id}",
+      "failed": "Could not pause {id} — retry or contact support"
+    }
   }
 }

@@ -210,5 +210,85 @@
     "loading": "加载中…",
     "retry": "重试",
     "noValue": "—"
+  },
+  "workflow": {
+    "approval": {
+      "title": "提交实盘订单前请逐项核对",
+      "action": "拟执行动作",
+      "scope": "账户与范围",
+      "scopeValue": "Mandate {mandate} · 允许标的 {symbols}",
+      "impact": "影响",
+      "notionalLimit": "约 {value} 计价名义金额（数量 × 限价），单笔上限 {limit}",
+      "notionalMarket": "按市价成交；交易控制平面按该 Mandate 单笔上限 {limit} 拦截",
+      "permission": "所用权限",
+      "permissionValue": "依据 Mandate 审批「{approval}」的现货实盘权限；你的实盘审批总名义上限为 {cap}",
+      "validity": "有效期",
+      "expiresIn": "剩余 {seconds} 秒 · {time} 过期",
+      "expired": "此预览已过期，请重新预览以获取新的确认短语。",
+      "typeToken": "请完整输入确认短语，以批准这一笔订单：",
+      "approve": "批准并提交",
+      "deny": "拒绝此意图",
+      "denied": "已拒绝此意图。未提交任何订单，服务端会让其自然过期。",
+      "noRiskEstimate": "提交时服务端会重新执行全部风控检查；预览不代表一定成交。"
+    },
+    "submission": {
+      "submitting": "正在提交到交易控制平面…",
+      "ambiguousTitle": "提交结果未知",
+      "ambiguousBody": "这次请求没有得到明确答复，订单可能已经到达交易所。请不要为同一笔交易重新预览下单。请核对订单列表，或重发同一意图——服务端对每个意图最多只接受一次。",
+      "checking": "正在核对订单列表…",
+      "checkAgain": "再次核对",
+      "resendSame": "重发同一意图",
+      "found": "已找到订单 {client}，状态 {status}。",
+      "notFound": "暂未看到此意图对应的订单。",
+      "rejectedTitle": "未提交",
+      "clear": "我已在交易所核实，清除提示",
+      "previewBlocked": "请先处理上方结果未知的提交，再预览新订单。",
+      "unavailable": "订单预览服务暂不可用，未创建任何意图。"
+    },
+    "unknown": {
+      "banner": "{count} 笔订单在交易所的状态未知。系统不会自动重试，对账会向交易所查询。请勿下替代单。",
+      "row": "交易所状态未知——对账中，不会重试",
+      "lastSync": "最近同步 {time}",
+      "neverSynced": "尚未同步"
+    },
+    "details": {
+      "show": "详情",
+      "averagePrice": "成交均价",
+      "submittedAt": "提交时间",
+      "lastSync": "最近同步",
+      "error": "错误",
+      "trace": "追踪 ID",
+      "intent": "意图"
+    },
+    "fills": {
+      "colTime": "成交时间",
+      "colPrice": "价格",
+      "colFee": "手续费",
+      "empty": "暂无成交记录。",
+      "unavailable": "成交记录暂时无法加载；上方订单状态不受影响。"
+    },
+    "refresh": {
+      "auto": "存在未完成订单，每 10 秒自动刷新",
+      "now": "刷新",
+      "updated": "更新于 {time}"
+    },
+    "revoke": {
+      "button": "吊销",
+      "title": "吊销此连接？",
+      "body": "此连接将被标记为已吊销，所有绑定的实盘 Mandate 会被暂停。吊销不会撤销未完成订单——请单独撤单。",
+      "done": "连接已吊销，绑定的 Mandate 已暂停。",
+      "revoked": "已吊销"
+    },
+    "nav": {
+      "provenance": "服务端计算 · NAV = 现金 + Σ(数量 × 最新有效价格) · {currency} · 计算版本 v{version}",
+      "asOf": "计算于 {calculated} · 价格时间 {price}",
+      "staleComponents": "快照已过期：以下分项来自 {calculated}，不是当前值。",
+      "noAccount": "尚无实盘交易账户。开通账户后才会显示 NAV——这不代表 NAV 为 0。",
+      "noPrice": "无有效价格"
+    },
+    "emergencyResult": {
+      "paused": "已暂停 {id}",
+      "failed": "暂停 {id} 失败——请重试或联系支持"
+    }
   }
 }

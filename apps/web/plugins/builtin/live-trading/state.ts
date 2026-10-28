@@ -103,3 +103,77 @@ export function isOpenLiveOrderStatus(status: string | null | undefined): boolea
     normalized === "unknown"
   );
 }
+
+/**
+ * Exact product of two non-negative decimal strings, as a decimal string.
+ *
+ * Used for the "about this much notional" line of a LIMIT order approval
+ * (quantity × limit price). BigInt keeps it exact: a binary float would
+ * already be wrong in the cents for a large quantity. Returns null for
+ * anything that is not a plain decimal.
+ */
+export function multiplyDecimalStrings(a: string | null | undefined, b: string | null | undefined): string | null {
+  const pattern = /^\d+(\.\d+)?$/;
+  if (!a || !b || !pattern.test(a.trim()) || !pattern.test(b.trim())) return null;
+  const split = (value: string) => {
+    const [whole, fraction = ""] = value.trim().split(".");
+    return { digits: BigInt(`${whole}${fraction}` || "0"), scale: fraction.length };
+  };
+  const left = split(a);
+  const right = split(b);
+  const scale = left.scale + right.scale;
+  const raw = (left.digits * right.digits).toString().padStart(scale + 1, "0");
+  if (scale === 0) return raw;
+  const whole = raw.slice(0, raw.length - scale).replace(/^0+(?=\d)/, "");
+  const fraction = raw.slice(raw.length - scale).replace(/0+$/, "");
+  return fraction ? `${whole}.${fraction}` : whole;
+}
+
+/**
+ * What a failed LIVE confirm means for the money.
+ *
+ * - "rejected": the control plane answered (a 4xx): the order was not placed,
+ *   for the stated reason (expired, token mismatch, gate closed, risk check).
+ * - "ambiguous": no answer, a timeout, or a 5xx. The server may already hold
+ *   the order. The console must reconcile against the order list and may only
+ *   re-send the SAME intent (server-side idempotent per intent), never preview
+ *   and submit a new one.
+ */
+export type SubmitFailureKind = "rejected" | "ambiguous";
+
+export function classifySubmitFailure(error: unknown): SubmitFailureKind {
+  const status = (error as { status?: number } | null)?.status;
+  if (typeof status !== "number" || status === 0) return "ambiguous";
+  if (status === 408 || status === 425 || status >= 500) return "ambiguous";
+  return "rejected";
+}
+
+/** Whole seconds until an ISO timestamp (negative once passed); null if unparseable. */
+export function secondsUntil(iso: string | null | undefined, now: number = Date.now()): number | null {
+  if (!iso) return null;
+  const at = Date.parse(iso);
+  return Number.isNaN(at) ? null : Math.floor((at - now) / 1000);
+}
+
+const SECRET_KEY = /(secret|token|password|passphrase|api[_-]?key|signature|authorization|cookie|credential|private)/i;
+
+/**
+ * A connection health payload reduced to flat, display-safe rows.
+ * Credential-like keys are masked even though the server should never send
+ * them: this is the last place a mistake there could reach a screen.
+ */
+export function displayHealthRows(health: Record<string, unknown> | null | undefined): Array<{ key: string; value: string }> {
+  if (!health || typeof health !== "object") return [];
+  return Object.entries(health).slice(0, 24).map(([key, value]) => {
+    if (SECRET_KEY.test(key)) return { key, value: "••••" };
+    if (value == null) return { key, value: "—" };
+    if (typeof value === "object") return { key, value: Array.isArray(value) ? `${value.length} items` : "{…}" };
+    const text = String(value);
+    return { key, value: text.length > 120 ? `${text.slice(0, 120)}…` : text };
+  });
+}
+
+/** True when an order's outcome at the venue is not known and must not be retried. */
+export function isUnknownLiveOrderStatus(status: string | null | undefined): boolean {
+  return (status || "").toLowerCase() === "unknown";
+}

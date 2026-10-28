@@ -231,7 +231,10 @@ test.describe("LIVE trading console", () => {
     await page.goto("/en/trading/live");
 
     await expect(page.locator('[data-testid="live-nav-value"]')).toHaveText("—");
-    await expect(page.getByText(/stale or missing/i)).toBeVisible();
+    // The stale snapshot is labelled with the time it is from, so its
+    // components are never read as current values.
+    await expect(page.locator('[data-testid="live-nav-stale"]')).toContainText(/Stale snapshot/i);
+    await expect(page.locator('[data-testid="live-nav-provenance"]')).toContainText("NAV = cash");
   });
 
   test("safety-status 501 → no panels, disabled nav item, unavailable panel", async ({ page }) => {
@@ -244,8 +247,11 @@ test.describe("LIVE trading console", () => {
 
     await expect(page.locator('[data-testid="live-unavailable-panel"]')).toBeVisible();
     await expect(page.getByText("LIVE trading console unavailable")).toBeVisible();
-    // Disabled nav placeholder (sidebar + mobile drawer both render it).
-    await expect(page.getByText("LIVE Trading (not enabled)").first()).toBeVisible();
+    // Disabled nav placeholder (sidebar + mobile drawer both render it). On a
+    // phone the drawer is closed - and hidden from the page - until opened.
+    const menu = page.getByTestId("nav-menu-button");
+    if (await menu.isVisible()) await menu.click();
+    await expect(page.getByText("LIVE Trading (not enabled)").locator("visible=true").first()).toBeVisible();
 
     const panels = (await diagnostics(page))?.panelIds ?? [];
     expect(panels.filter((id) => id.startsWith("live."))).toEqual([]);
@@ -276,7 +282,10 @@ test.describe("LIVE trading console", () => {
 
     const form = page.locator('[data-testid="live-order-form"]');
     await expect(form).toBeVisible();
-    await form.getByLabel("Symbol").fill("DOGE");
+    // The symbol is chosen from the mandate whitelist; the server still runs
+    // (and here rejects on) its own checks.
+    await expect(form.getByLabel("Symbol")).toHaveValue("BTC");
+    await form.getByLabel("Symbol").selectOption("ETH");
     await form.getByLabel("Quantity").fill("0.5");
     await form.getByRole("button", { name: "Preview order" }).click();
 
@@ -285,7 +294,7 @@ test.describe("LIVE trading console", () => {
     await expect(page.getByText("asset_whitelist")).toBeVisible();
     await expect(page.getByText("REJECTED").first()).toBeVisible();
     // No intent card → no confirm entry point at all.
-    await expect(page.getByText("Order intent (pending confirmation)")).toHaveCount(0);
-    await expect(page.getByRole("button", { name: "Submit order" })).toHaveCount(0);
+    await expect(page.locator('[data-testid="live-order-approval"]')).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Approve and submit" })).toHaveCount(0);
   });
 });
