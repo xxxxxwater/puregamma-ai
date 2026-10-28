@@ -8,7 +8,8 @@ import { typertPlugin } from '@deepseek-ai/dsh-typert-generator/tsdown'
  * generated before Client packages typecheck.
  */
 export default defineConfig({
-  workspace: ['packages/*'],
+  // Only Typert Host packages; the session broker is a plain Node service.
+  workspace: ['packages/client-gateway'],
   entry: ['lib/types/index.js'],
   outDir: 'lib',
   format: ['esm'],
