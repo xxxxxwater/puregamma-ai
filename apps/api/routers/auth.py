@@ -18,6 +18,7 @@ from apps.api.dependencies import (
     set_session_cookie,
 )
 from apps.api.i18n import normalize_locale
+from apps.api.client_ip import client_ip
 from apps.api.config import get_settings
 from packages.database.models import Base, User, UserIdentity, UserPreference, utcnow
 
@@ -87,8 +88,7 @@ def _internal_admin_rate_limit(request: Request, username: str, *, success: bool
     settings = get_settings()
     if settings.app_environment.lower() not in {"production", "staging"}:
         return
-    forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for")
-    client = forwarded.split(",", 1)[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    client = client_ip(request)
     fingerprint = hashlib.sha256(f"{client}:{username.lower()}".encode()).hexdigest()
     key = f"pg:auth:internal-admin:{fingerprint}"
     try:

@@ -9,10 +9,11 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi import Request
-from fastapi.responses import JSONResponse, Response, PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import text
 
+from apps.api.client_ip import client_ip
 from apps.api.config import get_settings, validate_production_settings, validate_staging_settings
 from apps.api.dependencies import ensure_bootstrap
 from apps.api.routers import admin, agent, apple_auth, assets, auth, backtest, backtest_lab, billing, captcha, custody, email_auth, frontend, gateway, google_auth, harness_runs, hyperliquid_stream, imessage_agent, internal, jev_advisory, live_trading, market, memory, mobile, mobile_access, mobile_auth, news, notifications, opportunities, options, playbooks, portfolio, reports, research, research_runner, secretary, signals, skills, strategies, stripe_webhook, trading, wallet_auth
@@ -95,10 +96,7 @@ async def rate_limit(request: Request, call_next):
         return await call_next(request)
     # Only X-Real-IP (set by the edge proxy from the socket peer) is trusted;
     # X-Forwarded-For is client-controllable and must never feed rate limits.
-    client = (
-        request.headers.get("x-real-ip", "").strip()
-        or (request.client.host if request.client else "unknown")
-    )
+    client = client_ip(request)
     expensive = any(part in request.url.path for part in _expensive_paths)
     limit = settings.expensive_rate_limit_per_minute if expensive else settings.api_rate_limit_per_minute
     minute = int(time.time() // 60)

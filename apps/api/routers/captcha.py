@@ -17,6 +17,7 @@ from urllib.parse import quote
 
 from fastapi import APIRouter, HTTPException, Request
 
+from apps.api.client_ip import client_ip
 from apps.api.config import get_settings
 
 logger = logging.getLogger("puregamma.captcha")
@@ -141,8 +142,7 @@ def verify_captcha(captcha_id: str | None, offset: int | None) -> None:
 def _rate_limit(request: Request) -> None:
     if not _is_production():
         return
-    forwarded = request.headers.get("x-real-ip") or request.headers.get("x-forwarded-for")
-    client = forwarded.split(",", 1)[0].strip() if forwarded else (request.client.host if request.client else "unknown")
+    client = client_ip(request)
     fingerprint = hashlib.sha256(f"captcha:{client}".encode()).hexdigest()
     try:
         client_redis = _redis()
