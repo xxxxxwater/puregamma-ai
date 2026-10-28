@@ -12,7 +12,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from apps.api.dependencies import get_current_user, get_db
-from apps.api.services.agent_service import RUN_EVENT_PAGE_LIMIT, with_run_events, AgentDuplicateSubmissionError, AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, serialize_conversation, serialize_message, start_run, stream_run
+from apps.api.services.agent_service import RUN_EVENT_PAGE_LIMIT, with_run_events, AgentDuplicateSubmissionError, AgentLimitError, AgentModelInvalidError, AgentModelPlanError, AgentModelUnavailableError, agent_model_options, create_conversation, owned_conversation, quota_state, quote_agent_run, recover_stale_runs, redact_tool_arguments, serialize_conversation, serialize_message, start_run, stream_run
 from apps.api.services.credit_service import InsufficientCreditsError, refund_task
 from apps.api.services.agent_plugins import inventory as agent_plugin_inventory
 from apps.api.services.entitlement_service import get_user_entitlement
@@ -147,7 +147,7 @@ def conversation(conversation_id: str, db: Session = Depends(get_db), user: User
     return {"conversation": serialize_conversation(row), "messages": [serialize_message(db, item) for item in messages],
             "active_run_id": active.id if active else None,
             "active_run_message_id": active.assistant_message_id if active else None,
-            "pending_approvals": [{"toolCallId": call.id, "tool": call.tool_name, "arguments": call.arguments_json, "expiresAt": call.approval_expires_at.isoformat()} for call in pending]}
+            "pending_approvals": [{"toolCallId": call.id, "tool": call.tool_name, "arguments": redact_tool_arguments(call.arguments_json), "expiresAt": call.approval_expires_at.isoformat()} for call in pending]}
 
 
 @router.patch("/conversations/{conversation_id}")
@@ -252,11 +252,16 @@ def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(g
     previous = db.query(AgentMessage).filter(AgentMessage.conversation_id == assistant.conversation_id, AgentMessage.user_id == user.id, AgentMessage.role == "user", AgentMessage.created_at <= assistant.created_at).order_by(AgentMessage.created_at.desc()).first()
     if not previous:
         raise HTTPException(status_code=400, detail="Original user message not found")
-    conversation = owned_conversation(db, user, assistant.conversation_id)
+    try:
+        conversation = owned_conversation(db, user, assistant.conversation_id)
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
     supplied = bool(payload.data_sources or payload.skills or payload.skill_refs or payload.custom_prompt or payload.attachments or payload.model or not payload.research_mode)
     context = {"research_mode": payload.research_mode, "data_sources": payload.data_sources, "skills": payload.skills, "skill_refs": payload.skill_refs, "custom_prompt": payload.custom_prompt, "attachments": payload.attachments, "model": payload.model, "permission_mode": conversation.permission_mode} if supplied else (previous.context_json or {})
     try:
-        run = start_run(db, user, conversation, previous.content, context=context)
+        run = start_run(db, user, conversation, previous.content, context=context, client_request_id=payload.client_request_id)
+    except AgentDuplicateSubmissionError as exc:
+        raise HTTPException(status_code=409, detail={"code": "DUPLICATE_SUBMISSION", "runId": exc.run_id, "status": exc.status, "messageId": exc.assistant_message_id, "userMessageId": exc.user_message_id}) from exc
     except AgentLimitError as exc:
         raise HTTPException(status_code=429, detail={"code": str(exc)}) from exc
     except AgentModelInvalidError as exc:
@@ -269,6 +274,8 @@ def regenerate(message_id: str, payload: MessageRequest, db: Session = Depends(g
         raise HTTPException(status_code=402, detail={"code": "INSUFFICIENT_CREDITS"}) from exc
     except SkillResolutionError as exc:
         raise HTTPException(status_code=exc.status_code, detail={"code": exc.code, "message": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     return StreamingResponse(with_run_events(stream_run(db, user, run.id, payload.locale), run.id), media_type="text/event-stream", headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"})
 
 

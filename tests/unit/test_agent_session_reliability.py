@@ -15,7 +15,10 @@ from apps.api.services.agent_service import (
     redact_tool_arguments,
     with_run_events,
 )
-from packages.database.models import AgentConversation, AgentMessage, AgentRun, AgentRunEvent
+from datetime import timedelta
+
+from apps.api.services import agent_service
+from packages.database.models import AgentConversation, AgentMessage, AgentRun, AgentRunEvent, AgentToolCall, utcnow
 from tests.conftest import auth_headers
 
 
@@ -50,6 +53,50 @@ def test_a_resent_turn_reattaches_instead_of_starting_a_second_run(api_client, d
     assert fresh.status_code == 200, fresh.text
     db.expire_all()
     assert db.query(AgentRun).filter_by(conversation_id=conversation_id).count() == 2
+
+
+def test_a_resend_that_lands_while_the_first_attempt_commits_is_still_a_duplicate(api_client, db, normal_user, monkeypatch):
+    # Stale-run recovery commits. It used to run after the duplicate check,
+    # which released the conversation lock: a resend arriving in that window
+    # passed the check too and started (and charged) a second run.
+    conversation_id = _conversation(api_client, normal_user)
+    key = "send-race-abcdef"
+    original = agent_service.recover_stale_runs
+
+    def first_attempt_commits_meanwhile(session):
+        session.add(AgentMessage(conversation_id=conversation_id, user_id=normal_user.id, role="user", content="q",
+                                 status="completed", context_json={"client_request_id": key}))
+        session.commit()
+        return original(session)
+
+    monkeypatch.setattr(agent_service, "recover_stale_runs", first_attempt_commits_meanwhile)
+    resent = api_client.post(f"/api/agent/conversations/{conversation_id}/messages",
+                             json={"content": "q", "research_mode": False, "client_request_id": key}, headers=auth_headers(normal_user))
+    assert resent.status_code == 409, resent.text
+    db.expire_all()
+    assert db.query(AgentRun).filter_by(conversation_id=conversation_id).count() == 0
+    assert db.query(AgentMessage).filter_by(conversation_id=conversation_id, role="user").count() == 1
+
+
+def test_regenerate_is_idempotent_and_a_deleted_conversation_is_not_found(api_client, db, normal_user):
+    conversation_id = _conversation(api_client, normal_user)
+    headers = auth_headers(normal_user)
+    sent = api_client.post(f"/api/agent/conversations/{conversation_id}/messages", json={"content": "What moved BTC today?", "research_mode": False}, headers=headers)
+    assert sent.status_code == 200, sent.text
+    assistant = db.query(AgentMessage).filter_by(conversation_id=conversation_id, role="assistant").one()
+    url = f"/api/agent/messages/{assistant.id}/regenerate"
+    body = {"content": "", "research_mode": False, "client_request_id": "regen-0001-abcdef"}
+
+    assert api_client.post(url, json=body, headers=headers).status_code == 200
+    again = api_client.post(url, json=body, headers=headers)
+    assert again.status_code == 409, again.text
+    assert again.json()["detail"]["code"] == "DUPLICATE_SUBMISSION"
+    db.expire_all()
+    assert db.query(AgentRun).filter_by(conversation_id=conversation_id).count() == 2
+
+    assert api_client.delete(f"/api/agent/conversations/{conversation_id}", headers=headers).status_code == 200
+    # Was an unhandled LookupError (HTTP 500).
+    assert api_client.post(url, json={"content": "", "research_mode": False}, headers=headers).status_code == 404
 
 
 def test_the_submission_key_is_scoped_to_its_conversation(api_client, db, normal_user):
@@ -197,3 +244,16 @@ def test_tool_arguments_shown_in_the_timeline_are_redacted():
     assert shown["rows"][0]["password"] == "••••"
     assert len(shown["rows"][0]["note"]) <= 501
     assert "sk-live-123" not in repr(shown) and "hunter2" not in repr(shown)
+
+
+def test_a_reloaded_conversation_shows_pending_approval_inputs_redacted(api_client, db, normal_user):
+    # The live stream already masks these; a page reload must not show the raw copy.
+    run = _seed_run_with_events(db, normal_user, [], status="running")
+    db.add(AgentToolCall(run_id=run.id, tool_name="broker.connect", status="awaiting_approval",
+                         arguments_json={"exchange": "binance", "api_key": "sk-live-123"},
+                         approval_expires_at=utcnow() + timedelta(minutes=5)))
+    db.commit()
+    shown = api_client.get(f"/api/agent/conversations/{run.conversation_id}", headers=auth_headers(normal_user)).json()
+    [pending] = shown["pending_approvals"]
+    assert pending["arguments"] == {"exchange": "binance", "api_key": "••••"}
+    assert "sk-live-123" not in repr(shown)
