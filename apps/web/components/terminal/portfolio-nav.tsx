@@ -22,7 +22,9 @@ export function PortfolioNav({ locale }: { locale: Locale }) {
 
   const connected = Boolean(data?.connected);
   const stale = Boolean(data?.stale);
-  const nav = data?.nav != null && data.nav >= 0 ? data.nav : null;
+  // Legacy answers nav: 0 with connected: false; without a connected snapshot
+  // the NAV is unavailable ("—"), not $0.00.
+  const nav = connected && data?.nav != null && Number.isFinite(data.nav) && data.nav >= 0 ? data.nav : null;
   const asOf = data?.data_as_of || null;
   const asOfLabel = asOf ? new Date(asOf).toLocaleTimeString(locale, { hour: "2-digit", minute: "2-digit" }) : null;
 
@@ -32,7 +34,7 @@ export function PortfolioNav({ locale }: { locale: Locale }) {
         <SectionLabel>{zh ? "Portfolio / NAV" : "Portfolio / NAV"}</SectionLabel>
         <Link href={withLocale(locale, "/portfolio")} className="inline-flex items-center gap-1 text-[0.7rem] text-muted hover:text-foreground">{zh ? "详情" : "Details"}<ArrowUpRight className="h-3 w-3" aria-hidden /></Link>
       </div>
-      <div className="mt-3 tabular-nums"><span className="nav-value">{nav == null ? "—" : "$" + nav.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
+      <div className="mt-3 tabular-nums"><span className="nav-value" data-testid="briefing-portfolio-nav" data-state={nav == null ? "unavailable" : "available"}>{nav == null ? "—" : "$" + nav.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span></div>
       <div className="mt-1 text-[0.72rem] text-muted-2">
         {!loaded ? (zh ? "读取组合…" : "Loading portfolio…")
           : !connected ? (zh ? "尚未连接投资账户" : "No investment account connected")

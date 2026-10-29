@@ -52,7 +52,9 @@ export function TodayActivity({ locale }: { locale: Locale }) {
     return () => { cancelled = true; };
   }, [researchGate.state.status]);
 
-  const nav = (portfolio?.nav ?? 0) >= 0 ? (portfolio?.nav ?? 0) : 0;
+  // No connected snapshot (legacy answers nav: 0 with connected: false) or no
+  // response at all is "unavailable", never a $0.00 portfolio.
+  const nav = portfolio?.connected && typeof portfolio.nav === "number" && Number.isFinite(portfolio.nav) && portfolio.nav >= 0 ? portfolio.nav : null;
   const portfolioStale = Boolean(portfolio?.stale);
 
   return (
@@ -121,7 +123,7 @@ export function TodayActivity({ locale }: { locale: Locale }) {
             <Link href={withLocale(locale, "/portfolio")} className="inline-flex items-center gap-1 text-xs text-text-pg-muted hover:text-text-pg">{zh ? "详情" : "Details"}<ArrowRight className="h-3 w-3" aria-hidden /></Link>
           </div>
           <div className="tabular-nums">
-            <div className="text-2xl font-semibold text-text-pg">${nav.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</div>
+            <div className="text-2xl font-semibold text-text-pg" data-testid="today-portfolio-nav" data-state={nav == null ? "unavailable" : "available"}>{nav == null ? "—" : `$${nav.toLocaleString(locale, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`}</div>
             <div className="mt-1 text-xs text-text-pg-muted">
               {zh ? "净值 (NAV)" : "Net asset value"}
               {portfolio?.data_as_of ? <> · {zh ? "更新于" : "as of"} {formatTime(portfolio.data_as_of, locale)}</> : null}
