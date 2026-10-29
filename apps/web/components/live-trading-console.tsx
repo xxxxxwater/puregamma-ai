@@ -27,7 +27,9 @@ import {
   describeApiError,
   getLiveConnections,
   getLiveFills,
+  getLiveLedger,
   getLiveOrders,
+  getLiveReconciliation,
   getLivePortfolioPositions,
   getTradingMandates,
   getTradingNav,
@@ -40,8 +42,10 @@ import {
   testLiveConnection,
   type LiveBrokerConnection,
   type LiveFillRow,
+  type LiveLedgerEntry,
   type LiveOrderPreviewResult,
   type LiveOrderRow,
+  type LiveReconciliationView,
   type NavSnapshot,
   type TradingMandate,
   type TradingSafetyStatus,
@@ -1385,10 +1389,9 @@ function AccountView({ locale, safety, onReload }: { locale: Locale; safety: Tra
         ) : null}
       </section>
 
-      <section className="border border-border-pg bg-bg-panel p-4 rounded-xl">
-        <h3 className="font-semibold">{t(locale, "live-trading.account.ledger")}</h3>
-        <p className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "live-trading.account.ledgerUnavailable")}</p>
-      </section>
+      <ReconciliationSection locale={locale} />
+
+      <LedgerSection locale={locale} />
 
       <section className="border border-border-pg bg-bg-panel rounded-xl">
         <div className="border-b border-border-pg p-4"><h2 className="font-semibold">{t(locale, "live-trading.account.mandates")}</h2></div>
@@ -1424,6 +1427,194 @@ function AccountView({ locale, safety, onReload }: { locale: Locale; safety: Tra
       </section>
     </div>
   );
+}
+
+// ── Ledger + reconciliation (owner-scoped, read-only) ─────────────────────
+
+type ReadFailure = "no-account" | "unavailable";
+
+function readFailure(error: unknown): ReadFailure {
+  const { status, code } = describeApiError(error);
+  return status === 404 && code === "TRADING_ACCOUNT_NOT_FOUND" ? "no-account" : "unavailable";
+}
+
+type LedgerLoad =
+  | { kind: "loading" }
+  | { kind: "failed"; reason: ReadFailure }
+  | { kind: "ready"; entries: LiveLedgerEntry[]; nextCursor: string | null; more: "idle" | "loading" | "failed" };
+
+const LEDGER_PAGE_SIZE = 50;
+
+/**
+ * The caller's append-only ledger, newest first. "No account", "could not be
+ * read" and "no rows yet" are three different statements and never render as
+ * a zero; older pages are fetched with the server's keyset cursor.
+ */
+function LedgerSection({ locale }: { locale: Locale }) {
+  const [load, setLoad] = useState<LedgerLoad>({ kind: "loading" });
+
+  const firstPage = useCallback(async () => {
+    setLoad({ kind: "loading" });
+    try {
+      const page = await getLiveLedger({ limit: LEDGER_PAGE_SIZE });
+      setLoad({ kind: "ready", entries: page.entries || [], nextCursor: page.next_cursor, more: "idle" });
+    } catch (error) {
+      setLoad({ kind: "failed", reason: readFailure(error) });
+    }
+  }, []);
+  useEffect(() => { void firstPage(); }, [firstPage]);
+
+  const loadMore = async () => {
+    if (load.kind !== "ready" || !load.nextCursor || load.more === "loading") return;
+    const cursor = load.nextCursor;
+    setLoad({ ...load, more: "loading" });
+    try {
+      const page = await getLiveLedger({ cursor, limit: LEDGER_PAGE_SIZE });
+      setLoad((current) => current.kind === "ready" ? { kind: "ready", entries: [...current.entries, ...(page.entries || [])], nextCursor: page.next_cursor, more: "idle" } : current);
+    } catch {
+      // Keep what is already shown; only the next page failed.
+      setLoad((current) => current.kind === "ready" ? { ...current, more: "failed" } : current);
+    }
+  };
+
+  const none = t(locale, "live-trading.common.noValue");
+  return (
+    <section className="rounded-xl border border-border-pg bg-bg-panel" data-testid="live-ledger">
+      <div className="border-b border-border-pg p-4">
+        <h2 className="font-semibold">{t(locale, "live-trading.account.ledger")}</h2>
+        <p className="mt-1 text-xs text-text-pg-dim">{t(locale, "live-trading.account.ledgerNote")}</p>
+      </div>
+      {load.kind === "loading" ? <p className="p-4 text-sm text-text-pg-muted">{t(locale, "live-trading.common.loading")}</p> : null}
+      {load.kind === "failed" ? (
+        <div className="flex flex-wrap items-center gap-3 p-4" role="status" data-testid={load.reason === "no-account" ? "live-ledger-no-account" : "live-ledger-unavailable"}>
+          <p className="text-sm text-text-pg-muted">{t(locale, load.reason === "no-account" ? "live-trading.account.ledgerNoAccount" : "live-trading.account.ledgerUnavailable")}</p>
+          {load.reason === "unavailable" ? <button type="button" onClick={() => void firstPage()} className="min-h-9 rounded-lg border border-border-pg px-3 text-xs hover:border-border-pg-strong">{t(locale, "live-trading.common.retry")}</button> : null}
+        </div>
+      ) : null}
+      {load.kind === "ready" && load.entries.length === 0 ? <p className="p-4 text-sm text-text-pg-muted" data-testid="live-ledger-empty">{t(locale, "live-trading.account.ledgerEmpty")}</p> : null}
+      {load.kind === "ready" && load.entries.length > 0 ? (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <caption className="sr-only">{t(locale, "live-trading.account.ledger")}</caption>
+              <thead className="text-left text-xs uppercase tracking-wide text-text-pg-muted">
+                <tr className="border-b border-border-pg">
+                  {[t(locale, "live-trading.account.ledgerColTime"), t(locale, "live-trading.account.ledgerColType"), t(locale, "live-trading.account.colSymbol"), t(locale, "live-trading.account.colQuantity"), t(locale, "live-trading.account.ledgerColPrice"), t(locale, "live-trading.account.ledgerColAmount"), t(locale, "live-trading.account.ledgerColBalance"), t(locale, "live-trading.account.ledgerColRef")].map((head) => <th key={head} scope="col" className="p-2.5 font-medium">{head}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {load.entries.map((entry) => (
+                  <tr key={entry.id} className="border-b border-border-pg last:border-0" data-testid="live-ledger-row">
+                    <td className="p-2.5 text-xs text-text-pg-muted">{new Date(entry.created_at).toLocaleString(locale)}</td>
+                    <td className="p-2.5 font-mono text-xs">{entry.entry_type}</td>
+                    <td className="p-2.5 font-mono text-xs">{entry.symbol || none}</td>
+                    <td className="p-2.5 font-mono text-xs tabular-nums">{entry.quantity == null ? none : formatDecimalString(entry.quantity)}</td>
+                    <td className="p-2.5 font-mono text-xs tabular-nums">{entry.price == null ? none : formatDecimalString(entry.price)}</td>
+                    <td className={`p-2.5 font-mono text-xs tabular-nums ${entry.amount.startsWith("-") ? "text-status-negative" : ""}`}>{formatDecimalString(entry.amount)} {entry.currency}</td>
+                    <td className="p-2.5 font-mono text-xs tabular-nums">{entry.balance_after == null ? <span className="text-text-pg-dim">{t(locale, "live-trading.account.ledgerNotRecorded")}</span> : formatDecimalString(entry.balance_after)}</td>
+                    <td className="max-w-[12rem] truncate p-2.5 font-mono text-xs text-text-pg-dim">{entry.ref_type ? `${entry.ref_type}:${(entry.ref_id || "").slice(0, 8)}` : none}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-border-pg p-3 text-xs text-text-pg-muted">
+            <span>{t(locale, "live-trading.account.ledgerShown", { count: load.entries.length })}</span>
+            {load.nextCursor ? (
+              <button type="button" onClick={() => void loadMore()} disabled={load.more === "loading"} className="min-h-9 rounded-lg border border-border-pg px-3 hover:border-border-pg-strong disabled:opacity-40" data-testid="live-ledger-more">
+                {load.more === "loading" ? t(locale, "live-trading.common.loading") : t(locale, "live-trading.account.ledgerMore")}
+              </button>
+            ) : <span data-testid="live-ledger-end">{t(locale, "live-trading.account.ledgerEnd")}</span>}
+            {load.more === "failed" ? <span role="alert" className="text-status-warning">{t(locale, "live-trading.account.ledgerMoreFailed")}</span> : null}
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+type ReconciliationLoad = { kind: "loading" } | { kind: "failed"; reason: ReadFailure } | { kind: "ready"; view: LiveReconciliationView };
+
+/**
+ * Ledger-derived balances beside the latest exchange reconciliation. Balances
+ * are per currency (a BTC fee is not USD cash). "Never reconciled" means the
+ * comparison is unavailable, which is not the same as "no differences".
+ */
+function ReconciliationSection({ locale }: { locale: Locale }) {
+  const [load, setLoad] = useState<ReconciliationLoad>({ kind: "loading" });
+  const read = useCallback(async () => {
+    setLoad({ kind: "loading" });
+    try {
+      setLoad({ kind: "ready", view: await getLiveReconciliation() });
+    } catch (error) {
+      setLoad({ kind: "failed", reason: readFailure(error) });
+    }
+  }, []);
+  useEffect(() => { void read(); }, [read]);
+
+  const none = t(locale, "live-trading.common.noValue");
+  const amount = (value: string | null | undefined) => (value == null ? none : formatDecimalString(value));
+  return (
+    <section className="rounded-xl border border-border-pg bg-bg-panel" data-testid="live-reconciliation">
+      <div className="border-b border-border-pg p-4"><h2 className="font-semibold">{t(locale, "live-trading.account.reconTitle")}</h2></div>
+      <div className="space-y-4 p-4">
+        {load.kind === "loading" ? <p className="text-sm text-text-pg-muted">{t(locale, "live-trading.common.loading")}</p> : null}
+        {load.kind === "failed" ? (
+          <div className="flex flex-wrap items-center gap-3" role="status" data-testid={load.reason === "no-account" ? "live-recon-no-account" : "live-recon-unavailable"}>
+            <p className="text-sm text-text-pg-muted">{t(locale, load.reason === "no-account" ? "live-trading.account.ledgerNoAccount" : "live-trading.account.reconUnavailable")}</p>
+            {load.reason === "unavailable" ? <button type="button" onClick={() => void read()} className="min-h-9 rounded-lg border border-border-pg px-3 text-xs hover:border-border-pg-strong">{t(locale, "live-trading.common.retry")}</button> : null}
+          </div>
+        ) : null}
+        {load.kind === "ready" ? (
+          <>
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-pg-muted">{t(locale, "live-trading.account.reconLedgerBalances")}</h3>
+              {load.view.ledger.empty ? (
+                <p className="mt-1 text-sm text-text-pg-muted" data-testid="live-recon-ledger-empty">{t(locale, "live-trading.account.ledgerEmpty")}</p>
+              ) : (
+                <ul className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm" data-testid="live-recon-balances">
+                  {load.view.ledger.balances.map((row) => <li key={row.currency} className="font-mono tabular-nums">{formatDecimalString(row.amount)} {row.currency}</li>)}
+                </ul>
+              )}
+            </div>
+            {load.view.latest ? (
+              <div data-testid="live-recon-latest">
+                <p className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className={load.view.latest.status === "ok" ? "text-status-positive" : "font-semibold text-status-warning"}>{reconStatusLabel(load.view.latest.status, locale)}</span>
+                  <span className="text-xs text-text-pg-dim">{t(locale, "live-trading.account.reconAt", { time: new Date(load.view.latest.created_at).toLocaleString(locale) })}</span>
+                  {load.view.latest.reviewed ? <span className="text-xs text-text-pg-muted">· {t(locale, "live-trading.account.reconReviewed", { time: new Date(load.view.latest.reviewed.reviewed_at).toLocaleString(locale) })}</span> : null}
+                </p>
+                <div className="mt-3 grid gap-px overflow-hidden rounded-lg border border-border-pg bg-border-pg sm:grid-cols-3">
+                  <Field label={t(locale, "live-trading.account.reconExchange")} value={amount(load.view.latest.exchange_balance.cash)} />
+                  <Field label={t(locale, "live-trading.account.reconLedger")} value={amount(load.view.latest.ledger_balance.cash)} />
+                  <Field label={t(locale, "live-trading.account.reconNav")} value={amount(load.view.latest.nav.cash)} />
+                </div>
+                {load.view.latest.differences.length ? (
+                  <ul className="mt-3 space-y-1 text-xs" data-testid="live-recon-differences">
+                    {load.view.latest.differences.map((difference, index) => (
+                      <li key={index} className="rounded-lg border border-status-warning px-3 py-2">
+                        <span className="font-mono">{difference.source || none}</span>
+                        {difference.delta != null ? <span className="ml-2 font-mono tabular-nums">Δ {formatDecimalString(difference.delta)}</span> : null}
+                        {difference.detail ? <span className="ml-2 text-text-pg-muted">{difference.detail}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {load.view.latest.status !== "ok" ? <p className="mt-2 text-xs text-text-pg-muted">{t(locale, "live-trading.account.reconAdminOnly")}</p> : null}
+              </div>
+            ) : (
+              <p className="text-sm text-text-pg-muted" data-testid="live-recon-never">{t(locale, "live-trading.account.reconNever")}</p>
+            )}
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function reconStatusLabel(status: string, locale: Locale): string {
+  const key = `live-trading.account.reconStatus.${status}` as TranslationKey;
+  return hasTranslation(locale, key) ? t(locale, key) : status;
 }
 
 function reconciliationLabel(status: string, locale: Locale): string {

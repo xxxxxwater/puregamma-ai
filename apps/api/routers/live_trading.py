@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_current_user, get_db, require_admin
 from packages.database.models import TradingAccount, User
 from packages.live_trading import control_plane, nav as nav_service, ledger as ledger_service
+from packages.live_trading import ledger_view
 from packages.live_trading import price_feed as price_feed_service
 from packages.live_trading.control_plane import ControlPlaneError, OrderRejected
 from packages.live_trading.decimal_text import decimal_text
@@ -369,6 +370,60 @@ def order_cancel(
         return {"order": control_plane._serialize_order(order)}
     except Exception as exc:
         raise _http_error(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# /api/trading/ledger + /api/trading/reconciliation (owner-scoped, read-only)
+# ---------------------------------------------------------------------------
+
+
+def _not_found(exc: LookupError) -> HTTPException:
+    # Somebody else's account/mandate id and a nonexistent one get the same
+    # answer, so ids cannot be probed.
+    code = "TRADING_MANDATE_NOT_FOUND" if "mandate" in str(exc).lower() else "TRADING_ACCOUNT_NOT_FOUND"
+    return HTTPException(status_code=404, detail={"code": code, "message": str(exc)})
+
+
+@trading_router.get("/ledger")
+def ledger_entries(
+    account_id: str | None = Query(default=None, max_length=64),
+    mandate_id: str | None = Query(default=None, max_length=64),
+    entry_type: str | None = Query(default=None, max_length=64),
+    cursor: str | None = Query(default=None, max_length=512),
+    limit: int = Query(default=ledger_view.DEFAULT_PAGE_SIZE, ge=1, le=ledger_view.MAX_PAGE_SIZE),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """The caller's append-only ledger, newest first, keyset-paginated."""
+    try:
+        return ledger_view.ledger_page(
+            db,
+            user.id,
+            account_id=account_id,
+            mandate_id=mandate_id,
+            entry_type=entry_type,
+            cursor=cursor,
+            limit=limit,
+        )
+    except LookupError as exc:
+        raise _not_found(exc) from exc
+    except ledger_view.CursorError as exc:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_CURSOR", "message": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_FILTER", "message": str(exc)}) from exc
+
+
+@trading_router.get("/reconciliation")
+def reconciliation_status(
+    account_id: str | None = Query(default=None, max_length=64),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Ledger-derived balances next to the latest exchange reconciliation."""
+    try:
+        return ledger_view.reconciliation_view(db, user.id, account_id=account_id)
+    except LookupError as exc:
+        raise _not_found(exc) from exc
 
 
 @trading_router.get("/safety-status")

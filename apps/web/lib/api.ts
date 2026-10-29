@@ -2147,6 +2147,70 @@ export function getLivePortfolioPositions() {
   return requestStrict<{ positions: LivePositionRow[] }>("/api/portfolio/positions");
 }
 
+// Owner-scoped, read-only ledger + reconciliation. Money is a decimal string;
+// `null` means "not recorded" and is rendered as such, never as 0.
+export type LiveLedgerAccount = { id: string; name: string; venue: string; account_type: string; base_currency: string; status: string };
+
+export type LiveLedgerEntry = {
+  id: string;
+  account_id: string;
+  mandate_id: string | null;
+  entry_type: string;
+  ref_type: string | null;
+  ref_id: string | null;
+  symbol: string | null;
+  quantity: string | null;
+  price: string | null;
+  amount: string;
+  currency: string;
+  balance_after: string | null;
+  trace_id: string | null;
+  created_at: string;
+};
+
+export type LiveLedgerPage = { account: LiveLedgerAccount; entries: LiveLedgerEntry[]; next_cursor: string | null; limit: number };
+
+export type LiveReconciliationRecord = {
+  id: string;
+  account_id: string;
+  mandate_id: string | null;
+  status: string;
+  exchange_balance: Record<string, string | null>;
+  ledger_balance: Record<string, string | null>;
+  nav: Record<string, string | null>;
+  differences: Array<Record<string, string | null>>;
+  actions: string[];
+  created_at: string;
+  reviewed: { status: string; reviewed_at: string; note?: string | null; reviewed_by?: string | null } | null;
+};
+
+export type LiveReconciliationView = {
+  account: LiveLedgerAccount;
+  ledger: {
+    entry_count: number;
+    empty: boolean;
+    last_entry_at: string | null;
+    balances: Array<{ currency: string; amount: string }>;
+    positions: Array<{ symbol: string; quantity: string }>;
+  };
+  latest: LiveReconciliationRecord | null;
+  history: Array<{ id: string; status: string; created_at: string; difference_count: number; reviewed: boolean }>;
+};
+
+export function getLiveLedger(options: { accountId?: string; cursor?: string | null; limit?: number } = {}) {
+  const params = new URLSearchParams();
+  if (options.accountId) params.set("account_id", options.accountId);
+  if (options.cursor) params.set("cursor", options.cursor);
+  if (options.limit) params.set("limit", String(options.limit));
+  const query = params.toString();
+  return requestStrict<LiveLedgerPage>(`/api/trading/ledger${query ? `?${query}` : ""}`);
+}
+
+export function getLiveReconciliation(accountId?: string) {
+  const query = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
+  return requestStrict<LiveReconciliationView>(`/api/trading/reconciliation${query}`);
+}
+
 // ── Memory service (contract: docs/mobile/MOBILE_API_CONTRACT.md) ──────────
 // HTTP layer not open yet; strict calls so 404/501 surface as gated UI.
 
