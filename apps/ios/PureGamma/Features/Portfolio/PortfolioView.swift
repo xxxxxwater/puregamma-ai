@@ -3,11 +3,14 @@ import SwiftUI
 
 @MainActor @Observable final class PortfolioViewModel {
     enum Range: String, CaseIterable, Identifiable { case day = "1D", week = "1W", month = "1M", all = "ALL"; var id: String { rawValue } }
-    var portfolio: LoadState<Portfolio> = .idle; var autopilot: LoadState<Autopilot> = .idle; var range: Range = .month; var busy = ""; var error: APIError?; var walletAddress = ""
+    var portfolio: LoadState<Portfolio> = .idle; var autopilot: LoadState<Autopilot> = .idle; var liveNav: LoadState<LiveNavState> = .idle; var range: Range = .month; var busy = ""; var error: APIError?; var walletAddress = ""
     private let repository: PortfolioRepository
+    private let liveNavRepository: LiveNavRepository?
     private let ibkrOAuth = IBKROAuthCoordinator()
-    init(repository: PortfolioRepository) { self.repository = repository }
-    func load() async { portfolio = .loading; autopilot = .loading; async let p = loadPortfolio(); async let a = loadAutopilot(); _ = await (p, a) }
+    init(repository: PortfolioRepository, liveNav: LiveNavRepository? = nil) { self.repository = repository; self.liveNavRepository = liveNav }
+    func load() async { portfolio = .loading; autopilot = .loading; async let p = loadPortfolio(); async let a = loadAutopilot(); async let n = loadLiveNav(); _ = await (p, a, n) }
+    /// No cache: a LIVE NAV is either the server's current figure or unavailable.
+    func loadLiveNav() async { guard let liveNavRepository else { return }; liveNav = .loading; do { liveNav = .loaded(try await liveNavRepository.current()) } catch { liveNav = .failed(error as? APIError ?? .transport(error.localizedDescription)) } }
     private func loadPortfolio() async { do { let result = try await repository.cachedSnapshot(); portfolio = result.value.connected ? result.cachedAt.map { .stale(result.value, $0) } ?? .loaded(result.value) : .empty } catch { portfolio = .failed(error as? APIError ?? .transport(error.localizedDescription)) } }
     private func loadAutopilot() async { do { autopilot = .loaded(try await repository.autopilot()) } catch { autopilot = .failed(error as? APIError ?? .transport(error.localizedDescription)) } }
     func connectPlaid() async { busy = "plaid"; defer { busy = "" }; do { let token = try await repository.plaidLinkToken(); let result = try await PlaidLinkCoordinator.open(token: token); portfolio = .loaded(try await repository.exchangePlaid(publicToken: result.publicToken, institution: result.institution)); await loadAutopilot() } catch let e as APIError where e == .canceled {} catch { self.error = error as? APIError ?? .transport(error.localizedDescription) } }
@@ -28,11 +31,12 @@ import SwiftUI
 
 struct PortfolioView: View {
     @State private var model: PortfolioViewModel
-    init(repository: PortfolioRepository) { _model = State(initialValue: PortfolioViewModel(repository: repository)) }
+    init(repository: PortfolioRepository, liveNav: LiveNavRepository? = nil) { _model = State(initialValue: PortfolioViewModel(repository: repository, liveNav: liveNav)) }
     var body: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 22) {
                 PortfolioSummary(model: model)
+                LiveNavSection(state: model.liveNav)
                 PGSectionHeader(index: "02", title: "Connections")
                 PortfolioConnections(model: model)
                 PGSectionHeader(index: "03", title: "Autopilot review", trailing: "RESEARCH ONLY")
@@ -354,5 +358,27 @@ struct NAVChart: View {
             return "\(PGFormat.money(points[selected].value)) at \(PGFormat.dateTime(points[selected].date))"
         }
         return "\(points.count) real data points"
+    }
+}
+
+/// Server-computed LIVE NAV (contract §8.3). "No account" is an empty state,
+/// an unpriced NAV reads "Unavailable", and neither is ever drawn as 0.
+private struct LiveNavSection: View {
+    let state: LoadState<LiveNavState>
+    var body: some View {
+        switch state {
+        case .idle: EmptyView()
+        case .loading: ProgressView().frame(maxWidth: .infinity, alignment: .leading)
+        case .failed(let error): Label(error.localizedDescription, systemImage: "exclamationmark.triangle").font(.caption).foregroundStyle(.secondary)
+        case .empty, .loaded(.noAccount), .stale(.noAccount, _):
+            Label("No live trading account connected", systemImage: "link.badge.plus").font(.caption).foregroundStyle(.secondary)
+                .accessibilityIdentifier("portfolio.liveNav.noAccount")
+        case .loaded(.loaded(let nav)), .stale(.loaded(let nav), _):
+            VStack(alignment: .leading, spacing: 6) {
+                HStack { Text("LIVE NAV").font(.caption2.monospaced()).foregroundStyle(.secondary); if nav.isStale { Text("STALE").font(.caption2.monospaced()).foregroundStyle(PGTheme.warning) } }
+                Text(nav.nav.map { PGFormat.money($0, currency: nav.currency) } ?? String(localized: "Unavailable")).font(.title3.monospacedDigit())
+                HStack { Text("Cash \(PGFormat.money(nav.cash, currency: nav.currency))"); Spacer(); Text("Day \(nav.dailyPnl.map { PGFormat.money($0, currency: nav.currency) } ?? "—")") }.font(.caption.monospacedDigit()).foregroundStyle(.secondary)
+            }
+        }
     }
 }

@@ -6,6 +6,7 @@ extension APIError {
     /// 新功能接口尚未在后端实现时的错误（404 或 501）。
     var isEndpointMissing: Bool {
         if case .server(let status, _) = self { return status == 404 || status == 501 }
+        if case .rejected(let detail) = self { return detail.status == 404 }
         return false
     }
 }
