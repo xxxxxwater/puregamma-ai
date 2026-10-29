@@ -69,6 +69,12 @@
       name: '@puregamma/dsh-ui-backtest'
     - id: puregamma-ui-memory
       name: '@puregamma/dsh-ui-memory'
+    # Right-sidebar resource views for research runs, research artifacts and
+    # backtest artifacts. Read-only (gateway reads only, no cancel/retry/export)
+    # and OFF by default; `resource-views.patch.yml` is the only switch.
+    - id: puregamma-ui-research-resources
+      name: '@puregamma/dsh-ui-research-resources'
+      disabled: true
 
     # Account, billing, gateway, ingestion and admin own separate services.
     # Explicit money/account mutations are UI/approval actions, not model tools.

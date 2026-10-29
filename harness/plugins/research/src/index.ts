@@ -32,6 +32,7 @@ export interface ResearchDocument {
 declare module '@deepseek-ai/cordis' {
   interface Context {
     pgResearch: ResearchService
+    pgResearchRuns: ResearchRunsService
   }
 }
 
@@ -69,6 +70,48 @@ export abstract class ResearchService extends Service {
   abstract upcomingEvents(days?: number): Promise<ResearchDocument>
   abstract opportunities(locale?: string): Promise<ResearchDocument>
   abstract alerts(): Promise<ResearchDocument>
+}
+
+/** One deep-research run read (`run`, `runs`, `artifacts`, `evidence`), payload kept verbatim. */
+export interface ResearchRunsDocument {
+  kind: 'run' | 'runs' | 'artifacts' | 'evidence'
+  observedAt: string
+  source: string
+  payload: { [key: string]: ResearchJson }
+}
+
+/**
+ * One server-sent progress event of a deep-research run. `event` is the SSE
+ * event name (`run.state`, `run.completed`, `run.failed`, `run.canceled`);
+ * unknown names are passed through so consumers can ignore them.
+ */
+export interface ResearchRunEvent {
+  event: string
+  data: { [key: string]: ResearchJson }
+}
+
+export interface ResearchRunListRequest {
+  limit?: number
+  offset?: number
+}
+
+/**
+ * Read-only seam over the user's deep-research runs (status, artifacts,
+ * evidence and the progress stream). Creating, cancelling and retrying runs
+ * are deliberately not part of this contract: they spend credits and stay
+ * explicit actions of their owning surface.
+ */
+export abstract class ResearchRunsService extends Service {
+  constructor(ctx: Context) {
+    super(ctx, 'pgResearchRuns')
+  }
+
+  abstract listRuns(request?: ResearchRunListRequest): Promise<ResearchRunsDocument>
+  abstract run(runId: string): Promise<ResearchRunsDocument>
+  abstract artifacts(runId: string): Promise<ResearchRunsDocument>
+  abstract evidence(runId: string): Promise<ResearchRunsDocument>
+  /** Progress events until the server ends the stream or `signal` aborts. */
+  abstract events(runId: string, signal: AbortSignal): AsyncIterable<ResearchRunEvent>
 }
 
 export default ResearchService

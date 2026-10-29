@@ -1,0 +1,8 @@
+# Opt-in overlay: turns on the read-only research/backtest resource views
+# (@puregamma/dsh-ui-research-resources) in the right sidebar, e.g.
+#   dsh puregamma --patch resource-views.patch.yml
+# It flips exactly one row. Every shell, filesystem, terminal, workspace-files,
+# plugin-manager and upload surface stays as the base profile sets it
+# (scripts/public-profile-surface.test.mjs).
+- id: puregamma-ui-research-resources
+  disabled: false

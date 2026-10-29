@@ -44,13 +44,16 @@ export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = 
     services: ['pgResearch'],
     tools: ['research_today', 'research_overnight', 'research_portfolio_impact', 'research_upcoming_events', 'research_opportunities', 'research_alerts'],
     // tool.call.toolview keys for the six research tools ship in @puregamma/dsh-ui-research.
-    ui: ['tool.research-document', 'tool.research-run', 'resource.research-artifact'],
+    // resource.research-run (deep-research run status over ctx.pgResearchRuns) and
+    // resource.research-artifact ship in @puregamma/dsh-ui-research-resources (off by default).
+    ui: ['tool.research-document', 'tool.research-run', 'resource.research-run', 'resource.research-artifact'],
     legacyOwners: ['packages/agents', 'packages/harness', 'apps/web/plugins/builtin/research', 'docs/developer/HARNESS_RESEARCH_ARCHITECTURE.md'],
   },
   {
     id: 'research-runner', packageName: '@puregamma/dsh-research-runner', plane: 'host', risk: 'stateful',
     services: ['pgResearchSandbox'], tools: ['research_code_run', 'research_code_status', 'research_code_cancel'],
-    ui: ['resource.research-run', 'resource.research-figure'],
+    // Sandboxed code runs (/api/research/run); not the deep-research runs above.
+    ui: ['resource.research-code-run', 'resource.research-figure'],
     legacyOwners: ['packages/research_runner', 'apps/api/routers/research_runner.py', 'apps/api/services/research_runner_service.py', 'services/*runner*'],
   },
   {
@@ -89,7 +92,8 @@ export const PUREGAMMA_CAPABILITIES: readonly PureGammaCapabilityDescriptor[] = 
     id: 'backtest', packageName: '@puregamma/dsh-backtest', plane: 'dual', risk: 'stateful',
     services: ['pgBacktest'],
     tools: ['backtest_status', 'backtest_compile', 'backtest_run', 'backtest_runs', 'backtest_result', 'backtest_cancel', 'backtest_export', 'backtest_save_strategy', 'backtest_refresh_data'],
-    // tool.call.toolview keys for the backtest tools ship in @puregamma/dsh-ui-backtest.
+    // tool.call.toolview keys for the backtest tools ship in @puregamma/dsh-ui-backtest;
+    // resource.backtest-artifact ships in @puregamma/dsh-ui-research-resources (off by default).
     ui: ['tool.backtest-document', 'tool.backtest', 'resource.backtest-artifact'],
     legacyOwners: ['packages/backtest', 'apps/api/routers/backtest*', 'apps/api/services/*backtest*'],
   },

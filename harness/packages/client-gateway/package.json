@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "Typed read-only Host-to-Client projection for PureGamma Harness account, billing, notification and quant-runtime state",
+  "description": "Typed read-only Host-to-Client projection for PureGamma Harness account, billing, notification, quant-runtime, research-run and backtest-artifact state",
   "main": "lib/index.js",
   "types": "lib/types/index.d.ts",
   "exports": {
@@ -27,9 +27,11 @@
   },
   "dependencies": {
     "@puregamma/dsh-auth": "workspace:^",
+    "@puregamma/dsh-backtest": "workspace:^",
     "@puregamma/dsh-billing": "workspace:^",
     "@puregamma/dsh-notifications": "workspace:^",
     "@puregamma/dsh-pg-tsy-runtime": "workspace:^",
+    "@puregamma/dsh-research": "workspace:^",
     "zod": "^4.4.3"
   },
   "peerDependencies": {

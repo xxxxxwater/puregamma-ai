@@ -9,7 +9,7 @@
   "scripts": {
     "architecture-check": "node scripts/architecture-check.mjs",
     "retirement-check": "node scripts/retirement-check.mjs",
-    "build:host": "pnpm --filter @puregamma/dsh-auth run bundle && pnpm --filter @puregamma/dsh-billing run bundle && pnpm --filter @puregamma/dsh-notifications run bundle && pnpm --filter @puregamma/dsh-pg-tsy-runtime run bundle && tsc -b tsconfig.host.json && tsdown --config tsdown.host.ts --env.DSH_BUILD_FACE host",
+    "build:host": "pnpm --filter @puregamma/dsh-auth run bundle && pnpm --filter @puregamma/dsh-billing run bundle && pnpm --filter @puregamma/dsh-notifications run bundle && pnpm --filter @puregamma/dsh-pg-tsy-runtime run bundle && pnpm --filter @puregamma/dsh-research run bundle && pnpm --filter @puregamma/dsh-backtest run bundle && tsc -b tsconfig.host.json && tsdown --config tsdown.host.ts --env.DSH_BUILD_FACE host",
     "typecheck": "pnpm run build:host && tsc -p tsconfig.json",
     "build": "pnpm run build:host && pnpm -r --if-present run bundle",
     "profile-check": "node scripts/profile-check.mjs",
@@ -21,6 +21,7 @@
     "release-boundary-check": "node --test scripts/release-boundary.test.mjs",
     "public-profile-check": "tsx --test scripts/public-profile-surface.test.mjs",
     "domain-toolviews-check": "tsx --test scripts/domain-toolviews.test.mjs",
+    "research-resources-check": "tsx --test scripts/research-resources.test.mjs",
     "legacy-auth-check": "tsx --test scripts/legacy-auth.test.mjs",
     "directory-picker-check": "tsx --test scripts/directory-picker-sandbox.test.mjs",
     "codex-guard-check": "node --test scripts/codex-guard.test.mjs",
@@ -28,7 +29,7 @@
     "ingress-check": "tsx --test --test-timeout=60000 scripts/ingress-caddy.test.mjs",
     "mock-llm-check": "node --test scripts/mock-llm.test.mjs",
     "e2e-conversation": "tsx scripts/e2e-conversation.mjs",
-    "check": "pnpm run architecture-check && pnpm run retirement-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run trading-observation-check && pnpm run release-boundary-check && pnpm run public-profile-check && pnpm run domain-toolviews-check && pnpm run legacy-auth-check && pnpm run session-broker-check && pnpm run ingress-check && pnpm run mock-llm-check && pnpm run directory-picker-check && pnpm run codex-guard-check"
+    "check": "pnpm run architecture-check && pnpm run retirement-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run trading-observation-check && pnpm run release-boundary-check && pnpm run public-profile-check && pnpm run domain-toolviews-check && pnpm run research-resources-check && pnpm run legacy-auth-check && pnpm run session-broker-check && pnpm run ingress-check && pnpm run mock-llm-check && pnpm run directory-picker-check && pnpm run codex-guard-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",
@@ -39,6 +40,7 @@
     "@deepseek-ai/dsh-client-ui-conversation": "0.1.7-rc.1",
     "@deepseek-ai/dsh-client-ui-renderer": "0.1.7-rc.1",
     "@deepseek-ai/dsh-client-ui-settings": "0.1.7-rc.1",
+    "@deepseek-ai/dsh-client-ui-sidebar-right": "0.1.7-rc.1",
     "@deepseek-ai/dsh-client-ui-slots": "0.1.7-rc.1",
     "@deepseek-ai/dsh-client-ui-tool": "0.1.7-rc.1",
     "@deepseek-ai/dsh-host-directory-picker": "0.1.7-rc.1",

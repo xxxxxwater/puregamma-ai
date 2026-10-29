@@ -8,11 +8,45 @@ import type {} from '@puregamma/dsh-auth'
 import type {} from '@puregamma/dsh-billing'
 import type {} from '@puregamma/dsh-notifications'
 import type {} from '@puregamma/dsh-pg-tsy-runtime'
+import type {} from '@puregamma/dsh-research'
+import type {} from '@puregamma/dsh-backtest'
+import type {
+  PureGammaBacktestArtifactView, PureGammaBacktestRunsView, PureGammaResearchArtifactsView, PureGammaResearchRunView, PureGammaResearchRunsView,
+} from './types.ts'
+import {
+  backtestArtifactView, backtestRunsView, researchArtifactsView, researchRunView, researchRunsView, unavailableView,
+} from './research-views.ts'
 
 export type {
   PureGammaAccountView, PureGammaBillingActionResult, PureGammaBillingBudget, PureGammaBillingReward, PureGammaBillingUsage, PureGammaBillingView,
   PureGammaDailyBriefUpdate, PureGammaNotificationActionResult, PureGammaNotificationDelivery, PureGammaNotificationsView, PureGammaQuantRuntimeView,
 } from './types.ts'
+export type {
+  PureGammaBacktestArtifactFile, PureGammaBacktestArtifactView, PureGammaBacktestMetric, PureGammaBacktestRunSummary, PureGammaBacktestRunsView,
+  PureGammaResearchArtifact, PureGammaResearchArtifactsView, PureGammaResearchEvidence, PureGammaResearchRunSummary, PureGammaResearchRunView,
+  PureGammaResearchRunsView,
+} from './types.ts'
+export { RESEARCH_TERMINAL_STATUSES } from './research-views.ts'
+
+/** How long one `researchRunWait` call follows the server's event stream before answering with a fresh read. */
+export const RESEARCH_RUN_WAIT_MS = 20000
+const RESOURCE_ID = /^[A-Za-z0-9._:-]{1,160}$/
+function resourceId(value: unknown): string | undefined { return typeof value === 'string' && RESOURCE_ID.test(value.trim()) ? value.trim() : undefined }
+/**
+ * A reason the browser may show. Provider errors are classified by HTTP status
+ * only; their text (URLs, response bodies) never crosses to the browser.
+ */
+export function readFailureReason(error: unknown, subject: string): string {
+  const message = error instanceof Error ? error.message : ''
+  if (/requires bearer token/.test(message)) return `${subject} is unavailable: this Host has no signed-in user`
+  const status = /HTTP (\d{3})/.exec(message)?.[1]
+  if (status === '404') return `${subject} was not found`
+  if (status === '401' || status === '403') return `${subject} is not available to this account`
+  if (status === '429') return `${subject} is rate limited; try again shortly`
+  if (status !== undefined && status.startsWith('5')) return `${subject} is unavailable: the service returned HTTP ${status}`
+  if (error instanceof Error && error.name === 'AbortError') return `${subject} timed out`
+  return `${subject} is currently unavailable`
+}
 
 function record(value: unknown): Record<string, unknown> | undefined { return typeof value === 'object' && value !== null && !Array.isArray(value) ? value as Record<string, unknown> : undefined }
 // Read a structurally typed projection without requiring an unsafe index signature in the wire DTO.
@@ -64,6 +98,43 @@ export class PureGammaClientGateway extends TypertRemoteService {
   async notificationsTestEmail(): Promise<PureGammaNotificationActionResult> { const service = this.ctx.get('pgNotifications'); if (service === undefined) return notificationActionUnavailable('email-test', 'notifications capability is not installed'); try { const idempotencyKey = `ui-test:${Date.now().toString(36)}:${Math.random().toString(36).slice(2, 12)}`; return notificationAction(await service.send({ channel: 'email', message: 'PureGamma AI test notification.', idempotencyKey }), 'email-test') } catch { return notificationActionUnavailable('email-test', 'email test delivery is currently unavailable') } }
   @Remote('quantRuntime')
   async quantRuntime(): Promise<PureGammaQuantRuntimeView> { const service = this.ctx.get('pgTsyRuntime'); if (service === undefined) return unavailable<PureGammaQuantRuntimeView>('cordis:pgTsyRuntime', 'pg-tsy runtime capability is not installed'); try { const snapshot = await service.health(); return { available: true, observedAt: snapshot.observedAt, source: snapshot.source, processHealthy: snapshot.processHealthy, ready: snapshot.ready, mode: snapshot.mode, leaseHealthy: snapshot.leaseHealthy, feedsTotal: snapshot.feedsTotal, feedsConnected: snapshot.feedsConnected, eventsTotal: snapshot.eventsTotal, policyDecisionsTotal: snapshot.policyDecisionsTotal, openOrders: snapshot.openOrders, ordersJournaledTotal: snapshot.ordersJournaledTotal, blockingGates: [...snapshot.blockingGates], lastError: snapshot.lastError } } catch { return unavailable<PureGammaQuantRuntimeView>('cordis:pgTsyRuntime', 'quant runtime health is currently unavailable') } }
+  @Remote('researchRuns')
+  async researchRuns(): Promise<PureGammaResearchRunsView> { const service = this.ctx.get('pgResearchRuns'); if (service === undefined) return unavailableView<PureGammaResearchRunsView>('cordis:pgResearchRuns', 'research runs capability is not installed', { runs: [] }); try { return researchRunsView(await service.listRuns({ limit: 20 })) } catch (error) { return unavailableView<PureGammaResearchRunsView>('cordis:pgResearchRuns', readFailureReason(error, 'research runs'), { runs: [] }) } }
+  @Remote('researchRun')
+  async researchRun(runId: string): Promise<PureGammaResearchRunView> { const id = resourceId(runId); if (id === undefined) return unavailableView<PureGammaResearchRunView>('cordis:pgResearchRuns', 'research run id is invalid', {}); const service = this.ctx.get('pgResearchRuns'); if (service === undefined) return unavailableView<PureGammaResearchRunView>('cordis:pgResearchRuns', 'research runs capability is not installed', {}); try { return researchRunView(await service.run(id)) } catch (error) { return unavailableView<PureGammaResearchRunView>('cordis:pgResearchRuns', readFailureReason(error, 'research run'), {}) } }
+  /**
+   * Long-poll one run: follow the server's progress events until the status
+   * differs from `knownStatus` (or the run ends, or {@link RESEARCH_RUN_WAIT_MS}
+   * passes), then answer with a fresh authoritative read. A broken event
+   * stream degrades to that plain read, so callers never depend on SSE alone.
+   */
+  @Remote('researchRunWait')
+  async researchRunWait(runId: string, knownStatus: string): Promise<PureGammaResearchRunView> {
+    const id = resourceId(runId)
+    if (id === undefined) return unavailableView<PureGammaResearchRunView>('cordis:pgResearchRuns', 'research run id is invalid', {})
+    const service = this.ctx.get('pgResearchRuns')
+    if (service === undefined) return unavailableView<PureGammaResearchRunView>('cordis:pgResearchRuns', 'research runs capability is not installed', {})
+    const controller = new AbortController()
+    const timer = setTimeout(() => controller.abort(), RESEARCH_RUN_WAIT_MS)
+    try {
+      for await (const event of service.events(id, controller.signal)) {
+        const status = typeof event.data.status === 'string' ? event.data.status : undefined
+        if (event.event !== 'run.state' || (status !== undefined && status !== knownStatus)) break
+      }
+    } catch {
+      // The authoritative read below answers either way.
+    } finally {
+      clearTimeout(timer)
+      controller.abort()
+    }
+    return this.researchRun(id)
+  }
+  @Remote('researchArtifacts')
+  async researchArtifacts(runId: string): Promise<PureGammaResearchArtifactsView> { const id = resourceId(runId); if (id === undefined) return unavailableView<PureGammaResearchArtifactsView>('cordis:pgResearchRuns', 'research run id is invalid', { artifacts: [], evidence: [] }); const service = this.ctx.get('pgResearchRuns'); if (service === undefined) return unavailableView<PureGammaResearchArtifactsView>('cordis:pgResearchRuns', 'research runs capability is not installed', { artifacts: [], evidence: [] }); try { const [artifacts, evidence] = await Promise.all([service.artifacts(id), service.evidence(id).catch(() => undefined)]); return researchArtifactsView(id, artifacts, evidence) } catch (error) { return unavailableView<PureGammaResearchArtifactsView>('cordis:pgResearchRuns', readFailureReason(error, 'research artifacts'), { runId: id, artifacts: [], evidence: [] }) } }
+  @Remote('backtestRuns')
+  async backtestRuns(): Promise<PureGammaBacktestRunsView> { const service = this.ctx.get('pgBacktest'); if (service === undefined) return unavailableView<PureGammaBacktestRunsView>('cordis:pgBacktest', 'backtest capability is not installed', { runs: [] }); try { return backtestRunsView(await service.listRuns({ limit: 20 })) } catch (error) { return unavailableView<PureGammaBacktestRunsView>('cordis:pgBacktest', readFailureReason(error, 'backtest runs'), { runs: [] }) } }
+  @Remote('backtestArtifact')
+  async backtestArtifact(runId: string): Promise<PureGammaBacktestArtifactView> { const id = resourceId(runId); if (id === undefined) return unavailableView<PureGammaBacktestArtifactView>('cordis:pgBacktest', 'backtest run id is invalid', { metrics: [], artifacts: [] }); const service = this.ctx.get('pgBacktest'); if (service === undefined) return unavailableView<PureGammaBacktestArtifactView>('cordis:pgBacktest', 'backtest capability is not installed', { metrics: [], artifacts: [] }); try { return backtestArtifactView(await service.result(id)) } catch (error) { return unavailableView<PureGammaBacktestArtifactView>('cordis:pgBacktest', readFailureReason(error, 'backtest run'), { metrics: [], artifacts: [] }) } }
 }
 
 export default PureGammaClientGateway

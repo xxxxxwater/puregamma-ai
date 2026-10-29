@@ -59,7 +59,7 @@ export const LEGACY_WEB_SURFACES: readonly LegacyWebSurfaceOwner[] = [
   { surface: 'apps/web/app/[locale]/portfolio/page.tsx', owner: 'portfolio', target: 'resource.portfolio', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/pricing/page.tsx', owner: 'billing', target: 'public.pricing + settings.billing', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/reports/page.tsx', owner: 'research', target: 'resource.research-artifact', disposition: 'plugin-ui' },
-  { surface: 'apps/web/app/[locale]/research/[runId]/page.tsx', owner: 'research-runner', target: 'resource.research-run + ui-workflow-run', disposition: 'plugin-ui' },
+  { surface: 'apps/web/app/[locale]/research/[runId]/page.tsx', owner: 'research', target: 'resource.research-run + ui-workflow-run', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/research/page.tsx', owner: 'research', target: 'tool.research-run + resource.research-artifact', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/secretary/page.tsx', owner: 'secretary', target: 'conversation.secretary-mode', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/signals/page.tsx', owner: 'research', target: 'resource.research-signals', disposition: 'plugin-ui' },

@@ -7,11 +7,13 @@
   "exports": {
     "./cordis.patch.yml": "./cordis.patch.yml",
     "./multi-tenant.patch.yml": "./multi-tenant.patch.yml",
+    "./resource-views.patch.yml": "./resource-views.patch.yml",
     "./package.json": "./package.json"
   },
   "files": [
     "cordis.patch.yml",
     "multi-tenant.patch.yml",
+    "resource-views.patch.yml",
     "skills"
   ],
   "dsh": {
@@ -67,6 +69,7 @@
     "@puregamma/dsh-ui-research": "workspace:^",
     "@puregamma/dsh-ui-options": "workspace:^",
     "@puregamma/dsh-ui-backtest": "workspace:^",
-    "@puregamma/dsh-ui-memory": "workspace:^"
+    "@puregamma/dsh-ui-memory": "workspace:^",
+    "@puregamma/dsh-ui-research-resources": "workspace:^"
   }
 }
