@@ -47,14 +47,14 @@
 | 模型路由 | 部分实现：菜单里有不可用模型，并硬编码 “DeepSeek V4 Pro” | 已实现：只列出当前可用且已定价的模型，显示 provider 和服务端给出的每轮预估；未列出的模型按原因（需升级套餐 / 未配置计价 / 不可用）计数说明（v0.3.3） | `agent-chat.tsx`、`agent.py`、`agent_service.py`、`packages/billing/metering.py` | `test_agent_model_pricing.py`；E2E `model-upgrade` | 没有显式费率的模型（目前 `gpt-6-*`）一律拒绝、不按默认费率计费；需由产品批准费率后通过 `AGENT_MODEL_CREDIT_RATES` 配置（§8） |
 | 用量 | 已实现 | 已实现：发送前显示预估和预留，完成后显示实际扣费/退款（均为服务端值） | `agent-chat.tsx` | E2E `model-upgrade` billing | — |
 | 工具审批 | 仅契约：`STATEFUL_TOOLS` 为空，审批流程不会触发；同时提供笼统的“自动执行” | 部分实现：“自动执行”已停用（服务端按 ask 执行）；审批卡显示动作/范围/影响/权限/有效期；服务端一次性、校验所有者、120 s 过期 | `chat_workspace.py`、`tool-approval-card.tsx` | pytest + E2E | 目前没有需要审批的有状态工具；DSH 公开 profile 中同样没有会走 `ask` 的工具，两条路径在出厂配置下都无法触发审批（§14） |
-| 组合/NAV | 部分实现：没有账户时返回 **500**；`str(Decimal)` 输出 `0E-8` | 已实现：返回结构化 404；十进制字符串不再出现指数；界面标注口径、币种、版本、计算/价格时间和 stale | `routers/live_trading.py`、`decimal_text.py`、`NavPanel` | `test_live_trading_nav_http.py`；E2E | — |
+| 组合/NAV | 部分实现：没有账户时返回 **500**；`str(Decimal)` 输出 `0E-8` | 已实现：返回结构化 404；十进制字符串不再出现指数；界面标注口径、币种、版本、计算/价格时间和 stale | `routers/live_trading.py`、`decimal_text.py`、`NavPanel` | `test_live_trading_nav_http.py`；E2E | v0.3.4 修复：仪表盘在未连接账户时把 NAV 显示为 $0.00，Harness portfolio 工具对所有用户返回“不可用”、未同步账户现金显示 0（§14） |
 | 回测 | 已实现（旧） | 不变 | `backtest-lab.tsx` | — | 尚未有 Harness UI 插件 |
-| 领域 tool-view（Harness） | 仅契约：catalog 里的 `tool.*` UI 没有实现 | 已实现（Portfolio/NAV、Research、Options、Backtest、Memory）：`@puregamma/dsh-ui-portfolio`、`@puregamma/dsh-ui-research` 通过 `tool.call.toolview` 渲染工具结果的 `presentationMeta`（模型不可见），stale/unavailable/degraded 都会明确标出，缺失的 NAV 不显示为 0 | `harness/plugins/ui-{portfolio,research,options,backtest,memory}`、对应 `tool-*` | `domain-toolviews-check`（8 例） | 研究产物资源视图（`resource.research-artifact`）未做 |
+| 领域 tool-view（Harness） | 仅契约：catalog 里的 `tool.*` UI 没有实现 | 已实现（Portfolio/NAV、Research、Options、Backtest、Memory）：`@puregamma/dsh-ui-portfolio`、`@puregamma/dsh-ui-research` 通过 `tool.call.toolview` 渲染工具结果的 `presentationMeta`（模型不可见），stale/unavailable/degraded 都会明确标出，缺失的 NAV 不显示为 0 | `harness/plugins/ui-{portfolio,research,options,backtest,memory}`、对应 `tool-*` | `domain-toolviews-check`（8 例） | v0.3.4：研究任务、研究产物、回测产物的只读资源视图（右侧栏，默认关闭，`resource-views.patch.yml`）已实现，但尚未在真实 DSH Host 的浏览器中端到端打开过（§14） |
 | 全路由健壮性 | 不可用：`/daily-push` 在 API 故障时崩溃；`/secretary` 在桌面端横向滚动 | 已实现：51 个路由 × 桌面/手机在 API 不可用时不崩溃、不横向滚动，按钮/链接都有可访问名称 | `route-audit.spec.ts`（CI job） | 114/114 | — |
 | 实盘 | 已实现（默认全部关闭），但界面在结果不明时允许重新预览、UNKNOWN 无解释、成交显示“不可用” | 已实现：审批卡、结果不明时只允许核对或重发**同一意图**、UNKNOWN 有解释、展示成交、可吊销连接。v0.3.4：用户侧 ledger/对账只读视图（Account 页不再显示“ledger 不可用”）、UNKNOWN 订单的同步状态与只查询的“请求重新核对”（默认关）、管理端审阅（kill switch、LIVE 资格、对账异常）、mandate 提案 → 双人审批 → 生效（默认关，迁移 0036）（§14） | `live-trading-console.tsx`、`admin-live-trading-console.tsx`、`packages/live_trading/{ledger_view,order_sync,admin_review,mandate_proposals}.py` | E2E `live-trading-workflow`、`live-trading-{ledger,recheck,admin}`；pytest `test_live_trading_*`（含 Postgres 并发） | 实盘开关仍由部署方控制，本次没有开启；mandate 提案只有 API、没有界面；`ledger.cash_balance` 仍跨币种求和（需单独评审风控语义） |
 | 通知 | 已实现（旧） | 不变 | `routers/notifications.py` | — | — |
 | 记忆 | 已实现（默认关闭） | 不变 | `routers/memory.py` | — | — |
-| 移动端 | 部分实现：抽屉 Escape 后焦点不返回、导航抽屉关闭时仍可聚焦并漏出 12px、历史抽屉被页头遮挡 | 已实现：键盘与读屏可用，抽屉通过 portal 渲染、不透明，桌面折叠状态持久化 | `nav.tsx`、`agent-chat.tsx`、`use-dialog-focus.ts` | E2E `phone drawers` | — |
+| 移动端 | 部分实现：抽屉 Escape 后焦点不返回、导航抽屉关闭时仍可聚焦并漏出 12px、历史抽屉被页头遮挡 | 已实现：键盘与读屏可用，抽屉通过 portal 渲染、不透明，桌面折叠状态持久化 | `nav.tsx`、`agent-chat.tsx`、`use-dialog-focus.ts` | E2E `phone drawers`（v0.3.4 起另在生产构建 job 中运行） | v0.3.4 修复：生产构建下在手机历史抽屉选择会话后焦点落到 `<body>`（dev 模式掩盖了该缺陷，§14） |
 | 原生 App（iOS / Android） | 部分实现：发送不带 `client_request_id`（“重试”可能二次扣费）、iOS 遇到未知 SSE 事件中断流、无断线回放、金额用浮点、模型菜单含评估模型；移动端单元测试从不在 CI 运行 | 已实现（v0.3.4，App 1.6.0）：幂等发送与 409 附着原 run、按 `seq` 去重与 `/runs/{id}/events?after=` 回放、未知事件忽略、进入后台只停止观察不取消、十进制金额、NAV 无账户显示“未连接实盘账户”、已删除会话 404 处理、模型菜单只列可用生成模型并说明原因；契约文档 + 服务端契约测试 + 共享样例，`Mobile Unit Tests` 工作流（§14） | `apps/ios`、`apps/android`、`docs/mobile/MOBILE_API_CONTRACT.md`、`docs/mobile/fixtures/`、`tests/contract/` | `Mobile Unit Tests`（contract、Android 81、iOS 97）；`tests/contract` 28 | 后台继续生成需要服务端把执行与连接解耦（旧路径断开即 `interrupted`）；没有工具审批 UI；旧 `/portfolio` 仍返回 float；`APP_MIN_VERSION` 仍为 1.5.0（是否强制升级待定） |
 
 ### 2.1 Catalog：目标能力与“已安装/健康/已授权”
@@ -160,7 +160,11 @@
 - **实盘与账务（v0.3.4，§14）**：新增的写入口全部默认关闭——`LIVE_ORDER_RECHECK_ENABLED`（只查询的重新核对）、`LIVE_MANDATE_PROPOSALS_ENABLED`（需先在生产执行迁移 0036）。是否开启、审批人范围、限流间隔、`LIVE_ORDER_SYNC` 审计行的保留策略需要产品决定。管理端 `notes` 改为必填、释放不存在的 kill switch 返回 404，仓库外的脚本需同步。
 - **DSH 多租户**：v0.3.3 实现了每用户隔离 Host 的 session broker；v0.3.4 补上入口、内核级 Host 隔离、限流审计和登出联动（均默认关闭，§14，上线步骤见 [runbook](upgrade-20261029/dsh-ingress-isolation.md) §5）。仍未上线：需要用户决定上线时间与 `HARNESS_DOMAIN`、提供 staging 与真实模型 key、两个测试账号、选择出口限制方案（user manager 会忽略 `IPAddressDeny`）；systemd launcher 要求主机 systemd ≥ 257 且允许 broker 账号创建非特权用户命名空间（Ubuntu 23.10+ 默认由 AppArmor 限制，否则 unit 以 226/NAMESPACE 失败、broker fail closed）；硬性磁盘配额、broker 的 systemd 服务文件和 docker 镜像属于部署工作；CSP 仍需 `'unsafe-eval'`（上游限制）。
 - **Harness 编译依赖对齐**：v0.3.3 已把 npm 上的 `@deepseek-ai/*` 升到 `0.1.7-rc.1`（与 vendored gitlink 同 tag）。vendored 源码本身没有在本机构建（磁盘和内存不足），用的是同 tag 的 npm 包。
-- **领域 tool-view 插件**：五个领域都已实现（v0.3.1–v0.3.2）。研究产物和回测产物的资源视图（`resource.*`）尚未实现。
+- **领域 tool-view 插件**：五个领域都已实现（v0.3.1–v0.3.2）。v0.3.4 增加研究/回测资源视图（默认关闭，未在真实 Host 浏览器中端到端验证）。
+- **Harness 退役（v0.3.4，§14）**：Market Data、Portfolio 有了对等测试和逐项门槛对照，但 `retired` 仍为空：缺部署镜像 digest、staging 上的 HTTPS E2E 产物（需要 staging 与真实模型 key）和人工审阅，另有 `pgPortfolio.health()`、后台任务归插件、provider 转发 trace 等工程缺口。
+- **Round 5 视觉（v0.3.4，§14）**：border 宽度工具类 804 → 559，未达到 ≤ 450；剩余主要是顶层卡片边框，需要设计决定卡片用 0.5 px hairline 还是只用阴影。raw `<button>` 剩 60 个（动态类），需给 Button 增加 `selected`/`tone`。登录后页面与预览站的逐页对比仍是视觉假设（需要测试账号）。
+- **生产构建下的不稳定用例**：`visual-style.spec.ts` 的 “financial routes raise panel opacity; ocean routes skip double blur” 在生产构建下偶发读到空的 `data-surface-tier`（页面刚加载就读取，客户端尚未写入）；CI 的 dev 模式与新的生产构建 job 都不运行这个 spec 的生产版本。W3 的 `tests/contract/test_mobile_agent_contract.py::test_a_reopened_conversation_names_its_active_run_and_pending_approvals` 在一次全量运行中失败过一次（单独与后续全量运行都通过），疑似测试间共享状态。
+- **skills provider 与多租户**：`skills-legacy-api` 目前没有挂进 profile。Host token 的路由白名单（`apps/api/dependencies.py#_DSH_HOST_ROUTES`）不含 `/skills`；将来挂进多租户 profile 前，需要决定是否只开放读接口（`run`/`import`/`install` 涉及扣费与写入）。
 - **计费**：v0.3.3 起没有显式费率的模型直接拒绝（`AGENT_MODEL_PRICING_NOT_CONFIGURED`），不再按默认费率计费；代码里没有新增任何价格。`gpt-6-luna/sol/astra` 因此在菜单中显示“未配置计价”，需要产品批准费率后通过 `AGENT_MODEL_CREDIT_RATES` 配置。
 - **上传上限**：已在 `7f61371` 统一（`/api/agent/attachments` 放行到 10 MiB，其余路径保持 2 MB）；需要随下次部署生效。
 - **有状态工具**：`STATEFUL_TOOLS` 为空，审批卡目前只能通过 stub 和已有的待审批记录验证。
@@ -268,6 +272,14 @@ v0.3.3 之后合入 `main` 的变更（均未执行生产部署、生产数据�
   - 新工作流 `Mobile Unit Tests`（只读权限、不发布产物）：服务端契约 + 样例漂移检查、Android 单元测试、iOS 模拟器单元测试（ad-hoc 签名，Keychain 测试可运行）。iOS 测试此前从未在 CI 运行。
   - App 版本 1.6.0（iOS build 3、Android versionCode 10）。
 
+- **Harness 资源视图、可复现安装、退役证据与 Round 5**（`9cc05f4`…`297bbe2`，详见 [upgrade-20261029/harness-repro-visual.md](upgrade-20261029/harness-repro-visual.md)）：
+  - 资源视图：`@puregamma/dsh-ui-research-resources` 用 `ctx.resources` + 右侧栏 tab 只读展示研究任务实时状态、研究产物、回测产物（走用户 Host token，凭证不进浏览器，缺失/失败显示原因）；默认关闭，只由 `profile/resource-views.patch.yml` 打开，真实 `dsh 0.1.7-rc.1 --dump-config` 验证；新增 gateway 读取纳入 release-boundary 白名单。
+  - 可复现安装：提交 `harness/pnpm-lock.yaml`（pnpm 11.7.0），CI 改为 `--frozen-lockfile`；新增 `lockfile-check`（cordis 只有一个 peer 变体、DSH 版本与 gitlink 一致）。
+  - 退役证据：Market Data、Portfolio 的 golden 样例与实时 FastAPI↔Harness 对等测试；`retirement-evidence.json` 新增只记录进度的 `candidates`（market.py 4/14、news.py 4/14、portfolio.py 3/14），`retired` 仍为空（不编造部署与审阅字段）。
+  - 测试发现并修复的既有缺陷：research、research-runner、memory、secretary、skills 五个 legacy provider 漏了 `/api` 前缀，34 个路径全部 404（新增路由表守卫）；`portfolio_snapshot`/`portfolio_nav` 把 `accountIds: []` 当空过滤，所有用户都得到“不可用”；未同步账户现金显示 0、按账户过滤却返回总额、一个账户过期即全部标过期、SQLite 无时区时间按本地时区解析、`mock` 行情价格进入工具；仪表盘在未连接账户时 NAV 显示 $0.00。
+  - 可用性：生产构建下手机历史抽屉选择会话后焦点落到 `<body>`（线上真实缺陷，dev 模式掩盖），已修复；`web-e2e.yml` 新增生产构建 job（agent-session-reliability + route-audit）。
+  - Round 5：统一 `Button`（primary/secondary/ghost/danger × sm/md/lg）；raw `<button>` 229 → 60（目标 ≤ 80）；`text-[Npx]` 158 → 6（8 档字号/行高 token；剩余 6 处是比例缩小的架构插图）；圆角 6/8/12；border 宽度类 804 → 559（**未达到** ≤ 450，见 §8）。
+
 验证（协调会话在合并前的树上复跑，另附工作会话报告）：
 
 | 项目 | 结果 |
@@ -286,6 +298,9 @@ v0.3.3 之后合入 `main` 的变更（均未执行生产部署、生产数据�
 | 工作会话报告：端到端对照（mock 模型 + 一次性 Postgres） | 19 通过、0 失败，DSH 工具审批为缺失 |
 | W3 rebase 到 `main` 后：`pytest tests/contract` / `pytest tests` / ruff | 28 通过 / 1411 通过、9 跳过、4 xfailed、0 失败 / 通过 |
 | 工作会话报告：`Mobile Unit Tests`（分支） | contract ✅、Android 81/81、iOS 97/97（基线 Android 57、iOS 72 其中 2 个失败）；客户端变异（未知帧不忽略、409 不附着）使 iOS 4 项、Android 5 项失败 |
+| W4 rebase 到 `main` 后：harness 删除 node_modules 后 `pnpm install --frozen-lockfile` + `pnpm run check` | 132 通过、0 失败、3 跳过 |
+| W4 rebase 后：`pytest tests` / ruff / web typecheck / lint | 1530 通过、9 跳过、4 xfailed、0 失败 / 通过 / 通过 / 9 个已有警告 |
+| W4 rebase 后：Playwright 全部 32 个 spec（生产构建 + `next start`，chromium + mobile-chrome） | 除下列外全部通过（route-audit 116、contrast-audit 20、agent-session-reliability 30、model-upgrade 40、i18n 30 …）：`live-trading` 4 项与 `plugins-runtime` 2 项读取仅 `next dev` 存在的诊断钩子（CI 在 dev 模式运行，通过）；`visual-style` “financial routes raise panel opacity” 在生产构建下偶发失败——`--repeat-each=3` 时 W4 树 24/24，不含 W4 的 `main` 22/24，属既有的时序问题，列为遗留 |
 
 合并时发现并修复：`0186a72` 新增的 `/admin/trading` 页面没有登记到 Harness 迁移台账，`architecture-check` 因此失败；harness-v2 CI 只在 `harness/**` 变化时运行，所以 `main` 上没有暴露（`1fb1da7` 补登记，owner `admin`）。
 
