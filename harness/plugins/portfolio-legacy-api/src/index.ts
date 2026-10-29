@@ -77,7 +77,9 @@ function decimalValue(value: unknown): string | undefined {
 function isoValue(value: unknown): string | undefined {
   const raw = stringValue(value)
   if (raw === undefined) return undefined
-  const timestamp = Date.parse(raw)
+  // The legacy API stores UTC; an offset-less date-time (SQLite) must not be
+  // re-read in the Host's local zone.
+  const timestamp = Date.parse(/T\d{2}:\d{2}(?::\d{2}(?:\.\d+)?)?$/.test(raw) ? `${raw}Z` : raw)
   return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined
 }
 
@@ -101,6 +103,20 @@ function sumHoldingValues(value: unknown): string | undefined {
     seen = true
   }
   return seen && Number.isFinite(total) ? String(total) : undefined
+}
+
+function accountStale(status: string | undefined, globalStale: boolean): boolean {
+  return status === undefined ? globalStale : status.toUpperCase() === 'STALE'
+}
+
+function sumDecimals(values: readonly unknown[]): string | undefined {
+  let total = 0
+  for (const value of values) {
+    const item = decimalValue(value)
+    if (item === undefined) return undefined
+    total += Number(item)
+  }
+  return values.length > 0 && Number.isFinite(total) ? String(total) : undefined
 }
 
 /**
@@ -157,7 +173,8 @@ export class LegacyApiPortfolioProvider extends PortfolioService {
     const now = new Date().toISOString()
     const globalObservedAt = isoValue(payload.data_as_of) ?? now
     const globalStale = payload.stale === true
-    const selected = accountIds === undefined ? undefined : new Set(accountIds)
+    // An empty filter means every connected account (the tools pass [] for "all").
+    const selected = accountIds === undefined || accountIds.length === 0 ? undefined : new Set(accountIds)
 
     const legacyAccounts = Array.isArray(payload.accounts) ? payload.accounts as LegacyAccount[] : []
     const accounts: PortfolioAccountRef[] = legacyAccounts.flatMap((raw): PortfolioAccountRef[] => {
@@ -173,7 +190,9 @@ export class LegacyApiPortfolioProvider extends PortfolioService {
         baseCurrency: 'USD',
         status,
         observedAt,
-        stale: globalStale || status?.toUpperCase() === 'STALE',
+        // Legacy reports each account's effective status (STALE past its own
+        // venue window); the payload-level flag is "any account is stale".
+        stale: accountStale(status, globalStale),
       }]
     })
 
@@ -190,7 +209,10 @@ export class LegacyApiPortfolioProvider extends PortfolioService {
       const available = decimalValue(raw.available_cash)
       if (id === undefined || provider === undefined || available === undefined) return []
       if (selected !== undefined && !selected.has(id)) return []
-      const observedAt = isoValue(raw.as_of) ?? globalObservedAt
+      // The legacy endpoint reports 0.0 cash (and NAV) for an account that has
+      // no snapshot yet; that is "unknown", not a zero balance.
+      const observedAt = isoValue(raw.as_of)
+      if (observedAt === undefined) return []
       const status = stringValue(raw.status)
       return [{
         accountId: id,
@@ -201,7 +223,7 @@ export class LegacyApiPortfolioProvider extends PortfolioService {
         total: available,
         observedAt,
         source: `compatibility:${provider}`,
-        stale: globalStale || status?.toUpperCase() === 'STALE',
+        stale: accountStale(status, globalStale),
       }]
     })
 
@@ -225,29 +247,56 @@ export class LegacyApiPortfolioProvider extends PortfolioService {
         unrealizedPnl: decimalValue(raw.unrealized_pnl),
         observedAt,
         source: `compatibility:${provider}`,
-        stale: globalStale || account?.stale === true,
+        stale: account === undefined ? globalStale : account.stale === true,
       }]
     })
 
-    const connected = payload.connected === true && accounts.length > 0
-    const totalNav = connected ? decimalValue(payload.nav) ?? null : null
-    const totalCash = connected ? decimalValue(payload.available_cash) ?? null : null
-    let positionsValue = connected ? sumHoldingValues(payload.holdings) ?? null : null
+    // Accounts with a snapshot carry a real figure; the rest are unknown.
+    const measured = legacyAccounts.filter(raw => {
+      const id = stringValue(raw.id)
+      return id !== undefined && stringValue(raw.provider) !== undefined && isoValue(raw.as_of) !== undefined && (selected === undefined || selected.has(id))
+    })
+    const unmeasured = accounts.length - measured.length
+    const connected = payload.connected === true && measured.length > 0
+    let totalNav: string | null
+    let totalCash: string | null
+    let positionsValue: string | null
+    let navObservedAt = globalObservedAt
+    let navStale = globalStale
+    if (selected === undefined) {
+      totalNav = connected ? decimalValue(payload.nav) ?? null : null
+      totalCash = connected ? decimalValue(payload.available_cash) ?? null : null
+      positionsValue = connected ? sumHoldingValues(payload.holdings) ?? null : null
+    } else {
+      // A filtered read sums only the selected accounts' own figures; the
+      // payload's totals cover every account and would overstate the subset.
+      totalNav = connected ? sumDecimals(measured.map(raw => raw.nav)) ?? null : null
+      totalCash = connected ? sumDecimals(measured.map(raw => raw.available_cash)) ?? null : null
+      positionsValue = null
+      const times = measured.map(raw => Date.parse(isoValue(raw.as_of)!))
+      if (times.length > 0) navObservedAt = new Date(Math.min(...times)).toISOString()
+      navStale = accounts.some(account => account.stale === true)
+    }
     if (positionsValue === null && totalNav !== null && totalCash !== null) {
       const derived = Number(totalNav) - Number(totalCash)
       if (Number.isFinite(derived)) positionsValue = String(derived)
     }
+    const reason = !connected
+      ? 'no connected portfolio snapshot'
+      : unmeasured > 0
+        ? `NAV excludes ${unmeasured} connected account${unmeasured === 1 ? '' : 's'} without a snapshot`
+        : undefined
 
     const nav: PortfolioNavSnapshot = {
       currency: 'USD',
       nav: totalNav,
       cash: totalCash,
       positionsValue,
-      calculatedAt: globalObservedAt,
-      priceObservedAt: globalObservedAt,
+      calculatedAt: navObservedAt,
+      priceObservedAt: navObservedAt,
       calculationVersion: 'compatibility-portfolio-v1',
-      stale: globalStale,
-      ...connected ? {} : { reason: 'no connected portfolio snapshot' },
+      stale: navStale,
+      ...reason === undefined ? {} : { reason },
     }
 
     return {
