@@ -74,7 +74,7 @@ export function JevAdvisoryConsole({ locale }: { locale: Locale }) {
         <TriangleAlert className="mt-0.5 h-4 w-4 shrink-0 text-status-warning" />
         <p>{state?.reason ?? (zh ? "正在获取经验证的运行时遥测。不会用历史演示数据或估算值填充。" : "Fetching validated runtime telemetry. Historical demo data and estimates are never substituted.")}</p>
       </div> : <div className="p-5">
-        <div className="grid gap-px border border-border-pg bg-border-pg sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid gap-px bg-border-pg sm:grid-cols-2 lg:grid-cols-4">
           <MetricCard label={zh ? "建议方向" : "Advisory choice"} value={(state.choice ?? "—").toUpperCase()} />
           <MetricCard label={zh ? "模型置信度" : "Provider confidence"} value={percent(state.provider_confidence)} />
           <MetricCard label={zh ? "接收延迟" : "Receive age"} value={millis(state.age_ms)} />
@@ -82,7 +82,7 @@ export function JevAdvisoryConsole({ locale }: { locale: Locale }) {
         </div>
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           {(["up", "down", "neutral"] as const).map((choice) => (
-            <div key={choice} className="rounded-lg border border-border-pg bg-bg-panel-muted p-3">
+            <div key={choice} className="rounded-lg bg-bg-panel-muted p-3">
               <div className="flex items-center justify-between text-11 uppercase text-text-pg-muted"><span>{choice}</span>{state.choice === choice ? <Activity className="h-3.5 w-3.5 text-accent-pg" /> : null}</div>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{percent(probabilities?.[choice])}</p>
             </div>

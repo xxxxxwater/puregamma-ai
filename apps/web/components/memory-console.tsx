@@ -264,8 +264,8 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
                     <li key={proposal.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="border border-border-pg px-1.5 py-0.5 uppercase text-text-pg-muted rounded-lg">{proposal.scope}</span>
-                          <span className="border border-border-pg px-1.5 py-0.5 uppercase text-text-pg-dim rounded-lg">{proposal.kind}</span>
+                          <span className="px-1.5 py-0.5 uppercase text-text-pg-muted rounded-lg bg-bg-panel-muted">{proposal.scope}</span>
+                          <span className="px-1.5 py-0.5 uppercase text-text-pg-dim rounded-lg bg-bg-panel-muted">{proposal.kind}</span>
                           <span className="text-text-pg-dim">{new Date(proposal.created_at).toLocaleString(locale)}</span>
                         </div>
                         <p className="mt-2 text-sm leading-5 text-text-pg">{proposal.content_preview}</p>
@@ -293,7 +293,7 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
                     <li key={item.id} className="flex flex-wrap items-start justify-between gap-3 p-4">
                       <div className="min-w-0 flex-1">
                         <div className="flex flex-wrap items-center gap-2 text-xs">
-                          <span className="border border-border-pg px-1.5 py-0.5 uppercase text-text-pg-muted rounded-lg">{item.scope}</span>
+                          <span className="px-1.5 py-0.5 uppercase text-text-pg-muted rounded-lg bg-bg-panel-muted">{item.scope}</span>
                           <StatusBadge domain="research" value={item.status === "saved" ? "completed" : item.status} locale={locale} />
                           <span className="text-text-pg-dim">{new Date(item.created_at).toLocaleString(locale)}</span>
                         </div>

@@ -145,7 +145,7 @@ export function UsagePanel({ locale, initialUsage }: Props) {
   const totalTokens = totals.input_tokens + totals.output_tokens + totals.cache_tokens;
 
   if (usage?.unavailable) {
-    return <div role="status" className="rounded-2xl border border-border-pg bg-bg-panel-muted p-5 text-sm leading-6 text-text-pg-muted">{zh ? "用量数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Usage data is unavailable. Confirm that Gateway is enabled and you are signed in."}</div>;
+    return <div role="status" className="rounded-2xl bg-bg-panel-muted p-5 text-sm leading-6 text-text-pg-muted">{zh ? "用量数据暂不可用。请确认网关已启用并使用已登录账户访问。" : "Usage data is unavailable. Confirm that Gateway is enabled and you are signed in."}</div>;
   }
 
   return <div className="space-y-5">

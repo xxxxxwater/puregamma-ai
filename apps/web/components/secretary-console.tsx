@@ -402,11 +402,11 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
       <section className="flex h-[calc(100dvh-10rem)] min-h-[408px] min-w-0 flex-col overflow-hidden lg:h-auto lg:min-h-0">
         <header className="shrink-0 flex flex-wrap items-start justify-between gap-4 border-b border-border-pg p-5">
           <div><div className="text-[0.68rem] font-semibold uppercase tracking-[0.18em] text-text-pg-muted">{copy.eyebrow}</div><h1 className="mt-2 text-2xl font-semibold">{copy.title}</h1><p className="mt-2 max-w-2xl text-sm leading-6 text-text-pg-muted">{copy.description}</p></div>
-          <div className="flex flex-wrap gap-2 text-xs"><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 rounded-lg"><Volume2 className="h-3.5 w-3.5" />{copy.voiceName} · {copy.fixedVoice}</span><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 rounded-lg"><Coins className="h-3.5 w-3.5" />{creditsPerReply} {copy.creditsPerReply}</span><span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 text-status-positive rounded-lg"><Brain className="h-3.5 w-3.5" />{copy.memoryOn}</span></div>
+          <div className="flex flex-wrap gap-2 text-xs"><span className="inline-flex items-center gap-1.5 bg-bg-panel-muted px-2 py-1 rounded-lg"><Volume2 className="h-3.5 w-3.5" />{copy.voiceName} · {copy.fixedVoice}</span><span className="inline-flex items-center gap-1.5 bg-bg-panel-muted px-2 py-1 rounded-lg"><Coins className="h-3.5 w-3.5" />{creditsPerReply} {copy.creditsPerReply}</span><span className="inline-flex items-center gap-1.5 bg-bg-panel-muted px-2 py-1 text-status-positive rounded-lg"><Brain className="h-3.5 w-3.5" />{copy.memoryOn}</span></div>
         </header>
 
         <div ref={messageListRef} className="min-h-0 flex-1 space-y-4 overflow-y-auto overscroll-contain p-4 md:p-6">
-          {messages.length === 0 ? <div className="mx-auto flex min-h-[360px] max-w-lg flex-col items-center justify-center text-center"><div className="flex h-12 w-12 items-center justify-center border border-border-pg bg-bg-panel-muted rounded-lg"><Mic className="h-5 w-5" /></div><h2 className="mt-5 text-xl font-semibold">{copy.emptyTitle}</h2><p className="mt-2 text-sm leading-6 text-text-pg-muted">{copy.emptyDescription}</p></div> : messages.map((message) => {
+          {messages.length === 0 ? <div className="mx-auto flex min-h-[360px] max-w-lg flex-col items-center justify-center text-center"><div className="flex h-12 w-12 items-center justify-center bg-bg-panel-muted rounded-lg"><Mic className="h-5 w-5" /></div><h2 className="mt-5 text-xl font-semibold">{copy.emptyTitle}</h2><p className="mt-2 text-sm leading-6 text-text-pg-muted">{copy.emptyDescription}</p></div> : messages.map((message) => {
             const assistant = message.role === "assistant";
             const active = activeAudioId === message.id;
             const loading = loadingAudioId === message.id;
@@ -422,7 +422,7 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
                 ) : ownRecording ? (
                   <BubblePlayer dark playing={playing} loading={loading} ratio={ratio} currentTime={active ? audioProgress : 0} remaining={remaining} knownDuration={knownDuration} stopLabel={copy.stop} playLabel={copy.play} speakingLabel={copy.speaking} onToggle={() => void playMessage(message)} title={copy.play} />
                 ) : (
-                  <div className="max-w-[86%] border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-3 text-sm leading-6 text-[var(--pg-text-inverse)] rounded-lg">
+                  <div className="max-w-[86%] bg-[var(--pg-surface-inverse)] px-4 py-3 text-sm leading-6 text-[var(--pg-text-inverse)] rounded-lg">
                     <div className="whitespace-pre-wrap">{String(message.content || "")}</div>
                   </div>
                 )}

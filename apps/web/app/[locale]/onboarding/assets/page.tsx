@@ -73,7 +73,7 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
         })}
       </div>
 
-      <div className="mt-8 flex items-center justify-between gap-4 border border-border-pg bg-bg-panel-muted px-4 py-3 rounded-lg">
+      <div className="mt-8 flex items-center justify-between gap-4 bg-bg-panel-muted px-4 py-3 rounded-lg">
         <div className="flex items-center gap-2 text-sm text-text-pg-muted">
           <Info className="h-4 w-4 shrink-0" aria-hidden />
           {selectedLabel(locale, selected.size)}

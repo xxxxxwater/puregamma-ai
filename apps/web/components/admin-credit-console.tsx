@@ -245,7 +245,7 @@ export function AdminCreditConsole({ locale }: { locale: Locale }) {
                 <h2 className="mb-3 font-semibold">{zh ? "预扣与结算" : "Reservations & settlements"}</h2>
                 <div className="space-y-2">
                   {detail.reservations.map((row) => (
-                    <div key={row.id} className="grid gap-3 border border-border-pg bg-bg-panel-muted p-3 text-sm md:grid-cols-[1fr_auto_auto] md:items-center rounded-lg">
+                    <div key={row.id} className="grid gap-3 bg-bg-panel-muted p-3 text-sm md:grid-cols-[1fr_auto_auto] md:items-center rounded-lg">
                       <div><div className="font-medium">{row.task_type}</div><div className="mt-1 font-mono text-xs text-text-pg-muted">{row.id} · {formatTime(row.created_at, locale)}</div></div>
                       <div className="flex items-center gap-2"><Badge tone="neutral">{row.status}</Badge><span>{row.settled_credits ?? row.reserved_credits}/{row.reserved_credits}</span></div>
                       <Button variant="secondary" disabled={busy || !row.refundable} onClick={() => void executeRefund("reservation", row.id, row.reserved_credits)}>{row.refundable ? (zh ? "退回预扣" : "Refund reservation") : (zh ? "不可退款" : "Terminal")}</Button>

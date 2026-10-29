@@ -128,7 +128,7 @@ export function MobileAccessPanel({ copy }: { copy: RemoteCopy }) {
           </div>
           {status.public.running ? (
             <div className="mt-4 grid gap-4 md:grid-cols-[auto_1fr]">
-              <div className="rounded-xl border border-border-pg bg-bg-app p-2"><img src={pubQr} alt="Public QR" className="h-44 w-44 rounded-lg" /></div>
+              <div className="rounded-xl bg-bg-app p-2"><img src={pubQr} alt="Public QR" className="h-44 w-44 rounded-lg" /></div>
               <div className="space-y-3">
                 <div className="break-all font-mono text-xs text-text-pg-muted">{status.public.url}</div>
                 <PinField value={status.public.pin} copy={copy} canManage={isAdmin} onRotate={() => void rotate()} onCustom={(pin) => void applyCustom(pin)} />

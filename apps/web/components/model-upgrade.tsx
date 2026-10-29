@@ -161,7 +161,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
           catalog limits, pricing, alias mapping, capability list and a raw
           request — is secondary for a product page, and the API reference is
           its authoritative home. */}
-      <details className="mt-6 overflow-hidden rounded-2xl border border-border-pg bg-bg-panel-muted" data-testid="model-upgrade-technical">
+      <details className="mt-6 overflow-hidden rounded-2xl bg-bg-panel-muted" data-testid="model-upgrade-technical">
         <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 p-3 text-xs font-medium text-text-pg-muted">
           <span>{copy.preview.technicalTitle}</span>
           <span className="text-11 font-normal uppercase tracking-[0.1em] text-text-pg-dim">{copy.preview.technicalHint}</span>
@@ -195,7 +195,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
           <p className="mt-3 text-11 leading-5 text-text-pg-dim">{copy.preview.routesNote}</p>
           <p className="mt-3 text-11 leading-5 text-text-pg-dim">{copy.preview.clients}</p>
 
-          {catalog?.gateway_enabled && state === "available" && priceReviewed ? <div className="mt-4 border border-border-pg bg-bg-app rounded-xl">
+          {catalog?.gateway_enabled && state === "available" && priceReviewed ? <div className="mt-4 bg-bg-app rounded-xl">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-pg px-3 py-2">
               <span className="text-11 font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.preview.demoTitle}</span>
               <Button variant="secondary" size="sm"
@@ -208,7 +208,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
               </Button>
             </div>
             <pre className="touch-pan-x overflow-x-auto overscroll-x-contain p-3 text-11 leading-5 text-text-pg"><code>{sampleRequest}</code></pre>
-          </div> : <p role="status" className="mt-4 rounded-xl border border-border-pg bg-bg-app p-3 text-xs leading-5 text-text-pg-muted">{availability.detail}</p>}
+          </div> : <p role="status" className="mt-4 rounded-xl bg-bg-app p-3 text-xs leading-5 text-text-pg-muted">{availability.detail}</p>}
           {catalog?.gateway_enabled && state === "available" && priceReviewed ? <p className="mt-2 text-xs leading-5 text-text-pg-dim">{copy.preview.demoNote}</p> : null}
           <p className="mt-2 text-xs leading-5 text-text-pg-dim">{copy.preview.technicalNote}</p>
         </div>

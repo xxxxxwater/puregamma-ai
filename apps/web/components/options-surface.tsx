@@ -134,14 +134,14 @@ export function OptionsSurface({ locale, initialCurrency = "BTC" }: { locale: Lo
         <Button variant="secondary" size="sm" type="button" disabled={loading} onClick={() => void load(currency, surfaceType)} className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs disabled:opacity-50 rounded-lg"><RefreshCw className="h-3 w-3" />{copy.refresh}</Button>
       </div>
 
-      {loading ? <div className="mt-4 h-72 border border-border-pg bg-bg-panel-muted rounded-xl" /> : null}
+      {loading ? <div className="mt-4 h-72 bg-bg-panel-muted rounded-xl" /> : null}
       {!loading && data && data.surface.rows.length ? <div className="mt-4"><PlotlyChart figure={{ data: traces, layout }} className="h-[540px]" /></div> : null}
       {!loading && data && (!data.surface.rows.length || data.error) ? (
         <div className="mt-4"><EmptyState title={data.error ? copy.emptyErrorTitle : copy.emptyTitle} description={data.error || copy.emptyDescription} /></div>
       ) : null}
 
       {!loading && data && data.surface.rows.length ? (
-        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 border border-border-pg bg-bg-panel-muted p-3 text-xs rounded-lg">
+        <div className="mt-4 flex flex-wrap items-center gap-x-4 gap-y-2 bg-bg-panel-muted p-3 text-xs rounded-lg">
           <span>{copy.insights.atm30}: <strong>{insights?.atm_iv != null ? `${(insights.atm_iv * 100).toFixed(2)}%` : "-"}</strong></span>
           <span>{copy.insights.put25}: <strong>{insights?.put25_iv != null ? `${(insights.put25_iv * 100).toFixed(2)}%` : "-"}</strong></span>
           <span>{copy.insights.call25}: <strong>{insights?.call25_iv != null ? `${(insights.call25_iv * 100).toFixed(2)}%` : "-"}</strong></span>

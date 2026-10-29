@@ -768,7 +768,7 @@ function ConnectView({ locale }: { locale: Locale }) {
                 </div>
               </div>
               {health?.connectionId === connection.id ? (
-                <div className="mt-3 border border-border-pg bg-bg-panel-muted p-3 rounded-lg">
+                <div className="mt-3 bg-bg-panel-muted p-3 rounded-lg">
                   <p className="text-xs font-semibold">{t(locale, "live-trading.connect.healthResult")}: <span className="font-mono">{String(health.result.status)}</span></p>
                   <dl className="mt-2 grid gap-x-4 gap-y-1 text-xs sm:grid-cols-2" data-testid="live-connection-health">
                     {displayHealthRows(health.result.health).map((row) => (
@@ -1163,7 +1163,7 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
           </dl>
           <p className="mt-3 text-xs text-text-pg-dim">{t(locale, "live-trading.workflow.approval.noRiskEstimate")}</p>
           <p className="mt-4 text-xs text-text-pg-muted">{t(locale, "live-trading.workflow.approval.typeToken")}</p>
-          <code className="mt-2 block overflow-x-auto rounded-lg border border-border-pg bg-bg-panel-muted p-3 text-xs">{preview.confirmation}</code>
+          <code className="mt-2 block overflow-x-auto rounded-lg bg-bg-panel-muted p-3 text-xs">{preview.confirmation}</code>
           <input value={token} onChange={(event) => setToken(event.target.value)} aria-label={t(locale, "live-trading.orders.confirmationInput")} placeholder={t(locale, "live-trading.orders.confirmationInput")} autoComplete="off" spellCheck={false} disabled={previewExpired} className="mt-3 w-full rounded-lg border border-border-pg bg-bg-panel-muted px-3 py-2 font-mono text-sm disabled:opacity-50" />
           <div className="mt-3 flex flex-wrap gap-2">
             <button type="button" onClick={() => setDialogOpen(true)} disabled={!token.trim() || busy === "confirm" || previewExpired} className="min-h-10 rounded-lg border border-status-warning px-4 text-sm font-semibold text-status-warning disabled:opacity-40">
@@ -1366,7 +1366,7 @@ function ConfirmOrderDialog({ locale, preview, busy, onBack, onConfirm }: { loca
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="live-confirm-title" className="w-full max-w-md rounded-xl border border-status-warning bg-bg-panel p-5">
         <h3 id="live-confirm-title" className="font-semibold text-status-warning">{t(locale, "live-trading.orders.confirmDialogTitle")}</h3>
         <p className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "live-trading.orders.confirmDialogBody")}</p>
-        <dl className="mt-4 space-y-2 rounded-lg border border-border-pg bg-bg-panel-muted p-3 text-sm">
+        <dl className="mt-4 space-y-2 rounded-lg bg-bg-panel-muted p-3 text-sm">
           <div className="flex justify-between gap-3"><dt className="text-text-pg-muted">{t(locale, "live-trading.orders.dialogSymbol")}</dt><dd className="font-mono">{preview.intent.symbol}</dd></div>
           <div className="flex justify-between gap-3"><dt className="text-text-pg-muted">{t(locale, "live-trading.orders.dialogSide")}</dt><dd>{preview.intent.side}</dd></div>
           <div className="flex justify-between gap-3"><dt className="text-text-pg-muted">{t(locale, "live-trading.orders.dialogQuantity")}</dt><dd className="font-mono tabular-nums">{formatDecimalString(preview.intent.quantity)}</dd></div>
@@ -1488,7 +1488,7 @@ function AccountView({ locale, safety, onReload }: { locale: Locale; safety: Tra
                 </div>
               </div>
               {mandate.pause_reason ? <p className="mt-2 text-xs text-status-warning">{t(locale, "live-trading.account.mandatePauseReason")}: {mandate.pause_reason}</p> : null}
-              <div className="mt-3 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-2 xl:grid-cols-4 rounded-lg overflow-hidden">
+              <div className="mt-3 grid gap-px bg-border-pg sm:grid-cols-2 xl:grid-cols-4 rounded-lg overflow-hidden">
                 <Field label={t(locale, "live-trading.account.mandateMaxTotal")} value={`$${formatDecimalString(mandate.max_total_notional, 2)}`} />
                 <Field label={t(locale, "live-trading.account.mandatePerOrder")} value={`$${formatDecimalString(mandate.max_per_order_notional, 2)}`} />
                 <Field label={t(locale, "live-trading.account.mandatePosition")} value={`$${formatDecimalString(mandate.max_position_notional, 2)}`} />
@@ -1664,7 +1664,7 @@ function ReconciliationSection({ locale }: { locale: Locale }) {
                   <span className="text-xs text-text-pg-dim">{t(locale, "live-trading.account.reconAt", { time: new Date(load.view.latest.created_at).toLocaleString(locale) })}</span>
                   {load.view.latest.reviewed ? <span className="text-xs text-text-pg-muted">· {t(locale, "live-trading.account.reconReviewed", { time: new Date(load.view.latest.reviewed.reviewed_at).toLocaleString(locale) })}</span> : null}
                 </p>
-                <div className="mt-3 grid gap-px overflow-hidden rounded-lg border border-border-pg bg-border-pg sm:grid-cols-3">
+                <div className="mt-3 grid gap-px overflow-hidden rounded-lg bg-border-pg sm:grid-cols-3">
                   <Field label={t(locale, "live-trading.account.reconExchange")} value={amount(load.view.latest.exchange_balance.cash)} />
                   <Field label={t(locale, "live-trading.account.reconLedger")} value={amount(load.view.latest.ledger_balance.cash)} />
                   <Field label={t(locale, "live-trading.account.reconNav")} value={amount(load.view.latest.nav.cash)} />
@@ -1775,7 +1775,7 @@ function ResumeMandate({ locale, mandate, killSwitchEngaged, onDone }: { locale:
             {blockedReason ? <p role="status" className="mt-3 text-sm text-status-warning">{blockedReason}</p> : (
               <>
                 <p className="mt-3 text-xs text-text-pg-muted">{t(locale, "live-trading.workflow.resume.typePhrase")}</p>
-                <code className="mt-1 block break-all rounded-lg border border-border-pg bg-bg-panel-muted p-2 text-xs">{expected}</code>
+                <code className="mt-1 block break-all rounded-lg bg-bg-panel-muted p-2 text-xs">{expected}</code>
                 <input value={phrase} onChange={(event) => setPhrase(event.target.value)} aria-label={t(locale, "live-trading.workflow.resume.typePhrase")} autoComplete="off" spellCheck={false} className="mt-2 w-full rounded-lg border border-border-pg bg-bg-panel-muted px-3 py-2 font-mono text-sm" />
               </>
             )}

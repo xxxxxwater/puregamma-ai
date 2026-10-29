@@ -117,7 +117,7 @@ export default function PricingPage({ params }: { params: { locale: Locale } }) 
             {plan.invited ? (
               <span
                 aria-disabled
-                className={`mt-6 inline-flex cursor-not-allowed items-center justify-center border px-4 py-2.5 text-sm font-semibold rounded-lg border-border-pg text-text-pg-muted`}
+                className={`mt-6 inline-flex cursor-not-allowed items-center justify-center px-4 py-2.5 text-sm font-semibold rounded-lg text-text-pg-muted bg-bg-panel-muted`}
               >
                 {zh ? plan.ctaZh : plan.ctaEn}
               </span>

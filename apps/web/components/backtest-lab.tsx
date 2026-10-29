@@ -160,7 +160,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           {(status?.symbols || ["BTC", "ETH"]).map((symbol) => {
             const item = status?.coverage?.[symbol];
             return (
-              <span key={symbol} className="border border-border-pg px-2 py-1 text-text-pg-muted rounded-lg">
+              <span key={symbol} className="px-2 py-1 text-text-pg-muted rounded-lg bg-bg-panel-muted">
                 {symbol}: {item ? `${item.bars} ${copy.coverage.bars}` : "—"}
                 {item?.first_ts && item?.last_ts ? <span className="ml-1 text-text-pg-dim">{item.first_ts.slice(0, 10)} → {item.last_ts.slice(0, 10)}</span> : null}
               </span>
@@ -230,7 +230,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
             {selected.is_legacy ? <span className="text-11 text-text-pg-dim">Legacy read-only result</span> : null}
             <span className="text-11 text-text-pg-dim">{selected.window.start?.slice(0, 10)} → {selected.window.end?.slice(0, 10)} · {selected.mode}</span>
           </div>
-          <div className="grid grid-cols-2 gap-px border border-border-pg bg-border-pg md:grid-cols-4 rounded-xl overflow-hidden">
+          <div className="grid grid-cols-2 gap-px bg-border-pg md:grid-cols-4 rounded-xl overflow-hidden">
             {[
               [copy.performance.totalReturn, fmtPct(perf.total_return)],
               [copy.performance.sharpe, fmtNum(perf.sharpe)],
@@ -276,19 +276,19 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           {selected.trades?.length ? (
             <details className="text-xs text-text-pg-muted">
               <summary className="cursor-pointer font-medium">Trade records ({selected.trades.length})</summary>
-              <pre className="mt-2 max-h-64 overflow-auto border border-border-pg bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.trades, null, 2)}</pre>
+              <pre className="mt-2 max-h-64 overflow-auto bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.trades, null, 2)}</pre>
             </details>
           ) : null}
           {selected.positions?.length ? (
             <details className="text-xs text-text-pg-muted">
               <summary className="cursor-pointer font-medium">Position records ({selected.positions.length})</summary>
-              <pre className="mt-2 max-h-64 overflow-auto border border-border-pg bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.positions, null, 2)}</pre>
+              <pre className="mt-2 max-h-64 overflow-auto bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.positions, null, 2)}</pre>
             </details>
           ) : null}
           {perf.per_asset ? (
             <div>
               <h3 className="mb-2 text-xs font-semibold text-text-pg-muted">{copy.performance.perAsset}</h3>
-              <div className="grid gap-px border border-border-pg bg-border-pg md:grid-cols-2 rounded-xl overflow-hidden">
+              <div className="grid gap-px bg-border-pg md:grid-cols-2 rounded-xl overflow-hidden">
                 {Object.entries(perf.per_asset).map(([asset, metrics]) => (
                   <div key={asset} className="bg-bg-panel p-4 text-xs">
                     <div className="font-semibold">{asset}</div>
@@ -304,7 +304,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           ) : null}
           <details className="text-xs text-text-pg-muted">
             <summary className="cursor-pointer font-medium">{copy.performance.assumptions}</summary>
-            <pre className="mt-2 overflow-x-auto border border-border-pg bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.assumptions, null, 2)}</pre>
+            <pre className="mt-2 overflow-x-auto bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.assumptions, null, 2)}</pre>
           </details>
         </section>
       ) : null}
@@ -312,7 +312,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
       <section className="border border-border-pg bg-bg-panel p-5 rounded-xl">
         <h2 className="mb-3 text-sm font-semibold">{copy.history.title}</h2>
         {runs.length === 0 ? <p className="text-xs text-text-pg-dim">{copy.history.empty}</p> : (
-          <div className="divide-y divide-border-pg border border-border-pg rounded-xl overflow-hidden">
+          <div className="divide-y divide-border-pg rounded-xl overflow-hidden bg-bg-panel-muted">
             {runs.map((run) => (
               <button key={run.id} type="button" onClick={() => setSelected(run)} className={`flex w-full flex-wrap items-center gap-3 px-3 py-2.5 text-left text-xs transition hover:bg-bg-panel-muted ${selected?.id === run.id ? "bg-bg-panel-muted" : ""}`}>
                 <span className="font-semibold">{run.spec?.name || run.id.slice(0, 8)}</span>

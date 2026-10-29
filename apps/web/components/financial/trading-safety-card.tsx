@@ -114,7 +114,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
         ) : null}
 
         {approval ? (
-          <dl className="grid gap-px overflow-hidden rounded-lg border border-border-pg bg-border-pg sm:grid-cols-3">
+          <dl className="grid gap-px overflow-hidden rounded-lg bg-border-pg sm:grid-cols-3">
             <Field label={zh ? "实盘审批" : "LIVE approval"} value={String(approval.status)} />
             <Field label={zh ? "审批名义上限" : "Approved max notional"} value={money(approval.max_total_notional, locale)} />
             <Field label={zh ? "最后审查时间" : "Last reviewed"} value={approval.reviewed_at ? new Date(approval.reviewed_at).toLocaleString(locale) : (zh ? "从未审查" : "never reviewed")} />
@@ -132,7 +132,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
         ) : (
           <div className="space-y-4">
             {mandates.map((mandate) => (
-              <div key={mandate.id} className="overflow-hidden rounded-xl border border-border-pg">
+              <div key={mandate.id} className="overflow-hidden rounded-xl bg-bg-panel-muted">
                 <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-pg bg-bg-panel-muted px-3 py-2">
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-medium text-text-pg">{zh ? "Mandate" : "Mandate"} {mandate.id.slice(0, 8)}</span>

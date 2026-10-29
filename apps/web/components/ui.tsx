@@ -3,7 +3,7 @@ import { forwardRef } from "react";
 import type { ButtonHTMLAttributes, InputHTMLAttributes, ReactNode, SelectHTMLAttributes } from "react";
 
 export function Card({ children, className = "" }: { children: ReactNode; className?: string }) {
-  return <section className={clsx("rounded-2xl border border-border-pg bg-bg-panel p-5 shadow-card", className)}>{children}</section>;
+  return <section className={clsx("rounded-2xl bg-bg-panel p-5 shadow-card", className)}>{children}</section>;
 }
 
 export type ButtonVariant = "primary" | "secondary" | "ghost" | "danger";

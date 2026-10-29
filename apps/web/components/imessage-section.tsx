@@ -103,7 +103,7 @@ export function IMessageSection({ copy }: { copy: IMessageCopy }) {
       <p className="mt-2 text-sm leading-6 text-text-pg-muted">{copy.subtitle}</p>
 
       <div className="mt-4 space-y-4">
-        <div className="flex flex-wrap items-center gap-3 rounded-xl border border-border-pg bg-bg-app px-4 py-3">
+        <div className="flex flex-wrap items-center gap-3 rounded-xl bg-bg-app px-4 py-3">
           <span className="text-xs uppercase tracking-[0.14em] text-text-pg-dim">{copy.officialNumber}</span>
           <span className="font-mono text-sm text-text-pg">{config.official_number}</span>
         </div>
