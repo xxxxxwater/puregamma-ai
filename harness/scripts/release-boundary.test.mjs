@@ -30,6 +30,8 @@ test('the browser Remote only exposes reviewed account/billing/notification/heal
     'billingCancel', 'billingReactivate', 'notifications', 'notificationsUpdateDailyBrief',
     'notificationsRequestImessageVerification', 'notificationsConfirmImessageVerification',
     'notificationsTestImessage', 'notificationsTestEmail', 'quantRuntime',
+    // Read-only research/backtest resource views (ui-research-resources): no create/cancel/retry/export.
+    'researchRuns', 'researchRun', 'researchRunWait', 'researchArtifacts', 'backtestRuns', 'backtestArtifact',
   ].sort()
   assert.deepEqual(exposed, reviewed)
   assert.doesNotMatch(gateway, /@Remote\(['"](?:submit|placeOrder|flatten|emergencyExit|reloadStrategies)['"]\)/)
