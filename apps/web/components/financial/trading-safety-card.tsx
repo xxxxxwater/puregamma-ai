@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Ban, CirclePause, PlayCircle, ShieldCheck, ShieldX } from "lucide-react";
 import { StatusBadge } from "@/components/ocean/status-badge";
 import { pauseTradingMandate, resumeTradingMandate, type TradingMandate, type TradingSafetyStatus } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 function envBadgeValue(environment: string): string {
   const upper = (environment || "").toUpperCase();
@@ -140,13 +141,13 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
                     {mandate.pause_reason ? <span className="text-11 text-text-pg-dim">· {mandate.pause_reason}</span> : null}
                   </div>
                   <div className="flex items-center gap-2">
-                    <button
+                    <Button variant="secondary" size="sm"
                       type="button"
                       onClick={() => { setConfirming({ id: mandate.id, mode: mandate.paused ? "resume" : "pause" }); setError(""); setReason(""); setConfirmation(""); }}
-                      className="inline-flex h-8 items-center gap-1.5 border border-border-pg px-2.5 text-xs text-text-pg hover:border-border-pg-strong rounded-lg"
+                      className="inline-flex h-8 items-center gap-1.5 px-2.5 text-xs rounded-lg"
                     >
                       {mandate.paused ? <><PlayCircle className="h-3.5 w-3.5" aria-hidden />{zh ? "恢复" : "Resume"}</> : <><CirclePause className="h-3.5 w-3.5" aria-hidden />{zh ? "暂停" : "Pause"}</>}
-                    </button>
+                    </Button>
                   </div>
                 </div>
                 <dl className="grid gap-px bg-border-pg sm:grid-cols-2 lg:grid-cols-4">
@@ -171,7 +172,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
                         <div className="mt-2 flex gap-2">
                           <input value={reason} onChange={(event) => setReason(event.target.value)} aria-label={zh ? "暂停原因" : "Pause reason"} placeholder={zh ? "必填：暂停原因" : "Required: pause reason"} className="min-w-0 flex-1 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm rounded-lg" />
                           <button type="button" onClick={() => void pause(mandate)} disabled={!reason.trim() || busy === `pause:${mandate.id}`} className="border border-status-warning px-3 py-2 text-xs font-semibold text-status-warning disabled:opacity-40 rounded-lg">{zh ? "确认暂停" : "Confirm pause"}</button>
-                          <button type="button" onClick={() => setConfirming(null)} className="border border-border-pg px-3 py-2 text-xs rounded-lg">{zh ? "取消" : "Cancel"}</button>
+                          <Button variant="secondary" size="sm" type="button" onClick={() => setConfirming(null)} className="px-3 py-2 text-xs rounded-lg">{zh ? "取消" : "Cancel"}</Button>
                         </div>
                       </>
                     ) : (
@@ -180,7 +181,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
                         <div className="mt-2 flex gap-2">
                           <input value={confirmation} onChange={(event) => setConfirmation(event.target.value)} aria-label={zh ? "确认短语" : "Confirmation phrase"} placeholder={zh ? "确认短语（至少 8 字符）" : "Confirmation phrase (min 8 chars)"} className="min-w-0 flex-1 border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm rounded-lg" />
                           <button type="button" onClick={() => void resume(mandate)} disabled={confirmation.trim().length < 8 || busy === `resume:${mandate.id}`} className="border border-status-warning px-3 py-2 text-xs font-semibold text-status-warning disabled:opacity-40 rounded-lg">{zh ? "确认恢复" : "Confirm resume"}</button>
-                          <button type="button" onClick={() => setConfirming(null)} className="border border-border-pg px-3 py-2 text-xs rounded-lg">{zh ? "取消" : "Cancel"}</button>
+                          <Button variant="secondary" size="sm" type="button" onClick={() => setConfirming(null)} className="px-3 py-2 text-xs rounded-lg">{zh ? "取消" : "Cancel"}</Button>
                         </div>
                       </>
                     )}

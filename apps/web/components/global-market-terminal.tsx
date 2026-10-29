@@ -5,6 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { getMessageNamespace } from "@/lib/translations";
 import { getGlobalMarket, type GlobalMarketRow, type GlobalMarketSnapshot } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 const GROUP_ORDER = ["nasdaq_top", "metals", "forex", "energy"];
 
@@ -209,7 +210,7 @@ export function GlobalMarketTerminal({ locale }: { locale: Locale }) {
           <h2 className="mt-1 font-semibold">{copy.crossMarketTape}</h2>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={loading} onClick={() => void load()} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-11 text-text-pg-muted disabled:opacity-50 rounded-lg"><RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />{zh ? "刷新" : "Refresh"}</button>
+          <Button variant="secondary" size="sm" type="button" disabled={loading} onClick={() => void load()} className="inline-flex items-center gap-1 px-2 py-1 text-11 disabled:opacity-50 rounded-lg"><RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />{zh ? "刷新" : "Refresh"}</Button>
         </div>
       </div>
       <div className="overflow-x-auto">

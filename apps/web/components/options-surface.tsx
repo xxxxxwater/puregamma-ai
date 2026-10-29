@@ -7,6 +7,7 @@ import { PlotlyChart } from "@/components/plotly-chart";
 import { getMessageNamespace } from "@/lib/translations";
 import { getOptionsSurface, getOptionsSurfaceTickers, type LongGammaCandidate, type OptionSurfaceResponse } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 type SurfaceType = "mark_iv" | "mark_price" | "gamma" | "theta" | "vega" | "spread_pct";
 
@@ -130,7 +131,7 @@ export function OptionsSurface({ locale, initialCurrency = "BTC" }: { locale: Lo
         {SURFACE_TYPES.map((type) => (
           <button key={type} type="button" disabled={loading} onClick={() => setSurfaceType(type)} className={`border px-2.5 py-1 text-xs disabled:opacity-50  rounded-lg ${surfaceType === type ? "border-border-pg-strong bg-[var(--pg-surface-inverse)] font-semibold text-[var(--pg-text-inverse)]" : "border-border-pg text-text-pg-muted"}`}>{surfaceLabel(copy, type)}</button>
         ))}
-        <button type="button" disabled={loading} onClick={() => void load(currency, surfaceType)} className="ml-auto inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1 text-xs text-text-pg-muted disabled:opacity-50 rounded-lg"><RefreshCw className="h-3 w-3" />{copy.refresh}</button>
+        <Button variant="secondary" size="sm" type="button" disabled={loading} onClick={() => void load(currency, surfaceType)} className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1 text-xs disabled:opacity-50 rounded-lg"><RefreshCw className="h-3 w-3" />{copy.refresh}</Button>
       </div>
 
       {loading ? <div className="mt-4 h-72 border border-border-pg bg-bg-panel-muted rounded-xl" /> : null}
@@ -146,7 +147,7 @@ export function OptionsSurface({ locale, initialCurrency = "BTC" }: { locale: Lo
           <span>{copy.insights.call25}: <strong>{insights?.call25_iv != null ? `${(insights.call25_iv * 100).toFixed(2)}%` : "-"}</strong></span>
           <span>{copy.insights.skew}: <strong className={insights?.skew_pct != null && insights.skew_pct > 0.05 ? "text-status-negative" : ""}>{insights?.skew_pct != null ? `${(insights.skew_pct * 100).toFixed(2)}pp` : "-"}</strong></span>
           <span>{copy.insights.underlying}: <strong>{insights?.underlying_price ? insights.underlying_price.toLocaleString(locale) : "-"}</strong></span>
-          <span className="ml-auto flex items-center gap-2"><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong rounded-lg" title={copy.insights.alertTitle}><Bell className="h-3 w-3" />{copy.insights.alert}</button><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong rounded-lg" title={copy.insights.exportTitle}><Download className="h-3 w-3" />{copy.insights.export}</button><button type="button" className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-text-pg-muted hover:border-border-pg-strong rounded-lg" title={copy.insights.agentTitle}><MessageCircleQuestion className="h-3 w-3" />{copy.insights.askAgent}</button></span>
+          <span className="ml-auto flex items-center gap-2"><Button variant="secondary" type="button" className="inline-flex items-center gap-1 px-2 py-1 rounded-lg" title={copy.insights.alertTitle}><Bell className="h-3 w-3" />{copy.insights.alert}</Button><Button variant="secondary" type="button" className="inline-flex items-center gap-1 px-2 py-1 rounded-lg" title={copy.insights.exportTitle}><Download className="h-3 w-3" />{copy.insights.export}</Button><Button variant="secondary" type="button" className="inline-flex items-center gap-1 px-2 py-1 rounded-lg" title={copy.insights.agentTitle}><MessageCircleQuestion className="h-3 w-3" />{copy.insights.askAgent}</Button></span>
         </div>
       ) : null}
 

@@ -21,6 +21,7 @@ import { billingNotice, describeChatFailure, type ChatFailure } from "@/lib/chat
 import { FLASH_ALIAS_ID, FLASH_MODEL_ID, flashAvailability, platformDefaultModelName } from "@/lib/model-catalog";
 import { getMessageNamespace } from "@/lib/translations";
 import { publishCreditBalance } from "@/lib/user-state";
+import { Button } from "@/components/ui";
 
 /** localStorage key for the desktop history column's collapsed state. */
 const HISTORY_COLLAPSED_KEY = "pg:chat-history-collapsed";
@@ -870,7 +871,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           with no visible way back. */}
       {historyCollapsed ? (
         <aside className="hidden border-r border-border-pg bg-bg-panel-muted lg:flex lg:flex-col lg:items-center lg:py-3">
-          <button type="button" onClick={() => setHistoryCollapsed(false)} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong" aria-label={zh ? "展开历史对话" : "Expand conversation history"} aria-expanded={false}><PanelLeftOpen className="h-4 w-4" /></button>
+          <Button variant="secondary" type="button" onClick={() => setHistoryCollapsed(false)} className="grid h-9 w-9 place-items-center rounded-lg" aria-label={zh ? "展开历史对话" : "Expand conversation history"} aria-expanded={false}><PanelLeftOpen className="h-4 w-4" /></Button>
         </aside>
       ) : null}
       {historyCollapsed ? null : (
@@ -878,9 +879,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         <div className="flex items-center justify-between border-b border-border-pg p-3">
           <div className="min-w-0"><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 truncate text-11 text-text-pg-dim" data-testid="chat-usage-summary">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "left today"} · ${quota.credit_balance} Credits` : "-"}</div></div>
           <div className="flex items-center gap-1">
-            <button type="button" onClick={() => setHistoryCollapsed(true)} className="hidden h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong lg:grid" aria-label={zh ? "收起历史对话" : "Collapse conversation history"} aria-expanded><PanelLeftClose className="h-4 w-4" /></button>
-            <button type="button" onClick={closeMobileHistory} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong lg:hidden" aria-label={zh ? "关闭历史对话" : "Close conversation history"}><X className="h-4 w-4" /></button>
-            <button type="button" onClick={() => void createNew()} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong" aria-label={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
+            <Button variant="secondary" type="button" onClick={() => setHistoryCollapsed(true)} className="hidden h-9 w-9 place-items-center rounded-lg lg:grid" aria-label={zh ? "收起历史对话" : "Collapse conversation history"} aria-expanded><PanelLeftClose className="h-4 w-4" /></Button>
+            <Button variant="secondary" type="button" onClick={closeMobileHistory} className="grid h-9 w-9 place-items-center rounded-lg lg:hidden" aria-label={zh ? "关闭历史对话" : "Close conversation history"}><X className="h-4 w-4" /></Button>
+            <Button variant="secondary" type="button" onClick={() => void createNew()} className="grid h-9 w-9 place-items-center rounded-lg" aria-label={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></Button>
           </div>
         </div>
         <div className="space-y-2 border-b border-border-pg p-2">
@@ -903,8 +904,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
                 <div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div>
               </button>
               <div className="ml-0.5 flex shrink-0 lg:invisible lg:group-hover:visible lg:group-focus-within:visible">
-                <button type="button" onClick={(event) => { event.stopPropagation(); void setArchived(conversation.id, !conversation.archived_at); }} aria-label={conversation.archived_at ? (zh ? `取消归档：${conversation.title}` : `Unarchive: ${conversation.title}`) : (zh ? `归档：${conversation.title}` : `Archive: ${conversation.title}`)} className="grid h-9 w-8 place-items-center rounded-lg border border-transparent text-text-pg-dim hover:border-border-pg hover:text-text-pg">{conversation.archived_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</button>
-                <button type="button" onClick={(event) => { event.stopPropagation(); void deleteConversation(conversation.id); }} aria-label={zh ? `删除会话：${conversation.title}` : `Delete conversation: ${conversation.title}`} className="grid h-9 w-8 place-items-center rounded-lg border border-transparent text-text-pg-dim hover:border-status-negative hover:text-status-negative"><Trash2 className="h-3.5 w-3.5" /></button>
+                <Button variant="secondary" type="button" onClick={(event) => { event.stopPropagation(); void setArchived(conversation.id, !conversation.archived_at); }} aria-label={conversation.archived_at ? (zh ? `取消归档：${conversation.title}` : `Unarchive: ${conversation.title}`) : (zh ? `归档：${conversation.title}` : `Archive: ${conversation.title}`)} className="grid h-9 w-8 place-items-center rounded-lg">{conversation.archived_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</Button>
+                <Button variant="danger" type="button" onClick={(event) => { event.stopPropagation(); void deleteConversation(conversation.id); }} aria-label={zh ? `删除会话：${conversation.title}` : `Delete conversation: ${conversation.title}`} className="grid h-9 w-8 place-items-center rounded-lg"><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
             </div>
           ))}
@@ -912,10 +913,10 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         </div>
         {conversations.length ? (
           <div className="border-t border-border-pg p-2">
-            <button type="button" onClick={() => void deleteAll()} className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-pg px-3 py-2 text-xs text-text-pg-dim transition-colors hover:border-status-negative hover:text-status-negative" aria-label={zh ? "删除全部历史对话" : "Delete all conversation history"}>
+            <Button variant="danger" size="sm" type="button" onClick={() => void deleteAll()} className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs" aria-label={zh ? "删除全部历史对话" : "Delete all conversation history"}>
               <Trash2 className="h-3.5 w-3.5" />
               <span>{zh ? "删除全部历史对话" : "Delete all history"}</span>
-            </button>
+            </Button>
           </div>
         ) : null}
         </aside>
@@ -930,7 +931,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
           {loading ? <div className="mx-auto max-w-3xl space-y-4" aria-busy="true" aria-label={zh ? "加载中" : "Loading"}><div className="h-4 w-1/3 animate-pulse rounded bg-[var(--pg-surface-2)] motion-reduce:animate-none" /><div className="h-24 animate-pulse rounded-xl bg-[var(--pg-surface-2)] motion-reduce:animate-none" /></div> : null}
           {!loading && messages.length === 0 ? <div className="mx-auto flex min-h-[55vh] max-w-3xl flex-col justify-center">
             <div className="max-w-2xl"><div className="flex items-center gap-2 text-xs uppercase tracking-[0.16em] text-text-pg-dim"><Compass className="h-4 w-4" />PureGamma Research Agent</div><h1 className="mt-4 text-2xl font-semibold leading-tight md:text-3xl">{zh ? "说出你正在判断的问题，其余交给 Agent。" : "State the decision you are working through. The Agent handles the rest."}</h1><p className="mt-3 max-w-xl text-sm leading-6 text-text-pg-muted">{zh ? "Agent 会理解目标、选择合适的 Skill、检查事实证据，并明确告诉你未知与风险。无需先选择工具。" : "The Agent understands the goal, selects authorized Skills, checks evidence, and makes uncertainty explicit. No tool setup required."}</p></div>
-            <div className="mt-7 grid gap-3 sm:grid-cols-2">{starterPrompts.map((item) => <button key={item.title} type="button" onClick={() => choosePrompt(item.body)} className="group rounded-2xl border border-border-pg bg-bg-panel p-4 text-left shadow-card transition-[border-color,box-shadow,transform] hover:-translate-y-0.5 hover:border-border-pg-strong hover:shadow-card-hover focus-visible:border-border-pg-strong motion-reduce:hover:translate-y-0"><span className="text-sm font-medium">{item.title}</span><span className="mt-1.5 block text-xs leading-5 text-text-pg-dim">{item.body}</span><span className="mt-3 inline-flex items-center gap-1 text-11 uppercase tracking-wide text-text-pg-muted"><Target className="h-3 w-3" />{zh ? "作为目标使用" : "Use as goal"}</span></button>)}</div>
+            <div className="mt-7 grid gap-3 sm:grid-cols-2">{starterPrompts.map((item) => <Button variant="secondary" key={item.title} type="button" onClick={() => choosePrompt(item.body)} className="group rounded-2xl p-4 text-left motion-reduce:hover:translate-y-0"><span className="text-sm font-medium">{item.title}</span><span className="mt-1.5 block text-xs leading-5 text-text-pg-dim">{item.body}</span><span className="mt-3 inline-flex items-center gap-1 text-11 uppercase tracking-wide text-text-pg-muted"><Target className="h-3 w-3" />{zh ? "作为目标使用" : "Use as goal"}</span></Button>)}</div>
           </div> : null}
           <div className="mx-auto max-w-3xl space-y-5">
             {messages.map((message) => {
@@ -939,7 +940,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
               {message.role === "assistant" ? <><div className="mb-2 flex flex-wrap items-center gap-2 text-11 uppercase tracking-wide text-text-pg-dim"><span>{bylineModelLabel(message.model, modelCopy, defaultModelName, modelLabels)}</span>{message.context?.runtime?.intent ? <span className="rounded-lg border border-border-pg px-1.5 py-0.5 normal-case">{message.context.runtime.intent.replaceAll("_", " ")}</span> : null}{message.context?.evidence ? <span className={`inline-flex items-center gap-1 rounded-lg border px-1.5 py-0.5 normal-case ${message.context.evidence.sufficient ? "border-border-pg text-text-pg-muted" : "border-status-warning text-status-warning"}`}><SearchCheck className="h-3 w-3" />{zh ? "证据" : "Evidence"} · {message.context.evidence.sufficient ? (zh ? "通过" : "met") : (zh ? "缺口" : "gaps")}</span> : null}</div>
                 {message.status === "streaming" && !message.content ? <p className="flex items-center gap-1.5 text-xs text-text-pg-dim" role="status"><span className="inline-flex gap-0.5" aria-hidden><span className="h-1 w-1 animate-pulse rounded-full bg-current motion-reduce:animate-none" /><span className="h-1 w-1 animate-pulse rounded-full bg-current [animation-delay:150ms] motion-reduce:animate-none" /><span className="h-1 w-1 animate-pulse rounded-full bg-current [animation-delay:300ms] motion-reduce:animate-none" /></span>{zh ? "正在生成" : "Writing"}</p> : <ReportMarkdown content={linkCitations(message.content, message.id, citationIndices)} locale={locale} />}
                 {message.context?.tool_results?.map((result, index) => <StrategyToolResult key={`${message.id}-${result.tool}-${index}`} result={result} locale={locale} />)}</> : <><p className="whitespace-pre-wrap leading-6">{message.content}</p>{message.context ? <div className="mt-3 flex flex-wrap gap-1.5 border-t border-border-pg pt-2 text-11 text-text-pg-dim">{message.context.data_sources?.map((item) => <span key={item} className="rounded-lg border border-border-pg px-1.5 py-0.5">{item}</span>)}{message.context.skills?.map((item) => typeof item === "string" ? <span key={item} className="rounded-lg border border-border-pg px-1.5 py-0.5">{item.replaceAll("_", " ")}</span> : null)}{message.context.attachments?.length ? <AttachmentCards files={message.context.attachments} locale={locale} /> : null}</div> : null}</>}
-              {message.status === "failed" ? <div className="mt-3 rounded-lg border border-status-negative p-3 text-sm text-status-negative"><p>{message.error_message}</p><button type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); window.setTimeout(() => composerRef.current?.focus(), 0); }} className="mt-2 inline-flex items-center gap-2 rounded-lg border border-border-pg px-2 py-1"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重新提问" : "Ask again"}</button></div> : null}
+              {message.status === "failed" ? <div className="mt-3 rounded-lg border border-status-negative p-3 text-sm text-status-negative"><p>{message.error_message}</p><Button variant="secondary" type="button" onClick={() => { setInput([...messages].reverse().find((item) => item.role === "user" && item.created_at <= message.created_at)?.content || ""); window.setTimeout(() => composerRef.current?.focus(), 0); }} className="mt-2 inline-flex items-center gap-2 rounded-lg px-2 py-1"><RefreshCw className="h-3.5 w-3.5" />{zh ? "重新提问" : "Ask again"}</Button></div> : null}
               {message.role === "assistant" && (message.sources.length || message.context?.evidence) ? (
                 <div className="mt-3 flex flex-wrap items-center gap-2 text-11">
                   <button type="button" onClick={(event) => openInspector({ messageId: message.id }, event.currentTarget)} data-testid="open-evidence" className={`inline-flex min-h-8 items-center gap-1.5 rounded-lg border px-2.5 ${message.context?.evidence && !message.context.evidence.sufficient ? "border-status-warning text-status-warning" : "border-border-pg text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"}`}>
@@ -951,7 +952,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
               ) : null}
               {message.role === "assistant" && message.status === "completed" && message.credits_used != null ? <div className="mt-3 text-right text-11 text-text-pg-dim">{zh ? "实际消耗" : "Actual cost"}: {message.credits_used} Credits</div> : null}
               {message.role === "assistant" && message.credits_refunded ? <div className="mt-3 text-right text-11 text-text-pg-dim">{zh ? "Credits 已退款" : "Credits refunded"}</div> : null}
-              {message.id === latestAssistantId && message.context?.runtime?.next_actions?.length ? <div className="mt-4 flex flex-wrap gap-2">{message.context.runtime.next_actions.slice(0, 3).map((action) => <button key={action} type="button" onClick={() => choosePrompt(nextActionPrompt(action, zh))} className="inline-flex items-center gap-1.5 rounded-lg border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"><CheckCircle2 className="h-3 w-3" />{nextActionLabel(action, zh)}</button>)}</div> : null}
+              {message.id === latestAssistantId && message.context?.runtime?.next_actions?.length ? <div className="mt-4 flex flex-wrap gap-2">{message.context.runtime.next_actions.slice(0, 3).map((action) => <Button variant="secondary" size="sm" key={action} type="button" onClick={() => choosePrompt(nextActionPrompt(action, zh))} className="inline-flex items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs"><CheckCircle2 className="h-3 w-3" />{nextActionLabel(action, zh)}</Button>)}</div> : null}
               {message.id === latestAssistantId && message.status === "completed" ? (
                 <div className="mt-4 flex flex-wrap gap-2 border-t border-border-pg pt-3">
                   <Link href={withLocale(locale, "/research")} className="inline-flex items-center gap-1.5 rounded-lg border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg"><FlaskConical className="h-3 w-3" />{zh ? "生成交易研究" : "Generate trading research"}</Link>
@@ -975,8 +976,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         </div>
         <div className="shrink-0 border-t border-border-pg bg-bg-panel p-3 md:p-4" style={{ paddingBottom: "max(0.75rem, env(safe-area-inset-bottom))" }}>
           <div className="mx-auto mb-2 flex max-w-3xl items-center gap-2 lg:hidden">
-            <button ref={historyTriggerRef} type="button" onClick={() => setMobileHistoryOpen(true)} aria-label={zh ? "历史对话" : "Conversation history"} aria-expanded={mobileHistoryOpen} aria-controls={mobileHistoryOpen ? "chat-history-drawer" : undefined} aria-haspopup="dialog" data-testid="chat-history-trigger" className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm hover:bg-[var(--pg-surface-hover)]"><PanelLeftOpen className="h-4 w-4" />{zh ? "历史" : "History"}</button>
-            <button type="button" onClick={() => void createNew()} aria-label={zh ? "新会话" : "New conversation"} data-testid="chat-new-trigger" className="grid h-10 w-10 place-items-center rounded-lg hover:bg-[var(--pg-surface-hover)]"><MessageSquarePlus className="h-4 w-4" /></button>
+            <Button variant="ghost" ref={historyTriggerRef} type="button" onClick={() => setMobileHistoryOpen(true)} aria-label={zh ? "历史对话" : "Conversation history"} aria-expanded={mobileHistoryOpen} aria-controls={mobileHistoryOpen ? "chat-history-drawer" : undefined} aria-haspopup="dialog" data-testid="chat-history-trigger" className="flex min-h-10 items-center gap-2 rounded-lg px-3 text-sm"><PanelLeftOpen className="h-4 w-4" />{zh ? "历史" : "History"}</Button>
+            <Button variant="ghost" type="button" onClick={() => void createNew()} aria-label={zh ? "新会话" : "New conversation"} data-testid="chat-new-trigger" className="grid h-10 w-10 place-items-center rounded-lg"><MessageSquarePlus className="h-4 w-4" /></Button>
           </div>
           {recovered ? (
             <div className="mx-auto mb-2 max-w-3xl rounded-lg border border-status-positive px-3 py-2 text-xs text-status-positive" data-testid="chat-recovered" role="status">
@@ -995,8 +996,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
               <div className="flex flex-wrap items-center gap-2">
                 <span className="min-w-0 flex-1">{failure.message}</span>
                 {failure.reference ? <span className="font-mono text-11 text-text-pg-dim" data-testid="chat-error-reference">{modelCopy.errors.reference}: {failure.reference}</span> : null}
-                {unsentAttempt ? <button type="button" data-testid="chat-retry-safely" onClick={() => void send(undefined, unsentAttempt)} className="rounded-lg border border-border-pg px-2 py-1 text-11 text-text-pg hover:border-border-pg-strong">{zh ? "安全重试（不会重复提交）" : "Retry safely (no duplicate)"}</button> : null}
-                <button type="button" onClick={() => { setFailure(null); setUnsentAttempt(null); }} className="rounded-lg border border-border-pg px-2 py-1 text-11 text-text-pg-muted">{zh ? "关闭" : "Dismiss"}</button>
+                {unsentAttempt ? <Button variant="secondary" size="sm" type="button" data-testid="chat-retry-safely" onClick={() => void send(undefined, unsentAttempt)} className="rounded-lg px-2 py-1 text-11">{zh ? "安全重试（不会重复提交）" : "Retry safely (no duplicate)"}</Button> : null}
+                <Button variant="secondary" size="sm" type="button" onClick={() => { setFailure(null); setUnsentAttempt(null); }} className="rounded-lg px-2 py-1 text-11">{zh ? "关闭" : "Dismiss"}</Button>
               </div>
               {/* Billing line states only what the backend settled: a refund is
                   asserted from `credits_refunded`, never from the error type. */}
@@ -1020,9 +1021,9 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         <div className="flex items-center justify-between border-b border-border-pg p-3">
           <div className="min-w-0"><div className="text-xs uppercase text-text-pg-dim">PureGamma Agent</div><div className="mt-1 truncate text-11 text-text-pg-dim" data-testid="chat-usage-summary">{quota ? `${quota.remaining}/${quota.limit} ${zh ? "今日剩余" : "left today"} · ${quota.credit_balance} Credits` : "-"}</div></div>
           <div className="flex items-center gap-1">
-            <button type="button" onClick={() => setHistoryCollapsed(true)} className="hidden h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong lg:grid" aria-label={zh ? "收起历史对话" : "Collapse conversation history"} aria-expanded><PanelLeftClose className="h-4 w-4" /></button>
-            <button type="button" onClick={closeMobileHistory} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong lg:hidden" aria-label={zh ? "关闭历史对话" : "Close conversation history"}><X className="h-4 w-4" /></button>
-            <button type="button" onClick={() => void createNew()} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong" aria-label={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></button>
+            <Button variant="secondary" type="button" onClick={() => setHistoryCollapsed(true)} className="hidden h-9 w-9 place-items-center rounded-lg lg:grid" aria-label={zh ? "收起历史对话" : "Collapse conversation history"} aria-expanded><PanelLeftClose className="h-4 w-4" /></Button>
+            <Button variant="secondary" type="button" onClick={closeMobileHistory} className="grid h-9 w-9 place-items-center rounded-lg lg:hidden" aria-label={zh ? "关闭历史对话" : "Close conversation history"}><X className="h-4 w-4" /></Button>
+            <Button variant="secondary" type="button" onClick={() => void createNew()} className="grid h-9 w-9 place-items-center rounded-lg" aria-label={zh ? "新会话" : "New conversation"}><MessageSquarePlus className="h-4 w-4" /></Button>
           </div>
         </div>
         <div className="space-y-2 border-b border-border-pg p-2">
@@ -1045,8 +1046,8 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
                 <div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div>
               </button>
               <div className="ml-0.5 flex shrink-0 lg:invisible lg:group-hover:visible lg:group-focus-within:visible">
-                <button type="button" onClick={(event) => { event.stopPropagation(); void setArchived(conversation.id, !conversation.archived_at); }} aria-label={conversation.archived_at ? (zh ? `取消归档：${conversation.title}` : `Unarchive: ${conversation.title}`) : (zh ? `归档：${conversation.title}` : `Archive: ${conversation.title}`)} className="grid h-9 w-8 place-items-center rounded-lg border border-transparent text-text-pg-dim hover:border-border-pg hover:text-text-pg">{conversation.archived_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</button>
-                <button type="button" onClick={(event) => { event.stopPropagation(); void deleteConversation(conversation.id); }} aria-label={zh ? `删除会话：${conversation.title}` : `Delete conversation: ${conversation.title}`} className="grid h-9 w-8 place-items-center rounded-lg border border-transparent text-text-pg-dim hover:border-status-negative hover:text-status-negative"><Trash2 className="h-3.5 w-3.5" /></button>
+                <Button variant="secondary" type="button" onClick={(event) => { event.stopPropagation(); void setArchived(conversation.id, !conversation.archived_at); }} aria-label={conversation.archived_at ? (zh ? `取消归档：${conversation.title}` : `Unarchive: ${conversation.title}`) : (zh ? `归档：${conversation.title}` : `Archive: ${conversation.title}`)} className="grid h-9 w-8 place-items-center rounded-lg">{conversation.archived_at ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}</Button>
+                <Button variant="danger" type="button" onClick={(event) => { event.stopPropagation(); void deleteConversation(conversation.id); }} aria-label={zh ? `删除会话：${conversation.title}` : `Delete conversation: ${conversation.title}`} className="grid h-9 w-8 place-items-center rounded-lg"><Trash2 className="h-3.5 w-3.5" /></Button>
               </div>
             </div>
           ))}
@@ -1054,10 +1055,10 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         </div>
         {conversations.length ? (
           <div className="border-t border-border-pg p-2">
-            <button type="button" onClick={() => void deleteAll()} className="flex w-full items-center justify-center gap-2 rounded-lg border border-border-pg px-3 py-2 text-xs text-text-pg-dim transition-colors hover:border-status-negative hover:text-status-negative" aria-label={zh ? "删除全部历史对话" : "Delete all conversation history"}>
+            <Button variant="danger" size="sm" type="button" onClick={() => void deleteAll()} className="flex w-full items-center justify-center gap-2 rounded-lg px-3 py-2 text-xs" aria-label={zh ? "删除全部历史对话" : "Delete all conversation history"}>
               <Trash2 className="h-3.5 w-3.5" />
               <span>{zh ? "删除全部历史对话" : "Delete all history"}</span>
-            </button>
+            </Button>
           </div>
         ) : null}
           </aside>

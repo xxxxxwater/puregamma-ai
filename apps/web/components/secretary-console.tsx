@@ -8,6 +8,7 @@ import type { Locale } from "@/i18n/routing";
 import { withLocale } from "@/i18n/routing";
 import { clearSecretaryMemory, getSecretary, sendSecretaryMessage, synthesizeSecretaryVoice, transcribeSecretaryAudio, type SecretaryMessage, type SecretarySkill } from "@/lib/api";
 import { getMessageNamespace } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 const skillLabels: Record<string, string> = {
   "voice-dialog": "Voice dialog", "persistent-memory": "Persistent memory", "memory-hygiene": "Memory hygiene",
@@ -451,12 +452,12 @@ export function SecretaryConsole({ locale }: { locale: Locale }) {
               <Mic className="h-4 w-4" />{recording ? `${copy.releaseToSend} ${formatTime(recordingRemaining)}` : copy.holdToTalk}
             </button>
             <textarea value={input} onChange={(event) => setInput(event.target.value)} onKeyDown={(event) => { if (event.key === "Enter" && !event.shiftKey) { event.preventDefault(); void sendContent(input); } }} rows={2} maxLength={4000} placeholder={copy.placeholder} className="min-h-11 min-w-0 flex-1 resize-none border border-border-pg bg-bg-app px-3 py-2 text-sm outline-none placeholder:text-text-pg-dim focus:border-border-pg-strong rounded-lg" />
-            <button type="button" title={copy.send} disabled={!input.trim() || busy || transcribing} onClick={() => void sendContent(input)} className="flex h-11 w-11 shrink-0 items-center justify-center border border-border-pg-strong bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)] disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"><Send className="h-4 w-4" /></button>
+            <Button variant="primary" size="lg" type="button" title={copy.send} disabled={!input.trim() || busy || transcribing} onClick={() => void sendContent(input)} className="flex h-11 w-11 shrink-0 items-center justify-center disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"><Send className="h-4 w-4" /></Button>
           </div>
         </div>
       </section>
 
-      <aside className="border-t border-border-pg p-5 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0"><div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" />{copy.skills}</div><div className="mt-4 divide-y divide-border-pg border-y border-border-pg rounded-xl overflow-hidden">{skills.map((skill) => <div key={skill.id} className="py-3"><div className="text-sm font-medium">{skillLabels[skill.id] || skill.id}</div><div className={`mt-1 text-xs ${skill.status === "active" ? "text-status-positive" : skill.status === "confirmation_required" ? "text-status-warning" : "text-text-pg-muted"}`}>{statusLabel(skill.status)}</div></div>)}</div><p className="mt-5 text-xs leading-5 text-text-pg-muted">{copy.privacy}</p><button type="button" onClick={() => void clearMemory()} className="mt-5 inline-flex items-center gap-2 border border-border-pg px-3 py-2 text-xs text-text-pg-muted hover:border-status-negative hover:text-status-negative rounded-lg"><Trash2 className="h-3.5 w-3.5" />{copy.clearMemory}</button></aside>
+      <aside className="border-t border-border-pg p-5 lg:min-h-0 lg:overflow-y-auto lg:border-l lg:border-t-0"><div className="flex items-center gap-2 font-semibold"><ShieldCheck className="h-4 w-4" />{copy.skills}</div><div className="mt-4 divide-y divide-border-pg border-y border-border-pg rounded-xl overflow-hidden">{skills.map((skill) => <div key={skill.id} className="py-3"><div className="text-sm font-medium">{skillLabels[skill.id] || skill.id}</div><div className={`mt-1 text-xs ${skill.status === "active" ? "text-status-positive" : skill.status === "confirmation_required" ? "text-status-warning" : "text-text-pg-muted"}`}>{statusLabel(skill.status)}</div></div>)}</div><p className="mt-5 text-xs leading-5 text-text-pg-muted">{copy.privacy}</p><Button variant="danger" size="sm" type="button" onClick={() => void clearMemory()} className="mt-5 inline-flex items-center gap-2 px-3 py-2 text-xs rounded-lg"><Trash2 className="h-3.5 w-3.5" />{copy.clearMemory}</Button></aside>
       </div>
 
       <aside className="pointer-events-none absolute bottom-0 right-[-50px] top-0 z-10 hidden w-[400px] xl:block" aria-label={locale === "zh" ? "抓住技能面板边框的亲密秘书" : "Private Secretary holding the Skills panel edge"}>

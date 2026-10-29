@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ShieldAlert } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
 import { humanizeToolName } from "@/lib/agent-run-events";
+import { Button } from "@/components/ui";
 
 export type PendingToolApproval = {
   toolCallId: string;
@@ -87,7 +88,7 @@ export function ToolApprovalCard({ approval, locale, busy, onDecide }: { approva
       </dl>
       <details className="mt-2 text-xs"><summary className="cursor-pointer">{copy.inputs}</summary><pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words">{JSON.stringify(approval.arguments, null, 2)}</pre></details>
       <div className="mt-3 flex gap-2">
-        <button type="button" disabled={busy || expired} onClick={() => onDecide("denied")} className="min-h-10 rounded-md border border-[var(--pg-border-default)] px-4 text-sm disabled:opacity-40">{copy.deny}</button>
+        <Button variant="secondary" type="button" disabled={busy || expired} onClick={() => onDecide("denied")} className="min-h-10 rounded-md px-4 text-sm disabled:opacity-40">{copy.deny}</Button>
         <button type="button" disabled={busy || expired} onClick={() => onDecide("approved")} className="min-h-10 rounded-md border border-status-warning px-4 text-sm font-medium text-status-warning disabled:opacity-40">{copy.allow}</button>
       </div>
     </section>

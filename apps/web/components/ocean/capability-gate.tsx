@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState, type DependencyList, type ReactNode } from "react";
 import { Ban, RefreshCw, ServerCrash, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui";
 
 /**
  * Unified capabilities / feature-flag gate.
@@ -109,10 +110,10 @@ export function CapabilityGate({ state, locale, title, onRetry, children }: {
           <p className="text-sm font-semibold">{zh ? "服务异常" : "Service error"}</p>
           <p className="mt-1 text-xs text-text-pg-muted">{zh ? "暂时无法加载该功能，请稍后重试。" : "This feature could not be loaded. Please try again shortly."}</p>
           {onRetry ? (
-            <button type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1 text-xs hover:border-border-pg-strong rounded-lg">
+            <Button variant="secondary" size="sm" type="button" onClick={onRetry} className="mt-3 inline-flex items-center gap-1.5 px-2.5 py-1 text-xs rounded-lg">
               <RefreshCw className="h-3 w-3" aria-hidden />
               {zh ? "重试" : "Retry"}
-            </button>
+            </Button>
           ) : null}
         </div>
       </div>

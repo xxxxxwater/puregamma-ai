@@ -13,6 +13,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { emailLogin, extractApiError, googleLogin, resendVerificationEmail } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 
 
@@ -102,7 +103,7 @@ export default function LoginPage() {
           {verifyError ? (
             <div className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 space-y-2 rounded-lg">
               <p className="text-sm text-status-negative">{t(locale, "common.auth.emailNotVerified")}</p>
-              <button type="button" onClick={async () => { setVerifyError(""); try { await resendVerificationEmail(verifyError); setError(t(locale, "common.auth.verificationResent")); } catch { setError(zh ? "发送失败，请稍后重试" : "Failed to send"); } }} className="text-sm font-medium text-text-pg underline underline-offset-2">{t(locale, "common.auth.resendVerification")}</button>
+              <Button variant="ghost" type="button" onClick={async () => { setVerifyError(""); try { await resendVerificationEmail(verifyError); setError(t(locale, "common.auth.verificationResent")); } catch { setError(zh ? "发送失败，请稍后重试" : "Failed to send"); } }} className="text-sm underline underline-offset-2">{t(locale, "common.auth.resendVerification")}</Button>
             </div>
           ) : null}
 
@@ -121,14 +122,14 @@ export default function LoginPage() {
               placeholder={t(locale, "common.auth.passwordPlaceholder")}
               autoComplete="current-password"
             />
-            <button
+            <Button variant="primary"
               type="submit"
               disabled={busy || !email || !password}
-              className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-3 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:shadow-card-hover disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t(locale, "common.auth.emailLogin")}
-            </button>
+            </Button>
             <Link href={withLocale(locale, "/forgot-password")} className="block text-right text-xs font-medium text-text-pg-muted hover:text-text-pg">
               {t(locale, "common.auth.forgotPassword")}
             </Link>
@@ -140,10 +141,10 @@ export default function LoginPage() {
             <div className="h-px flex-1 bg-border-pg" />
           </div>
 
-          <button type="button" disabled={busy} onClick={handleGoogleLogin} className="inline-flex w-full items-center justify-center gap-2 rounded-xl border border-border-pg bg-bg-panel-muted px-4 py-3 text-sm font-semibold text-text-pg transition hover:border-border-pg-strong hover:bg-bg-panel disabled:cursor-not-allowed disabled:opacity-50">
+          <Button variant="secondary" type="button" disabled={busy} onClick={handleGoogleLogin} className="inline-flex w-full items-center justify-center gap-2 rounded-xl px-4 py-3 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Chrome className="h-4 w-4" />}
             {t(locale, "common.auth.googleLogin")}
-          </button>
+          </Button>
 
           <WalletLoginButtons locale={locale} onError={setError} />
           <p className="text-center text-xs text-text-pg-dim">{t(locale, "common.auth.walletSignInHint")}</p>

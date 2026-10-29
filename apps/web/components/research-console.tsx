@@ -9,6 +9,7 @@ import { OceanShell } from "@/components/ocean/ocean-shell";
 import { StatusBadge, StatusBadgeWithPulse } from "@/components/ocean/status-badge";
 import { createResearchRun, getResearchRuns, type HarnessResearchRun } from "@/lib/api";
 import { type Locale, withLocale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 const ACTIVE_STATUSES = new Set(["queued", "preparing", "running", "validating"]);
 const DATA_SOURCE_OPTIONS = ["market", "news", "options", "earnings"] as const;
@@ -100,13 +101,13 @@ export function ResearchConsole({ locale }: { locale: Locale }) {
           onRetry={retry}
         >
           <div className="mb-4 flex items-center justify-between gap-3">
-            <button
+            <Button variant="secondary" size="sm"
               type="button"
               onClick={() => setShowForm((value) => !value)}
-              className="rounded-lg border border-border-pg px-3 py-2 text-xs font-medium transition hover:border-border-pg-strong"
+              className="rounded-lg px-3 py-2 text-xs"
             >
               {showForm ? (zh ? "收起" : "Collapse") : (zh ? "+ 新建研究任务" : "+ New research run")}
-            </button>
+            </Button>
             <p className="text-xs text-text-pg-dim">
               {zh ? "每天最多 3 个任务 · 结果仅供研究参考" : "Up to 3 runs per day · research output only"}
             </p>

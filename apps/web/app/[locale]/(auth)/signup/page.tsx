@@ -13,6 +13,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { emailRegister, extractApiError, googleLogin } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 
 
@@ -139,14 +140,14 @@ export default function SignUpPage() {
               minLength={8}
               autoComplete="new-password"
             />
-            <button
+            <Button variant="primary"
               type="submit"
               disabled={busy || !email || !password}
-              className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-[var(--pg-surface-inverse)] px-4 py-2.5 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg"
+              className="inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg"
             >
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t(locale, "common.auth.emailRegister")}
-            </button>
+            </Button>
           </form>
 
           <div className="flex items-center gap-3">
@@ -155,10 +156,10 @@ export default function SignUpPage() {
             <div className="h-px flex-1 bg-border-pg" />
           </div>
 
-          <button type="button" disabled={busy} onClick={handleGoogleLogin} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm font-semibold text-text-pg transition hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-50 rounded-lg">
+          <Button variant="secondary" type="button" disabled={busy} onClick={handleGoogleLogin} className="inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 rounded-lg">
             {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : <Chrome className="h-4 w-4" />}
             {t(locale, "common.auth.googleLogin")}
-          </button>
+          </Button>
 
           <WalletLoginButtons locale={locale} onError={setError} />
           <p className="text-center text-xs text-text-pg-dim">{t(locale, "common.auth.walletSignInHint")}</p>

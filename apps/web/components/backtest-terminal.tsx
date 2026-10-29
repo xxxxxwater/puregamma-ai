@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronDown, ChevronUp, Terminal } from "lucide-react";
 import { apiBaseUrl } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 const MAX_TERMINAL_LINES = 2_000;
 
@@ -132,11 +133,11 @@ export function BacktestTerminal({ run, localeStr }: Props) {
   }
 
   const header = (
-    <button
+    <Button variant="secondary" size="sm"
       type="button"
       onClick={() => setOpen((previous) => !previous)}
       aria-expanded={open}
-      className="flex w-full items-center justify-between border border-border-pg bg-bg-panel px-4 py-2.5 text-left text-xs font-semibold rounded-lg"
+      className="flex w-full items-center justify-between px-4 py-2.5 text-left text-xs font-semibold rounded-lg"
     >
       <span className="flex items-center gap-2">
         <Terminal className="h-4 w-4" />
@@ -153,7 +154,7 @@ export function BacktestTerminal({ run, localeStr }: Props) {
         ) : null}
       </span>
       {open ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-    </button>
+    </Button>
   );
 
   if (!open) return header;

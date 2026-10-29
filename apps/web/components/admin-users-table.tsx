@@ -5,6 +5,7 @@ import { ChevronLeft, ChevronRight, Loader2, Search } from "lucide-react";
 import { Badge, ResearchCard } from "@/components/puregamma";
 import { getAdminUsers, type AdminUserRow } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 /**
  * Admin user table.
@@ -136,9 +137,9 @@ export function AdminUsersTable({ locale, initial }: { locale: Locale; initial: 
           </select>
         </label>
         {filtered ? (
-          <button type="button" onClick={() => { setQuery(""); setRole(""); setPlan(""); }} className="min-h-9 border border-border-pg px-3 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg">
+          <Button variant="secondary" size="sm" type="button" onClick={() => { setQuery(""); setRole(""); setPlan(""); }} className="min-h-9 px-3 text-xs rounded-lg">
             {zh ? "清除筛选" : "Clear filters"}
-          </button>
+          </Button>
         ) : null}
       </div>
 
@@ -179,22 +180,22 @@ export function AdminUsersTable({ locale, initial }: { locale: Locale; initial: 
           {totalPages != null ? (zh ? `第 ${page} / ${totalPages} 页` : `Page ${page} of ${totalPages}`) : null}
         </span>
         <span className="flex gap-2">
-          <button
+          <Button variant="secondary"
             type="button"
             disabled={offset === 0 || state.loading}
             onClick={() => void load(Math.max(0, offset - PAGE_SIZE))}
-            className="inline-flex min-h-9 items-center gap-1 border border-border-pg px-2.5 transition hover:border-border-pg-strong disabled:opacity-40 rounded-lg"
+            className="inline-flex min-h-9 items-center gap-1 px-2.5 disabled:opacity-40 rounded-lg"
           >
             <ChevronLeft className="h-3.5 w-3.5" aria-hidden />{zh ? "上一页" : "Previous"}
-          </button>
-          <button
+          </Button>
+          <Button variant="secondary"
             type="button"
             disabled={!state.hasMore || state.loading}
             onClick={() => void load(offset + PAGE_SIZE)}
-            className="inline-flex min-h-9 items-center gap-1 border border-border-pg px-2.5 transition hover:border-border-pg-strong disabled:opacity-40 rounded-lg"
+            className="inline-flex min-h-9 items-center gap-1 px-2.5 disabled:opacity-40 rounded-lg"
           >
             {zh ? "下一页" : "Next"}<ChevronRight className="h-3.5 w-3.5" aria-hidden />
-          </button>
+          </Button>
         </span>
       </div>
     </ResearchCard>

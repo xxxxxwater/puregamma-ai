@@ -7,6 +7,7 @@ import { Badge } from "@/components/puregamma";
 import { normalizeLocale, withLocale, type Locale } from "@/i18n/routing";
 import { saveOnboarding } from "@/lib/api";
 import { getMessageNamespace, t } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 
 
@@ -139,14 +140,14 @@ export default function LocalizedOnboardingChannelsPage({ params }: { params: { 
           <Info className="h-4 w-4 shrink-0" aria-hidden />
           {selectedLabel(locale, selectedCount)}
         </div>
-        <button
+        <Button variant="primary"
           onClick={handleComplete}
           disabled={busy || selectedCount === 0}
-          className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-5 py-2.5 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
+          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
         >
           {busy ? copy.settingUp : copy.complete}
           {!busy ? <ArrowRight className="h-4 w-4" aria-hidden /> : null}
-        </button>
+        </Button>
       </div>
 
       <p className="mt-4 text-center text-xs text-text-pg-dim">{copy.footer}</p>

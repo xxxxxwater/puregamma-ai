@@ -66,6 +66,7 @@ import {
   type LiveUiState,
 } from "@/plugins/builtin/live-trading/state";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { Button } from "@/components/ui";
 
 export type LiveConsoleView = "overview" | "connect" | "orders" | "account";
 
@@ -256,10 +257,10 @@ function UnavailablePanel({ locale, onRetry }: { locale: Locale; onRetry: () => 
           <h2 className="font-semibold">{t(locale, "live-trading.states.unavailable.title")}</h2>
           <p className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "live-trading.states.unavailable.description")}</p>
           <p className="mt-2 text-xs leading-5 text-text-pg-dim">{t(locale, "live-trading.states.unavailable.hint")}</p>
-          <button type="button" onClick={onRetry} className="mt-4 inline-flex items-center gap-1.5 border border-border-pg px-3 py-2 text-sm hover:border-border-pg-strong rounded-lg">
+          <Button variant="secondary" type="button" onClick={onRetry} className="mt-4 inline-flex items-center gap-1.5 px-3 py-2 text-sm rounded-lg">
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />
             {t(locale, "live-trading.common.retry")}
-          </button>
+          </Button>
         </div>
       </div>
     </section>
@@ -279,9 +280,9 @@ function LiveDisabledPanel({ locale, safety, onRetry }: { locale: Locale; safety
           <h2 className="font-semibold text-status-warning">{t(locale, "live-trading.states.liveDisabled.title")}</h2>
           <p className="mt-1 text-sm leading-6 text-text-pg-muted">{t(locale, "live-trading.states.liveDisabled.description")}</p>
         </div>
-        <button type="button" onClick={onRetry} aria-label={t(locale, "live-trading.common.retry")} className="shrink-0 border border-border-pg bg-bg-panel px-2.5 py-1.5 text-xs text-text-pg hover:border-border-pg-strong rounded-lg">
+        <Button variant="secondary" size="sm" type="button" onClick={onRetry} aria-label={t(locale, "live-trading.common.retry")} className="shrink-0 px-2.5 py-1.5 text-xs rounded-lg">
           <RefreshCw className="h-3.5 w-3.5" aria-hidden />
-        </button>
+        </Button>
       </section>
 
       <section className="border border-border-pg bg-bg-panel rounded-xl">
@@ -408,9 +409,9 @@ function EmergencyPauseButton({ locale, onDone }: { locale: Locale; onDone: () =
             <button type="button" onClick={() => void pauseAll()} disabled={!reason.trim() || busy} className="min-h-10 flex-1 rounded-lg border border-status-warning px-3 text-xs font-semibold text-status-warning disabled:opacity-40">
               {busy ? t(locale, "live-trading.emergency.running") : t(locale, "live-trading.emergency.confirm")}
             </button>
-            <button type="button" onClick={close} className="min-h-10 rounded-lg border border-border-pg px-3 text-xs">
+            <Button variant="secondary" size="sm" type="button" onClick={close} className="min-h-10 rounded-lg px-3 text-xs">
               {t(locale, "live-trading.emergency.cancel")}
-            </button>
+            </Button>
           </div>
           {listFailed ? <p role="alert" className="mt-2 text-xs text-status-negative">{t(locale, "live-trading.emergency.failed")}</p> : null}
           {results ? (
@@ -522,9 +523,9 @@ function OverviewView({ locale, safety, state, onReload }: { locale: Locale; saf
       <section className="border border-border-pg bg-bg-panel rounded-xl">
         <div className="flex items-center justify-between gap-3 border-b border-border-pg p-4">
           <h2 className="flex items-center gap-2 font-semibold"><Landmark className="h-4 w-4" aria-hidden />{t(locale, "live-trading.overview.navCard")}</h2>
-          <button type="button" onClick={() => { void load(); onReload(); }} disabled={busy} aria-label={t(locale, "live-trading.overview.refresh")} className="border border-border-pg px-2.5 py-1.5 text-xs text-text-pg hover:border-border-pg-strong disabled:opacity-40 rounded-lg">
+          <Button variant="secondary" size="sm" type="button" onClick={() => { void load(); onReload(); }} disabled={busy} aria-label={t(locale, "live-trading.overview.refresh")} className="px-2.5 py-1.5 text-xs disabled:opacity-40 rounded-lg">
             <RefreshCw className={`h-3.5 w-3.5 ${busy ? "animate-spin motion-reduce:animate-none" : ""}`} aria-hidden />
-          </button>
+          </Button>
         </div>
         <div className="p-4">
           <NavPanel locale={locale} load={navLoad} />
@@ -731,10 +732,10 @@ function ConnectView({ locale }: { locale: Locale }) {
           </label>
         </div>
         <div className="mt-4 flex flex-wrap items-center gap-3">
-          <button type="button" onClick={() => void submit()} disabled={busy === "bind"} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg bg-[var(--pg-surface-inverse)] px-4 text-sm font-semibold text-[var(--pg-text-inverse)] disabled:opacity-40">
+          <Button variant="primary" type="button" onClick={() => void submit()} disabled={busy === "bind"} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-4 text-sm font-semibold disabled:opacity-40">
             {busy === "bind" ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> : null}
             {busy === "bind" ? t(locale, "live-trading.connect.submitting") : t(locale, "live-trading.connect.submit")}
-          </button>
+          </Button>
         </div>
         {error ? <p className="mt-3 text-sm text-status-negative" role="alert">{error}</p> : null}
         {notice ? <p className="mt-3 text-sm text-status-positive" role="status">{notice}</p> : null}
@@ -756,12 +757,12 @@ function ConnectView({ locale }: { locale: Locale }) {
                   <DataSourceStatusBadge status={connection.status} locale={locale} />
                   {connection.revoked_at ? <span className="text-xs text-text-pg-dim">{t(locale, "live-trading.workflow.revoke.revoked")}</span> : (
                     <>
-                      <button type="button" onClick={() => void test(connection)} disabled={busy === `test:${connection.id}`} className="min-h-9 rounded-lg border border-border-pg px-2.5 text-xs hover:border-border-pg-strong disabled:opacity-40">
+                      <Button variant="secondary" size="sm" type="button" onClick={() => void test(connection)} disabled={busy === `test:${connection.id}`} className="min-h-9 rounded-lg px-2.5 text-xs disabled:opacity-40">
                         {busy === `test:${connection.id}` ? t(locale, "live-trading.connect.testing") : t(locale, "live-trading.connect.test")}
-                      </button>
-                      <button type="button" onClick={() => setRevokeTarget(connection)} className="min-h-9 rounded-lg border border-border-pg px-2.5 text-xs text-status-negative hover:border-status-negative">
+                      </Button>
+                      <Button variant="danger" size="sm" type="button" onClick={() => setRevokeTarget(connection)} className="min-h-9 rounded-lg px-2.5 text-xs">
                         {t(locale, "live-trading.workflow.revoke.button")}
-                      </button>
+                      </Button>
                     </>
                   )}
                 </div>
@@ -798,8 +799,8 @@ function RevokeConnectionDialog({ locale, connection, busy, onBack, onConfirm }:
         <p className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "live-trading.workflow.revoke.body")}</p>
         <p className="mt-3 font-mono text-xs text-text-pg-muted">{connection.account_label || connection.provider} · {connection.provider} · {connection.environment}</p>
         <div className="mt-4 flex gap-2">
-          <button ref={backRef} type="button" onClick={onBack} className="min-h-10 flex-1 rounded-lg border border-border-pg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</button>
-          <button type="button" onClick={onConfirm} disabled={busy} className="min-h-10 flex-1 rounded-lg border border-status-negative px-3 text-sm font-semibold text-status-negative disabled:opacity-40">{t(locale, "live-trading.workflow.revoke.button")}</button>
+          <Button variant="secondary" ref={backRef} type="button" onClick={onBack} className="min-h-10 flex-1 rounded-lg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</Button>
+          <Button variant="danger" type="button" onClick={onConfirm} disabled={busy} className="min-h-10 flex-1 rounded-lg px-3 text-sm font-semibold disabled:opacity-40">{t(locale, "live-trading.workflow.revoke.button")}</Button>
         </div>
       </div>
     </div>
@@ -1029,9 +1030,9 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
           <p className="mt-2 font-mono text-xs text-text-pg-dim">{submission.preview.intent.side.toUpperCase()} {submission.preview.intent.quantity} {submission.preview.intent.symbol} · {t(locale, "live-trading.workflow.details.intent")} {submission.preview.intent.id.slice(0, 8)}</p>
           <p className="mt-2 text-xs" role="status">{submission.checking ? t(locale, "live-trading.workflow.submission.checking") : submission.found ? t(locale, "live-trading.workflow.submission.found", { client: submission.found.client_order_id, status: submission.found.status }) : t(locale, "live-trading.workflow.submission.notFound")}</p>
           <div className="mt-3 flex flex-wrap gap-2">
-            <button type="button" disabled={submission.checking} onClick={() => void reconcile(submission.preview.intent.id)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border-pg px-3 text-sm hover:border-border-pg-strong disabled:opacity-40"><RefreshCw className="h-3.5 w-3.5" aria-hidden />{t(locale, "live-trading.workflow.submission.checkAgain")}</button>
+            <Button variant="secondary" type="button" disabled={submission.checking} onClick={() => void reconcile(submission.preview.intent.id)} className="inline-flex min-h-10 items-center gap-1.5 rounded-lg px-3 text-sm disabled:opacity-40"><RefreshCw className="h-3.5 w-3.5" aria-hidden />{t(locale, "live-trading.workflow.submission.checkAgain")}</Button>
             <button type="button" disabled={submission.checking || busy === "confirm"} onClick={() => void submit(submission.preview, submission.token)} className="min-h-10 rounded-lg border border-status-warning px-3 text-sm font-medium text-status-warning disabled:opacity-40">{t(locale, "live-trading.workflow.submission.resendSame")}</button>
-            <button type="button" onClick={() => setSubmission(null)} className="min-h-10 rounded-lg px-3 text-xs text-text-pg-muted hover:text-text-pg">{t(locale, "live-trading.workflow.submission.clear")}</button>
+            <Button variant="ghost" size="sm" type="button" onClick={() => setSubmission(null)} className="min-h-10 rounded-lg px-3 text-xs">{t(locale, "live-trading.workflow.submission.clear")}</Button>
           </div>
         </section>
       ) : null}
@@ -1095,10 +1096,10 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
                 </label>
               ) : null}
             </div>
-            <button type="button" onClick={() => void runPreview()} disabled={busy === "preview" || ambiguous} className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-lg border border-border-pg px-4 text-sm font-medium hover:border-border-pg-strong disabled:opacity-40">
+            <Button variant="secondary" type="button" onClick={() => void runPreview()} disabled={busy === "preview" || ambiguous} className="mt-4 inline-flex min-h-10 items-center gap-1.5 rounded-lg px-4 text-sm disabled:opacity-40">
               {busy === "preview" ? <Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> : null}
               {busy === "preview" ? t(locale, "live-trading.orders.previewing") : t(locale, "live-trading.orders.preview")}
-            </button>
+            </Button>
             {ambiguous ? <p className="mt-2 text-xs text-status-warning">{t(locale, "live-trading.workflow.submission.previewBlocked")}</p> : null}
           </div>
         )}
@@ -1168,7 +1169,7 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
             <button type="button" onClick={() => setDialogOpen(true)} disabled={!token.trim() || busy === "confirm" || previewExpired} className="min-h-10 rounded-lg border border-status-warning px-4 text-sm font-semibold text-status-warning disabled:opacity-40">
               {t(locale, "live-trading.workflow.approval.approve")}
             </button>
-            <button type="button" onClick={discardIntent} className="min-h-10 rounded-lg border border-border-pg px-4 text-sm hover:border-border-pg-strong">{t(locale, "live-trading.workflow.approval.deny")}</button>
+            <Button variant="secondary" type="button" onClick={discardIntent} className="min-h-10 rounded-lg px-4 text-sm">{t(locale, "live-trading.workflow.approval.deny")}</Button>
           </div>
         </section>
       ) : null}
@@ -1189,7 +1190,7 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
           <div className="flex items-center gap-2 text-xs text-text-pg-dim">
             {hasOpenOrders ? <span>{t(locale, "live-trading.workflow.refresh.auto")}</span> : null}
             {updatedAt ? <span>{t(locale, "live-trading.workflow.refresh.updated", { time: new Date(updatedAt).toLocaleTimeString(locale) })}</span> : null}
-            <button type="button" onClick={() => void load()} aria-label={t(locale, "live-trading.workflow.refresh.now")} className="grid h-9 w-9 place-items-center rounded-lg border border-border-pg hover:border-border-pg-strong"><RefreshCw className="h-3.5 w-3.5" aria-hidden /></button>
+            <Button variant="secondary" type="button" onClick={() => void load()} aria-label={t(locale, "live-trading.workflow.refresh.now")} className="grid h-9 w-9 place-items-center rounded-lg"><RefreshCw className="h-3.5 w-3.5" aria-hidden /></Button>
           </div>
         </div>
         {orders === null ? <p className="p-4 text-sm text-text-pg-muted">{t(locale, "live-trading.common.loading")}</p> : null}
@@ -1343,9 +1344,9 @@ function OrderSyncPanel({ locale, orderId, onChanged }: { locale: Locale; orderI
       </p>
       <div className="mt-2 flex flex-wrap items-center gap-2">
         {sync.recheck.enabled ? (
-          <button type="button" onClick={() => void recheck()} disabled={busy || !sync.recheck.allowed} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-pg px-3 hover:border-border-pg-strong disabled:opacity-40" data-testid="live-order-recheck">
+          <Button variant="secondary" type="button" onClick={() => void recheck()} disabled={busy || !sync.recheck.allowed} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-3 disabled:opacity-40" data-testid="live-order-recheck">
             <RefreshCw className="h-3.5 w-3.5" aria-hidden />{t(locale, "live-trading.workflow.sync.recheck")}
-          </button>
+          </Button>
         ) : null}
         <span className="text-text-pg-dim">
           {blocked === "disabled" ? t(locale, "live-trading.workflow.sync.disabled") : blocked === "rate_limited" && sync.recheck.next_allowed_at ? t(locale, "live-trading.workflow.sync.nextAt", { time: new Date(sync.recheck.next_allowed_at).toLocaleTimeString(locale) }) : t(locale, "live-trading.workflow.sync.queryOnly")}
@@ -1374,7 +1375,7 @@ function ConfirmOrderDialog({ locale, preview, busy, onBack, onConfirm }: { loca
           <div className="flex justify-between gap-3"><dt className="text-text-pg-muted">{t(locale, "live-trading.orders.dialogVenue")}</dt><dd>{t(locale, "live-trading.orders.dialogVenueValue")}</dd></div>
         </dl>
         <div className="mt-4 flex gap-2">
-          <button ref={backRef} type="button" onClick={onBack} className="min-h-10 flex-1 rounded-lg border border-border-pg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</button>
+          <Button variant="secondary" ref={backRef} type="button" onClick={onBack} className="min-h-10 flex-1 rounded-lg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</Button>
           <button type="button" onClick={onConfirm} disabled={busy} className="min-h-10 flex-1 rounded-lg border border-status-warning px-3 text-sm font-semibold text-status-warning disabled:opacity-40">
             {busy ? <Loader2 className="mx-auto h-4 w-4 animate-spin motion-reduce:animate-none" aria-hidden /> : t(locale, "live-trading.orders.dialogConfirm")}
           </button>
@@ -1395,7 +1396,7 @@ function CancelOrderDialog({ locale, order, busy, onBack, onConfirm }: { locale:
         <p className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "live-trading.orders.cancelConfirmBody")}</p>
         <p className="mt-3 break-all font-mono text-xs text-text-pg-muted">{order.symbol} · {order.side} · {formatDecimalString(order.quantity)} · {order.client_order_id}</p>
         <div className="mt-4 flex gap-2">
-          <button ref={backRef} type="button" onClick={onBack} className="min-h-10 flex-1 rounded-lg border border-border-pg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</button>
+          <Button variant="secondary" ref={backRef} type="button" onClick={onBack} className="min-h-10 flex-1 rounded-lg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</Button>
           <button type="button" onClick={onConfirm} disabled={busy} className="min-h-10 flex-1 rounded-lg border border-status-warning px-3 text-sm font-semibold text-status-warning disabled:opacity-40">{t(locale, "live-trading.orders.cancel")}</button>
         </div>
       </div>
@@ -1567,7 +1568,7 @@ function LedgerSection({ locale }: { locale: Locale }) {
       {load.kind === "failed" ? (
         <div className="flex flex-wrap items-center gap-3 p-4" role="status" data-testid={load.reason === "no-account" ? "live-ledger-no-account" : "live-ledger-unavailable"}>
           <p className="text-sm text-text-pg-muted">{t(locale, load.reason === "no-account" ? "live-trading.account.ledgerNoAccount" : "live-trading.account.ledgerUnavailable")}</p>
-          {load.reason === "unavailable" ? <button type="button" onClick={() => void firstPage()} className="min-h-9 rounded-lg border border-border-pg px-3 text-xs hover:border-border-pg-strong">{t(locale, "live-trading.common.retry")}</button> : null}
+          {load.reason === "unavailable" ? <Button variant="secondary" size="sm" type="button" onClick={() => void firstPage()} className="min-h-9 rounded-lg px-3 text-xs">{t(locale, "live-trading.common.retry")}</Button> : null}
         </div>
       ) : null}
       {load.kind === "ready" && load.entries.length === 0 ? <p className="p-4 text-sm text-text-pg-muted" data-testid="live-ledger-empty">{t(locale, "live-trading.account.ledgerEmpty")}</p> : null}
@@ -1600,9 +1601,9 @@ function LedgerSection({ locale }: { locale: Locale }) {
           <div className="flex flex-wrap items-center gap-3 border-t border-border-pg p-3 text-xs text-text-pg-muted">
             <span>{t(locale, "live-trading.account.ledgerShown", { count: load.entries.length })}</span>
             {load.nextCursor ? (
-              <button type="button" onClick={() => void loadMore()} disabled={load.more === "loading"} className="min-h-9 rounded-lg border border-border-pg px-3 hover:border-border-pg-strong disabled:opacity-40" data-testid="live-ledger-more">
+              <Button variant="secondary" type="button" onClick={() => void loadMore()} disabled={load.more === "loading"} className="min-h-9 rounded-lg px-3 disabled:opacity-40" data-testid="live-ledger-more">
                 {load.more === "loading" ? t(locale, "live-trading.common.loading") : t(locale, "live-trading.account.ledgerMore")}
-              </button>
+              </Button>
             ) : <span data-testid="live-ledger-end">{t(locale, "live-trading.account.ledgerEnd")}</span>}
             {load.more === "failed" ? <span role="alert" className="text-status-warning">{t(locale, "live-trading.account.ledgerMoreFailed")}</span> : null}
           </div>
@@ -1641,7 +1642,7 @@ function ReconciliationSection({ locale }: { locale: Locale }) {
         {load.kind === "failed" ? (
           <div className="flex flex-wrap items-center gap-3" role="status" data-testid={load.reason === "no-account" ? "live-recon-no-account" : "live-recon-unavailable"}>
             <p className="text-sm text-text-pg-muted">{t(locale, load.reason === "no-account" ? "live-trading.account.ledgerNoAccount" : "live-trading.account.reconUnavailable")}</p>
-            {load.reason === "unavailable" ? <button type="button" onClick={() => void read()} className="min-h-9 rounded-lg border border-border-pg px-3 text-xs hover:border-border-pg-strong">{t(locale, "live-trading.common.retry")}</button> : null}
+            {load.reason === "unavailable" ? <Button variant="secondary" size="sm" type="button" onClick={() => void read()} className="min-h-9 rounded-lg px-3 text-xs">{t(locale, "live-trading.common.retry")}</Button> : null}
           </div>
         ) : null}
         {load.kind === "ready" ? (
@@ -1764,7 +1765,7 @@ function ResumeMandate({ locale, mandate, killSwitchEngaged, onDone }: { locale:
   };
   return (
     <>
-      <button type="button" onClick={() => { setOpen(true); setPhrase(""); setError(""); }} className="min-h-9 rounded-lg border border-border-pg px-3 text-xs hover:border-border-pg-strong" data-testid={`resume-mandate-${mandate.id}`}>{t(locale, "live-trading.workflow.resume.button")}</button>
+      <Button variant="secondary" size="sm" type="button" onClick={() => { setOpen(true); setPhrase(""); setError(""); }} className="min-h-9 rounded-lg px-3 text-xs" data-testid={`resume-mandate-${mandate.id}`}>{t(locale, "live-trading.workflow.resume.button")}</Button>
       {open ? (
         <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
           <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby={`resume-title-${mandate.id}`} className="w-full max-w-md rounded-xl border border-status-warning bg-bg-panel p-5">
@@ -1780,7 +1781,7 @@ function ResumeMandate({ locale, mandate, killSwitchEngaged, onDone }: { locale:
             )}
             {error ? <p role="alert" className="mt-2 text-sm text-status-negative">{error}</p> : null}
             <div className="mt-4 flex gap-2">
-              <button ref={backRef} type="button" onClick={close} className="min-h-10 flex-1 rounded-lg border border-border-pg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</button>
+              <Button variant="secondary" ref={backRef} type="button" onClick={close} className="min-h-10 flex-1 rounded-lg px-3 text-sm">{t(locale, "live-trading.orders.dialogBack")}</Button>
               {blockedReason ? null : <button type="button" onClick={() => void submit()} disabled={busy || phrase.trim() !== expected} className="min-h-10 flex-1 rounded-lg border border-status-warning px-3 text-sm font-semibold text-status-warning disabled:opacity-40">{t(locale, "live-trading.workflow.resume.confirm")}</button>}
             </div>
           </div>

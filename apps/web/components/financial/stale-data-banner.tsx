@@ -1,6 +1,7 @@
 "use client";
 
 import { CircleAlert, CircleCheck, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui";
 
 /**
  * Data-freshness banner for Portfolio / NAV / Trading surfaces.
@@ -41,10 +42,10 @@ export function StaleDataBanner({ stale, updatedAt, locale, onRefresh, reconcili
         {timestamp ? <p className="mt-1 text-xs text-text-pg-dim">{zh ? "最后更新" : "Last updated"}: {timestamp}</p> : null}
       </div>
       {onRefresh ? (
-        <button type="button" onClick={onRefresh} className="inline-flex h-8 items-center gap-1.5 border border-border-pg px-2.5 text-xs text-text-pg hover:border-border-pg-strong rounded-lg">
+        <Button variant="secondary" size="sm" type="button" onClick={onRefresh} className="inline-flex h-8 items-center gap-1.5 px-2.5 text-xs rounded-lg">
           <RefreshCw className="h-3.5 w-3.5" aria-hidden />
           {zh ? "同步" : "Sync"}
-        </button>
+        </Button>
       ) : null}
     </div>
   );

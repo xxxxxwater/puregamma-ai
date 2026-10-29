@@ -3,6 +3,7 @@
 import { useEffect } from "react";
 import { Loader2, ShieldCheck, X } from "lucide-react";
 import { PuzzleCaptcha, type CaptchaResult } from "@/components/puzzle-captcha";
+import { Button } from "@/components/ui";
 
 export function CaptchaModal({
   open,
@@ -62,14 +63,14 @@ export function CaptchaModal({
             <ShieldCheck className="h-4 w-4 text-text-pg-muted" />
             {labels.title}
           </h2>
-          <button
+          <Button variant="ghost"
             type="button"
             onClick={onClose}
             aria-label="close"
-            className="text-text-pg-dim transition hover:text-text-pg"
+           
           >
             <X className="h-4 w-4" />
-          </button>
+          </Button>
         </div>
 
         {error ? (

@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useState, type FormEvent } from "react
 import { Clock3, RefreshCw, Search, ShieldCheck } from "lucide-react";
 import { getNewsFeed, type NewsFeedItem, type NewsFeedResponse } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 type Copy = {
   live: string;
@@ -207,15 +208,15 @@ export function NewsFeed({ locale, initial, copy }: { locale: Locale; initial: N
           </div></div>
           <form onSubmit={submitSearch} className="flex min-w-0 gap-2 xl:justify-self-end">
             <label className="relative min-w-0 flex-1 xl:w-72"><span className="sr-only">{copy.searchPlaceholder}</span><Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-text-pg-dim" /><input value={draftQuery} onChange={(event) => setDraftQuery(event.target.value)} maxLength={100} placeholder={copy.searchPlaceholder} className="h-9 w-full rounded-lg border border-border-pg bg-bg-app pl-9 pr-3 text-sm outline-none focus:border-border-pg-strong" /></label>
-            <button type="submit" className="h-9 rounded-lg border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 text-xs font-semibold text-[var(--pg-text-inverse)]">{copy.search}</button>
-            {filters.q ? <button type="button" onClick={clearSearch} className="h-9 rounded-lg border border-border-pg px-3 text-xs text-text-pg-muted">{copy.clear}</button> : null}
+            <Button variant="primary" size="sm" type="submit" className="h-9 rounded-lg px-3 text-xs font-semibold">{copy.search}</Button>
+            {filters.q ? <Button variant="secondary" size="sm" type="button" onClick={clearSearch} className="h-9 rounded-lg px-3 text-xs">{copy.clear}</Button> : null}
           </form>
         </div>
       </section>
 
       <div aria-live="polite" aria-busy={loading} className="space-y-3">
         {feed.meta.language_fallback ? <div className="rounded-xl border border-status-warning/40 bg-bg-panel px-4 py-3 text-sm text-text-pg-muted">{copy.languageFallback}</div> : null}
-        {error ? <div className="rounded-xl border border-status-negative/40 bg-bg-panel p-5"><strong>{copy.errorTitle}</strong><div className="mt-3"><button type="button" onClick={() => void request("reset")} className="rounded-lg border border-border-pg px-3 py-2 text-sm">{copy.retry}</button></div></div> : null}
+        {error ? <div className="rounded-xl border border-status-negative/40 bg-bg-panel p-5"><strong>{copy.errorTitle}</strong><div className="mt-3"><Button variant="secondary" type="button" onClick={() => void request("reset")} className="rounded-lg px-3 py-2 text-sm">{copy.retry}</Button></div></div> : null}
         {loading && !feed.items.length ? <div className="rounded-xl border border-border-pg bg-bg-panel p-8 text-center text-sm text-text-pg-muted">{copy.loading}</div> : null}
         {!loading && !error && !feed.items.length ? <div className="rounded-xl border border-dashed border-border-pg bg-bg-panel p-10 text-center"><Clock3 className="mx-auto h-6 w-6 text-text-pg-dim" /><h2 className="mt-3 font-semibold">{copy.emptyTitle}</h2><p className="mt-2 text-sm text-text-pg-muted">{copy.emptyDescription}</p></div> : null}
         {feed.items.length > 0 ? (
@@ -266,7 +267,7 @@ export function NewsFeed({ locale, initial, copy }: { locale: Locale; initial: N
         ) : null}
       </div>
 
-      {feed.page.has_more && feed.page.next_cursor ? <button type="button" disabled={loadingMore} onClick={() => void request("append", feed.page.next_cursor || undefined)} className="w-full rounded-xl border border-border-pg bg-bg-panel py-3 text-sm font-medium hover:border-border-pg-strong disabled:opacity-50">{loadingMore ? copy.loadingMore : copy.loadMore}</button> : null}
+      {feed.page.has_more && feed.page.next_cursor ? <Button variant="secondary" type="button" disabled={loadingMore} onClick={() => void request("append", feed.page.next_cursor || undefined)} className="w-full rounded-xl py-3 text-sm disabled:opacity-50">{loadingMore ? copy.loadingMore : copy.loadMore}</Button> : null}
 
       <div className="flex gap-2 rounded-xl border border-border-pg bg-bg-panel p-4 text-xs leading-5 text-text-pg-muted"><ShieldCheck className="mt-0.5 h-4 w-4 shrink-0" /><p>{copy.disclaimer}</p></div>
     </div>

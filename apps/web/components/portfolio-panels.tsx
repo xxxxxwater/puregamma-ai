@@ -2,6 +2,7 @@ import { Loader2 } from "lucide-react";
 import type { ReactNode } from "react";
 import { ResearchCard } from "@/components/puregamma";
 import type { PortfolioHolding } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 export function HoldingRow({ holding, zh, money, pct, quantity }: { holding: PortfolioHolding; zh: boolean; money: (value: number) => string; pct: (value: number | null | undefined) => string; quantity: (value: number) => string }) {
   const change = holding.change_24h_pct || (holding.value > 0 && holding.change_24h !== 0 ? (holding.change_24h / Math.max(holding.value - holding.change_24h, 1e-9)) * 100 : 0);
@@ -16,4 +17,4 @@ export function HoldingRow({ holding, zh, money, pct, quantity }: { holding: Por
   </tr>;
 }
 
-export function ProviderCard({ icon, name, status, description, action, busy, onClick, disabled }: { icon: ReactNode; name: string; status?: string; description: string; action: string; busy: boolean; onClick: () => void; disabled: boolean }) { return <ResearchCard><div className="flex items-start justify-between">{icon}{status ? <span className="text-11 text-status-warning">{status}</span> : null}</div><h3 className="mt-4 font-semibold">{name}</h3><p className="mt-2 min-h-10 text-xs leading-5 text-text-pg-muted">{description}</p><button type="button" disabled={disabled || busy} onClick={onClick} className="mt-4 h-10 w-full border border-border-pg-strong text-xs font-medium disabled:opacity-40 rounded-lg">{busy ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : action}</button></ResearchCard>; }
+export function ProviderCard({ icon, name, status, description, action, busy, onClick, disabled }: { icon: ReactNode; name: string; status?: string; description: string; action: string; busy: boolean; onClick: () => void; disabled: boolean }) { return <ResearchCard><div className="flex items-start justify-between">{icon}{status ? <span className="text-11 text-status-warning">{status}</span> : null}</div><h3 className="mt-4 font-semibold">{name}</h3><p className="mt-2 min-h-10 text-xs leading-5 text-text-pg-muted">{description}</p><Button variant="secondary" size="sm" type="button" disabled={disabled || busy} onClick={onClick} className="mt-4 h-10 w-full text-xs disabled:opacity-40 rounded-lg">{busy ? <Loader2 className="mx-auto h-4 w-4 animate-spin" /> : action}</Button></ResearchCard>; }

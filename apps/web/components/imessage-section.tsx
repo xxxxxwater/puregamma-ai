@@ -9,6 +9,7 @@ import {
   sendIMessageTest,
   type IMessageConfig
 } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 export type IMessageCopy = {
   title: string;
@@ -114,9 +115,9 @@ export function IMessageSection({ copy }: { copy: IMessageCopy }) {
               {interpolate(copy.bound, { recipient: config.recipient })}
               <span className="text-xs text-text-pg-muted">{interpolate(copy.verifiedAt, { time: fmt(config.recipient_verified_at, "") })}</span>
             </div>
-            <button type="button" disabled={busy} onClick={() => void sendTest()} className="inline-flex items-center gap-2 rounded-lg border border-border-pg px-3 py-2 text-xs font-medium text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg disabled:opacity-50">
+            <Button variant="secondary" size="sm" type="button" disabled={busy} onClick={() => void sendTest()} className="inline-flex items-center gap-2 rounded-lg px-3 py-2 text-xs disabled:opacity-50">
               <Send className="h-3.5 w-3.5" />{busy ? copy.testing : copy.test}
-            </button>
+            </Button>
           </div>
         ) : (
           <div className="space-y-3">
@@ -124,12 +125,12 @@ export function IMessageSection({ copy }: { copy: IMessageCopy }) {
             {!challenge ? (
               <form onSubmit={sendCode} className="flex flex-wrap items-center gap-2">
                 <input value={recipient} onChange={(event) => setRecipient(event.target.value)} placeholder={copy.recipientPlaceholder} inputMode="tel" className="h-9 min-w-0 flex-1 rounded-lg border border-border-pg bg-bg-app px-3 text-sm outline-none focus:border-border-pg-strong sm:w-64" />
-                <button type="submit" disabled={busy} className="h-9 rounded-lg border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 text-xs font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50">{busy ? copy.sending : copy.sendCode}</button>
+                <Button variant="primary" size="sm" type="submit" disabled={busy} className="h-9 rounded-lg px-3 text-xs font-semibold disabled:opacity-50">{busy ? copy.sending : copy.sendCode}</Button>
               </form>
             ) : (
               <form onSubmit={confirm} className="flex flex-wrap items-center gap-2">
                 <input value={code} onChange={(event) => setCode(event.target.value)} inputMode="numeric" pattern="[0-9]{6}" maxLength={6} placeholder={copy.codePlaceholder} className="h-9 w-40 rounded-lg border border-border-pg bg-bg-app px-3 text-sm tracking-[0.25em] outline-none focus:border-border-pg-strong" />
-                <button type="submit" disabled={busy} className="h-9 rounded-lg border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-3 text-xs font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50">{copy.confirm}</button>
+                <Button variant="primary" size="sm" type="submit" disabled={busy} className="h-9 rounded-lg px-3 text-xs font-semibold disabled:opacity-50">{copy.confirm}</Button>
               </form>
             )}
           </div>

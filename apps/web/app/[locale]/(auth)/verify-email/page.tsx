@@ -9,6 +9,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { emailVerify, resendVerificationEmail } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 
 
@@ -90,14 +91,14 @@ export default function VerifyEmailPage() {
                     className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong rounded-lg"
                     required
                   />
-                  <button
+                  <Button variant="secondary"
                     type="submit"
                     disabled={resending || !resendEmail}
-                    className="inline-flex items-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2 text-sm font-medium text-text-pg transition hover:border-border-pg-strong disabled:opacity-50 rounded-lg"
+                    className="inline-flex items-center gap-2 px-4 py-2 text-sm disabled:opacity-50 rounded-lg"
                   >
                     {resending ? <Loader2 className="h-3 w-3 animate-spin" /> : null}
                     {t(locale, "common.auth.resendVerification")}
-                  </button>
+                  </Button>
                 </form>
               ) : (
                 <p className="text-sm text-text-pg">{t(locale, "common.auth.verificationResent")}</p>
