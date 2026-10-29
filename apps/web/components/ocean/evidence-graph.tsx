@@ -101,12 +101,12 @@ function GraphNode({ node, locale, onClick, index }: { node: EvidenceNode; local
         <Icon className="h-3.5 w-3.5" />
       </span>
       <span className="min-w-0">
-        <span className="block text-[10px] uppercase tracking-wide text-text-pg-dim">{label}</span>
+        <span className="block text-11 uppercase tracking-wide text-text-pg-dim">{label}</span>
         <span className="block truncate text-xs font-medium text-text-pg">{node.label}</span>
-        {node.detail ? <span className="block truncate text-[10px] text-text-pg-muted">{node.detail}</span> : null}
+        {node.detail ? <span className="block truncate text-11 text-text-pg-muted">{node.detail}</span> : null}
       </span>
       {typeof node.count === "number" ? <span className="ml-auto shrink-0 text-xs tabular-nums text-text-pg-muted">{node.count}</span> : null}
-      {node.status === "missing" ? <span className="shrink-0 text-[10px] text-text-pg-dim">{locale === "zh" ? "暂无" : "none"}</span> : null}
+      {node.status === "missing" ? <span className="shrink-0 text-11 text-text-pg-dim">{locale === "zh" ? "暂无" : "none"}</span> : null}
     </button>
   );
 }

@@ -216,7 +216,7 @@ export function ResearchRunDetail({ locale, runId }: { locale: Locale; runId: st
                   <div className="flex flex-col items-end gap-1.5">
                     <StatusBadgeWithPulse domain="research" value={run.status} locale={locale} />
                     {ACTIVE_STATUSES.has(run.status) ? (
-                      <span className="text-[10px] text-text-pg-dim">
+                      <span className="text-11 text-text-pg-dim">
                         {connectionMode === "sse" ? (zh ? "实时连接" : "Live connection") : (zh ? "连接恢复中 · 使用轮询更新" : "Reconnecting · polling updates")}
                       </span>
                     ) : null}

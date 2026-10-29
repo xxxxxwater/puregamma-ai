@@ -107,7 +107,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
                   ))}
                 </dl>
               ) : null}
-              <p className="mt-2 text-[10px] text-text-pg-dim">{zh ? "环境状态" : "Gate state"}: {gateState}</p>
+              <p className="mt-2 text-11 text-text-pg-dim">{zh ? "环境状态" : "Gate state"}: {gateState}</p>
             </div>
           </div>
         ) : null}
@@ -136,8 +136,8 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
                   <div className="flex flex-wrap items-center gap-2 text-xs">
                     <span className="font-medium text-text-pg">{zh ? "Mandate" : "Mandate"} {mandate.id.slice(0, 8)}</span>
                     <StatusBadge domain="trading" value={envBadgeValue(mandate.environment)} locale={locale} />
-                    <span className={`text-[10px] uppercase ${mandate.paused ? "text-status-warning" : "text-status-positive"}`}>{mandate.paused ? (zh ? "已暂停" : "paused") : (zh ? "运行中" : "active")}</span>
-                    {mandate.pause_reason ? <span className="text-[10px] text-text-pg-dim">· {mandate.pause_reason}</span> : null}
+                    <span className={`text-11 uppercase ${mandate.paused ? "text-status-warning" : "text-status-positive"}`}>{mandate.paused ? (zh ? "已暂停" : "paused") : (zh ? "运行中" : "active")}</span>
+                    {mandate.pause_reason ? <span className="text-11 text-text-pg-dim">· {mandate.pause_reason}</span> : null}
                   </div>
                   <div className="flex items-center gap-2">
                     <button
@@ -200,7 +200,7 @@ export function TradingSafetyCard({ safety, mandates, locale, onRetry }: {
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-bg-panel p-3">
-      <dt className="text-[10px] uppercase tracking-wide text-text-pg-dim">{label}</dt>
+      <dt className="text-11 uppercase tracking-wide text-text-pg-dim">{label}</dt>
       <dd className="mt-1 text-sm font-medium tabular-nums text-text-pg">{value}</dd>
     </div>
   );

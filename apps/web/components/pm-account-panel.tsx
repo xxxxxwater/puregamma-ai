@@ -125,9 +125,9 @@ function NavTooltip({ active, payload, locale, currency }: {
 function Metric({ label, value, hint, tone }: { label: string; value: string; hint?: string; tone?: "positive" | "negative" }) {
   return (
     <div className="min-w-0">
-      <dt className="text-[10px] uppercase tracking-wide text-text-pg-dim">{label}</dt>
+      <dt className="text-11 uppercase tracking-wide text-text-pg-dim">{label}</dt>
       <dd className={`mt-1 truncate text-lg font-semibold tabular-nums ${tone === "positive" ? "text-status-positive" : tone === "negative" ? "text-status-negative" : "text-text-pg"}`}>{value}</dd>
-      {hint ? <p className="mt-0.5 truncate text-[10px] text-text-pg-dim">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 truncate text-11 text-text-pg-dim">{hint}</p> : null}
     </div>
   );
 }
@@ -135,9 +135,9 @@ function Metric({ label, value, hint, tone }: { label: string; value: string; hi
 function Stat({ label, value, hint }: { label: string; value: string; hint?: string }) {
   return (
     <div className="bg-bg-panel px-3 py-2.5">
-      <dt className="text-[10px] uppercase tracking-wide text-text-pg-dim">{label}</dt>
+      <dt className="text-11 uppercase tracking-wide text-text-pg-dim">{label}</dt>
       <dd className="mt-0.5 text-sm font-medium tabular-nums text-text-pg">{value}</dd>
-      {hint ? <p className="mt-0.5 text-[10px] leading-4 text-text-pg-dim">{hint}</p> : null}
+      {hint ? <p className="mt-0.5 text-11 leading-4 text-text-pg-dim">{hint}</p> : null}
     </div>
   );
 }
@@ -146,7 +146,7 @@ function Stat({ label, value, hint }: { label: string; value: string; hint?: str
 function BtcCell({ title, value, accent }: { title: string; value: string; accent?: boolean }) {
   return (
     <div className="bg-bg-panel px-3 py-2">
-      <div className="text-[10px] uppercase tracking-wide text-text-pg-dim">{title}</div>
+      <div className="text-11 uppercase tracking-wide text-text-pg-dim">{title}</div>
       <div className={`mt-0.5 text-sm tabular-nums ${accent ? "font-semibold text-text-pg" : "font-medium text-text-pg"}`}>{value}</div>
     </div>
   );
@@ -276,15 +276,15 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
       {/* ------------------------------------------------ hero */}
       <div className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-text-pg-muted rounded-lg">
+          <span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 text-11 font-medium uppercase tracking-wide text-text-pg-muted rounded-lg">
             Portfolio Margin
           </span>
           <div className="flex items-center gap-2">
-            <span className="inline-flex items-center gap-1.5 text-[10px] font-medium uppercase tracking-wide">
+            <span className="inline-flex items-center gap-1.5 text-11 font-medium uppercase tracking-wide">
               <span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-status-positive" : "bg-status-warning"}`} aria-hidden />
               <span className={live ? "text-status-positive" : "text-status-warning"}>{live ? "LIVE" : "STALE"}</span>
             </span>
-            <span className="border border-border-pg px-2 py-1 text-[10px] text-text-pg-muted rounded-lg">READ ONLY</span>
+            <span className="border border-border-pg px-2 py-1 text-11 text-text-pg-muted rounded-lg">READ ONLY</span>
             {onRefresh ? (
               <button type="button" onClick={onRefresh} className="grid h-6 w-6 place-items-center border border-border-pg text-text-pg-muted hover:text-text-pg rounded-lg" title={zh ? "刷新" : "Refresh"}>
                 {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -321,7 +321,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
           <h3 className="text-sm font-semibold">{zh ? "净值表现" : "NAV performance"}</h3>
           <div className="flex items-center gap-0.5 border border-border-pg p-0.5 rounded-lg">
             {(["USD", "BTC"] as const).map((item) => (
-              <button key={item} type="button" onClick={() => setCurrency(item)} className={`h-6 px-2.5 text-[10px] font-medium ${currency === item ? "bg-text-pg text-bg-app" : "text-text-pg-dim hover:text-text-pg"}`}>{item}</button>
+              <button key={item} type="button" onClick={() => setCurrency(item)} className={`h-6 px-2.5 text-11 font-medium ${currency === item ? "bg-text-pg text-bg-app" : "text-text-pg-dim hover:text-text-pg"}`}>{item}</button>
             ))}
           </div>
         </div>
@@ -387,7 +387,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
             </div>
           </div>
           {historyStale ? (
-            <p className="mx-5 mb-4 border border-status-warning px-3 py-2 text-[11px] leading-4 text-status-warning rounded-lg">
+            <p className="mx-5 mb-4 border border-status-warning px-3 py-2 text-11 leading-4 text-status-warning rounded-lg">
               {zh
                 ? `曲线已陈旧：最新真实观测是 ${lastPointAt ? lastPointAt.toLocaleString(locale) : "--"}，不是当前净值。此处不会用估算值补齐，请先确认 riskbot 采集与导出是否正常。`
                 : `The curve is stale: its newest real observation is ${lastPointAt ? lastPointAt.toLocaleString(locale) : "--"}, so it is not the current NAV. No estimate is substituted - check the riskbot collector and exporter first.`}
@@ -408,7 +408,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
             key={item.key}
             type="button"
             onClick={() => setRange(item.key)}
-            className={`h-7 min-w-11 px-2 font-mono text-[10px] rounded-lg ${range === item.key ? "border border-status-positive text-status-positive" : "border border-transparent text-text-pg-dim hover:bg-bg-panel-muted"}`}
+            className={`h-7 min-w-11 px-2 font-mono text-11 rounded-lg ${range === item.key ? "border border-status-positive text-status-positive" : "border border-transparent text-text-pg-dim hover:bg-bg-panel-muted"}`}
           >{item.key}</button>
         ))}
       </div>
@@ -441,7 +441,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[860px] text-xs">
-          <thead><tr className="border-b border-border-pg text-left text-[10px] uppercase text-text-pg-dim">
+          <thead><tr className="border-b border-border-pg text-left text-11 uppercase text-text-pg-dim">
             <th className="px-4 py-3 font-medium">{zh ? "币种" : "Asset"}</th>
             <th className="px-3 py-3 text-right font-medium">{zh ? "净余额" : "Net"}</th>
             <th className="px-3 py-3 text-right font-medium">{zh ? "钱包" : "Wallet"}</th>
@@ -453,7 +453,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
             <th className="px-4 py-3 text-right font-medium">{zh ? "价格来源" : "Price source"}</th>
           </tr></thead>
           <tbody className="divide-y divide-border-pg">{balances.map((row) => <tr key={row.asset}>
-            <td className="px-4 py-3 font-medium">{row.asset}{row.is_liability ? <span className="ml-2 border border-status-negative px-1.5 py-0.5 text-[10px] text-status-negative rounded-lg">{zh ? "负债" : "LIABILITY"}</span> : null}</td>
+            <td className="px-4 py-3 font-medium">{row.asset}{row.is_liability ? <span className="ml-2 border border-status-negative px-1.5 py-0.5 text-11 text-status-negative rounded-lg">{zh ? "负债" : "LIABILITY"}</span> : null}</td>
             <td className={`px-3 py-3 text-right tabular-nums ${row.is_liability ? "text-status-negative" : ""}`}>{fmtBare(row.net_quantity, locale, 8)}</td>
             <td className="px-3 py-3 text-right tabular-nums">{fmtBare(row.wallet_balance, locale, 8)}</td>
             <td className="px-3 py-3 text-right tabular-nums">{fmtBare(row.borrowed, locale, 6)}</td>
@@ -473,7 +473,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
       </div>
       {positions.length ? <div className="overflow-x-auto">
         <table className="w-full min-w-[940px] text-xs">
-          <thead><tr className="border-b border-border-pg text-left text-[10px] uppercase text-text-pg-dim">
+          <thead><tr className="border-b border-border-pg text-left text-11 uppercase text-text-pg-dim">
             <th className="px-4 py-3 font-medium">{zh ? "合约" : "Symbol"}</th>
             <th className="px-3 py-3 font-medium">{zh ? "方向" : "Side"}</th>
             <th className="px-3 py-3 text-right font-medium">{zh ? "数量" : "Qty"}</th>
@@ -486,13 +486,13 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
             <th className="px-4 py-3 text-right font-medium">{zh ? "杠杆" : "Leverage"}</th>
           </tr></thead>
           <tbody className="divide-y divide-border-pg">{positions.map((row) => <tr key={`${row.product}-${row.symbol}-${row.side}`}>
-            <td className="px-4 py-3 font-medium">{row.symbol}<span className="ml-2 text-[10px] uppercase text-text-pg-dim">{row.product}</span></td>
+            <td className="px-4 py-3 font-medium">{row.symbol}<span className="ml-2 text-11 uppercase text-text-pg-dim">{row.product}</span></td>
             <td className={`px-3 py-3 ${row.side === "LONG" ? "text-status-positive" : "text-status-negative"}`}>{row.side}</td>
             <td className="px-3 py-3 text-right tabular-nums">{fmtBare(row.base_quantity ?? row.quantity, locale, 6)} {row.base_asset ?? ""}</td>
             <td className="px-3 py-3 text-right tabular-nums">{fmtBare(row.entry_price, locale, 2)}</td>
             <td className="px-3 py-3 text-right tabular-nums">{fmtBare(row.mark_price, locale, 2)}</td>
             <td className="px-3 py-3 text-right tabular-nums">{row.has_liquidation_price ? fmtBare(row.liquidation_price, locale, 2) : (zh ? "交易所未提供" : "not provided")}</td>
-            <td className="px-3 py-3 text-right tabular-nums">{fmtUsd(row.notional_usd, locale)}<div className="text-[10px] text-text-pg-dim">≈ {fmtBtc(row.notional_btc_equivalent, locale)}</div></td>
+            <td className="px-3 py-3 text-right tabular-nums">{fmtUsd(row.notional_usd, locale)}<div className="text-11 text-text-pg-dim">≈ {fmtBtc(row.notional_btc_equivalent, locale)}</div></td>
             <td className={`px-3 py-3 text-right tabular-nums ${(num(row.unrealized_pnl) ?? 0) < 0 ? "text-status-negative" : "text-status-positive"}`}>{fmtUsd(row.unrealized_pnl, locale)}</td>
             <td className="px-3 py-3 text-right tabular-nums">{fmtUsd(row.initial_margin_usd, locale)}</td>
             <td className="px-4 py-3 text-right tabular-nums">{row.leverage ?? "--"}x</td>

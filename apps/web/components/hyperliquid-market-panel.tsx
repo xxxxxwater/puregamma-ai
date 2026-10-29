@@ -96,7 +96,7 @@ function SynthBadge({ coin }: { coin: string }) {
   return (
     <span
       aria-hidden
-      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br ${gradient} text-[10px] font-bold text-white grayscale`}
+      className={`grid h-6 w-6 shrink-0 place-items-center rounded-full bg-gradient-to-br ${gradient} text-11 font-bold text-white grayscale`}
     >
       {coin.charAt(0)}
     </span>
@@ -249,12 +249,12 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
       </div>
       {isOpen ? <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] font-mono text-sm">
-          <thead className="text-left text-[10px] uppercase text-text-pg-dim">
+          <thead className="text-left text-11 uppercase text-text-pg-dim">
             <tr><th className="px-4 py-2 font-medium">{locale === "zh" ? "合约" : "Contract"}</th><th className="px-3 py-2 text-right font-medium">{copy.price}</th><th className="px-3 py-2 text-right font-medium">{copy.change}</th><th className="px-3 py-2 text-right font-medium">{copy.volume}</th><th className="px-3 py-2 text-right font-medium">{copy.oi}</th><th className="px-3 py-2 text-right font-medium">{copy.funding}</th><th className="px-4 py-2 text-right font-medium">{copy.updated}</th></tr>
           </thead>
           <tbody>
             {rows.map(({ instrument, candle, context, last, change, openInterestUsd }) => <tr key={instrument.id} className="border-t border-border-pg/70 hover:bg-bg-panel-muted">
-              <td className="px-4 py-3"><div className="flex items-center gap-2.5"><AssetIcon coin={assetCoin(instrument.id)} synthetic={instrument.id.startsWith("xyz:")} /><span className="font-semibold text-text-pg">{instrument.symbol}</span></div><div className="mt-1 text-[10px] text-text-pg-dim">{instrument.leverage}x · {instrument.venue}</div></td>
+              <td className="px-4 py-3"><div className="flex items-center gap-2.5"><AssetIcon coin={assetCoin(instrument.id)} synthetic={instrument.id.startsWith("xyz:")} /><span className="font-semibold text-text-pg">{instrument.symbol}</span></div><div className="mt-1 text-11 text-text-pg-dim">{instrument.leverage}x · {instrument.venue}</div></td>
               <td key={`px-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right text-text-pg">{price(last)}</td>
               <td key={`chg-${last ?? "na"}`} className="market-cell-flash px-3 py-3 text-right">
                 <span className="inline-block border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-1.5 py-0.5 font-semibold text-[var(--pg-text-inverse)] rounded-lg">{percent(change)}</span>

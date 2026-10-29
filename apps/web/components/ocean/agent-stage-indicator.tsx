@@ -30,7 +30,7 @@ export function AgentStageIndicator({ stage, locale, detail }: { stage: AgentSta
   const activeIndex = ORDER[stage];
   return (
     <div role="status" aria-live="polite" className="border border-border-pg bg-bg-app px-3 py-2">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-[11px]">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-11">
         <span className="font-medium text-text-pg">{zh ? "Agent 正在工作" : "Agent is working"}</span>
         {STAGES.map((item, index) => {
           const done = index < activeIndex;

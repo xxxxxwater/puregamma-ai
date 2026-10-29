@@ -209,12 +209,12 @@ export function GlobalMarketTerminal({ locale }: { locale: Locale }) {
           <h2 className="mt-1 font-semibold">{copy.crossMarketTape}</h2>
         </div>
         <div className="flex items-center gap-2">
-          <button type="button" disabled={loading} onClick={() => void load()} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-[11px] text-text-pg-muted disabled:opacity-50 rounded-lg"><RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />{zh ? "刷新" : "Refresh"}</button>
+          <button type="button" disabled={loading} onClick={() => void load()} className="inline-flex items-center gap-1 border border-border-pg px-2 py-1 text-11 text-text-pg-muted disabled:opacity-50 rounded-lg"><RefreshCw className={`h-3 w-3 ${loading ? "animate-spin" : ""}`} />{zh ? "刷新" : "Refresh"}</button>
         </div>
       </div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[640px] font-mono text-xs">
-          <thead className="text-left text-[10px] uppercase text-text-pg-dim">
+          <thead className="text-left text-11 uppercase text-text-pg-dim">
             <tr><th className="px-4 py-2 font-medium">{copy.ticker}</th><th className="px-3 py-2 text-right font-medium">{copy.last}</th><th className="px-3 py-2 text-right font-medium">%</th><th className="px-3 py-2 font-medium">{zh ? "类别" : "Group"}</th><th className="px-4 py-2 text-right font-medium">UTC</th></tr>
           </thead>
           <tbody>
@@ -232,10 +232,10 @@ export function GlobalMarketTerminal({ locale }: { locale: Locale }) {
 function GroupSection({ group, rows, copy, locale }: { group: string; rows: GlobalMarketRow[]; copy: Record<string, unknown>; locale: Locale }) {
   return (
     <>
-      <tr><td colSpan={5} className="bg-bg-panel-muted px-4 py-1.5 text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{groupLabel(copy, group)}</td></tr>
+      <tr><td colSpan={5} className="bg-bg-panel-muted px-4 py-1.5 text-11 font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{groupLabel(copy, group)}</td></tr>
       {rows.map((row) => (
         <tr key={`${group}-${row.symbol}`} className="border-t border-border-pg/70 hover:bg-bg-panel-muted">
-          <td className="px-4 py-3"><div className="flex items-center gap-2.5"><MarketLogo row={row} /><span className="font-semibold text-text-pg">{row.symbol}<span className={`ml-2 text-[9px] ${row.is_realtime ? "text-status-positive" : "text-status-warning"}`}>{row.is_realtime ? "LIVE" : "DLY"}</span></span></div></td>
+          <td className="px-4 py-3"><div className="flex items-center gap-2.5"><MarketLogo row={row} /><span className="font-semibold text-text-pg">{row.symbol}<span className={`ml-2 text-11 ${row.is_realtime ? "text-status-positive" : "text-status-warning"}`}>{row.is_realtime ? "LIVE" : "DLY"}</span></span></div></td>
           <td className="px-3 py-3 text-right text-text-pg">{fmtPrice(locale, row)}</td>
           <td className={`px-3 py-3 text-right ${row.change_24h != null && row.change_24h >= 0 ? "text-status-positive" : "text-status-negative"}`}>{row.change_24h != null ? `${row.change_24h >= 0 ? "+" : ""}${row.change_24h.toFixed(2)}` : "-"}</td>
           <td className="max-w-[150px] truncate px-3 py-3 text-text-pg-muted">{row.source || "-"}</td>

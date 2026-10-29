@@ -1407,7 +1407,7 @@ function OrderStatusBadge({ status, locale }: { status: string; locale: Locale }
   const normalized = (status || "").toLowerCase();
   const tone = normalized === "filled" ? "text-status-positive" : normalized === "partially_filled" || normalized === "pending" || normalized === "accepted" || normalized === "submitted" ? "text-text-pg" : normalized === "unknown" ? "text-status-warning" : normalized === "rejected" ? "text-status-negative" : "text-text-pg-dim";
   void locale;
-  return <span className={`inline-flex items-center gap-1 rounded-md border border-border-pg bg-bg-panel-muted px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${tone}`}>{normalized === "unknown" ? <CircleAlert className="h-3 w-3" aria-hidden /> : null}{status}</span>;
+  return <span className={`inline-flex items-center gap-1 rounded-md border border-border-pg bg-bg-panel-muted px-1.5 py-0.5 text-11 font-medium uppercase tracking-wide ${tone}`}>{normalized === "unknown" ? <CircleAlert className="h-3 w-3" aria-hidden /> : null}{status}</span>;
 }
 
 // ── Account view ──────────────────────────────────────────────────────────
@@ -1793,7 +1793,7 @@ function ResumeMandate({ locale, mandate, killSwitchEngaged, onDone }: { locale:
 function Field({ label, value }: { label: string; value: string }) {
   return (
     <div className="bg-bg-panel p-3">
-      <p className="text-[10px] uppercase tracking-wide text-text-pg-dim">{label}</p>
+      <p className="text-11 uppercase tracking-wide text-text-pg-dim">{label}</p>
       <p className="mt-1 break-words text-sm font-medium tabular-nums text-text-pg">{value}</p>
     </div>
   );

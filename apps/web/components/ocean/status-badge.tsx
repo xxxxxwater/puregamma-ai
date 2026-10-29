@@ -72,7 +72,7 @@ export function StatusBadge({ domain, value, locale, className = "" }: {
   const tone = meta?.tone ?? "neutral";
   const Icon = TONE_ICON[tone];
   return (
-    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide ${TONE_CLASS[tone]} ${className}`}>
+    <span className={`inline-flex items-center gap-1 rounded-full border px-1.5 py-0.5 text-11 font-medium uppercase tracking-wide ${TONE_CLASS[tone]} ${className}`}>
       <Icon className="h-3 w-3" aria-hidden />
       <span>{label}</span>
     </span>
@@ -85,12 +85,12 @@ export function StatusBadgeWithPulse({ domain, value, locale, className = "" }: 
 }
 
 export function CapabilityBadge({ children }: { children: ReactNode }) {
-  return <span className="inline-flex items-center gap-1 rounded-full border border-border-pg bg-bg-panel-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-pg-muted">{children}</span>;
+  return <span className="inline-flex items-center gap-1 rounded-full border border-border-pg bg-bg-panel-muted px-1.5 py-0.5 text-11 uppercase tracking-wide text-text-pg-muted">{children}</span>;
 }
 
 export function LoadingBadge({ locale }: { locale: "en" | "zh" }) {
   return (
-    <span className="inline-flex items-center gap-1 rounded-full border border-border-pg bg-bg-panel-muted px-1.5 py-0.5 text-[10px] uppercase tracking-wide text-text-pg-muted">
+    <span className="inline-flex items-center gap-1 rounded-full border border-border-pg bg-bg-panel-muted px-1.5 py-0.5 text-11 uppercase tracking-wide text-text-pg-muted">
       <Loader2 className="h-3 w-3 animate-spin" aria-hidden />
       {locale === "zh" ? "加载中" : "Loading"}
     </span>

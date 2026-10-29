@@ -50,18 +50,18 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   return (
     <div className="my-4 overflow-hidden border border-border-pg bg-bg-panel-muted rounded-lg">
       <div className="flex items-center justify-between gap-2 border-b border-border-pg px-3 py-1.5">
-        <span className="font-mono text-[10px] uppercase tracking-[0.12em] text-text-pg-dim">{language || "text"}</span>
+        <span className="font-mono text-11 uppercase tracking-[0.12em] text-text-pg-dim">{language || "text"}</span>
         <button
           type="button"
           onClick={() => void copy()}
           aria-label={copied ? "Copied" : "Copy code"}
-          className="inline-flex min-h-7 items-center gap-1 px-1.5 text-[10px] text-text-pg-dim transition hover:text-text-pg rounded focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
+          className="inline-flex min-h-7 items-center gap-1 px-1.5 text-11 text-text-pg-dim transition hover:text-text-pg rounded focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
         >
           {copied ? <Check className="h-3 w-3 text-status-positive" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
           {copied ? "Copied" : "Copy"}
         </button>
       </div>
-      <pre className="touch-pan-x overflow-x-auto overscroll-x-contain p-3 text-[13px] leading-[20px]">
+      <pre className="touch-pan-x overflow-x-auto overscroll-x-contain p-3 text-13 leading-[20px]">
         <code className="font-mono text-text-pg">{code}</code>
       </pre>
     </div>
@@ -76,16 +76,16 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
  */
 export function MarkdownContent({ content }: { content: string }) {
   return (
-    <div className="pg-markdown max-w-none break-words text-[14px] leading-[22px] text-text-pg">
+    <div className="pg-markdown max-w-none break-words text-14 leading-[22px] text-text-pg">
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
-          h1: ({ children }: MdProps) => <h1 className="mt-6 mb-3 text-[24px] font-medium leading-[32px] text-text-pg first:mt-0">{children}</h1>,
-          h2: ({ children }: MdProps) => <h2 className="mt-6 mb-3 text-[20px] font-medium leading-[28px] text-text-pg first:mt-0">{children}</h2>,
-          h3: ({ children }: MdProps) => <h3 className="mt-5 mb-2 text-[18px] font-medium leading-[26px] text-text-pg first:mt-0">{children}</h3>,
-          h4: ({ children }: MdProps) => <h4 className="mt-4 mb-2 text-[16px] font-medium leading-[24px] text-text-pg first:mt-0">{children}</h4>,
-          h5: ({ children }: MdProps) => <h5 className="mt-4 mb-1 text-[14px] font-medium leading-[22px] text-text-pg first:mt-0">{children}</h5>,
-          h6: ({ children }: MdProps) => <h6 className="mt-4 mb-1 text-[13px] font-medium leading-[20px] text-text-pg-muted first:mt-0">{children}</h6>,
+          h1: ({ children }: MdProps) => <h1 className="mt-6 mb-3 text-24 font-medium leading-[32px] text-text-pg first:mt-0">{children}</h1>,
+          h2: ({ children }: MdProps) => <h2 className="mt-6 mb-3 text-20 font-medium leading-[28px] text-text-pg first:mt-0">{children}</h2>,
+          h3: ({ children }: MdProps) => <h3 className="mt-5 mb-2 text-18 font-medium leading-[26px] text-text-pg first:mt-0">{children}</h3>,
+          h4: ({ children }: MdProps) => <h4 className="mt-4 mb-2 text-16 font-medium leading-[24px] text-text-pg first:mt-0">{children}</h4>,
+          h5: ({ children }: MdProps) => <h5 className="mt-4 mb-1 text-14 font-medium leading-[22px] text-text-pg first:mt-0">{children}</h5>,
+          h6: ({ children }: MdProps) => <h6 className="mt-4 mb-1 text-13 font-medium leading-[20px] text-text-pg-muted first:mt-0">{children}</h6>,
 
           p: ({ children }: MdProps) => <p className="my-4 leading-[22px] text-text-pg-muted first:mt-0 last:mb-0">{children}</p>,
 
@@ -129,7 +129,7 @@ export function MarkdownContent({ content }: { content: string }) {
             const text = String(children ?? "");
             const isBlock = text.includes("\n") || Boolean(className);
             if (!isBlock) {
-              return <code className="border border-border-pg bg-bg-panel-muted px-1.5 py-0.5 font-mono text-[13px] text-text-pg rounded">{children}</code>;
+              return <code className="border border-border-pg bg-bg-panel-muted px-1.5 py-0.5 font-mono text-13 text-text-pg rounded">{children}</code>;
             }
             const language = /language-([\w+-]+)/.exec(className || "")?.[1] ?? "";
             return <CodeBlock language={language} code={text.replace(/\n$/, "")} />;
@@ -142,7 +142,7 @@ export function MarkdownContent({ content }: { content: string }) {
           // content simply became cramped. The wrapper takes the overflow.
           table: ({ children }: MdProps) => (
             <div className="my-4 touch-pan-x overflow-x-auto overscroll-x-contain border border-border-pg rounded-lg" data-testid="md-table-scroll">
-              <table className="w-max min-w-full border-collapse text-[13px] leading-[20px]">{children}</table>
+              <table className="w-max min-w-full border-collapse text-13 leading-[20px]">{children}</table>
             </div>
           ),
           thead: ({ children }: MdProps) => <thead className="bg-bg-panel-muted text-text-pg-secondary">{children}</thead>,

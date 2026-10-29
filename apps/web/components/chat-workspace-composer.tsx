@@ -156,7 +156,7 @@ export function ChatWorkspaceComposer(p: Props) {
         <div className="ml-auto">{p.busy ? <button type="button" onClick={p.onStop} aria-label={t.stop} data-testid="chat-stop" className="grid h-11 w-11 place-items-center rounded-xl text-status-negative hover:bg-[var(--pg-surface-hover)]"><Square className="h-5 w-5" /></button> : <button type="submit" disabled={(!p.input.trim() && !p.attachments.length) || !!uploading || changing || !!failed.length} aria-label={t.send} className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)] transition hover:shadow-card-hover disabled:opacity-40"><ArrowUp className="h-5 w-5" /></button>}</div>
       </div>
     </form>
-    {p.modelNote ? <p className="mt-1 px-1 text-[11px] text-text-pg-dim" data-testid="model-note">{p.modelNote}</p> : null}
+    {p.modelNote ? <p className="mt-1 px-1 text-11 text-text-pg-dim" data-testid="model-note">{p.modelNote}</p> : null}
     {error ? <p role="alert" className="mt-2 text-sm text-status-negative">{error} <button onClick={() => setError("")} aria-label={t.remove} type="button" className="p-1">×</button></p> : null}
     {p.researchMode ? <details className="mt-2 text-sm text-text-pg-muted"><summary className="cursor-pointer py-1">{t.details}</summary><div className="max-h-[40dvh] overflow-y-auto py-3">{p.settings}</div></details> : null}
   </div>;
