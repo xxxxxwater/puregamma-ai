@@ -42,11 +42,16 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/api/session/list') {
       return json(res, 200, { sessions: readdirSync(sessions).map(f => JSON.parse(readFileSync(path.join(sessions, f), 'utf8')).title) })
     }
+    if (url.pathname === '/api/redirect') {
+      res.writeHead(302, { location: '/api/debug?from=redirect' })
+      return res.end()
+    }
     if (url.pathname === '/api/debug') {
       return json(res, 200, {
         home, cwd: process.cwd(), query: url.search, cookie: req.headers.cookie, authorization: req.headers.authorization ?? null,
         tokenFile: process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, sharedToken: process.env.PUREGAMMA_LEGACY_API_TOKEN ?? null,
         brokerSecret: process.env.PUREGAMMA_DSH_BROKER_SECRET ?? null, workspaceRoot: process.env.PUREGAMMA_DSH_WORKSPACE_ROOT,
+        headers: req.headers,
       })
     }
     json(res, 404, { error: 'not found' })

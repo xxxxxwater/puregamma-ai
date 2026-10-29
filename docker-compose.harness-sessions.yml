@@ -1,0 +1,18 @@
+# Opt-in override: add the DSH Session front door to production Caddy.
+#
+#   docker compose -f docker-compose.production.yml -f docker-compose.harness-sessions.yml up -d caddy
+#
+# Requires a running session broker (PUREGAMMA_DSH_BROKER_ENABLED=true, see
+# docs/architecture/upgrade-20261029/dsh-ingress-isolation.md) reachable from
+# the edge network at DSH_BROKER_UPSTREAM, and DSH_MULTI_TENANT_ENABLED=true on
+# the API. Leaving this file out is the rollback: Caddy then has no route to
+# the broker.
+services:
+  caddy:
+    environment:
+      HARNESS_DOMAIN: ${HARNESS_DOMAIN:?HARNESS_DOMAIN is required (e.g. harness.puregamma.ai)}
+      DSH_BROKER_UPSTREAM: ${DSH_BROKER_UPSTREAM:?DSH_BROKER_UPSTREAM is required (host:port of the session broker)}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile.base:ro
+      - ./deploy/caddy/harness-sessions.caddy:/etc/caddy/harness-sessions.caddy:ro
+      - ./deploy/caddy/Caddyfile.harness-sessions:/etc/caddy/Caddyfile:ro

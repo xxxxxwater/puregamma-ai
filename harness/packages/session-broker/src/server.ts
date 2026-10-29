@@ -13,6 +13,57 @@ const DROP_REQUEST = new Set([
 ])
 const DROP_RESPONSE = new Set(['set-cookie', 'connection', 'keep-alive', 'transfer-encoding', 'trailer', 'upgrade'])
 
+/** Where a request goes once the mount prefix is checked. */
+export type Route = { kind: 'host'; path: string } | { kind: 'redirect'; location: string } | { kind: 'not-found' }
+
+/**
+ * Map a public request URL onto the Host. Outside the mount prefix nothing
+ * is routed (and no identity check or Host start happens); the bare prefix
+ * redirects to its trailing-slash form so DSH's relative URLs resolve under
+ * it. A browser-supplied launch `token` is never forwarded.
+ */
+export function routeRequest(url: string | undefined, basePath: string): Route {
+  const raw = url ?? '/'
+  const mark = raw.indexOf('?')
+  const search = withoutLaunchToken(mark < 0 ? '' : raw.slice(mark))
+  let pathname = new URL(mark < 0 ? raw : raw.slice(0, mark), 'http://broker.invalid').pathname
+  if (basePath) {
+    if (pathname === basePath) return { kind: 'redirect', location: `${basePath}/${search}` }
+    if (!pathname.startsWith(`${basePath}/`)) return { kind: 'not-found' }
+    pathname = pathname.slice(basePath.length)
+  }
+  return { kind: 'host', path: `${pathname}${search}` }
+}
+
+/**
+ * Drop every `token` parameter from a raw query string and keep the rest
+ * byte-for-byte. DSH's combo bundle URLs (`plugins/??a/client.js,b/client.js&rev=…`)
+ * do not survive a URLSearchParams round trip.
+ */
+export function withoutLaunchToken(search: string): string {
+  if (!search) return ''
+  const kept = search.slice(1).split('&').filter(part => {
+    const name = part.split('=', 1)[0]
+    let decoded = name
+    try { decoded = decodeURIComponent(name.replace(/\+/g, ' ')) } catch {}
+    return decoded !== 'token'
+  })
+  return kept.length ? `?${kept.join('&')}` : ''
+}
+
+/**
+ * A top-level document navigation (link click, typed URL) carries no Origin
+ * and may be cross-site; it is a read of the app shell, never an RPC, so it is
+ * admitted like any same-site request. Everything else that is cross-site is
+ * refused, and WebSocket upgrades always need the public Origin.
+ */
+export function isNavigation(request: Pick<IncomingMessage, 'method' | 'headers'>): boolean {
+  return (request.method === 'GET' || request.method === 'HEAD')
+    && request.headers['sec-fetch-mode'] === 'navigate'
+    && request.headers['sec-fetch-dest'] === 'document'
+    && request.headers.origin === undefined
+}
+
 export interface Broker {
   server: http.Server
   hosts: HostManager
@@ -32,7 +83,9 @@ export function createBroker(config: BrokerConfig, deps: { fetchImpl?: typeof fe
    * public origin, cross-site fetch metadata is refused, and WebSocket
    * upgrades must carry the public Origin.
    */
-  function sameSite(headers: IncomingHttpHeaders, upgrade: boolean): boolean {
+  function sameSite(request: IncomingMessage, upgrade: boolean): boolean {
+    const headers = request.headers
+    if (!upgrade && isNavigation(request)) return true
     if (headers['sec-fetch-site'] === 'cross-site') return false
     const origin = headers.origin
     if (origin === undefined) return !upgrade
@@ -40,7 +93,7 @@ export function createBroker(config: BrokerConfig, deps: { fetchImpl?: typeof fe
   }
 
   async function admit(request: IncomingMessage, upgrade: boolean): Promise<Admission> {
-    if (!sameSite(request.headers, upgrade)) return { ok: false, status: 403, code: 'origin-rejected' }
+    if (!sameSite(request, upgrade)) return { ok: false, status: 403, code: 'origin-rejected' }
     let identity: Identity | null
     try {
       identity = await auth.identify(request.headers)
@@ -70,32 +123,52 @@ export function createBroker(config: BrokerConfig, deps: { fetchImpl?: typeof fe
     return out
   }
 
-  /** The launch token is the broker's to use; a browser-supplied one is never forwarded. */
-  function targetPath(url: string | undefined): string {
-    const parsed = new URL(url ?? '/', 'http://broker.invalid')
-    parsed.searchParams.delete('token')
-    return `${parsed.pathname}${parsed.search}`
+  /** Headers every broker response carries, whether it came from a Host or not. */
+  const securityHeaders: Record<string, string> = {
+    'x-content-type-options': 'nosniff',
+    'referrer-policy': 'no-referrer',
+    'x-frame-options': 'DENY',
+    'cross-origin-opener-policy': 'same-origin',
+    ...(config.contentSecurityPolicy ? { 'content-security-policy': config.contentSecurityPolicy } : {}),
   }
 
-  function deny(response: ServerResponse, status: number, code: string): void {
-    response.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' })
+  function deny(response: ServerResponse, status: number, code: string, request?: IncomingMessage): void {
+    if (status === 401 && config.loginUrl && request && isNavigation(request)) {
+      response.writeHead(401, { ...securityHeaders, 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' })
+      response.end(`<!doctype html><meta charset="utf-8"><title>Sign in</title><p>Sign in to PureGamma to open your Harness sessions. <a href="${escapeHtml(config.loginUrl)}">Sign in</a></p>`)
+      return
+    }
+    response.writeHead(status, { ...securityHeaders, 'content-type': 'application/json', 'cache-control': 'no-store' })
     response.end(JSON.stringify({ error: code }))
+  }
+
+  /** Root-relative redirects from a Host stay under the mount prefix. */
+  function publicLocation(location: string): string {
+    return config.basePath && location.startsWith('/') && !location.startsWith('//') ? `${config.basePath}${location}` : location
   }
 
   const server = http.createServer((request, response) => {
     if (request.url === '/__broker/healthz') return deny(response, 200, 'ok')
+    const route = routeRequest(request.url, config.basePath)
+    if (route.kind === 'not-found') return deny(response, 404, 'not-found')
+    if (route.kind === 'redirect') {
+      response.writeHead(308, { ...securityHeaders, location: route.location, 'cache-control': 'no-store' })
+      return void response.end()
+    }
     void admit(request, false).then(admission => {
-      if (!admission.ok) return deny(response, admission.status, admission.code)
+      if (!admission.ok) return deny(response, admission.status, admission.code, request)
       const { host } = admission
       host.lastActive = Date.now()
       const upstream = http.request({
-        host: '127.0.0.1', port: host.port, method: request.method, path: targetPath(request.url),
+        host: '127.0.0.1', port: host.port, method: request.method, path: route.path,
         headers: forwardHeaders(request.headers, host),
       }, reply => {
         const headers: Record<string, string | string[]> = {}
         for (const [name, value] of Object.entries(reply.headers)) {
           if (value !== undefined && !DROP_RESPONSE.has(name)) headers[name] = value
         }
+        if (typeof headers.location === 'string') headers.location = publicLocation(headers.location)
+        Object.assign(headers, securityHeaders)
         response.writeHead(reply.statusCode ?? 502, headers)
         reply.pipe(response)
       })
@@ -109,6 +182,8 @@ export function createBroker(config: BrokerConfig, deps: { fetchImpl?: typeof fe
       socket.end(`HTTP/1.1 ${status} ${http.STATUS_CODES[status]}\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n${JSON.stringify({ error: code })}`)
     }
     socket.on('error', () => socket.destroy())
+    const route = routeRequest(request.url, config.basePath)
+    if (route.kind !== 'host') return fail(404, 'not-found')
     void admit(request, true).then(admission => {
       if (!admission.ok) return fail(admission.status, admission.code)
       const { host } = admission
@@ -137,7 +212,7 @@ export function createBroker(config: BrokerConfig, deps: { fetchImpl?: typeof fe
         for (const [name, value] of Object.entries(request.headers)) {
           if (name.startsWith('sec-websocket') && value !== undefined) headers[name] = value
         }
-        const lines = [`${request.method} ${targetPath(request.url)} HTTP/1.1`]
+        const lines = [`${request.method} ${route.path} HTTP/1.1`]
         for (const [name, value] of Object.entries(headers)) {
           for (const item of Array.isArray(value) ? value : [value]) lines.push(`${name}: ${item}`)
         }
@@ -159,4 +234,8 @@ export function createBroker(config: BrokerConfig, deps: { fetchImpl?: typeof fe
       await closed
     },
   }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, char => `&#${char.charCodeAt(0)};`)
 }

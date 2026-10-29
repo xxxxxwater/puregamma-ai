@@ -160,6 +160,19 @@ jobs:
             -e API_DOMAIN=api.puregamma.ai \
             -v "$PWD/Caddyfile:/etc/caddy/Caddyfile:ro" \
             caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
+          # Opt-in DSH Session front door (docker-compose.harness-sessions.yml):
+          # the production Caddyfile must not reference it, and the combined
+          # config must validate exactly as the override mounts it.
+          ! grep -Eq 'import|HARNESS_DOMAIN|DSH_BROKER' Caddyfile
+          docker run --rm \
+            -e APP_DOMAIN=app.puregamma.ai \
+            -e API_DOMAIN=api.puregamma.ai \
+            -e HARNESS_DOMAIN=harness.puregamma.ai \
+            -e DSH_BROKER_UPSTREAM=dsh-broker:3480 \
+            -v "$PWD/Caddyfile:/etc/caddy/Caddyfile.base:ro" \
+            -v "$PWD/deploy/caddy/harness-sessions.caddy:/etc/caddy/harness-sessions.caddy:ro" \
+            -v "$PWD/deploy/caddy/Caddyfile.harness-sessions:/etc/caddy/Caddyfile:ro" \
+            caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
 
       - name: Verify production env template carries mandatory controls
         run: |
