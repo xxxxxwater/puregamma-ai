@@ -322,3 +322,29 @@ def test_another_users_account_cannot_be_bound(api_client, db, people, monkeypat
     )
     assert response.status_code == 400
     assert db.query(TradingMandateProposal).count() == 0
+
+
+def test_without_migration_0036_and_flag_off_nothing_touches_the_new_table(api_client, db, people, monkeypatch):
+    """Deploying this code before the migration runs is safe: with the flag
+    off (default) no code path reads or writes trading_mandate_proposals."""
+    owner, admin = people["owner"], people["admin_a"]
+    world = _make_live_world(db, owner, monkeypatch)
+    db.execute(text("DROP TABLE trading_mandate_proposals"))
+    db.commit()
+    from tests.security.test_live_trading_foundation import FakeGateway
+
+    gateway = FakeGateway()
+    preview = control_plane.preview_order(db, owner.id, mandate_id=world["mandate"].id, symbol="BTCUSDT", side="buy", quantity="0.5", gateway=gateway)
+    order = control_plane.confirm_order(db, owner.id, order_intent_id=preview["intent"].id, confirmation=preview["confirmation"], gateway=gateway)
+    control_plane.sync_order_status(db, order, gateway=gateway)
+    control_plane.cancel_order(db, owner.id, order.client_order_id, gateway=gateway)
+    control_plane.pause_mandate(db, owner.id, world["mandate"].id, reason="x")
+    for path in ("/api/trading/mandates", "/api/trading/orders", "/api/trading/ledger", "/api/trading/reconciliation", "/api/trading/safety-status"):
+        assert api_client.get(path, headers=auth_headers(owner)).status_code == 200, path
+    for path in ("/admin/trading/kill-switches", "/admin/trading/live-approvals", "/admin/trading/reconciliations", "/admin/trading/audit"):
+        assert api_client.get(path, headers=auth_headers(admin)).status_code == 200, path
+    assert api_client.post("/admin/trading/kill-switch", json={"scope": "global", "active": True, "reason": "drill"}, headers=auth_headers(admin)).status_code == 200
+    gone = api_client.get("/api/trading/mandate-proposals", headers=auth_headers(owner))
+    assert gone.status_code == 404 and gone.json()["detail"]["code"] == "MANDATE_PROPOSALS_DISABLED"
+    db.execute(text("CREATE TABLE trading_mandate_proposals (id VARCHAR PRIMARY KEY)"))  # let teardown drop it
+    db.commit()

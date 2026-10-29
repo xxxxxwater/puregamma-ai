@@ -222,3 +222,32 @@ def test_final_orders_are_never_queried(db, user_factory, monkeypatch, terminal)
     gateway = SpyGateway()
     control_plane.sync_order_status(db, order, gateway=gateway)
     assert gateway.queries == [] and _audit(db, order_sync.SYNC_ACTION) == []
+
+
+def test_a_failed_audit_write_rolls_the_whole_sync_back_and_the_next_tick_retries(db, user_factory, monkeypatch):
+    """The sync result is written in the same transaction as the order state.
+    If the audit insert fails, nothing of that sync is kept (no state change,
+    no fill, no ledger row) — exactly as if the venue had not been asked —
+    and the next background tick queries again. Nothing is ever submitted."""
+    user = user_factory("recheck-auditfail@test.com")
+    _, order = _unknown_order(db, user, monkeypatch)
+    filled = {"state": "filled", "order": {"broker_order_id": "brk-9", "fills": [{"broker_fill_id": "bf-9", "quantity": "0.5", "price": "100", "fee": "0"}]}}
+    gateway = SpyGateway([filled, filled])
+    real = order_sync.record_sync_result
+
+    def broken(*args, **kwargs):
+        raise RuntimeError("audit table unavailable")
+
+    monkeypatch.setattr(order_sync, "record_sync_result", broken)
+    with pytest.raises(RuntimeError):
+        control_plane.sync_order_status(db, order, gateway=gateway)
+    db.rollback()  # what packages.workers.tasks.sync_live_order_statuses does per order
+    db.expire_all()
+    assert db.get(LiveOrder, order.id).status == "unknown"
+    assert db.query(Fill).count() == 0 and db.query(LedgerEntry).count() == 0
+
+    monkeypatch.setattr(order_sync, "record_sync_result", real)
+    control_plane.sync_order_status(db, db.get(LiveOrder, order.id), gateway=gateway)
+    assert db.get(LiveOrder, order.id).status == "filled"
+    assert db.query(Fill).count() == 1 and db.query(LedgerEntry).filter_by(entry_type="trade_buy").count() == 1
+    assert len(gateway.queries) == 2 and gateway.submitted == []
