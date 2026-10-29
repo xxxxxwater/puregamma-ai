@@ -985,9 +985,15 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
     setBusy(`cancel:${order.client_order_id}`);
     setError("");
     try {
-      await cancelLiveOrder(order.client_order_id);
+      const { order: after } = await cancelLiveOrder(order.client_order_id);
       setCancelTarget(null);
-      setNotice(t(locale, "live-trading.orders.cancelDone"));
+      // The server answers 200 even when the venue did not confirm the
+      // cancel; that is not "cancelled" and must not be reported as such.
+      if (after && after.status !== "canceled" && after.error_code === "CANCEL_UNKNOWN") {
+        setError(t(locale, "live-trading.orders.cancelUnconfirmed", { status: after.status }));
+      } else {
+        setNotice(t(locale, "live-trading.orders.cancelDone"));
+      }
       await load();
     } catch (cause) {
       setError(describeApiError(cause).message);

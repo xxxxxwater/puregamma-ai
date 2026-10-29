@@ -285,6 +285,21 @@ def confirm_order(
 
     # Row lock serializes all operations on this mandate (no concurrent modify).
     mandate = owned_mandate(db, user_id, intent.mandate_id, lock=True)
+    # A concurrent confirm of the same intent may have committed while we
+    # waited for the lock: answer with its order instead of re-running risk
+    # (which could otherwise mark the already-approved intent REJECTED).
+    db.refresh(intent)
+    existing_order = (
+        db.query(LiveOrder)
+        .filter_by(order_intent_id=intent.id, user_id=user_id)
+        .one_or_none()
+    )
+    if existing_order:
+        db.rollback()
+        return existing_order
+    if intent.status != IntentStatus.PENDING.value:
+        db.rollback()
+        raise ControlPlaneError("Order intent is no longer pending")
     connection = _mandate_connection(db, mandate)
     gate = flags_service.evaluate_full_gate(db, user_id, mandate, connection)
     if not gate.enabled:
@@ -702,6 +717,9 @@ def cancel_order(
         state = str(ack.get("state") or LiveOrderStatus.CANCELED.value).lower()
         if state in {item.value for item in LiveOrderStatus}:
             order.status = state
+        if order.error_code == "CANCEL_UNKNOWN":
+            order.error_code = None
+            order.error_message = None
     except GatewayError as exc:
         order.error_code = "CANCEL_UNKNOWN"
         order.error_message = str(exc)[:300]
@@ -712,9 +730,11 @@ def cancel_order(
         action="LIVE_ORDER_CANCEL",
         status=order.status,
         trace_id=order.trace_id,
-        idempotency_key=f"audit:cancel:{order.id}",
+        # One row per cancel attempt: a retried cancel after a failed one used
+        # to reuse the first key and leave no trace.
+        idempotency_key=f"audit:cancel:{order.id}:{uuid.uuid4().hex}",
         actor_type="user",
-        result_json={"order_id": order.id},
+        result_json={"order_id": order.id, "error_code": order.error_code},
     )
     db.commit()
     db.refresh(order)
@@ -745,7 +765,9 @@ def pause_mandate(
         action="LIVE_MANDATE_PAUSE",
         status="PAUSED",
         trace_id=audit_service.new_trace_id(),
-        idempotency_key=f"audit:pause:{mandate.id}:{int(utcnow().timestamp())}",
+        # One row per transition: a per-second key silently dropped the audit
+        # of a second pause within the same second.
+        idempotency_key=f"audit:pause:{mandate.id}:{uuid.uuid4().hex}",
         actor_type="admin" if actor_is_admin else "user",
         result_json={"mandate_id": mandate.id, "reason": reason},
     )
@@ -797,7 +819,7 @@ def resume_mandate(
         action="LIVE_MANDATE_RESUME",
         status="RESUMED",
         trace_id=audit_service.new_trace_id(),
-        idempotency_key=f"audit:resume:{mandate.id}:{int(utcnow().timestamp())}",
+        idempotency_key=f"audit:resume:{mandate.id}:{uuid.uuid4().hex}",
         actor_type="user",
         result_json={"mandate_id": mandate.id},
     )

@@ -101,6 +101,23 @@ test.describe("LIVE UNKNOWN order sync", () => {
     await expect(panel.getByTestId("live-order-recheck")).toHaveCount(0);
   });
 
+  test("a cancel the venue did not confirm is not reported as cancelled", async ({ page }) => {
+    const open = { ...unknownOrder, id: "o-open", status: "accepted", client_order_id: "pg-open00000000000000001", error_code: null, error_message: null };
+    await mockLive(page, {});
+    await page.route("**/api/trading/orders", (route) => route.fulfill({ json: { orders: [open] } }));
+    const cancels: unknown[] = [];
+    await page.route("**/api/trading/orders/cancel", (route) => {
+      cancels.push(JSON.parse(route.request().postData() || "{}"));
+      return route.fulfill({ json: { order: { ...open, error_code: "CANCEL_UNKNOWN", error_message: "venue timeout" } } });
+    });
+    await page.goto("/en/trading/live/orders");
+    await page.getByRole("button", { name: "Cancel order" }).first().click();
+    await page.getByRole("dialog").getByRole("button", { name: "Cancel order" }).click();
+    await expect(page.getByText("The venue did not confirm the cancel")).toBeVisible();
+    await expect(page.getByText("Cancel requested.")).toHaveCount(0);
+    expect(cancels).toEqual([{ client_order_id: "pg-open00000000000000001" }]);
+  });
+
   test("an unreadable sync history says so instead of guessing", async ({ page }) => {
     await mockLive(page, {});
     await page.route("**/api/trading/orders/*/sync-status", (route) => route.fulfill({ status: 503, json: { detail: "unavailable" } }));

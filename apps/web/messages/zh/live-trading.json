@@ -169,7 +169,8 @@
     "cancelConfirmBody": "熔断开关激活期间仍允许撤单。仅未成交订单可撤销。",
     "cancelDone": "撤单请求已提交。",
     "fillsTitle": "成交",
-    "fillsUnavailable": "成交明细尚未通过用户侧 API 开放；成交随订单在服务端记录，并可在管理控制台查看。"
+    "fillsUnavailable": "成交明细尚未通过用户侧 API 开放；成交随订单在服务端记录，并可在管理控制台查看。",
+    "cancelUnconfirmed": "交易所没有确认撤单。订单仍为 {status}，没有任何重发。请再次撤单或核对状态。"
   },
   "account": {
     "title": "账户",

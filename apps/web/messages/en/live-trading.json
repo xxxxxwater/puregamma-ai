@@ -169,7 +169,8 @@
     "cancelConfirmBody": "Cancellation stays allowed even while kill switches are engaged. Only open orders can be canceled.",
     "cancelDone": "Cancel requested.",
     "fillsTitle": "Fills",
-    "fillsUnavailable": "Fill details are not exposed through the user API yet; fills are recorded server-side with the order and visible in the admin console."
+    "fillsUnavailable": "Fill details are not exposed through the user API yet; fills are recorded server-side with the order and visible in the admin console.",
+    "cancelUnconfirmed": "The venue did not confirm the cancel. The order is still {status}; nothing was re-sent. Try cancelling again or check its status."
   },
   "account": {
     "title": "Account",
