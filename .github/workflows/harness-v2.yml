@@ -93,9 +93,12 @@ jobs:
         working-directory: vendor/deepseek-harness
         run: pnpm install --frozen-lockfile --ignore-scripts
 
+      # The committed lockfile is the only resolution: a manifest change that
+      # was not re-locked fails here instead of resolving something new.
+      # pnpm 11.7.0 comes from harness/package.json#packageManager via corepack.
       - name: Install PureGamma Harness workspace
         working-directory: harness
-        run: pnpm install --no-frozen-lockfile
+        run: pnpm install --frozen-lockfile
 
       - name: Typecheck and build PureGamma Harness plugins
         working-directory: harness
@@ -104,7 +107,7 @@ jobs:
       - name: Verify Harness client bundle contract
         run: |
           set -euo pipefail
-          for pkg in brand client-remotes ui-account ui-billing ui-notifications ui-pg-tsy-runtime ui-portfolio ui-research ui-options ui-backtest ui-memory; do
+          for pkg in brand client-remotes ui-account ui-billing ui-notifications ui-pg-tsy-runtime ui-portfolio ui-research ui-options ui-backtest ui-memory ui-research-resources; do
             test -f "harness/plugins/$pkg/lib/index.js"
             test -f "harness/plugins/$pkg/lib/client.js"
             test -f "harness/plugins/$pkg/lib/types/client/index.d.ts"
