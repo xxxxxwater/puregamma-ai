@@ -12,7 +12,9 @@
 | 2 | 提交 `harness/pnpm-lock.yaml`，CI 冻结安装 | `26826a5` |
 | 3 | Market Data / Portfolio 退役对等证据 | `0947b96`（修复）、`1563c5d`（测试与证据） |
 | 4 | 手机历史抽屉焦点缺陷 + 生产构建 CI | `430120e` |
-| 4 | Round 5：token 与统一 Button、字号、按钮收敛、边框收敛 | `622c9d4`、`332f93a`、`2009149`、`5915872` |
+| 4 | Round 5：token 与统一 Button、字号、按钮收敛、边框收敛 | `622c9d4`、`332f93a`、`2009149`、`5915872`、`27dc922` |
+| 4 | 顺带修复：仪表盘 NAV 缺失时显示 $0.00 | `cbd5293` |
+| — | 合并 `origin/main`（W3 移动端契约） | `6aaccc9` |
 
 ---
 
@@ -194,8 +196,8 @@ git add pnpm-lock.yaml
 | --- | ---: | ---: | ---: | --- |
 | raw `<button` | 229 | **60** | ≤ 80 | `2009149` |
 | `<Button>` | 13 | 182 | — | `2009149` |
-| `text-[Npx]` | 158 | **0** | 0 | `332f93a` |
-| border 宽度工具类 | 804 | **554** | ≤ 450（**未达成**） | `5915872` |
+| `text-[Npx]` | 158 | **6** | 0 | `332f93a`、`27dc922`（6 处都在架构缩略图里，见下文） |
+| border 宽度工具类 | 804 | **559** | ≤ 450（**未达成**） | `5915872`、`27dc922` |
 | 圆角档位 | 10/14/20 + Tailwind 8/12/14/18/24/30 | **6/8/12** | 6/8/12 | `622c9d4` |
 | 字号档位 | 158 处任意值 | **8 档**（11/16 … 24/32） | 8 档 | `622c9d4`、`332f93a` |
 | 按钮尺寸 | 只有一种（min-h-10） | sm/md/lg = 32/40/44 px | 3 档 | `622c9d4` |
@@ -216,10 +218,28 @@ git add pnpm-lock.yaml
   - 控件（input、select、textarea、button、a、summary）、分隔线（border-b/-t）、状态色边框和动态类一律不动；
   - Card、ResearchCard 原本边框 + 抬升阴影叠加，按 Round 5 规则 5 只保留阴影。
   - 没有用“环形阴影替换 border”的办法压计数：那样线条没有减少，只是换了个写法。
+- **唯一例外**：首页的架构“电脑”缩略图（`trading-architecture.tsx`）是按比例缩小的插图，标签本来就是 7–9 px，而且 `architecture-visual.spec` 固定了节点位置。把它的标签改成 `text-11` 后，Notifications 节点的相对 y 从 0.88 变成 0.81，两个项目都失败。因此恢复原样，并在代码里注明这是字号刻度的例外（`27dc922`）。
+
+### 4.2.1 顺带修复：NAV 缺失显示为 $0.00（`cbd5293`）
+
+fixture 截图里发现仪表盘的 “PORTFOLIO / NAV” 卡片在 “No investment account connected” 旁边显示 **$0.00**（见 `assets/harness-repro-visual-20261029/fixture-desktop-light-dashboard-before-nav-fix.png`）。原因如下：
+- legacy `/portfolio` 返回 `{connected: false, nav: 0}`，API 客户端读取失败时的兜底值也是这个；
+- `portfolio-nav.tsx` 只把 `null` 当作缺失；
+- `today-activity.tsx` 用 `nav ?? 0`，还把负 NAV 截成 0。
+
+两处现在都显示 “—”，并标 `data-state=unavailable`；只有已连接的快照带有有限 NAV 时才显示金额。`dashboard.spec` 新增 2 例，覆盖两张卡片和已连接的情况。
 
 ### 4.3 截图与预览站对比（视觉假设）
 
-没有测试账号（需要用户提供）。登录后页面的截图使用仓库 fixture（`pg_session=playwright-fixture-session`，离线 fixture API），**仅作视觉假设，不代表线上真实数据**。没有访问生产 API；也没有为截图访问预览站的登录后页面。
+没有测试账号（需要用户提供）。登录后页面的截图使用仓库 fixture（`pg_session=playwright-fixture-session`，离线 fixture API，浏览器只能解析回环地址），**仅作视觉假设，不代表线上真实数据**。没有访问生产 API，也没有访问预览站。
+
+本机共截了 24 张（6 页 × 桌面/手机 × 浅色/深色，生产构建），仓库只收录 4 张代表图，放在 `docs/architecture/assets/harness-repro-visual-20261029/`：
+- 桌面浅色仪表盘：NAV 修复前，用作缺陷证据；
+- 桌面深色 Chat；
+- 手机浅色 Memory；
+- 手机深色中文账户页。
+
+与预览站的逐页对比要等测试账号到位后再做。
 
 ### 4.4 验证
 
@@ -238,7 +258,11 @@ git add pnpm-lock.yaml
 | 路由表守卫 + 对等 pytest | `pytest tests/harness`（`TZ=UTC` 与 `TZ=Asia/Shanghai` 各跑一次） | 119 通过（含实时 uvicorn ↔ Harness） |
 | ruff（CI 规则） | `ruff check apps packages services scripts tests --select E9,F63,F7,F82` | 通过 |
 | web typecheck / lint | `pnpm --dir apps/web typecheck` / `lint` | 通过 / 9 个已有警告 |
-| Playwright（生产构建） | 见下方 | 见下方 |
+| 全量 pytest | `pytest tests`（heavy 锁 + 2000M scope，合并 main 后） | 1530 通过、9 跳过、4 xfailed、0 失败。第一次运行时 W3 新增的 `tests/contract/test_mobile_agent_contract.py::test_a_reopened_conversation_names_its_active_run_and_pending_approvals` 失败过 1 次，单独运行和之后两次全量运行都通过，属于偶发，已告知协调者 |
+| Playwright 第 1 批（生产构建 `next build` + `next start`，chromium + mobile-chrome，`--workers=1`） | agent-session-reliability、chat-design、contrast-audit、visual-style、markdown-render、theme-system、mobile-nav、mobile-fixes、live-chat-workspace | 134 通过、0 失败、4 跳过（含抽屉焦点用例，两个项目都通过） |
+| Playwright 第 2 批（其余 23 个 spec，含 route-audit） | 同上 | 324 通过、8 失败、6 跳过。失败项：live-trading.spec 的 2 例 × 2 项目、plugins-runtime.spec 1 例 × 2 项目，都依赖只在 `NODE_ENV=development` 下存在的诊断钩子（`plugins/core/runtime.tsx`），属已知情况；architecture-visual 1 例 × 2 项目由本轮字号改动引起，已用 `27dc922` 修复 |
+| Playwright 复跑（修复后重新构建） | architecture-visual + agent-session-reliability | 36/36 通过 |
+| Playwright 复跑（NAV 修复后重新构建） | dashboard、portfolio、route-audit、architecture-visual | dashboard 新增用例修正选择器后 8/8；其余 126 通过（route-audit 两种语言 × 两个项目全部通过） |
 
 ---
 
@@ -252,11 +276,12 @@ git add pnpm-lock.yaml
 - Portfolio/Market provider 修复：revert `0947b96`（会恢复“全部不可用”的缺陷）。
 - 对等测试与 candidates：revert `1563c5d`；`retired` 本来就为空，不影响任何路由。
 - 抽屉焦点：revert `430120e`。
+- NAV 显示：revert `cbd5293`（会恢复 $0.00 的显示）。
 - 视觉：按 `5915872` → `2009149` → `332f93a` → `622c9d4` 的顺序 revert；每一步之后 typecheck 都通过。
 
 ## 7. 遗留项
 
-- border 554，未达到 ≤ 450。剩下的主要是顶层卡片的中性边框（约 70 处，`bg-bg-panel rounded-xl border`）和动态类。前者要定设计：去掉边框后卡片与页面底色的对比在亮色主题下偏弱，需要先确定卡片用 0.5 px hairline 还是只用抬升阴影；后者需要逐个组件手改。
+- border 559，未达到 ≤ 450。剩下的主要是顶层卡片的中性边框（约 70 处，`bg-bg-panel rounded-xl border`）和动态类。前者要定设计：去掉边框后卡片与页面底色的对比在亮色主题下偏弱，需要先确定卡片用 0.5 px hairline 还是只用抬升阴影；后者需要逐个组件手改。
 - raw `<button>` 剩 60 个，都是动态类（选中态、开关）或特殊配色（status-warning、遮罩），需要给 Button 增加 `selected`/`tone` 能力后再收敛。
 - 资源视图没有在真实 DSH Host 的浏览器里端到端打开过（见 §1.4）。
 - 退役门槛的缺口见 §3.3。没有任何 surface 可以退役。
