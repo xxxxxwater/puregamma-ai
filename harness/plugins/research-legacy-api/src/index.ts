@@ -157,30 +157,30 @@ export class LegacyApiResearchProvider extends ResearchService {
 
   async today(locale?: string): Promise<ResearchDocument> {
     const normalizedLocale = locale?.trim() || undefined
-    return this.document('today', await this.request('/research/today', { locale: normalizedLocale }))
+    return this.document('today', await this.request('/api/research/today', { locale: normalizedLocale }))
   }
 
   async overnight(sinceHours = 14): Promise<ResearchDocument> {
     const value = assertIntegerRange(sinceHours, 1, 72, 'sinceHours')
-    return this.document('overnight', await this.request('/research/overnight', { since_hours: value }))
+    return this.document('overnight', await this.request('/api/research/overnight', { since_hours: value }))
   }
 
   async portfolioImpact(): Promise<ResearchDocument> {
-    return this.document('portfolio-impact', await this.request('/research/portfolio/impact'))
+    return this.document('portfolio-impact', await this.request('/api/research/portfolio/impact'))
   }
 
   async upcomingEvents(days = 14): Promise<ResearchDocument> {
     const value = assertIntegerRange(days, 1, 60, 'days')
-    return this.document('upcoming-events', await this.request('/research/events/upcoming', { days: value }))
+    return this.document('upcoming-events', await this.request('/api/research/events/upcoming', { days: value }))
   }
 
   async opportunities(locale?: string): Promise<ResearchDocument> {
     const normalizedLocale = locale?.trim() || undefined
-    return this.document('opportunities', await this.request('/research/opportunities', { locale: normalizedLocale }))
+    return this.document('opportunities', await this.request('/api/research/opportunities', { locale: normalizedLocale }))
   }
 
   async alerts(): Promise<ResearchDocument> {
-    return this.document('alerts', await this.request('/research/alerts'))
+    return this.document('alerts', await this.request('/api/research/alerts'))
   }
 }
 

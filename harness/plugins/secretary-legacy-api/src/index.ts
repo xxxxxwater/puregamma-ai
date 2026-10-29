@@ -123,7 +123,7 @@ export class LegacyApiSecretaryProvider extends SecretaryService {
   }
 
   async state(locale: SecretaryLocale = 'zh'): Promise<SecretaryState> {
-    const payload = await this.json('GET', `/secretary?locale=${encodeURIComponent(normalizeLocale(locale))}`)
+    const payload = await this.json('GET', `/api/secretary?locale=${encodeURIComponent(normalizeLocale(locale))}`)
     const voice = isRecord(payload.voice) ? payload.voice : {}
     const memory = isRecord(payload.memory) ? payload.memory : {}
     const billing = isRecord(payload.billing) ? payload.billing : {}
@@ -143,7 +143,7 @@ export class LegacyApiSecretaryProvider extends SecretaryService {
   async reply(request: SecretaryReplyRequest): Promise<SecretaryReply> {
     const content = request.content.trim()
     if (!content || content.length > 4000) throw new Error('secretary reply content must be 1-4000 characters')
-    const payload = await this.json('POST', '/secretary/messages', {
+    const payload = await this.json('POST', '/api/secretary/messages', {
       content,
       locale: normalizeLocale(request.locale),
       request_id: normalizeIdempotencyKey(request.idempotencyKey),
@@ -159,7 +159,7 @@ export class LegacyApiSecretaryProvider extends SecretaryService {
   async synthesizeVoice(request: SecretaryVoiceRequest): Promise<SecretaryAudio> {
     const text = request.text.trim()
     if (!text || text.length > 1500) throw new Error('secretary voice text must be 1-1500 characters')
-    return this.withResponse('/secretary/voice', {
+    return this.withResponse('/api/secretary/voice', {
       method: 'POST',
       headers: { Accept: 'audio/*', Authorization: `Bearer ${this.token()}`, 'Content-Type': 'application/json' },
       body: JSON.stringify({ text, locale: normalizeLocale(request.locale) }),
@@ -180,7 +180,7 @@ export class LegacyApiSecretaryProvider extends SecretaryService {
     if (!AUDIO_TYPES.has(normalizedType)) throw new Error(`unsupported secretary audio type: ${normalizedType || 'empty'}`)
     if (audio.byteLength < 512 || audio.byteLength > 2_000_000) throw new Error('secretary audio must be between 512 and 2000000 bytes')
     const body = new Blob([Uint8Array.from(audio)], { type: normalizedType })
-    return this.withResponse(`/secretary/transcribe?locale=${encodeURIComponent(normalizeLocale(locale))}`, {
+    return this.withResponse(`/api/secretary/transcribe?locale=${encodeURIComponent(normalizeLocale(locale))}`, {
       method: 'POST',
       headers: { Accept: 'application/json', Authorization: `Bearer ${this.token()}`, 'Content-Type': normalizedType },
       body,
@@ -193,7 +193,7 @@ export class LegacyApiSecretaryProvider extends SecretaryService {
   }
 
   async clearConversation(): Promise<SecretaryMutation> {
-    const payload = await this.json('DELETE', '/secretary/memory')
+    const payload = await this.json('DELETE', '/api/secretary/memory')
     return { ok: payload.ok === true, observedAt: new Date().toISOString(), source: 'compatibility:secretary-api' }
   }
 }
