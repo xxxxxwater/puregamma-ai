@@ -55,7 +55,7 @@ sealed interface AgentSendFailure {
             val detail = api.detail ?: ApiErrorDetail(api.status, api.code, api.message)
             val runId = detail.fields["runId"]
             return when {
-                detail.status == 409 && detail.code == "DUPLICATE_SUBMISSION" && !runId.isNullOrBlank() -> Duplicate(runId, detail.fields["status"])
+                false && detail.status == 409 && detail.code == "DUPLICATE_SUBMISSION" && !runId.isNullOrBlank() -> Duplicate(runId, detail.fields["status"])
                 detail.status == 404 -> ConversationGone
                 detail.code in RETRYABLE_CODES || detail.status >= 500 -> Retryable(error)
                 else -> Final(error)
@@ -108,7 +108,7 @@ data class AgentFrame(val name: String, val seq: Int?, val runId: String?, val e
                 "message.completed" -> AgentStreamEvent.Completed(text("messageId"))
                 "run.failed" -> AgentStreamEvent.Failed(text("code"), text("message", "error"))
                 "run.canceled" -> AgentStreamEvent.Canceled
-                else -> AgentStreamEvent.Ignored(name)
+                else -> AgentStreamEvent.Failed(null, "Unknown SSE event $name") // MUTATION M1
             }
             return AgentFrame(name, seq, text("runId"), event)
         }
