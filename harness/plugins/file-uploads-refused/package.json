@@ -3,11 +3,37 @@
   "version": "0.0.1",
   "private": true,
   "type": "module",
-  "description": "ctx.fileUploads that admits nothing: satisfies the native Session controller's dependency while generic file uploads stay disabled (no HTTP route, no Remote, every receipt unknown)",
+  "description": "fileUploads (Host) and fileUpload (browser) that admit nothing: satisfy the native Session controller's dependencies on both faces while generic file uploads stay disabled (no HTTP route, no Remote, every receipt unknown, every browser upload refused)",
   "main": "lib/index.js",
-  "types": "lib/index.d.ts",
-  "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" }, "./src/*": "./src/*", "./package.json": "./package.json" },
-  "files": ["lib/index.js", "lib/index.d.ts", "lib/index.js.map"],
-  "scripts": { "bundle": "tsdown" },
-  "peerDependencies": { "@deepseek-ai/cordis": "^4.0.4" }
+  "types": "lib/types/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/types/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./client": {
+      "types": "./lib/types/client/index.d.ts",
+      "default": "./lib/client.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json"
+  },
+  "dsh": {
+    "client": {
+      "inject": [],
+      "platform": "web",
+      "immediately": true
+    }
+  },
+  "files": [
+    "lib/index.js",
+    "lib/client.js",
+    "lib/types/**/*.d.ts"
+  ],
+  "scripts": {
+    "bundle": "tsc -p tsconfig.build.json && tsdown --config-loader tsx"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.4"
+  }
 }
