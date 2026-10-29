@@ -34,11 +34,17 @@ type Load<T> = { kind: "loading" } | { kind: "failed"; message: string } | { kin
 
 function useLoad<T>(read: () => Promise<T>) {
   const [load, setLoad] = useState<Load<T>>({ kind: "loading" });
+  // Only the latest read may land: a slower answer for a previous filter
+  // must not replace the rows of the current one.
+  const latest = useRef(0);
   const reload = useCallback(async () => {
+    const request = ++latest.current;
     setLoad({ kind: "loading" });
     try {
-      setLoad({ kind: "ready", data: await read() });
+      const data = await read();
+      if (request === latest.current) setLoad({ kind: "ready", data });
     } catch (error) {
+      if (request !== latest.current) return;
       const { status, message } = describeApiError(error);
       setLoad({ kind: "failed", message: status === 403 ? "403" : message });
     }
@@ -109,7 +115,10 @@ function ConfirmDialog({ locale, title, summary, phrase, busy, error, onCancel, 
   const [typed, setTyped] = useState("");
   const panelRef = useRef<HTMLDivElement | null>(null);
   const backRef = useRef<HTMLButtonElement | null>(null);
-  useDialogFocus(true, panelRef, onCancel, backRef);
+  // While the request is in flight the dialog must stay: it is the only place
+  // its error renders, so closing it early would hide a refused kill switch.
+  const cancel = () => { if (!busy) onCancel(); };
+  useDialogFocus(true, panelRef, cancel, backRef);
   return (
     <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/40 p-4">
       <div ref={panelRef} role="dialog" aria-modal="true" aria-labelledby="admin-live-confirm-title" className={`w-full max-w-md rounded-xl border bg-bg-panel p-5 ${danger ? "border-status-negative" : "border-status-warning"}`}>
@@ -122,7 +131,7 @@ function ConfirmDialog({ locale, title, summary, phrase, busy, error, onCancel, 
         </label>
         {error ? <p role="alert" className="mt-2 text-sm text-status-negative">{error}</p> : null}
         <div className="mt-4 flex gap-2">
-          <button ref={backRef} type="button" onClick={onCancel} className={`${buttonClass} flex-1`}>{zh ? "返回" : "Back"}</button>
+          <button ref={backRef} type="button" onClick={cancel} disabled={busy} className={`${buttonClass} flex-1`}>{zh ? "返回" : "Back"}</button>
           <button type="button" onClick={onConfirm} disabled={busy || typed.trim() !== phrase} className={`${buttonClass} flex-1 border-status-warning font-semibold text-status-warning`}>{zh ? "确认" : "Confirm"}</button>
         </div>
       </div>
