@@ -13,6 +13,18 @@ export interface BrokerConfig {
   listenPort: number
   /** Public origin users reach the broker at (scheme://host[:port]); the only accepted Origin. */
   publicOrigin: string
+  /**
+   * URL path the broker is mounted under, e.g. `/harness` ('' = origin root).
+   * DSH Web only emits relative URLs (`<base href="./">`, `api/remote.mux`
+   * resolved against `document.baseURI`), so a prefix works; the recommended
+   * production layout is still a dedicated subdomain at the root (see
+   * docs/architecture/upgrade-20261029/dsh-ingress-isolation.md).
+   */
+  basePath: string
+  /** Content-Security-Policy put on every response ('' = none). */
+  contentSecurityPolicy: string
+  /** Where an unauthenticated browser navigation is pointed (optional link in the 401 page). */
+  loginUrl: string
   /** FastAPI base URL used for `GET /me` and the Host token mint. */
   apiBaseUrl: string
   /** Service secret for `POST /internal/dsh/host-tokens`. */
@@ -51,14 +63,51 @@ const list = (value: string | undefined) => (value ?? '').split(',').map(item =>
 /** Names that must never reach a Host even if listed for passthrough. */
 export const NEVER_PASSED = new Set(['PUREGAMMA_LEGACY_API_TOKEN', 'DSH_BROKER_SECRET', 'PUREGAMMA_DSH_BROKER_SECRET', 'JWT_SECRET', 'SESSION_SECRET', 'INTERNAL_RUNTIME_SECRET'])
 
+/**
+ * DSH Web boots from inline scripts whose content changes with every plugin
+ * revision, so script hashes are not stable, and its Cordis client loader
+ * builds an evaluator for `!!js` config expressions with `new Function` when
+ * the shell module loads (0.1.7: the shell stays blank without
+ * 'unsafe-eval'). Scripts still come only from the broker's own origin; no
+ * third-party origin is allowed anywhere. `frame-ancestors 'none'` keeps the
+ * Session UI out of other sites' frames.
+ */
+export function defaultContentSecurityPolicy(publicOrigin: string): string {
+  let socket = ''
+  try {
+    const url = new URL(publicOrigin)
+    socket = ` ${url.protocol === 'https:' ? 'wss:' : 'ws:'}//${url.host}`
+  } catch {}
+  return [
+    "default-src 'self'",
+    "script-src 'self' 'unsafe-inline' 'unsafe-eval'",
+    "style-src 'self' 'unsafe-inline'",
+    "img-src 'self' data: blob:",
+    "font-src 'self' data:",
+    `connect-src 'self'${socket}`,
+    "worker-src 'self' blob:",
+    "manifest-src 'self'",
+    "object-src 'none'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+  ].join('; ')
+}
+
+const normalizeBasePath = (value: string | undefined) => (value ?? '').trim().replace(/\/+$/, '')
+
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BrokerConfig {
   const profileDir = path.resolve(env.PUREGAMMA_DSH_PROFILE_DIR ?? path.join(import.meta.dirname, '..', '..', '..', 'profile'))
+  const publicOrigin = (env.PUREGAMMA_DSH_PUBLIC_ORIGIN ?? 'http://127.0.0.1:3480').replace(/\/+$/, '')
   const apiBaseUrl = (env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000').replace(/\/+$/, '')
   return {
     enabled: bool(env.PUREGAMMA_DSH_BROKER_ENABLED),
     listenHost: env.PUREGAMMA_DSH_BROKER_HOST ?? '127.0.0.1',
     listenPort: int(env.PUREGAMMA_DSH_BROKER_PORT, 3480, 0, 65535),
-    publicOrigin: (env.PUREGAMMA_DSH_PUBLIC_ORIGIN ?? 'http://127.0.0.1:3480').replace(/\/+$/, ''),
+    publicOrigin,
+    basePath: normalizeBasePath(env.PUREGAMMA_DSH_BASE_PATH),
+    contentSecurityPolicy: env.PUREGAMMA_DSH_CSP ?? defaultContentSecurityPolicy(publicOrigin),
+    loginUrl: env.PUREGAMMA_DSH_LOGIN_URL ?? '',
     apiBaseUrl,
     brokerSecret: env.PUREGAMMA_DSH_BROKER_SECRET ?? '',
     sessionCookieName: env.PUREGAMMA_SESSION_COOKIE_NAME ?? 'pg_session',
@@ -87,6 +136,16 @@ export function validateConfig(config: BrokerConfig): string[] {
     if (origin.origin !== config.publicOrigin) errors.push('PUREGAMMA_DSH_PUBLIC_ORIGIN must be a bare origin (scheme://host[:port])')
   } catch {
     errors.push('PUREGAMMA_DSH_PUBLIC_ORIGIN is not a URL')
+  }
+  if (config.basePath && !/^(\/[A-Za-z0-9._~-]+)+$/.test(config.basePath)) {
+    errors.push('PUREGAMMA_DSH_BASE_PATH must look like /harness (no trailing slash, no query)')
+  }
+  if (config.loginUrl) {
+    try {
+      if (!/^https?:$/.test(new URL(config.loginUrl).protocol)) errors.push('PUREGAMMA_DSH_LOGIN_URL must be http(s)')
+    } catch {
+      errors.push('PUREGAMMA_DSH_LOGIN_URL is not a URL')
+    }
   }
   return errors
 }

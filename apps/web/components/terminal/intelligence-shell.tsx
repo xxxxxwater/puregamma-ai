@@ -12,12 +12,14 @@ import { Display, DisplayEyebrow } from "@/components/terminal/editorial";
  * reached without scrolling. The header collapses to a single line instead of
  * being removed, so the surface still identifies itself.
  */
-export function IntelligenceShell({ eyebrow, title, children, byline, compact = false }: {
+export function IntelligenceShell({ eyebrow, title, children, byline, compact = false, actions }: {
   eyebrow: string;
   title: string;
   byline?: string;
   children: ReactNode;
   compact?: boolean;
+  /** Optional trailing header controls (compact header only). */
+  actions?: ReactNode;
 }) {
   if (compact) {
     return (
@@ -26,6 +28,7 @@ export function IntelligenceShell({ eyebrow, title, children, byline, compact = 
           <DisplayEyebrow>{eyebrow}</DisplayEyebrow>
           <Display as="h1" size="md" className="!text-[1.05rem] leading-6">{title}</Display>
           {byline ? <p className="hidden text-xs leading-5 text-muted md:block">{byline}</p> : null}
+          {actions}
         </header>
         {children}
       </div>

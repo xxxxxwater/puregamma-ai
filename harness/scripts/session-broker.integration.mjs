@@ -4,6 +4,13 @@
 //   PUREGAMMA_DSH_BIN=/abs/path/to/@deepseek-ai/dsh/lib/bin.js \
 //     pnpm --dir harness exec tsx scripts/session-broker.integration.mjs
 //
+// PG_BROKER_IT_BASE_PATH=/harness mounts the broker under a path prefix (the
+// default is the origin root, i.e. the dedicated-subdomain layout).
+// PG_BROKER_IT_BROWSER=1 adds a real-browser step (Playwright from apps/web,
+// Chromium at PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH or /usr/bin/chromium):
+// the full DSH Web client boots for user A behind the broker's CSP and no
+// request leaves the mount prefix.
+//
 // FastAPI is stubbed in-process (GET /me + the Host-token mint; the real
 // endpoint is covered by tests/security/test_dsh_host_tokens.py). Everything
 // else is real: the PureGamma profile + multi-tenant overlay on
@@ -16,7 +23,8 @@ import http from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import { createBroker, hostPaths, loadConfig } from '../packages/session-broker/src/index.ts'
+import { createRequire } from 'node:module'
+import { createBroker, defaultContentSecurityPolicy, hostPaths, loadConfig } from '../packages/session-broker/src/index.ts'
 
 const dshBin = process.env.PUREGAMMA_DSH_BIN
 if (!dshBin || !existsSync(dshBin)) {
@@ -73,10 +81,16 @@ const config = {
   maxHosts: 2,
   startTimeoutMs: 180_000,
   hostHeapMb: Number(process.env.PG_BROKER_IT_HOST_HEAP_MB ?? 512),
+  basePath: process.env.PG_BROKER_IT_BASE_PATH ?? '',
 }
 const broker = createBroker(config, { log: message => console.log(`  [broker] ${message}`) })
 await new Promise(resolve => broker.server.listen(Number(process.env.PG_BROKER_IT_PORT ?? 0), '127.0.0.1', resolve))
-const base = `http://127.0.0.1:${broker.server.address().port}`
+const origin = `http://127.0.0.1:${broker.server.address().port}`
+// A browser can only be same-origin with the broker's real address.
+config.publicOrigin = origin
+config.contentSecurityPolicy = defaultContentSecurityPolicy(origin)
+const base = `${origin}${config.basePath}`
+console.log(`# broker at ${base}/`)
 
 const as = session => ({ cookie: `pg_session=${session}` })
 let rpcId = 0
@@ -187,6 +201,48 @@ try {
     const response = await fetch(`${base}/api/session/list`, { method: 'POST', headers: { ...as('sess-a'), origin: 'https://evil.test' } })
     assert.equal(response.status, 403)
   })
+  if (process.env.PG_BROKER_IT_BROWSER === '1') {
+    await step('a real browser boots the full DSH Web client for A behind the CSP, inside the mount prefix', async () => {
+      const { chromium } = createRequire(path.join(harness, '..', 'apps', 'web', 'package.json'))('@playwright/test')
+      const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? '/usr/bin/chromium', headless: true })
+      try {
+        const context = await browser.newContext()
+        await context.addCookies([{ name: 'pg_session', value: 'sess-a', url: origin }])
+        const page = await context.newPage()
+        const requests = []
+        const problems = []
+        const sockets = []
+        page.on('request', request => requests.push(request.url()))
+        page.on('websocket', socket => sockets.push(socket.url()))
+        page.on('console', message => { if (message.type() === 'error') problems.push(message.text()) })
+        page.on('pageerror', error => problems.push(String(error)))
+        await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        const statuses = []
+        page.on('response', response => { if (response.status() >= 400) statuses.push(`${response.status()} ${response.url()}`) })
+        try {
+          await page.getByText('New Session').first().waitFor({ timeout: 60_000 })
+        } catch (error) {
+          console.log(`  page text: ${(await page.locator('body').innerText().catch(() => '')).slice(0, 300)}`)
+          console.log(`  failed responses: ${statuses.slice(0, 10).join(' | ')}`)
+          console.log(`  console errors: ${problems.slice(0, 5).join(' | ').slice(0, 1500)}`)
+          throw error
+        }
+        await page.waitForTimeout(3000)
+        const socketOrigin = origin.replace(/^http/, 'ws')
+        const escaped = [
+          ...requests.filter(url => { const u = new URL(url); return u.origin !== origin || !u.pathname.startsWith(`${config.basePath}/`) }),
+          ...sockets.filter(url => !url.startsWith(`${socketOrigin}${config.basePath}/`)),
+        ]
+        console.log(`  browser: ${requests.length} requests + ${sockets.length} WebSocket(s) [${sockets.map(url => new URL(url).pathname).join(', ')}], ${escaped.length} outside ${config.basePath || '/'}, ${problems.length} console errors`)
+        assert.deepEqual(escaped, [])
+        assert.deepEqual(problems.filter(text => /did not activate|Content Security Policy|Refused to/i.test(text)), [])
+        assert.ok(sockets.some(url => url.endsWith(`${config.basePath}/api/remote.mux`)), 'the Remote WebSocket mux was opened under the prefix')
+        assert.ok(!(await page.content()).includes('?token='), 'no launch token in the page')
+      } finally {
+        await browser.close()
+      }
+    })
+  }
 } finally {
   await broker.close()
   api.close()

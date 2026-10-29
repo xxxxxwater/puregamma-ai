@@ -1,0 +1,4 @@
+# Production Caddyfile plus the DSH Session front door. Selected only by
+# docker-compose.harness-sessions.yml; the base Caddyfile is unchanged.
+import /etc/caddy/Caddyfile.base
+import /etc/caddy/harness-sessions.caddy
