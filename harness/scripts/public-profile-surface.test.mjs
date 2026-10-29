@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { execFileSync } from 'node:child_process'
-import { promises as fs } from 'node:fs'
+import { existsSync, promises as fs, readFileSync } from 'node:fs'
 import path from 'node:path'
 import process from 'node:process'
 import test from 'node:test'
@@ -13,7 +13,17 @@ import * as yaml from 'js-yaml'
 
 const harnessRoot = process.cwd()
 const repoRoot = path.resolve(harnessRoot, '..')
-const webAppDir = path.join(repoRoot, 'vendor', 'deepseek-harness', 'packages', 'bundle', 'web-app')
+// CI checks out the pinned submodule. A worktree without it (it is 2.2 GB)
+// falls back to the npm publication of the same pinned version, which ships
+// the same patch layers; the version is asserted so the two cannot drift.
+const vendorWebAppDir = path.join(repoRoot, 'vendor', 'deepseek-harness', 'packages', 'bundle', 'web-app')
+const npmWebAppDir = path.join(harnessRoot, 'node_modules', '@deepseek-ai', 'dsh-web-app')
+const webAppDir = existsSync(path.join(vendorWebAppDir, 'package.json')) ? vendorWebAppDir : npmWebAppDir
+if (webAppDir === npmWebAppDir) {
+  const pinned = JSON.parse(readFileSync(path.join(harnessRoot, 'package.json'), 'utf8')).devDependencies['@deepseek-ai/dsh-web-app']
+  const published = JSON.parse(readFileSync(path.join(npmWebAppDir, 'package.json'), 'utf8')).version
+  if (published !== pinned) throw new Error(`npm dsh-web-app ${published} is not the pinned ${pinned}`)
+}
 
 const JsExpr = new yaml.Type('tag:yaml.org,2002:js', {
   kind: 'scalar',
@@ -210,4 +220,20 @@ test('the Session controller gets a fileUploads provider that admits nothing, wh
   const binding = refused.bindPrompt({}, [], 'r')
   binding.commit()
   binding[Symbol.dispose]()
+})
+
+test('the browser gets a fileUpload service that refuses every upload without touching the network', async () => {
+  // Upstream's client Session controller injects `fileUpload`; without a
+  // provider every chat/session client plugin stays pending in the browser.
+  const manifest = JSON.parse(await fs.readFile(path.join(harnessRoot, 'plugins', 'file-uploads-refused', 'package.json'), 'utf8'))
+  assert.equal(manifest.dsh?.client?.platform, 'web')
+  assert.equal(manifest.exports['./client'].default, './lib/client.js')
+  const source = await fs.readFile(path.join(harnessRoot, 'plugins', 'file-uploads-refused', 'src', 'client', 'index.ts'), 'utf8')
+  assert.doesNotMatch(source, /fetch\(|XMLHttpRequest|Worker\(|remote\.fileUploads/, 'no transport of any kind')
+  const { RefusedFileUpload, UPLOAD_DISABLED_CODE } = await import('../plugins/file-uploads-refused/src/client/index.ts')
+  const service = Object.create(RefusedFileUpload.prototype)
+  const result = await service.upload('session-1', new Uint8Array([1, 2, 3]), 'a.png')
+  assert.equal(result.ok, false)
+  assert.equal(result.error.code, UPLOAD_DISABLED_CODE)
+  await assert.rejects(service.post({ path: 'x', body: new Uint8Array() }), /disabled/)
 })
