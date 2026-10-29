@@ -11,14 +11,15 @@ transition is audited.
 from __future__ import annotations
 
 import dataclasses
-from datetime import timedelta
+from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
 import pytest
-from sqlalchemy import text
+from sqlalchemy import create_engine, text
+from sqlalchemy.orm import sessionmaker
 
 from apps.api.config import get_settings
-from packages.database.models import TradingAuditLog, TradingMandate, TradingMandateProposal
+from packages.database.models import Base, TradingAuditLog, TradingMandate, TradingMandateProposal, User
 from packages.live_trading import control_plane, flags, kill_switch, mandate_proposals
 from packages.live_trading.control_plane import OrderRejected
 from tests.conftest import auth_headers
@@ -348,3 +349,59 @@ def test_without_migration_0036_and_flag_off_nothing_touches_the_new_table(api_c
     assert gone.status_code == 404 and gone.json()["detail"]["code"] == "MANDATE_PROPOSALS_DISABLED"
     db.execute(text("CREATE TABLE trading_mandate_proposals (id VARCHAR PRIMARY KEY)"))  # let teardown drop it
     db.commit()
+
+
+def test_a_revoke_that_waited_for_the_final_approval_does_not_overwrite_it(tmp_path, monkeypatch):
+    """revoke() reads the proposal before it takes the row lock. The locked
+    re-read must refresh that object, or the revoke still sees PENDING after
+    a concurrent final approval committed and turns APPLIED into REVOKED while
+    the new mandate stays in force."""
+    _enable(monkeypatch)
+    engine = create_engine(f"sqlite:///{tmp_path}/race.db", future=True)
+    Base.metadata.create_all(engine)
+    Session = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
+    with Session() as session:
+        owner = User(email="race-owner@test.com", name="o", role="user", plan="Max")
+        admins = [User(email=f"race-admin-{i}@test.com", name="a", role="admin", plan="Max") for i in range(2)]
+        session.add_all([owner, *admins])
+        session.commit()
+        world = _make_live_world(session, owner, monkeypatch)
+        proposal = mandate_proposals.propose(session, owner, user_id=owner.id, reason="r", terms=_terms(world))
+        mandate_proposals.approve(session, admins[0], proposal["id"], note="first")
+        owner_id, second_admin_id, proposal_id = owner.id, admins[1].id, proposal["id"]
+
+    real_close = mandate_proposals._close
+
+    def close_after_the_final_approval(db, actor, pid, *args, **kwargs):
+        with Session() as other:
+            assert mandate_proposals.approve(other, other.get(User, second_admin_id), pid, note="second")["status"] == "applied"
+        return real_close(db, actor, pid, *args, **kwargs)
+
+    monkeypatch.setattr(mandate_proposals, "_close", close_after_the_final_approval)
+    with Session() as session, pytest.raises(mandate_proposals.ProposalConflict, match="applied"):
+        mandate_proposals.revoke(session, session.get(User, owner_id), proposal_id, reason="changed my mind")
+
+    with Session() as session:
+        row = session.get(TradingMandateProposal, proposal_id)
+        assert row.status == "applied" and row.applied_mandate_id
+        actions = [item.action for item in session.query(TradingAuditLog).filter(TradingAuditLog.trace_id == row.trace_id)]
+        assert "LIVE_MANDATE_PROPOSAL_REVOKED" not in actions
+
+
+def test_an_amendment_without_an_expiry_keeps_the_mandates_expiry(api_client, db, people, monkeypatch):
+    _enable(monkeypatch)
+    owner = people["owner"]
+    expiry = datetime.now(timezone.utc) + timedelta(days=7)
+    world = _make_live_world(db, owner, monkeypatch, expires_at=expiry)
+    mandate = world["mandate"]
+    proposal = api_client.post(
+        "/api/trading/mandate-proposals",
+        json={"terms": _terms(world, max_total_notional="3000"), "target_mandate_id": mandate.id, "reason": "lower the limit"},
+        headers=auth_headers(owner),
+    ).json()["proposal"]
+    _approve(api_client, people["admin_a"], proposal["id"])
+    assert _approve(api_client, people["admin_b"], proposal["id"]).json()["proposal"]["status"] == "applied"
+    db.refresh(mandate)
+    assert mandate.max_total_notional == Decimal("3000")
+    assert mandate.expires_at is not None
+    assert abs((mandate.expires_at.replace(tzinfo=timezone.utc) - expiry).total_seconds()) < 1

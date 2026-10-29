@@ -312,7 +312,17 @@ def propose(
 
 
 def _locked(db: Session, proposal_id: str) -> TradingMandateProposal:
-    proposal = db.query(TradingMandateProposal).filter_by(id=proposal_id).with_for_update().one_or_none()
+    # populate_existing: revoke() has already loaded this row without a lock.
+    # Without it the session hands back that object as it was before the lock
+    # was granted, and a revoke that waited for a concurrent final approval
+    # would overwrite APPLIED with REVOKED while the mandate stays in force.
+    proposal = (
+        db.query(TradingMandateProposal)
+        .filter_by(id=proposal_id)
+        .with_for_update()
+        .populate_existing()
+        .one_or_none()
+    )
     if proposal is None:
         raise LookupError("Proposal not found")
     return proposal
@@ -436,7 +446,11 @@ def _apply(db: Session, proposal: TradingMandateProposal, approver: User) -> Non
         mandate.allowed_side = normalized["allowed_side"]
         mandate.max_trades_per_day = normalized["max_trades_per_day"]
         mandate.max_order_frequency_seconds = normalized["max_order_frequency_seconds"]
-        mandate.expires_at = expires
+        # An amendment without an expiry keeps the mandate's: reading a
+        # missing field as "never expires" would let a "lower the limits"
+        # amendment silently lift a time limit both admins never discussed.
+        if expires is not None:
+            mandate.expires_at = expires
         mandate.revision = (mandate.revision or 1) + 1
         mandate.approved_by = approver.id
         mandate.approved_at = utcnow()
