@@ -94,15 +94,30 @@ function positionSide(value: unknown): PortfolioPosition['side'] {
 
 function sumHoldingValues(value: unknown): string | undefined {
   if (!Array.isArray(value)) return undefined
-  let total = 0
-  let seen = false
+  const items: string[] = []
   for (const raw of value as LegacyHolding[]) {
     const item = decimalValue(raw.value)
-    if (item === undefined) continue
-    total += Number(item)
-    seen = true
+    if (item !== undefined) items.push(item)
   }
-  return seen && Number.isFinite(total) ? String(total) : undefined
+  return items.length > 0 ? exactSum(items) : undefined
+}
+
+function fractionDigits(text: string): number {
+  return /^[-+]?\d*\.(\d+)$/.exec(text)?.[1].length ?? 0
+}
+
+/**
+ * Sum decimal strings in integer units of their finest fraction, so
+ * 100.1 + 200.2 reads 300.3 and not 300.29999999999995. Inputs are
+ * money figures well inside 2^53 units at <= 12 places.
+ */
+function exactSum(items: readonly string[], signs: readonly number[] = []): string | undefined {
+  const scale = Math.min(12, Math.max(0, ...items.map(fractionDigits)))
+  const factor = 10 ** scale
+  let units = 0
+  items.forEach((item, index) => { units += (signs[index] ?? 1) * Math.round(Number(item) * factor) })
+  const total = units / factor
+  return Number.isFinite(total) ? String(total) : undefined
 }
 
 function accountStale(status: string | undefined, globalStale: boolean): boolean {
@@ -110,13 +125,13 @@ function accountStale(status: string | undefined, globalStale: boolean): boolean
 }
 
 function sumDecimals(values: readonly unknown[]): string | undefined {
-  let total = 0
+  const items: string[] = []
   for (const value of values) {
     const item = decimalValue(value)
     if (item === undefined) return undefined
-    total += Number(item)
+    items.push(item)
   }
-  return values.length > 0 && Number.isFinite(total) ? String(total) : undefined
+  return items.length > 0 ? exactSum(items) : undefined
 }
 
 /**
@@ -196,6 +211,13 @@ export class LegacyApiPortfolioProvider extends PortfolioService {
       }]
     })
 
+    // Accounts per venue before any filter: a legacy position names only its
+    // venue, so it belongs to an account only when that venue has exactly one.
+    const accountsPerVenue = new Map<string, number>()
+    for (const raw of legacyAccounts) {
+      const provider = stringValue(raw.provider)?.toLowerCase()
+      if (provider !== undefined && stringValue(raw.id) !== undefined) accountsPerVenue.set(provider, (accountsPerVenue.get(provider) ?? 0) + 1)
+    }
     const accountByProvider = new Map<string, PortfolioAccountRef[]>()
     for (const account of accounts) {
       const group = accountByProvider.get(account.provider) ?? []
@@ -234,8 +256,11 @@ export class LegacyApiPortfolioProvider extends PortfolioService {
       const quantity = decimalValue(raw.quantity)
       if (instrument === undefined || provider === undefined || quantity === undefined) return []
       const candidates = accountByProvider.get(provider) ?? []
-      if (selected !== undefined && candidates.length === 0) return []
-      const account = candidates.length === 1 ? candidates[0] : undefined
+      const onVenue = accountsPerVenue.get(provider) ?? 0
+      // Under a filter, a position of a venue shared with an unselected account
+      // may be that other account's: leave it out rather than mislabel it.
+      if (selected !== undefined && (candidates.length === 0 || candidates.length !== onVenue)) return []
+      const account = candidates.length === 1 && onVenue === 1 ? candidates[0] : undefined
       const observedAt = account?.observedAt ?? globalObservedAt
       return [{
         ...(account === undefined ? {} : { accountId: account.id }),
@@ -278,8 +303,7 @@ export class LegacyApiPortfolioProvider extends PortfolioService {
       navStale = accounts.some(account => account.stale === true)
     }
     if (positionsValue === null && totalNav !== null && totalCash !== null) {
-      const derived = Number(totalNav) - Number(totalCash)
-      if (Number.isFinite(derived)) positionsValue = String(derived)
+      positionsValue = exactSum([totalNav, totalCash], [1, -1]) ?? null
     }
     const reason = !connected
       ? 'no connected portfolio snapshot'

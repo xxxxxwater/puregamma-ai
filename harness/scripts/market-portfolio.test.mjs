@@ -98,6 +98,32 @@ test('portfolio provider: venue-precision decimal strings survive, sides normali
   assert.equal(filtered.positionsValue, '0')
 }))
 
+test('portfolio provider: a filtered read never labels another account\'s position, and sums decimals exactly', () => withLegacy({
+  '/portfolio': { connected: true, stale: false, data_as_of: '2026-10-29T11:00:00+00:00', nav: '300.3', available_cash: '30.3',
+    accounts: [
+      { id: 'a', provider: 'binance', status: 'CONNECTED', nav: 100.1, available_cash: 10.1, as_of: '2026-10-29T11:00:00+00:00' },
+      { id: 'b', provider: 'binance', status: 'CONNECTED', nav: 200.2, available_cash: 20.2, as_of: '2026-10-29T11:00:00+00:00' },
+      { id: 'c', provider: 'ibkr', status: 'CONNECTED', nav: 0.1, available_cash: 0.2, as_of: '2026-10-29T11:00:00+00:00' },
+    ],
+    positions: [
+      { symbol: 'BTC', venue: 'binance', side: 'long', quantity: '1' },
+      { symbol: 'SPY', venue: 'ibkr', side: 'long', quantity: '2' },
+    ] },
+}, async harness => {
+  // Two accounts share binance: the BTC position may be b's, so a read of a alone omits it.
+  const onlyA = await harness.services.pgPortfolio.snapshot({ accountIds: ['a'] })
+  assert.deepEqual(onlyA.positions, [])
+  const both = await harness.services.pgPortfolio.snapshot({ accountIds: ['a', 'b'] })
+  assert.deepEqual(both.positions.map(row => [row.instrument, row.accountId]), [['BTC', undefined]])
+  const onlyC = await harness.services.pgPortfolio.snapshot({ accountIds: ['c'] })
+  assert.deepEqual(onlyC.positions.map(row => [row.instrument, row.accountId]), [['SPY', 'c']])
+  const nav = await harness.services.pgPortfolio.nav({ accountIds: ['a', 'b'] })
+  assert.equal(nav.nav, '300.3')
+  assert.equal(nav.cash, '30.3')
+  assert.equal(nav.positionsValue, '270')
+  assert.equal((await harness.services.pgPortfolio.nav({ accountIds: ['c'] })).positionsValue, '-0.1')
+}))
+
 test('portfolio tools: stale is said and presentation meta carries the server figure verbatim', () => withLegacy({
   '/portfolio': req => req.headers.authorization === 'Bearer unit.token'
     ? { connected: true, stale: true, data_as_of: '2026-10-29T11:00:00Z', nav: 10, available_cash: 2, accounts: [{ id: 'a1', provider: 'plaid', status: 'STALE', nav: 10, available_cash: 2, as_of: '2026-10-29T11:00:00Z' }] }
