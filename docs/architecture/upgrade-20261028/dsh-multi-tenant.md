@@ -3,6 +3,8 @@
 状态：代码与测试完成，**默认全部关闭**。没有生产部署、生产数据库迁移、切流或实盘开启。
 分支：`upgrade/dsh-multi-tenant`（基于 `main@d8b435f`）。
 
+> **2026-10-29 更新**：入口、Host 内核级隔离与资源上限、速率限制/审计/登出联动、端到端对话验证、上线 runbook 与更新后的威胁模型见 `docs/architecture/upgrade-20261029/dsh-ingress-isolation.md`。下文 §3 的剩余风险和 §10 的遗留项已在那里处理或重新评估，并在原条目后标注。另外，那里记录了 v0.3.3 的三个问题，已修复：浏览器端缺少 `fileUpload` 服务导致 UI 无法启动；broker 改坏 DSH 的合并插件 URL；共享 profile 软链接导致各租户写同一个 `cordis.yml`。
+
 本文件回答一件事：在不新建第二套会话状态机的前提下，怎样让 DSH 原生 Session 列表在多用户站点上安全可用。
 
 ---
@@ -115,9 +117,9 @@ DSH 本身仍然只有一套 Session / Session Controller / projection / transpo
 
 **剩余风险（需在部署侧处理）**：
 
-- 所有 Host 以同一个 OS 用户运行，隔离只在进程和目录层面，不是内核层面。公开实例应当让每个 Host 使用独立的 uid、容器或 VM，或至少配合 seccomp/AppArmor。
+- 所有 Host 以同一个 OS 用户运行，隔离只在进程和目录层面，不是内核层面。公开实例应当让每个 Host 使用独立的 uid、容器或 VM，或至少配合 seccomp/AppArmor。**（10-29：新增 `systemd`/`docker` launcher，提供命名空间、cgroup、seccomp 与磁盘配额；Host 出网仍需部署侧限制，见新文档 §2、§5.6）**
 - 公开 profile 已经禁用 shell 和 fs 工具，所以模型无法直接访问磁盘。但上游 `session/create` 接受任意 `cwd`。它目前只影响会话元数据，因为 fs 和 workspace-files 都已禁用；将来如果开放任何文件能力，必须先在 Session 层限定 cwd。
-- broker 自己不做速率限制，应当由边缘代理负责。
+- broker 自己不做速率限制，应当由边缘代理负责。**（10-29：broker 已实现每用户速率与并发限制、每地址 `/me` 查询限速、全局 Host 启动速率，见新文档 §3）**
 
 ## 4. 开关与配置（全部默认关闭或采用安全值）
 
@@ -226,8 +228,8 @@ PUREGAMMA_DSH_PUBLIC_ORIGIN=https://<站点> node harness/packages/session-broke
 
 ## 10. 仍未完成
 
-- **OS 级隔离**：所有 Host 共用一个 uid（§3）。生产需要每个 Host 独立的 uid、容器或 VM，属于部署工作。
+- **OS 级隔离**：所有 Host 共用一个 uid（§3）。生产需要每个 Host 独立的 uid、容器或 VM，属于部署工作。→ 10-29：launcher 已实现并实测（新文档 §2）；出口防火墙与 broker 服务部署仍属部署工作。
 - **从 vendor 源码构建 DSH Web**：本机 `/data` 只剩不到 1 GB 可用空间，共享的 8 GB 内存在本次工作中两次因 OOM 导致整机重启，所以没有执行 `vendor/deepseek-harness` 的完整 install 和 build。集成测试改用与 gitlink 同一 tag 的 npm 发布版 `@deepseek-ai/dsh@0.1.7-rc.1`。
-- **带模型的端到端对话**：本机没有模型 API key，所以没有验证 prompt → 工具 → legacy-api 用 Host token 调 FastAPI 的完整链路。token 范围与跨用户隔离由 pytest 覆盖，provider 读文件由 `legacy-auth-check` 覆盖。
-- **登出联动**：用户登出后，FastAPI 会立即拒绝 Host token，但 broker 的 `/me` 缓存最长保留 15 s；Host 进程要等闲置回收后才停止。可以考虑由 FastAPI 主动通知 broker。
-- **前端入口**：Next.js 还没有指向 broker 的入口或反向代理配置（Caddyfile 不在本工作范围内）。
+- **带模型的端到端对话**：本机没有模型 API key，所以没有验证 prompt → 工具 → legacy-api 用 Host token 调 FastAPI 的完整链路。token 范围与跨用户隔离由 pytest 覆盖，provider 读文件由 `legacy-auth-check` 覆盖。→ 10-29：已用本地 mock 模型跑通（新文档 §4）；真实 key 仍待 staging。
+- **登出联动**：用户登出后，FastAPI 会立即拒绝 Host token，但 broker 的 `/me` 缓存最长保留 15 s；Host 进程要等闲置回收后才停止。可以考虑由 FastAPI 主动通知 broker。→ 10-29：已实现 revoke 通知（默认关闭）和隧道复查（默认开启）。复查同时修复了一个此前未记录的问题：已打开的 WebSocket 隧道在登出后从不重新检查（新文档 §3.3）。
+- **前端入口**：Next.js 还没有指向 broker 的入口或反向代理配置（Caddyfile 不在本工作范围内）。→ 10-29：独立子域的 Caddy 站点（默认不加载）和 Next 链接（flag 控制）已完成（新文档 §1）。
