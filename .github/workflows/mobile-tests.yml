@@ -1,0 +1,171 @@
+name: Mobile Unit Tests
+
+# Runs the iOS and Android unit tests (and the server-side mobile contract
+# tests whose fixtures both clients decode) whenever mobile code, the mobile
+# contract or its fixtures change. Release semantics stay in
+# mobile-release.yml; this workflow builds nothing it publishes.
+
+on:
+  workflow_dispatch:
+  push:
+    branches:
+      - main
+      - "upgrade/**"
+    paths:
+      - "apps/android/**"
+      - "apps/ios/**"
+      - "docs/mobile/**"
+      - "tests/contract/**"
+      - "apps/api/routers/agent.py"
+      - "apps/api/routers/live_trading.py"
+      - "apps/api/services/agent_service.py"
+      - ".github/workflows/mobile-tests.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mobile-tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  contract:
+    name: Mobile contract (server)
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: apps/api/requirements.txt
+
+      - name: Install API dependencies
+        run: |
+          set -euo pipefail
+          python -m pip install --upgrade pip
+          pip install -r apps/api/requirements.txt pytest
+
+      - name: Contract tests and fixture drift check
+        env:
+          PYTHONPATH: .
+          PYTEST_DISABLE_PLUGIN_AUTOLOAD: "1"
+        run: |
+          set -euo pipefail
+          python -m pytest -o addopts=--import-mode=importlib -q tests/contract
+          # The fixtures are generated from real responses by the tests above
+          # (PG_WRITE_MOBILE_FIXTURES=1 rewrites them); a committed fixture that
+          # no longer matches the server is contract drift.
+          git diff --exit-code -- docs/mobile/fixtures
+
+  android:
+    name: Android unit tests
+    runs-on: ubuntu-24.04
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Run unit tests
+        working-directory: apps/android
+        run: |
+          set -euo pipefail
+          chmod +x gradlew
+          ./gradlew :app:testDebugUnitTest --no-daemon
+
+      - name: Summarise results
+        if: always()
+        run: |
+          python3 - <<'PY'
+          import glob, os, xml.etree.ElementTree as ET
+          tests = failures = errors = skipped = 0
+          for path in glob.glob("apps/android/app/build/test-results/testDebugUnitTest/*.xml"):
+              root = ET.parse(path).getroot()
+              tests += int(root.get("tests", 0)); failures += int(root.get("failures", 0))
+              errors += int(root.get("errors", 0)); skipped += int(root.get("skipped", 0))
+          line = f"Android unit tests: {tests} run, {failures} failed, {errors} errors, {skipped} skipped"
+          print(line)
+          with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as handle:
+              handle.write(line + "\n")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: android-test-results
+          path: apps/android/app/build/reports/tests/testDebugUnitTest
+          if-no-files-found: ignore
+          retention-days: 7
+
+  ios:
+    name: iOS unit tests (simulator)
+    runs-on: macos-15
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Pick an available iPhone simulator
+        id: sim
+        run: |
+          set -euo pipefail
+          xcodebuild -version
+          udid="$(xcrun simctl list devices available -j | python3 -c '
+          import json, sys
+          devices = json.load(sys.stdin)["devices"]
+          for runtime in sorted(devices, reverse=True):
+              if "iOS" not in runtime:
+                  continue
+              for device in devices[runtime]:
+                  if device["name"].startswith("iPhone"):
+                      print(device["udid"]); sys.exit(0)
+          sys.exit("no available iPhone simulator")
+          ')"
+          echo "udid=$udid" >> "$GITHUB_OUTPUT"
+
+      - name: Run unit tests
+        working-directory: apps/ios
+        run: |
+          set -euo pipefail
+          xcodebuild -project PureGamma.xcodeproj -scheme PureGamma \
+            -configuration Debug \
+            -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
+            -derivedDataPath build -resultBundlePath build/PureGammaTests.xcresult \
+            -only-testing:PureGammaTests \
+            CODE_SIGNING_ALLOWED=NO SWIFT_VERSION=5.0 \
+            test
+
+      - name: Summarise results
+        if: always()
+        working-directory: apps/ios
+        run: |
+          if [ -d build/PureGammaTests.xcresult ]; then
+            summary="$(xcrun xcresulttool get test-results summary --path build/PureGammaTests.xcresult 2>/dev/null || true)"
+            echo "$summary"
+            echo "$summary" | python3 -c '
+          import json, os, sys
+          try:
+              data = json.load(sys.stdin)
+          except Exception:
+              sys.exit(0)
+          line = "iOS unit tests: {} run, {} passed, {} failed, {} skipped".format(
+              data.get("totalTestCount"), data.get("passedTests"), data.get("failedTests"), data.get("skippedTests"))
+          print(line)
+          open(os.environ["GITHUB_STEP_SUMMARY"], "a").write(line + "\n")
+          '
+          fi
+
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ios-test-results
+          path: apps/ios/build/PureGammaTests.xcresult
+          if-no-files-found: ignore
+          retention-days: 7
