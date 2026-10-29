@@ -365,9 +365,3 @@ private fun OptionCandidateDto.toDomain() = OptionCandidate(
 )
 
 private fun parseInstant(raw: String): java.time.Instant = parseInstantOrNull(raw) ?: java.time.Instant.EPOCH
-
-/** ISO-8601 instant; a value without an offset (some stores omit it) is read as UTC. */
-internal fun parseInstantOrNull(raw: String): java.time.Instant? =
-    runCatching { java.time.Instant.parse(raw) }.getOrNull()
-        ?: runCatching { java.time.OffsetDateTime.parse(raw).toInstant() }.getOrNull()
-        ?: runCatching { java.time.LocalDateTime.parse(raw).toInstant(java.time.ZoneOffset.UTC) }.getOrNull()
