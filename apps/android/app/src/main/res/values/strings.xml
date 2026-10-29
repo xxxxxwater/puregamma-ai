@@ -76,4 +76,18 @@
     <string name="live_trading_disabled_caption">Permanently disabled in this app — no order entry</string>
     <string name="connect_plaid">Connect Plaid</string>
     <string name="plaid_connect_hint">Connect brokerage, retirement, and investment accounts (read-only).</string>
+    <!-- Agent session contract (docs/mobile/MOBILE_API_CONTRACT.md §8) -->
+    <string name="dismiss">Dismiss</string>
+    <string name="unavailable">Unavailable</string>
+    <string name="agent_recovering">Connection interrupted. Restoring from the server\'s record — nothing has been marked failed.</string>
+    <string name="agent_conversation_deleted">This conversation was deleted.</string>
+    <string name="agent_permissions">Permissions</string>
+    <string name="permission_read_only">Read only</string>
+    <string name="permission_workspace_write">Workspace write</string>
+    <string name="agent_run_canceled">Stopped. Partial answer shown.</string>
+    <string name="agent_run_interrupted">Interrupted before it finished. Partial answer shown.</string>
+    <string name="model_reason_plan_required">Requires a plan upgrade</string>
+    <string name="model_reason_pricing_not_configured">Pricing not configured yet</string>
+    <string name="model_reason_unavailable">Unavailable</string>
+    <string name="live_nav_no_account">No live trading account connected</string>
 </resources>

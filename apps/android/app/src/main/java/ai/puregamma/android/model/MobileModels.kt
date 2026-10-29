@@ -108,11 +108,12 @@ data class TradingMandate(
     val riskBlockReason: String?,
 )
 
+/** Risk limits arrive as decimal text (contract §4, §8.3) and stay exact. */
 data class MandateRiskLimits(
-    val maxNotional: Double?,
-    val dailyLossLimit: Double?,
-    val maxLeverage: Double?,
-    val maxPositionSizePct: Double?,
+    val maxNotional: java.math.BigDecimal?,
+    val dailyLossLimit: java.math.BigDecimal?,
+    val maxLeverage: java.math.BigDecimal?,
+    val maxPositionSizePct: java.math.BigDecimal?,
 )
 
 /**

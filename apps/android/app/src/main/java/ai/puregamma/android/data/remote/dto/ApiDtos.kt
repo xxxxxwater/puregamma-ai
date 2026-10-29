@@ -91,9 +91,11 @@ data class EntitlementDto(
     @SerializedName("allowed_data_sources") val allowedDataSources: List<String>?,
 )
 
+// Money travels as text into the client (Gson reads a JSON number into a
+// String field as its literal digits) and becomes BigDecimal, never Double.
 data class NavPointDto(
     val date: String,
-    val nav: Double,
+    val nav: String?,
 )
 
 data class PortfolioConnectionDto(
@@ -115,8 +117,8 @@ data class PortfolioDto(
     val connected: Boolean,
     val stale: Boolean?,
     @SerializedName("data_as_of") val dataAsOf: String?,
-    val nav: Double?,
-    @SerializedName("available_cash") val availableCash: Double?,
+    val nav: String?,
+    @SerializedName("available_cash") val availableCash: String?,
     @SerializedName("nav_history") val navHistory: List<NavPointDto>?,
     val connections: List<PortfolioConnectionDto>?,
     val providers: PortfolioProvidersDto?,
@@ -162,6 +164,7 @@ data class ConversationDto(
     @SerializedName("created_at") val createdAt: String?,
     @SerializedName("updated_at") val updatedAt: String?,
     @SerializedName("archived_at") val archivedAt: String?,
+    @SerializedName("permission_mode") val permissionMode: String? = null,
 )
 
 data class ConversationEnvelopeDto(val conversation: ConversationDto)
@@ -194,6 +197,9 @@ data class SourceDto(
 data class ConversationDetailDto(
     val conversation: ConversationDto,
     val messages: List<MessageDto>,
+    /** The run the server is still producing for this conversation (§8.6). */
+    @SerializedName("active_run_id") val activeRunId: String? = null,
+    @SerializedName("active_run_message_id") val activeRunMessageId: String? = null,
 )
 
 data class ConversationPatchRequest(
@@ -220,6 +226,8 @@ data class ModelDto(
     val provider: String,
     val available: Boolean,
     val reason: String?,
+    /** `generation` writes replies; `evaluation` (e.g. jev) never does. */
+    val category: String? = null,
 )
 
 data class CapabilitiesEnvelopeDto(
@@ -228,7 +236,36 @@ data class CapabilitiesEnvelopeDto(
     val models: List<ModelDto>,
 )
 
-data class AgentMessageRequest(val content: String, val locale: String, @SerializedName("data_sources") val dataSources: List<String>, val skills: List<String>, @SerializedName("custom_prompt") val customPrompt: String, val attachments: List<AgentAttachmentRequest>, val model: String)
+data class AgentMessageRequest(val content: String, val locale: String, @SerializedName("data_sources") val dataSources: List<String>, val skills: List<String>, @SerializedName("custom_prompt") val customPrompt: String, val attachments: List<AgentAttachmentRequest>, val model: String, @SerializedName("client_request_id") val clientRequestId: String? = null)
+
+data class WorkspaceCapabilitiesDto(
+    @SerializedName("permission_modes") val permissionModes: List<String>?,
+    @SerializedName("default_permission_mode") val defaultPermissionMode: String?,
+)
+
+// LIVE NAV (§8.3): every amount is decimal text; `nav` null means unpriced.
+data class LiveNavDto(
+    val id: String?,
+    @SerializedName("account_id") val accountId: String?,
+    val nav: String?,
+    val cash: String?,
+    @SerializedName("gross_exposure") val grossExposure: String?,
+    @SerializedName("net_exposure") val netExposure: String?,
+    @SerializedName("realized_pnl") val realizedPnl: String?,
+    @SerializedName("unrealized_pnl") val unrealizedPnl: String?,
+    val currency: String?,
+    @SerializedName("price_timestamp") val priceTimestamp: String?,
+    @SerializedName("calculated_at") val calculatedAt: String?,
+    @SerializedName("is_stale") val isStale: Boolean?,
+)
+
+data class LiveNavEnvelopeDto(
+    val nav: LiveNavDto,
+    @SerializedName("daily_pnl") val dailyPnl: String?,
+    @SerializedName("daily_return") val dailyReturn: String?,
+)
+
+data class LiveNavHistoryDto(val history: List<LiveNavDto>?)
 
 data class AgentAttachmentRequest(val name: String, val content: String, val mime: String)
 

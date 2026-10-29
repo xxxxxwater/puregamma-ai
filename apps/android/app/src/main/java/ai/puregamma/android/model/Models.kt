@@ -2,6 +2,7 @@ package ai.puregamma.android.model
 
 import org.json.JSONArray
 import org.json.JSONObject
+import java.math.BigDecimal
 import java.time.Instant
 
 data class User(
@@ -50,6 +51,14 @@ data class AgentConversation(
     val status: String,
     val summary: String?,
     val updatedAt: Instant?,
+    val permissionMode: String? = null,
+)
+
+/** A conversation as the server has it, with the run it is still producing (§8.6). */
+data class AgentConversationSnapshot(
+    val conversation: AgentConversation,
+    val messages: List<AgentMessage>,
+    val activeRunId: String?,
 )
 
 data class AgentSource(
@@ -75,6 +84,7 @@ data class AgentModel(
     val provider: String,
     val available: Boolean,
     val reason: String?,
+    val category: String = "generation",
 )
 
 data class AgentCapabilities(
@@ -100,16 +110,41 @@ data class Portfolio(
     val connected: Boolean,
     val stale: Boolean,
     val asOf: Instant?,
-    val nav: Double?,
-    val availableCash: Double?,
+    val nav: BigDecimal?,
+    val availableCash: BigDecimal?,
     val connections: List<PortfolioConnection>,
     val navHistory: List<NavPoint> = emptyList(),
 )
 
 data class NavPoint(
     val date: Instant,
-    val value: Double,
+    val value: BigDecimal,
 )
+
+data class LiveNav(
+    val accountId: String,
+    val currency: String,
+    /** null = a position could not be priced; shown as unavailable, never 0. */
+    val nav: BigDecimal?,
+    val cash: BigDecimal?,
+    val grossExposure: BigDecimal?,
+    val netExposure: BigDecimal?,
+    val realizedPnl: BigDecimal?,
+    val unrealizedPnl: BigDecimal?,
+    val dailyPnl: BigDecimal?,
+    val dailyReturn: BigDecimal?,
+    val calculatedAt: Instant?,
+    val isStale: Boolean,
+)
+
+sealed interface LiveNavState {
+    /** No LIVE account is connected: an empty state, not a zero NAV. */
+    data object NoAccount : LiveNavState
+    data class Loaded(val nav: LiveNav) : LiveNavState
+}
+
+/** Decimal text from the API ("101234.56789012", "-1", "0.00000000"); null when absent or malformed. */
+fun decimalOrNull(raw: String?): BigDecimal? = raw?.trim()?.takeIf { it.isNotEmpty() }?.let { runCatching { BigDecimal(it) }.getOrNull() }
 
 data class OptionCandidate(
     val instrument: String,
@@ -201,8 +236,8 @@ internal fun JSONObject.toPortfolio(): Portfolio = Portfolio(
     connected = optBoolean("connected"),
     stale = optBoolean("stale"),
     asOf = instant("data_as_of"),
-    nav = nullableDouble("nav"),
-    availableCash = nullableDouble("available_cash"),
+    nav = nullableDecimal("nav"),
+    availableCash = nullableDecimal("available_cash"),
     connections = optJSONArray("connections").objects().map {
         PortfolioConnection(
             id = it.string("id"),
@@ -237,6 +272,9 @@ internal fun JSONObject.nullableString(key: String): String? =
     if (!has(key) || isNull(key)) null else optString(key).takeIf { it.isNotBlank() }
 internal fun JSONObject.nullableDouble(key: String): Double? =
     if (!has(key) || isNull(key)) null else optDouble(key)
+/** Money: read the literal (decimal text or number) into BigDecimal, never through Double. */
+internal fun JSONObject.nullableDecimal(key: String): BigDecimal? =
+    if (!has(key) || isNull(key)) null else decimalOrNull(get(key).toString())
 internal fun JSONObject.instant(key: String): Instant? = nullableString(key)?.let {
     runCatching { Instant.parse(it) }.getOrNull()
 }
