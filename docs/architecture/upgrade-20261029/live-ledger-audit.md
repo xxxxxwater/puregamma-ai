@@ -180,7 +180,7 @@ pending ──approve(管理员 #1)──▶ pending[1/2] ──approve(管理�
 | 范围 | 结果 |
 | --- | --- |
 | 新增后端测试 | ledger_view 19、order_recheck 13、admin_review 28、mandate_proposals 23、races 6，全部通过（不需要 Postgres） |
-| Postgres（`postgres:17` 一次性容器） | `test_live_trading_ledger_postgres.py` 2 项 + `test_live_trading_concurrency_postgres.py` 5 项：**7 通过、0 跳过**，连续 5 次稳定通过。不设 DSN 时这 7 项按设计跳过 |
+| Postgres（`postgres:17` 一次性容器） | `test_live_trading_ledger_postgres.py` 3 项（含 23 行、其中 17 行 created_at 完全相同的 keyset 翻页，每页 1/4/5/17/22 条，不重不漏）+ `test_live_trading_concurrency_postgres.py` 5 项：**8 通过、0 跳过**，连续多次稳定通过。不设 DSN 时这 8 项按设计跳过 |
 | 后端全量 `pytest tests`（heavy flock + 2000M scope，不设 DSN） | **1377 通过、8 跳过、4 xfailed、0 失败**。第一次运行时 `tests/unit/test_pocket_relay.py` 有 5 个 error，原因是共享 venv 缺少 `qrcode`（CI 会从 `apps/pocket-relay/requirements.txt` 安装），补装后这 5 项通过 |
 | ruff（CI 规则） | All checks passed |
 | `pnpm typecheck` | 通过 |
@@ -196,6 +196,7 @@ pending ──approve(管理员 #1)──▶ pending[1/2] ──approve(管理�
 | --- | --- | --- |
 | Ledger 账户所有权 | 去掉 `TradingAccount.user_id` 过滤 | 4 项失败 |
 | Ledger mandate 所有权 | 去掉 mandate 的 user/account 过滤 | 1 项失败 |
+| Keyset 平局 | 游标条件去掉 `id` 平局分支 | Postgres 平局翻页测试失败 |
 | 重新核对的所有权 | 去掉 `LiveOrder.user_id` 过滤 | 1 项失败 |
 | 重新核对限流 | 跳过限流检查 | 1 项失败 |
 | 只读保证 | `sync_order_status` 中先调用 `submit_order` | 6 项失败 |
