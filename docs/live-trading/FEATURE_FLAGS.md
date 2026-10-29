@@ -49,6 +49,10 @@ LIVE **不能只依赖一个环境变量**。系统在两层评估:
 | `LIVE_TRADING_BINANCE_BASE_URL` | Binance 现货 REST 基址(演练可指向 `https://testnet.binance.vision`) | https://api.binance.com |
 | `LIVE_TRADING_BINANCE_RECV_WINDOW_MS` | Binance 签名 recvWindow | 5000 |
 | `LIVE_PRICE_REFRESH_INTERVAL_SECONDS` 等 | 同步预算 | 见 `.env.example` |
+| `LIVE_ORDER_RECHECK_ENABLED` | 用户按需“请求重新核对”订单（只查询，不下单） | false |
+| `LIVE_ORDER_RECHECK_MIN_INTERVAL_SECONDS` | 每单两次重新核对的最小间隔（下限 10） | 60 |
+| `LIVE_MANDATE_PROPOSALS_ENABLED` | Mandate 提案与双人审批流程（需迁移 0036） | false |
+| `LIVE_MANDATE_PROPOSAL_TTL_HOURS` | 提案过期时间 | 72 |
 
 ## 真实网关(Binance 现货)的附加行为
 
