@@ -17,6 +17,7 @@ import uuid
 from datetime import datetime, timezone
 from decimal import Decimal, InvalidOperation
 
+from sqlalchemy import literal
 from sqlalchemy.orm import Session
 
 from packages.database.models import (
@@ -305,6 +306,18 @@ def list_reconciliations(
         query = query.filter(TradingReconciliation.status == status)
     elif exceptions_only:
         query = query.filter(TradingReconciliation.status != "ok")
+    if unreviewed_only:
+        # In SQL, before the LIMIT: filtering the newest N afterwards hid
+        # every older unreviewed exception behind reviewed ones.
+        reviewed = (
+            db.query(TradingAuditLog.id)
+            .filter(
+                TradingAuditLog.action == RECONCILIATION_REVIEW_ACTION,
+                TradingAuditLog.idempotency_key.like(literal("audit:recon-review:") + TradingReconciliation.id + literal(":%")),
+            )
+            .exists()
+        )
+        query = query.filter(~reviewed)
     rows = (
         query.order_by(TradingReconciliation.created_at.desc(), TradingReconciliation.id.desc())
         .limit(max(1, min(limit, 500)))

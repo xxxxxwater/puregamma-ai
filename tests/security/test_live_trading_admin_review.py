@@ -202,3 +202,19 @@ def test_reviewing_a_reconciliation_appends_an_audit_row_only(api_client, db, ad
     assert view["latest"]["reviewed"]["status"] == "REVIEWED"
     assert "note" not in view["latest"]["reviewed"] and "reviewed_by" not in view["latest"]["reviewed"]
     assert [item["reviewed"] for item in view["history"]] == [True, False]
+
+
+def test_unreviewed_only_is_filtered_before_the_limit(api_client, db, admin_user, user_factory, monkeypatch):
+    """A reviewed, newer exception must not push an older unreviewed one out
+    of a limited page."""
+    owner = user_factory("recon-limit@test.com")
+    world = _make_live_world(db, owner, monkeypatch)
+    now = datetime.now(timezone.utc)
+    old = TradingReconciliation(user_id=owner.id, account_id=world["account"].id, status="discrepancy", trace_id="old", created_at=now - timedelta(hours=2))
+    new = TradingReconciliation(user_id=owner.id, account_id=world["account"].id, status="discrepancy", trace_id="new", created_at=now)
+    db.add_all([old, new])
+    db.commit()
+    admin_review.review_reconciliation(db, admin_user, new.id, note="seen")
+
+    assert [item["id"] for item in admin_review.list_reconciliations(db, exceptions_only=True, unreviewed_only=True, limit=1)] == [old.id]
+    assert [item["id"] for item in admin_review.list_reconciliations(db, exceptions_only=True, limit=1)] == [new.id]
