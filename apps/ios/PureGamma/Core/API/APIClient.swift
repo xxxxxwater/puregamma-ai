@@ -19,6 +19,14 @@ final class APIClient: @unchecked Sendable {
     }
 
     func request<Response: Decodable, Body: Encodable>(_ path: String, method: String = "GET", body: Body? = Optional<EmptyBody>.none, query: [URLQueryItem] = [], resetsSessionOnUnauthorized: Bool = true) async throws -> Response {
+        let data = try await requestData(path, method: method, body: body, query: query, resetsSessionOnUnauthorized: resetsSessionOnUnauthorized)
+        do { return try JSONDecoder.pg.decode(Response.self, from: data) }
+        catch { throw APIError.decoding(error.localizedDescription) }
+    }
+
+    /// The validated response body, for payloads whose shape varies per item
+    /// (e.g. the Agent run event log).
+    func requestData<Body: Encodable>(_ path: String, method: String = "GET", body: Body? = Optional<EmptyBody>.none, query: [URLQueryItem] = [], resetsSessionOnUnauthorized: Bool = true) async throws -> Data {
         var components = URLComponents(url: configuration.baseURL.appending(path: path), resolvingAgainstBaseURL: false)
         components?.queryItems = query.isEmpty ? nil : query
         guard let url = components?.url else { throw APIError.invalidRequest }
@@ -33,8 +41,7 @@ final class APIClient: @unchecked Sendable {
             do {
                 let (data, response) = try await session.data(for: request)
                 try validate(response, data: data, resetsSessionOnUnauthorized: resetsSessionOnUnauthorized)
-                do { return try JSONDecoder.pg.decode(Response.self, from: data) }
-                catch { throw APIError.decoding(error.localizedDescription) }
+                return data
             } catch is CancellationError { throw APIError.canceled }
             catch let error as APIError {
                 if attempt < maxAttempts, Self.shouldRetry(error) {
@@ -61,8 +68,11 @@ final class APIClient: @unchecked Sendable {
         try await request(path, method: method, body: Optional<EmptyBody>.none, query: query)
     }
 
-    func stream<Body: Encodable>(_ path: String, body: Body) async throws -> (URLSession.AsyncBytes, URLResponse) {
-        try await openStream(path: path, method: "POST", body: JSONEncoder.pg.encode(body))
+    /// POST that answers with an SSE stream. `codedErrors` keeps every coded
+    /// refusal as `.rejected` so the caller can branch on `code` and read the
+    /// envelope's extra fields (the Agent send path needs `runId` from a 409).
+    func stream<Body: Encodable>(_ path: String, body: Body, codedErrors: Bool = false) async throws -> (URLSession.AsyncBytes, URLResponse) {
+        try await openStream(path: path, method: "POST", body: JSONEncoder.pg.encode(body), codedErrors: codedErrors)
     }
 
     /// GET-based SSE streams (e.g. research run events). Used by contract v1:
@@ -71,7 +81,7 @@ final class APIClient: @unchecked Sendable {
         try await openStream(path: path, method: "GET", body: nil)
     }
 
-    private func openStream(path: String, method: String, body: Data?) async throws -> (URLSession.AsyncBytes, URLResponse) {
+    private func openStream(path: String, method: String, body: Data?, codedErrors: Bool = false) async throws -> (URLSession.AsyncBytes, URLResponse) {
         let url = configuration.baseURL.appending(path: path)
         var request = URLRequest(url: url); request.httpMethod = method; request.timeoutInterval = 120
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
@@ -83,11 +93,32 @@ final class APIClient: @unchecked Sendable {
         }
         do {
             let result = try await session.bytes(for: request)
-            try validate(result.1, data: Data())
+            if let http = result.1 as? HTTPURLResponse, !(200..<300).contains(http.statusCode) {
+                // The error body is the contract (codes, runId); read it
+                // instead of validating against an empty body.
+                let data = await Self.collect(result.0, limit: 64 * 1024)
+                if codedErrors, http.statusCode != 401, APIErrorDetail(status: http.statusCode, body: data).code != nil {
+                    let detail = APIErrorDetail(status: http.statusCode, body: data)
+                    logFailure(path: path, statusCode: http.statusCode, detail: detail.code ?? "")
+                    throw APIError.rejected(detail)
+                }
+                try validate(result.1, data: data)
+            }
             return result
         } catch is CancellationError { throw APIError.canceled }
         catch let error as APIError { throw error }
         catch { throw APIError.transport(error.localizedDescription) }
+    }
+
+    private static func collect(_ bytes: URLSession.AsyncBytes, limit: Int) async -> Data {
+        var data = Data()
+        do {
+            for try await byte in bytes {
+                data.append(byte)
+                if data.count >= limit { break }
+            }
+        } catch {}
+        return data
     }
 
     private func validate(_ response: URLResponse, data: Data, resetsSessionOnUnauthorized: Bool = true) throws {
@@ -101,6 +132,9 @@ final class APIClient: @unchecked Sendable {
             onUnauthorized?(); throw APIError.unauthorized
         case 402: throw APIError.paymentRequired(message)
         case 403: throw APIError.forbidden(message)
+        // Not found and conflict carry the decisions (deleted conversation,
+        // no trading account, duplicate submission, busy conversation).
+        case 404, 409: throw APIError.rejected(APIErrorDetail(status: http.statusCode, body: data))
         case 429: throw APIError.rateLimited(retryAfter: Int(http.value(forHTTPHeaderField: "Retry-After") ?? ""))
         case 503: throw APIError.unavailable(message)
         default: throw APIError.server(status: http.statusCode, message: message)
@@ -134,6 +168,7 @@ final class APIClient: @unchecked Sendable {
 extension APIError {
     var statusCode: Int? {
         if case .server(let status, _) = self { return status }
+        if case .rejected(let detail) = self { return detail.status }
         switch self {
         case .unauthorized: return 401
         case .paymentRequired: return 402
@@ -145,7 +180,7 @@ extension APIError {
     }
 }
 
-private struct EmptyBody: Encodable {}
+struct EmptyBody: Encodable {}
 
 /// Lenient scalar used so error envelopes with non-string metadata still decode.
 /// `{"code": "INSUFFICIENT_CREDITS", "required": 8}` or FastAPI's validation
@@ -210,6 +245,9 @@ extension JSONDecoder.DateDecodingStrategy {
         let standard = ISO8601DateFormatter()
         standard.formatOptions = [.withInternetDateTime]
         if let date = fractional.date(from: raw) ?? standard.date(from: raw) { return date }
+        // A naive instant (no offset) is UTC; see parseUTCDate.
+        if raw.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$"#, options: .regularExpression) != nil,
+           let date = fractional.date(from: raw + "Z") ?? standard.date(from: raw + "Z") { return date }
         throw DecodingError.dataCorruptedError(in: try decoder.singleValueContainer(), debugDescription: "Invalid UTC date")
     } }
 }

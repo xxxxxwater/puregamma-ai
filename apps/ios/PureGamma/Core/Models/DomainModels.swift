@@ -18,14 +18,33 @@ enum MembershipTier {
         }
     }
 }
-struct AgentConversation: Identifiable, Equatable, Sendable { let id, title, status: String; let summary: String?; let createdAt, updatedAt: Date; let archivedAt: Date? }
+struct AgentConversation: Identifiable, Equatable, Sendable { let id, title, status: String; let summary: String?; let createdAt, updatedAt: Date; let archivedAt: Date?; var permissionMode: String? = nil }
+struct AgentConversationSnapshot: Equatable, Sendable { let conversation: AgentConversation; let messages: [AgentMessage]; let activeRunID, activeRunMessageID: String? }
 struct AgentSource: Identifiable, Equatable, Sendable { let id, provider, title: String; let url: URL?; let publishedAt, sourceTimestamp, fetchedAt: Date?; let citationIndex: Int }
 struct AgentMessage: Identifiable, Equatable, Sendable { let id, conversationID, role: String; var content, status: String; let model: String?; var sources: [AgentSource]; let createdAt: Date; var errorMessage: String? }
-struct AgentModel: Identifiable, Equatable, Sendable { let id, name, details, provider: String; let available: Bool; let reason: String? }
+struct AgentModel: Identifiable, Equatable, Sendable { let id, name, details, provider: String; let available: Bool; let reason: String?; var category: String = "generation" }
 struct AgentCapabilities: Equatable, Sendable { let plan: String; let dataSources: [String]; let dailyRuns, concurrentRuns, credits, remaining: Int; let models: [AgentModel]; let skills: [String] }
 struct AgentAttachment: Identifiable, Equatable, Sendable { var id: String { name }; let name, content, mime: String }
 struct AgentRequestContext: Equatable, Sendable { var dataSources = ["market", "rss"]; var skills = ["market_research", "news_research"]; var customPrompt = ""; var attachments: [AgentAttachment] = []; var model = "default" }
 struct Portfolio: Equatable, Sendable { let connected, stale: Bool; let asOf: Date?; let nav, availableCash: Decimal?; let history: [NAVPoint]; let connections: [PortfolioConnection]; let providers: PortfolioProviders }
+struct LiveNav: Equatable, Sendable {
+    let accountID, currency: String
+    /// nil = the server could not price a position; show "Unavailable", never 0.
+    let nav: Decimal?
+    let cash, grossExposure, netExposure, realizedPnl, unrealizedPnl: Decimal
+    var dailyPnl, dailyReturn: Decimal?
+    let calculatedAt, priceTimestamp: Date?
+    let isStale: Bool
+}
+enum LiveNavState: Equatable, Sendable {
+    /// No LIVE account is connected: an empty state, not a zero NAV.
+    case noAccount
+    case loaded(LiveNav)
+    static func isNoAccount(_ error: APIError) -> Bool {
+        if case .rejected(let detail) = error { return detail.status == 404 && detail.code == "TRADING_ACCOUNT_NOT_FOUND" }
+        return false
+    }
+}
 struct NAVPoint: Identifiable, Equatable, Sendable { var id: Date { date }; let date: Date; let value: Decimal }
 struct PortfolioConnection: Identifiable, Equatable, Sendable { let id, provider, name, status: String; let lastSync: Date?; let error: String? }
 struct PortfolioProviders: Equatable, Sendable { let plaid, ibkr, hyperliquid: Bool }
