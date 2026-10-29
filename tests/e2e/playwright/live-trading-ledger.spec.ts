@@ -91,7 +91,9 @@ test.describe("LIVE account ledger and reconciliation", () => {
     await expect(ledger.getByTestId("live-ledger-row")).toHaveCount(3);
     await expect(ledger.getByTestId("live-ledger-row").nth(2)).toContainText("-0.00000001 BTC");
     await expect(ledger.getByTestId("live-ledger-end")).toBeVisible();
-    expect(cursors).toEqual([null, "opaque-cursor-1"]);
+    // Dev-mode StrictMode may read the first page twice; the cursor is only
+    // ever the server's, passed back verbatim, and only once per click.
+    expect(cursors.filter((cursor) => cursor !== null)).toEqual(["opaque-cursor-1"]);
 
     // Balances are per currency; never re-added into one number.
     await expect(page.getByTestId("live-recon-balances")).toContainText("936.00000000 USD");
@@ -123,15 +125,16 @@ test.describe("LIVE account ledger and reconciliation", () => {
   });
 
   test("an outage says unavailable with a retry, and the retry reads again", async ({ page }) => {
-    let calls = 0;
+    let healthy = false;
     await mockLive(page, {
-      ledger: () => (++calls === 1 ? { status: 503, json: { detail: "unavailable" } } : { json: { account, entries: [entry(0)], next_cursor: null, limit: 50 } }),
+      ledger: () => (!healthy ? { status: 503, json: { detail: "unavailable" } } : { json: { account, entries: [entry(0)], next_cursor: null, limit: 50 } }),
       reconciliation: () => ({ status: 500, json: { detail: "boom" } }),
     });
     await page.goto("/en/trading/live/account");
     const unavailable = page.getByTestId("live-ledger-unavailable");
     await expect(unavailable).toContainText("not an empty ledger");
     await expect(page.getByTestId("live-recon-unavailable")).toContainText("not the same as");
+    healthy = true;
     await unavailable.getByRole("button", { name: "Retry" }).click();
     await expect(page.getByTestId("live-ledger-row")).toHaveCount(1);
   });

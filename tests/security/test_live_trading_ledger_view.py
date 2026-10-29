@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import base64
 import json
+import re
 from datetime import datetime, timedelta, timezone
 from decimal import Decimal
 
@@ -230,7 +231,8 @@ def test_amounts_are_plain_decimal_strings(api_client, db, user_factory):
         symbol="btcusdt", quantity="2.5", price="100.2",
     )
     body = api_client.get(f"/api/trading/ledger?account_id={account.id}", headers=auth_headers(user)).json()
-    assert "E-" not in json.dumps(body) and "e-" not in json.dumps(body["entries"])
+    numeric = [row[key] for row in body["entries"] for key in ("amount", "quantity", "price", "balance_after") if row[key] is not None]
+    assert numeric and all(re.fullmatch(r"-?\d+\.\d{8}", value) for value in numeric), numeric
     by_key = {row["amount"]: row for row in body["entries"]}
     assert by_key["0.00000001"]["balance_after"] == "0.00000001"
     assert by_key["-0.00000001"]["balance_after"] == "0.00000000"

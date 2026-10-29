@@ -23,6 +23,7 @@ import base64
 import binascii
 import json
 from datetime import datetime, timezone
+from decimal import InvalidOperation
 
 from sqlalchemy import and_, func, or_
 from sqlalchemy.orm import Session
@@ -175,7 +176,7 @@ def _plain_decimal(value):
         return value
     try:
         return decimal_text(str(value))
-    except Exception:
+    except (InvalidOperation, TypeError, ValueError):
         # Not numeric (e.g. an error marker): pass through unchanged rather than
         # inventing a number.
         return value
