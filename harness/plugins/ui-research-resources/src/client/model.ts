@@ -16,7 +16,7 @@ export const PROTOCOL = {
 } as const
 export type ProtocolName = typeof PROTOCOL[keyof typeof PROTOCOL]
 
-const ID = /^[A-Za-z0-9._:-]{1,160}$/
+const ID = /^(?!\.+$)[A-Za-z0-9._:-]{1,160}$/
 
 export function resourceAddress(protocol: ProtocolName, id: string): string {
   if (!ID.test(id)) throw new Error('resource id has an invalid format')

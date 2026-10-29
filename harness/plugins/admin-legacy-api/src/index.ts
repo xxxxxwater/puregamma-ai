@@ -40,7 +40,7 @@ function toRecord(value: unknown): Record<string, AdminJson> {
 }
 function identifier(value: string, label: string): string {
   const normalized = value.trim()
-  if (!normalized || normalized.length > 160 || !/^[A-Za-z0-9._:-]+$/.test(normalized)) throw new Error(`${label} is invalid`)
+  if (!normalized || normalized.length > 160 || !/^(?!\.+$)[A-Za-z0-9._:-]+$/.test(normalized)) throw new Error(`${label} is invalid`)
   return normalized
 }
 function listPath(path: string, query: AdminListQuery = {}): string {

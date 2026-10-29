@@ -46,7 +46,7 @@ function toRecord(value: unknown): Record<string, SkillJson> {
 }
 function id(value: string, label: string): string {
   const normalized = value.trim()
-  if (!normalized || normalized.length > 128 || !/^[A-Za-z0-9._:-]+$/.test(normalized)) throw new Error(`${label} has an invalid format`)
+  if (!normalized || normalized.length > 128 || !/^(?!\.+$)[A-Za-z0-9._:-]+$/.test(normalized)) throw new Error(`${label} has an invalid format`)
   return normalized
 }
 function slug(value: string): string {

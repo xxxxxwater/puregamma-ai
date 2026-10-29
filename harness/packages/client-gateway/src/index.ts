@@ -30,7 +30,7 @@ export { RESEARCH_TERMINAL_STATUSES } from './research-views.ts'
 
 /** How long one `researchRunWait` call follows the server's event stream before answering with a fresh read. */
 export const RESEARCH_RUN_WAIT_MS = 20000
-const RESOURCE_ID = /^[A-Za-z0-9._:-]{1,160}$/
+const RESOURCE_ID = /^(?!\.+$)[A-Za-z0-9._:-]{1,160}$/
 function resourceId(value: unknown): string | undefined { return typeof value === 'string' && RESOURCE_ID.test(value.trim()) ? value.trim() : undefined }
 /**
  * A reason the browser may show. Provider errors are classified by HTTP status

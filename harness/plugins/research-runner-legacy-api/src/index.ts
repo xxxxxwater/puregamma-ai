@@ -41,7 +41,7 @@ function toRecord(value: unknown): Record<string, ResearchSandboxJson> {
 }
 function identifier(value: string, label: string): string {
   const normalized = value.trim()
-  if (!normalized || normalized.length > 160 || !/^[A-Za-z0-9._:-]+$/.test(normalized)) throw new Error(`${label} has an invalid format`)
+  if (!normalized || normalized.length > 160 || !/^(?!\.+$)[A-Za-z0-9._:-]+$/.test(normalized)) throw new Error(`${label} has an invalid format`)
   return normalized
 }
 function figureName(value: string): string {

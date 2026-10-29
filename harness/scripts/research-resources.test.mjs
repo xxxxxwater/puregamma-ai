@@ -105,6 +105,8 @@ test('researchRunWait follows SSE until the status changes, and falls back to a 
   assert.deepEqual(reads, ['run-1', 'run-2'])
   assert.equal((await gatewayWith({}).researchRunWait('run-1', 'running')).available, false)
   assert.match((await gateway.researchRunWait('../etc', 'running')).reason, /invalid/)
+  // Dot-only ids pass the character class but resolve as path segments (/runs/.. -> /research/).
+  for (const dots of ['.', '..']) assert.match((await gateway.researchRunWait(dots, 'running')).reason, /invalid/)
 })
 
 test('gateway reads report a missing capability or failed provider as unavailable with a reason', async () => {
@@ -165,6 +167,7 @@ test('resource addresses name exactly one valid id', () => {
     assert.equal(resourceId(bad, PROTOCOL.researchRun), undefined, bad)
   }
   assert.throws(() => resourceAddress(PROTOCOL.researchRun, '../x'), /invalid/)
+  assert.throws(() => resourceAddress(PROTOCOL.researchRun, '..'), /invalid/)
 })
 
 const t = key => key
@@ -249,6 +252,7 @@ test('the runs provider reads /api/research/runs with the per-user bearer file a
     assert.equal((await client.listRuns({ limit: 5 })).kind, 'runs')
     await assert.rejects(client.run('missing'), error => /HTTP 404/.test(error.message) && !/not found/.test(error.message))
     await assert.rejects(client.run('../x'), /invalid format/)
+    for (const dots of ['.', '..', '...']) await assert.rejects(client.run(dots), /invalid format/)
     const events = []
     for await (const event of client.events('run-1', new AbortController().signal)) events.push(event)
     assert.deepEqual(events.map(event => event.event), ['run.state', 'run.completed'])

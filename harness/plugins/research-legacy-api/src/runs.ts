@@ -23,7 +23,7 @@ export interface ResearchRunsClientOptions extends BearerSourceConfig {
 }
 
 const SOURCE = 'compatibility:research-runs-api'
-const RUN_ID = /^[A-Za-z0-9._:-]{1,160}$/
+const RUN_ID = /^(?!\.+$)[A-Za-z0-9._:-]{1,160}$/
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)

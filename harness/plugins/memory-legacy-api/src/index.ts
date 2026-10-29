@@ -55,7 +55,7 @@ function toMemoryRecord(value: unknown): Record<string, MemoryJson> {
 
 function normalizeIdentifier(value: string, label: string): string {
   const normalized = value.trim()
-  if (normalized.length < 1 || normalized.length > 128 || !/^[A-Za-z0-9._:-]+$/.test(normalized)) {
+  if (normalized.length < 1 || normalized.length > 128 || !/^(?!\.+$)[A-Za-z0-9._:-]+$/.test(normalized)) {
     throw new Error(`${label} has an invalid format`)
   }
   return normalized

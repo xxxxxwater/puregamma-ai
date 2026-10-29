@@ -58,7 +58,7 @@ function toBacktestRecord(value: unknown): Record<string, BacktestJson> {
 
 function normalizeIdentifier(value: string, label: string, max = 128): string {
   const normalized = value.trim()
-  if (normalized.length < 1 || normalized.length > max || !/^[A-Za-z0-9._:-]+$/.test(normalized)) {
+  if (normalized.length < 1 || normalized.length > max || !/^(?!\.+$)[A-Za-z0-9._:-]+$/.test(normalized)) {
     throw new Error(`${label} has an invalid format`)
   }
   return normalized
