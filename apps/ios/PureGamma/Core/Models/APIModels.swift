@@ -44,18 +44,48 @@ struct EntitlementDTO: Decodable { let allowedDataSources: [String]?; enum Codin
 
 struct ConversationEnvelopeDTO: Decodable { let conversation: ConversationDTO }
 struct ConversationsEnvelopeDTO: Decodable { let conversations: [ConversationDTO] }
-struct ConversationDetailDTO: Decodable { let conversation: ConversationDTO; let messages: [MessageDTO] }
-struct ConversationDTO: Decodable { let id, title, status: String; let summary: String?; let createdAt, updatedAt: Date; let archivedAt: Date?; enum CodingKeys: String, CodingKey { case id, title, status, summary; case createdAt = "created_at"; case updatedAt = "updated_at"; case archivedAt = "archived_at" }; var domain: AgentConversation { .init(id: id, title: title, status: status, summary: summary, createdAt: createdAt, updatedAt: updatedAt, archivedAt: archivedAt) } }
+struct ConversationDetailDTO: Decodable {
+    let conversation: ConversationDTO; let messages: [MessageDTO]
+    /// The run the server is still producing for this conversation (§8.6).
+    let activeRunID, activeRunMessageID: String?
+    enum CodingKeys: String, CodingKey { case conversation, messages; case activeRunID = "active_run_id"; case activeRunMessageID = "active_run_message_id" }
+    var snapshot: AgentConversationSnapshot { .init(conversation: conversation.domain, messages: messages.map(\.domain), activeRunID: activeRunID, activeRunMessageID: activeRunMessageID) }
+}
+struct ConversationDTO: Decodable { let id, title, status: String; let summary: String?; let createdAt, updatedAt: Date; let archivedAt: Date?; let permissionMode: String?; enum CodingKeys: String, CodingKey { case id, title, status, summary; case createdAt = "created_at"; case updatedAt = "updated_at"; case archivedAt = "archived_at"; case permissionMode = "permission_mode" }; var domain: AgentConversation { .init(id: id, title: title, status: status, summary: summary, createdAt: createdAt, updatedAt: updatedAt, archivedAt: archivedAt, permissionMode: permissionMode) } }
 struct MessageDTO: Decodable { let id, conversationID, role, content, status: String; let model: String?; let sources: [SourceDTO]; let createdAt: Date; let errorMessage: String?; enum CodingKeys: String, CodingKey { case id, role, content, status, model, sources; case conversationID = "conversation_id"; case createdAt = "created_at"; case errorMessage = "error_message" }; var domain: AgentMessage { .init(id: id, conversationID: conversationID, role: role, content: content, status: status, model: model, sources: sources.map(\.domain), createdAt: createdAt, errorMessage: errorMessage) } }
 struct SourceDTO: Decodable { let id: String?; let provider, title: String; let url: URL?; let publishedAt, sourceTimestamp, fetchedAt: Date?; let citationIndex: Int; enum CodingKeys: String, CodingKey { case id, provider, title, url; case publishedAt = "published_at"; case sourceTimestamp = "source_timestamp"; case fetchedAt = "fetched_at"; case citationIndex = "citation_index" }; var domain: AgentSource { .init(id: id ?? "\(citationIndex)-\(provider)", provider: provider, title: title, url: url, publishedAt: publishedAt, sourceTimestamp: sourceTimestamp, fetchedAt: fetchedAt, citationIndex: citationIndex) } }
 struct CapabilitiesEnvelopeDTO: Decodable { let capabilities: CapabilitiesDTO; let quota: QuotaDTO; let models: [ModelDTO]; let skills: [SkillDTO]? }
 struct SkillDTO: Decodable { let slug, name: String; let description: String? }
 struct CapabilitiesDTO: Decodable { let plan: String; let allowedDataSources: [String]; let agentDailyRuns, agentConcurrentRuns: Int; enum CodingKeys: String, CodingKey { case plan; case allowedDataSources = "allowed_data_sources"; case agentDailyRuns = "agent_daily_runs"; case agentConcurrentRuns = "agent_concurrent_runs" } }
 struct QuotaDTO: Decodable { let remaining, creditBalance: Int; enum CodingKeys: String, CodingKey { case remaining; case creditBalance = "credit_balance" } }
-struct ModelDTO: Decodable { let id, displayName, description, provider: String; let available: Bool; let reason: String?; enum CodingKeys: String, CodingKey { case id, description, provider, available, reason; case displayName = "display_name" } }
+struct ModelDTO: Decodable {
+    let id, displayName, description, provider: String; let available: Bool; let reason: String?
+    /// `generation` writes replies; `evaluation` (e.g. jev) never does. Absent on older servers = generation.
+    let category: String?
+    enum CodingKeys: String, CodingKey { case id, description, provider, available, reason, category; case displayName = "display_name" }
+    var domain: AgentModel { .init(id: id, name: displayName, details: description, provider: provider, available: available, reason: reason, category: category ?? "generation") }
+}
 
-struct PortfolioDTO: Codable { let connected: Bool; let stale: Bool?; let dataAsOf: Date?; let nav, availableCash: Decimal?; let navHistory: [NAVPointDTO]; let connections: [PortfolioConnectionDTO]; let providers: PortfolioProvidersDTO; enum CodingKeys: String, CodingKey { case connected, stale, nav, connections, providers; case dataAsOf = "data_as_of"; case availableCash = "available_cash"; case navHistory = "nav_history" }; var domain: Portfolio { .init(connected: connected, stale: stale ?? false, asOf: dataAsOf, nav: connected ? nav : nil, availableCash: connected ? availableCash : nil, history: navHistory.map(\.domain), connections: connections.map(\.domain), providers: providers.domain) } }
-struct NAVPointDTO: Codable { let date: Date; let nav: Decimal; var domain: NAVPoint { .init(date: date, value: nav) } }
+struct PortfolioDTO: Codable { let connected: Bool; let stale: Bool?; let dataAsOf: Date?; let nav, availableCash: LenientDecimal?; let navHistory: [NAVPointDTO]; let connections: [PortfolioConnectionDTO]; let providers: PortfolioProvidersDTO; enum CodingKeys: String, CodingKey { case connected, stale, nav, connections, providers; case dataAsOf = "data_as_of"; case availableCash = "available_cash"; case navHistory = "nav_history" }; var domain: Portfolio { .init(connected: connected, stale: stale ?? false, asOf: dataAsOf, nav: connected ? nav?.value : nil, availableCash: connected ? availableCash?.value : nil, history: navHistory.map(\.domain), connections: connections.map(\.domain), providers: providers.domain) } }
+struct NAVPointDTO: Codable { let date: Date; let nav: LenientDecimal; var domain: NAVPoint { .init(date: date, value: nav.value) } }
+
+// LIVE NAV (§8.3): every amount is decimal text; `nav` null means unpriced.
+struct LiveNavDTO: Decodable {
+    let id, accountID, currency: String
+    let nav: LenientDecimal?
+    let cash, grossExposure, netExposure, realizedPnl, unrealizedPnl: LenientDecimal
+    let priceTimestamp, calculatedAt: String?
+    let isStale: Bool
+    let reconciliationStatus: String?
+    enum CodingKeys: String, CodingKey { case id, nav, cash, currency; case accountID = "account_id"; case grossExposure = "gross_exposure"; case netExposure = "net_exposure"; case realizedPnl = "realized_pnl"; case unrealizedPnl = "unrealized_pnl"; case priceTimestamp = "price_timestamp"; case calculatedAt = "calculated_at"; case isStale = "is_stale"; case reconciliationStatus = "reconciliation_status" }
+    var domain: LiveNav { .init(accountID: accountID, currency: currency, nav: nav?.value, cash: cash.value, grossExposure: grossExposure.value, netExposure: netExposure.value, realizedPnl: realizedPnl.value, unrealizedPnl: unrealizedPnl.value, dailyPnl: nil, dailyReturn: nil, calculatedAt: calculatedAt.flatMap(parseUTCDate), priceTimestamp: priceTimestamp.flatMap(parseUTCDate), isStale: isStale) }
+}
+struct LiveNavEnvelopeDTO: Decodable {
+    let nav: LiveNavDTO; let dailyPnl, dailyReturn: LenientDecimal?
+    enum CodingKeys: String, CodingKey { case nav; case dailyPnl = "daily_pnl"; case dailyReturn = "daily_return" }
+    var domain: LiveNav { var value = nav.domain; value.dailyPnl = dailyPnl?.value; value.dailyReturn = dailyReturn?.value; return value }
+}
+struct LiveNavHistoryDTO: Decodable { let history: [LiveNavDTO] }
 struct PortfolioConnectionDTO: Codable { let id, provider, name, status: String; let lastSync: Date?; let error: String?; enum CodingKeys: String, CodingKey { case id, provider, name, status, error; case lastSync = "last_sync" }; var domain: PortfolioConnection { .init(id: id, provider: provider, name: name, status: status, lastSync: lastSync, error: error) } }
 struct PortfolioProvidersDTO: Codable { let plaid, ibkr, hyperliquid: Bool; var domain: PortfolioProviders { .init(plaid: plaid, ibkr: ibkr, hyperliquid: hyperliquid) } }
 struct LinkTokenDTO: Decodable { let linkToken: String; enum CodingKeys: String, CodingKey { case linkToken = "link_token" } }

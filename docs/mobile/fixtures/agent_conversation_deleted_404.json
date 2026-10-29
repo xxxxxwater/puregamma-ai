@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "Conversation not found"
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000001"
+  },
+  "status": 404
+}

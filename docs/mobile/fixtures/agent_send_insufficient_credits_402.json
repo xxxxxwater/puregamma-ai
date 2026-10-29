@@ -1,0 +1,12 @@
+{
+  "body": {
+    "detail": {
+      "code": "INSUFFICIENT_CREDITS"
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000001/messages"
+  },
+  "status": 402
+}

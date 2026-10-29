@@ -1,16 +1,22 @@
 import Foundation
 
+/// ISO-8601 instants from the API. Production rows carry an offset; a naive
+/// value (no `Z`/offset, as some stores return) is read as UTC rather than
+/// rejected, so one missing suffix cannot fail a whole response.
 func parseUTCDate(_ raw: String) -> Date? {
     let fractional = ISO8601DateFormatter()
     fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
     let standard = ISO8601DateFormatter()
     standard.formatOptions = [.withInternetDateTime]
-    return fractional.date(from: raw) ?? standard.date(from: raw)
+    if let date = fractional.date(from: raw) ?? standard.date(from: raw) { return date }
+    guard raw.range(of: #"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(\.\d+)?$"#, options: .regularExpression) != nil else { return nil }
+    return fractional.date(from: raw + "Z") ?? standard.date(from: raw + "Z")
 }
 
 struct RepositoryContainer {
     let today: TodayRepository; let agent: AgentRepository; let research: ResearchRepository; let portfolio: PortfolioRepository; let account: AccountRepository
     let mobileCapabilities: MobileCapabilitiesRepository; let researchRuns: ResearchRunsRepository; let memory: MemoryRepository; let tradingMandates: TradingMandatesRepository
+    let liveNav: LiveNavRepository
     /// Repository 层能力门控的唯一事实来源（AppState 在登录/注销时更新）。
     let capabilitiesStore: MobileCapabilitiesStore
     private let responseCache: ResponseCache
@@ -31,6 +37,7 @@ struct RepositoryContainer {
         researchRuns = ResearchRunsRepository(client: client, cache: cache, gate: store)
         memory = MemoryRepository(client: client, gate: store)
         tradingMandates = TradingMandatesRepository(client: client, gate: store)
+        liveNav = LiveNavRepository(client: client)
     }
 
     /// 登录成功后按用户命名缓存，避免同设备多账号读到彼此的 stale 数据。
@@ -65,47 +72,33 @@ struct RepositoryContainer {
     let client: APIClient
     func conversations() async throws -> [AgentConversation] { let dto: ConversationsEnvelopeDTO = try await client.request("/api/agent/conversations"); return dto.conversations.map(\.domain) }
     func create(title: String? = nil) async throws -> AgentConversation { let dto: ConversationEnvelopeDTO = try await client.request("/api/agent/conversations", method: "POST", body: ["title": title]); return dto.conversation.domain }
-    func conversation(_ id: String) async throws -> (AgentConversation, [AgentMessage]) { let dto: ConversationDetailDTO = try await client.request("/api/agent/conversations/\(id)"); return (dto.conversation.domain, dto.messages.map(\.domain)) }
+    func conversation(_ id: String) async throws -> (AgentConversation, [AgentMessage]) { let snapshot = try await snapshot(id); return (snapshot.conversation, snapshot.messages) }
+    /// The conversation with the run the server is still producing, if any (§8.6).
+    func snapshot(_ id: String) async throws -> AgentConversationSnapshot { let dto: ConversationDetailDTO = try await client.request("/api/agent/conversations/\(id)"); return dto.snapshot }
     func update(_ id: String, title: String? = nil, archived: Bool? = nil) async throws -> AgentConversation { let dto: ConversationEnvelopeDTO = try await client.request("/api/agent/conversations/\(id)", method: "PATCH", body: ConversationPatchDTO(title: title, archived: archived)); return dto.conversation.domain }
+    func setPermission(_ id: String, mode: AgentPermissionMode) async throws -> AgentConversation { let dto: ConversationEnvelopeDTO = try await client.request("/api/agent/conversations/\(id)", method: "PATCH", body: ["permission_mode": mode.rawValue]); return dto.conversation.domain }
     func delete(_ id: String) async throws { let _: EmptyResponseDTO = try await client.request("/api/agent/conversations/\(id)", method: "DELETE") }
-    func capabilities() async throws -> AgentCapabilities { let dto: CapabilitiesEnvelopeDTO = try await client.request("/api/agent/capabilities"); return .init(plan: dto.capabilities.plan, dataSources: dto.capabilities.allowedDataSources, dailyRuns: dto.capabilities.agentDailyRuns, concurrentRuns: dto.capabilities.agentConcurrentRuns, credits: dto.quota.creditBalance, remaining: dto.quota.remaining, models: dto.models.map { .init(id: $0.id, name: $0.displayName, details: $0.description, provider: $0.provider, available: $0.available, reason: $0.reason) }, skills: (dto.skills ?? []).map(\.slug)) }
-    func stream(conversationID: String, prompt: String, locale: String, context: AgentRequestContext) async throws -> AsyncThrowingStream<AgentSSEEvent, Error> {
-        let payload = AgentMessageRequestDTO(content: prompt, locale: locale, dataSources: context.dataSources, skills: context.skills, customPrompt: context.customPrompt, attachments: context.attachments.map { .init(name: $0.name, content: $0.content, mime: $0.mime) }, model: context.model)
-        let (bytes, _) = try await client.stream("/api/agent/conversations/\(conversationID)/messages", body: payload)
+    func capabilities() async throws -> AgentCapabilities { let dto: CapabilitiesEnvelopeDTO = try await client.request("/api/agent/capabilities"); return .init(plan: dto.capabilities.plan, dataSources: dto.capabilities.allowedDataSources, dailyRuns: dto.capabilities.agentDailyRuns, concurrentRuns: dto.capabilities.agentConcurrentRuns, credits: dto.quota.creditBalance, remaining: dto.quota.remaining, models: dto.models.map(\.domain), skills: (dto.skills ?? []).map(\.slug)) }
+    func workspaceCapabilities() async throws -> AgentWorkspaceCapabilitiesDTO { try await client.request("/api/agent/workspace-capabilities") }
+    /// Opens the send stream. Coded refusals arrive as `APIError.rejected` so a
+    /// 409 keeps the `runId` of the run this attempt already started.
+    func stream(conversationID: String, prompt: String, locale: String, context: AgentRequestContext, clientRequestID: String) async throws -> AsyncThrowingStream<AgentStreamFrame, Error> {
+        let payload = AgentMessageRequestDTO(content: prompt, locale: locale, dataSources: context.dataSources, skills: context.skills, customPrompt: context.customPrompt, attachments: context.attachments.map { .init(name: $0.name, content: $0.content, mime: $0.mime) }, model: context.model, clientRequestID: clientRequestID)
+        let (bytes, _) = try await client.stream("/api/agent/conversations/\(conversationID)/messages", body: payload, codedErrors: true)
         return AsyncThrowingStream { continuation in
-            let task = Task { do { var parser = SSEParser(); for try await line in bytes.lines { if let event = parser.consume(line) { continuation.yield(try AgentSSEEvent.decode(event)); } }; continuation.finish() } catch { continuation.finish(throwing: error) } }
+            let task = Task { do { var parser = SSEParser(); for try await line in bytes.lines { if let event = parser.consume(line) { continuation.yield(AgentStreamFrame.decode(event)) } }; if let last = parser.finish() { continuation.yield(AgentStreamFrame.decode(last)) }; continuation.finish() } catch { continuation.finish(throwing: error) } }
             continuation.onTermination = { _ in task.cancel() }
         }
+    }
+    func runEvents(runID: String, after: Int) async throws -> AgentRunEventsPage {
+        let data = try await client.requestData("/api/agent/runs/\(runID)/events", query: [URLQueryItem(name: "after", value: String(after))])
+        return try AgentRunEventsPage.parse(data)
     }
     func cancel(runID: String) async throws { let _: EmptyResponseDTO = try await client.request("/api/agent/runs/\(runID)/cancel", method: "POST") }
 }
 struct ConversationPatchDTO: Encodable { let title: String?; let archived: Bool? }
 struct AgentAttachmentDTO: Encodable { let name, content, mime: String }
-struct AgentMessageRequestDTO: Encodable { let content, locale: String; let dataSources, skills: [String]; let customPrompt: String; let attachments: [AgentAttachmentDTO]; let model: String; enum CodingKeys: String, CodingKey { case content, locale, skills, attachments, model; case dataSources = "data_sources"; case customPrompt = "custom_prompt" } }
-
-enum AgentSSEEvent: Equatable, Sendable {
-    case runStarted(String), delta(String), toolStarted(String), toolCompleted(String), citation(AgentSource), completed, failed(String), canceled
-    static func decode(_ event: ServerSentEvent) throws -> AgentSSEEvent {
-        let object = (try JSONSerialization.jsonObject(with: event.data) as? [String: Any]) ?? [:]
-        func string(_ keys: String...) -> String { keys.compactMap { object[$0] as? String }.first ?? "" }
-        switch event.event {
-        case "run.started": return .runStarted(string("runId", "run_id", "id"))
-        case "message.delta": return .delta(string("delta", "content"))
-        case "tool.started": return .toolStarted(string("tool", "name"))
-        case "tool.completed": return .toolCompleted(string("tool", "name"))
-        case "citation":
-            let index = object["index"] as? Int ?? 0
-            let published = (object["publishedAt"] as? String).flatMap(parseUTCDate)
-            let sourceTime = (object["sourceTimestamp"] as? String).flatMap(parseUTCDate)
-            let fetched = (object["fetchedAt"] as? String).flatMap(parseUTCDate)
-            return .citation(.init(id: "\(index)-\(string("provider"))", provider: string("provider"), title: string("title"), url: URL(string: string("url")), publishedAt: published, sourceTimestamp: sourceTime, fetchedAt: fetched, citationIndex: index))
-        case "message.completed": return .completed
-        case "run.failed": return .failed(string("message", "error", "code"))
-        case "run.canceled": return .canceled
-        default: throw APIError.decoding("Unknown SSE event \(event.event)")
-        }
-    }
-}
+struct AgentMessageRequestDTO: Encodable { let content, locale: String; let dataSources, skills: [String]; let customPrompt: String; let attachments: [AgentAttachmentDTO]; let model: String; let clientRequestID: String; enum CodingKeys: String, CodingKey { case content, locale, skills, attachments, model; case dataSources = "data_sources"; case customPrompt = "custom_prompt"; case clientRequestID = "client_request_id" } }
 
 @MainActor struct ResearchRepository {
     let client: APIClient; let cache: ResponseCache
@@ -139,6 +132,24 @@ enum AgentSSEEvent: Equatable, Sendable {
     func autopilot() async throws -> Autopilot { let dto: AutopilotDTO = try await client.request("/portfolio/autopilot"); return dto.domain }
     func updateAutopilot(_ config: AutopilotConfigDTO) async throws -> Autopilot { let dto: AutopilotDTO = try await client.request("/portfolio/autopilot", method: "PUT", body: config); return dto.domain }
     func runAutopilot() async throws -> Autopilot { let dto: AutopilotDTO = try await client.request("/portfolio/autopilot/run", method: "POST"); return dto.domain }
+}
+
+/// Server-computed LIVE NAV (§8.3). No account is a state, not an error, and
+/// it is never shown as a zero NAV.
+@MainActor struct LiveNavRepository {
+    let client: APIClient
+    func current() async throws -> LiveNavState {
+        do {
+            let dto: LiveNavEnvelopeDTO = try await client.request("/api/portfolio/nav")
+            return .loaded(dto.domain)
+        } catch let error as APIError where LiveNavState.isNoAccount(error) {
+            return .noAccount
+        }
+    }
+    func history(limit: Int = 100) async throws -> [LiveNav] {
+        let dto: LiveNavHistoryDTO = try await client.request("/api/portfolio/nav/history", query: [URLQueryItem(name: "limit", value: String(limit))])
+        return dto.history.map(\.domain)
+    }
 }
 
 func canUseCache(_ error: Error) -> Bool {

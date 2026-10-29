@@ -8,6 +8,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import ai.puregamma.android.agent.*
 import ai.puregamma.android.data.local.SecureTokenStore
 import ai.puregamma.android.data.remote.*
 import ai.puregamma.android.data.remote.dto.*
@@ -60,6 +61,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     val agentRepo = AgentRepository(api)
     val researchRepo = ResearchRepository(api)
     val portfolioRepo = PortfolioRepository(api)
+    val liveNavRepo = LiveNavRepository(api)
     val accountRepo = AccountRepository(api)
     val mobileRepo = MobileRepository(api) {
         (mobileCapabilities as? LoadState.Ready)?.value ?: MobileCapabilities.UNAVAILABLE
@@ -100,6 +102,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         private set
     var autopilot: LoadState<Autopilot> by mutableStateOf(LoadState.Idle)
         private set
+    /** Server-computed LIVE NAV; [LiveNavState.NoAccount] is an empty state, never 0. */
+    var liveNav: LoadState<LiveNavState> by mutableStateOf(LoadState.Idle)
+        private set
     var conversations: LoadState<List<AgentConversation>> by mutableStateOf(LoadState.Idle)
         private set
     var selectedConversation: AgentConversation? by mutableStateOf(null)
@@ -115,6 +120,35 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
     var selectedModel: String? by mutableStateOf(null)
         private set
     private var activeRunId: String? by mutableStateOf(null)
+    /** True while a dropped stream is being restored from the server's event log. */
+    var isRecovering by mutableStateOf(false)
+        private set
+    /** A one-off notice, e.g. the open conversation was deleted elsewhere. */
+    var agentNotice: String? by mutableStateOf(null)
+        private set
+    /** The last send the server did not accept; Retry resends it with the same request id. */
+    var pendingAttempt: AgentSendAttempt? by mutableStateOf(null)
+        private set
+    var permissionModes: List<AgentPermissionMode> by mutableStateOf(emptyList())
+        private set
+    var permission: AgentPermissionMode by mutableStateOf(AgentPermissionMode.WORKSPACE_WRITE)
+        private set
+    private val turnRunner = AgentTurnRunner(
+        openStream = { conversationId, attempt, onOpen, onEvent ->
+            val body = agentRepo.buildAgentMessageRequest(
+                content = attempt.content,
+                locale = language,
+                dataSources = listOf("market", "rss"),
+                skills = listOf("market_research", "news_research"),
+                customPrompt = "",
+                model = attempt.model,
+                clientRequestId = attempt.requestId,
+            )
+            sseClient.stream("/api/agent/conversations/$conversationId/messages", body, onOpen, onEvent)
+        },
+        follower = AgentRunFollower(fetch = { runId, after -> agentRepo.getRunEvents(runId, after) }),
+        activeRunId = { conversationId -> agentRepo.getSnapshot(conversationId).activeRunId },
+    )
 
     init {
         PureGammaPushBridge.addMessageListener(::onPushMessage)
@@ -272,6 +306,8 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         autopilot = LoadState.Loading
         launch { portfolio = load { portfolioRepo.getPortfolio() } }
         launch { autopilot = load { portfolioRepo.getAutopilot() } }
+        // Never cached: a LIVE NAV is the server's current figure or unavailable.
+        launch { liveNav = load { liveNavRepo.current() } }
     }
 
     fun loadAgent() = viewModelScope.launch {
@@ -279,6 +315,9 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         conversations = LoadState.Loading
         launch {
             capabilities = load { agentRepo.getCapabilities() }
+        }
+        launch {
+            permissionModes = runCatching { agentRepo.getPermissionModes() }.getOrDefault(emptyList())
         }
         launch {
             conversations = load { agentRepo.getConversations() }
@@ -292,23 +331,49 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         val result = runCatching { agentRepo.createConversation() }
         result.onSuccess {
             selectedConversation = it
+            permission = AgentPermissionMode.WORKSPACE_WRITE
             messages = LoadState.Ready(emptyList())
             loadAgent()
         }.onFailure { globalError = it.message }
     }
 
+    /**
+     * Show the server's record of a conversation and reattach to the run it is
+     * still producing (contract §8.6/§8.7). A deleted conversation is dropped.
+     */
     fun openConversation(conversation: AgentConversation) = viewModelScope.launch {
+        if (streamJob?.isActive == true && selectedConversation?.id != conversation.id) detachAgent()
         selectedConversation = conversation
+        agentNotice = null
         messages = LoadState.Loading
-        messages = load {
-            val (_, msgs) = agentRepo.getConversation(conversation.id)
-            msgs
+        try {
+            val snapshot = agentRepo.getSnapshot(conversation.id)
+            selectedConversation = snapshot.conversation
+            permission = AgentPermissionMode.fromWire(snapshot.conversation.permissionMode) ?: AgentPermissionMode.WORKSPACE_WRITE
+            messages = LoadState.Ready(snapshot.messages)
+            val active = snapshot.activeRunId
+            if (active != null && streamJob?.isActive != true) observeRun(conversation.id, active)
+        } catch (error: Exception) {
+            if (!handleConversationGone(error, conversation.id)) messages = LoadState.Failed(resolveError(error, "Request failed"))
         }
     }
 
     fun sendAgentMessage(content: String) {
         val prompt = content.trim()
         if (prompt.isEmpty() || isStreaming) return
+        val models = (capabilities as? LoadState.Ready)?.value?.models.orEmpty()
+        submitAgent(AgentSendAttempt(content = prompt, model = AgentModelMenu.resolve(effectiveModel(), models)))
+    }
+
+    /** Retry the last unaccepted send with the SAME request id: a send that did arrive is attached to, never charged twice. */
+    fun retryAgentMessage() {
+        val attempt = pendingAttempt ?: return
+        if (isStreaming) return
+        submitAgent(attempt.forRetry())
+    }
+
+    private fun submitAgent(attempt: AgentSendAttempt) {
+        pendingAttempt = attempt
         streamJob = viewModelScope.launch {
             if (selectedConversation == null) {
                 val created = runCatching { agentRepo.createConversation() }
@@ -317,40 +382,113 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             }
             val conversation = selectedConversation ?: return@launch
             val current = (messages as? LoadState.Ready)?.value.orEmpty()
-            val userMessage = AgentMessage(UUID.randomUUID().toString(), conversation.id, "user", prompt, "completed")
-            val assistantId = UUID.randomUUID().toString()
-            val assistant = AgentMessage(assistantId, conversation.id, "assistant", "", "streaming")
-            messages = LoadState.Ready(current + userMessage + assistant)
+            val localUserId = "local-${attempt.requestId}"
+            val assistantId = "local-assistant-${attempt.requestId}"
+            messages = LoadState.Ready(
+                current + AgentMessage(localUserId, conversation.id, "user", attempt.content, "completed") +
+                    AgentMessage(assistantId, conversation.id, "assistant", "", "streaming"),
+            )
             isStreaming = true
             activeRunId = null
             globalError = null
+            agentNotice = null
+            var reload = true
             try {
-                val chosenModel = effectiveModel()
-                val body = agentRepo.buildAgentMessageRequest(
-                    content = prompt,
-                    locale = language,
-                    dataSources = listOf("market", "rss"),
-                    skills = listOf("market_research", "news_research"),
-                    customPrompt = "",
-                    model = chosenModel,
+                val outcome = turnRunner.run(
+                    conversationId = conversation.id,
+                    attempt = attempt,
+                    cursor = AgentRunCursor(),
+                    onAccepted = { pendingAttempt = attempt.copy(accepted = true) },
+                    onRecovering = { isRecovering = true },
+                    apply = { frame -> viewModelScope.launch(Dispatchers.Main) { applyAgentFrame(frame, assistantId) } },
                 )
-                sseClient.stream("/api/agent/conversations/${conversation.id}/messages", body) { event ->
-                    withContext(Dispatchers.Main) { applyAgentEvent(event, assistantId) }
+                when (outcome) {
+                    is AgentTurnOutcome.Attached -> pendingAttempt = null
+                    AgentTurnOutcome.ConversationGone -> { reload = false; handleConversationGone(RetrofitApiException(404, "Conversation not found"), conversation.id) }
+                    is AgentTurnOutcome.Refused -> {
+                        dropMessages(setOf(localUserId, assistantId))
+                        when (val failure = outcome.failure) {
+                            is AgentSendFailure.Retryable -> globalError = resolveError(failure.error, "Request failed")
+                            is AgentSendFailure.Final -> {
+                                pendingAttempt = null
+                                globalError = resolveError(failure.error, "Request failed")
+                            }
+                            else -> Unit
+                        }
+                        reload = false
+                    }
+                    else -> Unit
                 }
             } catch (_: CancellationException) {
-                agentActivity = null
-            } catch (error: Exception) {
-                globalError = error.message
+                reload = false
             } finally {
                 isStreaming = false
+                isRecovering = false
                 agentActivity = null
                 activeRunId = null
-                openConversation(conversation)
-                loadAgent()
             }
+            if (reload) reloadConversation(conversation.id)
         }
     }
 
+    /** Reattach to a run the server is still producing. Observation only: nothing is resent or canceled. */
+    private fun observeRun(conversationId: String, runId: String) {
+        streamJob = viewModelScope.launch {
+            isStreaming = true
+            isRecovering = true
+            activeRunId = runId
+            try {
+                AgentRunFollower(fetch = { id, after -> agentRepo.getRunEvents(id, after) })
+                    .follow(runId, AgentRunCursor()) { frame -> applyAgentFrame(frame, "") }
+            } finally {
+                isStreaming = false
+                isRecovering = false
+                agentActivity = null
+                activeRunId = null
+            }
+            reloadConversation(conversationId)
+        }
+    }
+
+    /** The server's record replaces the streamed view (contract §8.7 rule 3). */
+    private suspend fun reloadConversation(conversationId: String) {
+        if (selectedConversation?.id != conversationId) return
+        try {
+            val snapshot = agentRepo.getSnapshot(conversationId)
+            messages = LoadState.Ready(snapshot.messages)
+            if (snapshot.messages.lastOrNull()?.let { it.role == "assistant" && it.status == "completed" } == true) pendingAttempt = null
+        } catch (error: Exception) {
+            handleConversationGone(error, conversationId)
+        }
+        loadAgentConversationsQuietly()
+    }
+
+    private suspend fun loadAgentConversationsQuietly() {
+        runCatching { agentRepo.getConversations() }.onSuccess { conversations = LoadState.Ready(it) }
+    }
+
+    /** A deleted conversation is a plain-text 404 (§8.4): drop it locally and say so. */
+    private fun handleConversationGone(error: Throwable, conversationId: String): Boolean {
+        val api = error as? RetrofitApiException ?: return false
+        if (api.status != 404 || (api.detail?.code ?: api.code) != null) return false
+        val rows = (conversations as? LoadState.Ready)?.value
+        if (rows != null) conversations = LoadState.Ready(rows.filterNot { it.id == conversationId })
+        if (selectedConversation?.id == conversationId) {
+            detachAgent()
+            selectedConversation = null
+            messages = LoadState.Ready(emptyList())
+            pendingAttempt = null
+        }
+        agentNotice = getApplication<Application>().getString(R.string.agent_conversation_deleted)
+        return true
+    }
+
+    private fun dropMessages(ids: Set<String>) {
+        val rows = (messages as? LoadState.Ready)?.value ?: return
+        messages = LoadState.Ready(rows.filterNot { it.id in ids })
+    }
+
+    /** Explicit user stop: the only path that cancels a run. */
     fun cancelAgent() {
         val runId = activeRunId
         streamJob?.cancel()
@@ -358,43 +496,65 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             viewModelScope.launch {
                 runCatching { agentRepo.cancelRun(runId) }
                     .onFailure { globalError = it.message ?: "Unable to cancel Agent run" }
+                selectedConversation?.let { reloadConversation(it.id) }
             }
         }
         isStreaming = false
+        isRecovering = false
         agentActivity = null
         activeRunId = null
     }
 
-    private fun applyAgentEvent(event: ServerEvent, assistantId: String) {
-        when (event.name) {
-            "run.started" -> activeRunId = event.data.get("run_id")?.asString
-                ?: event.data.get("runId")?.asString
-                ?: event.data.get("id")?.asString
-            "message.delta" -> updateMessage(assistantId) { message ->
-                val delta = event.data.get("delta")?.asString
-                    ?: event.data.get("content")?.asString ?: ""
-                message.copy(content = message.content + delta)
-            }
-            "tool.started" -> agentActivity = event.data.get("tool")?.asString
-                ?: event.data.get("name")?.asString ?: "Working"
-            "tool.completed" -> agentActivity = null
-            "citation" -> updateMessage(assistantId) { message ->
-                val source = AgentSource(
-                    index = event.data.get("index")?.asInt ?: 0,
-                    provider = event.data.get("provider")?.asString ?: "",
-                    title = event.data.get("title")?.asString ?: "",
-                    url = event.data.get("url")?.asString,
-                )
+    /** Stop observing without canceling (conversation switched, sign-out). */
+    fun detachAgent() {
+        streamJob?.cancel()
+        streamJob = null
+        isStreaming = false
+        isRecovering = false
+        agentActivity = null
+        activeRunId = null
+    }
+
+    /** Back in the foreground: re-read the server's record and reattach. */
+    fun resumeAgent() {
+        if (isStreaming) return
+        selectedConversation?.let { openConversation(it) }
+    }
+
+    fun changePermission(mode: AgentPermissionMode) {
+        if (mode == permission || isStreaming) return
+        val conversation = selectedConversation ?: run { permission = mode; return }
+        val previous = permission
+        permission = mode
+        viewModelScope.launch {
+            runCatching { agentRepo.setPermission(conversation.id, mode) }
+                .onSuccess { selectedConversation = it }
+                .onFailure { error ->
+                    permission = previous
+                    if (!handleConversationGone(error, conversation.id)) globalError = resolveError(error, "Unable to change permissions")
+                }
+        }
+    }
+
+    fun clearAgentNotice() {
+        agentNotice = null
+    }
+
+    private fun applyAgentFrame(frame: AgentFrame, assistantId: String) {
+        when (val event = frame.event) {
+            is AgentStreamEvent.RunStarted -> activeRunId = event.runId.ifEmpty { null }
+            is AgentStreamEvent.Delta -> if (assistantId.isNotEmpty()) updateMessage(assistantId) { it.copy(content = it.content + event.text) }
+            is AgentStreamEvent.ToolStarted -> agentActivity = event.tool
+            is AgentStreamEvent.ToolCompleted -> agentActivity = null
+            is AgentStreamEvent.ApprovalRequired -> agentActivity = event.tool
+            is AgentStreamEvent.Citation -> if (assistantId.isNotEmpty()) updateMessage(assistantId) { message ->
+                val source = AgentSource(index = event.index, provider = event.provider, title = event.title, url = event.url)
                 message.copy(sources = (message.sources + source).distinctBy { it.index to it.url })
             }
-            "message.completed" -> updateMessage(assistantId) { it.copy(status = "completed") }
-            "run.failed" -> updateMessage(assistantId) {
-                it.copy(
-                    status = "failed",
-                    error = event.data.get("message")?.asString
-                        ?: event.data.get("error")?.asString,
-                )
-            }
+            is AgentStreamEvent.Completed -> if (assistantId.isNotEmpty()) updateMessage(assistantId) { it.copy(status = "completed") }
+            is AgentStreamEvent.Failed -> if (assistantId.isNotEmpty()) updateMessage(assistantId) { it.copy(status = "failed", error = event.message) }
+            AgentStreamEvent.Canceled -> if (assistantId.isNotEmpty()) updateMessage(assistantId) { it.copy(status = "canceled") }
+            AgentStreamEvent.PlanReady, AgentStreamEvent.EvidenceReady, is AgentStreamEvent.Ignored -> Unit
         }
     }
 

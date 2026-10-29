@@ -93,6 +93,22 @@ interface PureGammaApi {
     @POST("/api/agent/runs/{id}/cancel")
     suspend fun cancelRun(@Path("id") id: String): Response<Void>
 
+    /** Durable events of a run after [after] (§8.7); `data` varies per event type. */
+    @GET("/api/agent/runs/{id}/events")
+    suspend fun getRunEvents(@Path("id") id: String, @Query("after") after: Int): com.google.gson.JsonObject
+
+    @GET("/api/agent/workspace-capabilities")
+    suspend fun getWorkspaceCapabilities(): WorkspaceCapabilitiesDto
+
+    @PATCH("/api/agent/conversations/{id}")
+    suspend fun updateConversationPermission(@Path("id") id: String, @Body body: Map<String, String>): ConversationEnvelopeDto
+
+    @GET("/api/portfolio/nav")
+    suspend fun getLiveNav(): LiveNavEnvelopeDto
+
+    @GET("/api/portfolio/nav/history")
+    suspend fun getLiveNavHistory(@Query("limit") limit: Int = 100): LiveNavHistoryDto
+
     @GET("/options/long-gamma")
     suspend fun getLongGamma(@Query("currency") currency: String): LongGammaEnvelopeDto
 

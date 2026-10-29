@@ -1,5 +1,7 @@
 package ai.puregamma.android.data.repository
 
+import ai.puregamma.android.agent.AgentPermissionMode
+import ai.puregamma.android.agent.AgentRunEventsPage
 import ai.puregamma.android.data.remote.PureGammaApi
 import ai.puregamma.android.data.remote.RetrofitApiException
 import ai.puregamma.android.data.remote.dto.*
@@ -28,39 +30,50 @@ class TodayRepository(private val api: PureGammaApi) {
     }
 }
 
+/** Retrofit's HttpException carries the error body once; keep its envelope as a RetrofitApiException. */
+internal suspend fun <T> apiCall(block: suspend () -> T): T = try {
+    block()
+} catch (error: retrofit2.HttpException) {
+    val body = runCatching { error.response()?.errorBody()?.string() }.getOrNull().orEmpty()
+    throw RetrofitApiException.fromBody(error.code(), body)
+}
+
 class AgentRepository(private val api: PureGammaApi) {
 
-    suspend fun getConversations(): List<AgentConversation> {
-        val dto = api.getConversations()
-        return dto.conversations?.map { it.toDomain() } ?: emptyList()
+    suspend fun getConversations(): List<AgentConversation> = apiCall {
+        api.getConversations().conversations?.map { it.toDomain() } ?: emptyList()
     }
 
-    suspend fun createConversation(title: String? = null): AgentConversation {
-        val body = mapOf("title" to title)
-        val dto = api.createConversation(body)
-        return dto.conversation.toDomain()
+    suspend fun createConversation(title: String? = null): AgentConversation = apiCall {
+        api.createConversation(mapOf("title" to title)).conversation.toDomain()
     }
 
     suspend fun getConversation(id: String): Pair<AgentConversation, List<AgentMessage>> {
-        val dto = api.getConversation(id)
-        val conv = dto.conversation.toDomain()
-        val msgs = dto.messages?.map { it.toDomain() } ?: emptyList()
-        return conv to msgs
+        val snapshot = getSnapshot(id)
+        return snapshot.conversation to snapshot.messages
     }
 
-    suspend fun updateConversation(id: String, title: String?, archived: Boolean?): AgentConversation {
-        val body = ConversationPatchRequest(title, archived)
-        val dto = api.updateConversation(id, body)
-        return dto.conversation.toDomain()
+    /** The server's record of a conversation, including the run it is still producing. */
+    suspend fun getSnapshot(id: String): AgentConversationSnapshot = apiCall {
+        val dto = api.getConversation(id)
+        AgentConversationSnapshot(dto.conversation.toDomain(), dto.messages?.map { it.toDomain() } ?: emptyList(), dto.activeRunId)
+    }
+
+    suspend fun updateConversation(id: String, title: String?, archived: Boolean?): AgentConversation = apiCall {
+        api.updateConversation(id, ConversationPatchRequest(title, archived)).conversation.toDomain()
+    }
+
+    suspend fun setPermission(id: String, mode: AgentPermissionMode): AgentConversation = apiCall {
+        api.updateConversationPermission(id, mapOf("permission_mode" to mode.wire)).conversation.toDomain()
     }
 
     suspend fun deleteConversation(id: String) {
         safeCall { api.deleteConversation(id) }
     }
 
-    suspend fun getCapabilities(): AgentCapabilities {
+    suspend fun getCapabilities(): AgentCapabilities = apiCall {
         val dto = api.getCapabilities()
-        return AgentCapabilities(
+        AgentCapabilities(
             plan = dto.capabilities.plan,
             dataSources = dto.capabilities.allowedDataSources,
             dailyRuns = dto.capabilities.agentDailyRuns,
@@ -74,9 +87,18 @@ class AgentRepository(private val api: PureGammaApi) {
                     provider = model.provider,
                     available = model.available,
                     reason = model.reason,
+                    category = model.category ?: "generation",
                 )
             } ?: emptyList(),
         )
+    }
+
+    suspend fun getPermissionModes(): List<AgentPermissionMode> = apiCall {
+        AgentPermissionMode.selectable(api.getWorkspaceCapabilities().permissionModes.orEmpty())
+    }
+
+    suspend fun getRunEvents(runId: String, after: Int): AgentRunEventsPage = apiCall {
+        AgentRunEventsPage.parse(api.getRunEvents(runId, after))
     }
 
     suspend fun cancelRun(runId: String) {
@@ -90,6 +112,7 @@ class AgentRepository(private val api: PureGammaApi) {
         skills: List<String>,
         customPrompt: String,
         model: String,
+        clientRequestId: String? = null,
     ): AgentMessageRequest {
         return AgentMessageRequest(
             content = content,
@@ -99,16 +122,52 @@ class AgentRepository(private val api: PureGammaApi) {
             customPrompt = customPrompt,
             attachments = emptyList(),
             model = model,
+            clientRequestId = clientRequestId,
         )
     }
 
     private suspend fun safeCall(block: suspend () -> retrofit2.Response<Void>) {
         val response = block()
         if (!response.isSuccessful) {
-            throw RetrofitApiException(response.code(), "Request failed (${response.code()})")
+            val body = runCatching { response.errorBody()?.string() }.getOrNull().orEmpty()
+            throw RetrofitApiException.fromBody(response.code(), body)
         }
     }
 }
+
+/** Server-computed LIVE NAV (§8.3). No account is a state, never a zero NAV. */
+class LiveNavRepository(private val api: PureGammaApi) {
+    suspend fun current(): LiveNavState = try {
+        val dto = apiCall { api.getLiveNav() }
+        LiveNavState.Loaded(dto.nav.toDomain(dto.dailyPnl, dto.dailyReturn))
+    } catch (error: RetrofitApiException) {
+        if (isNoAccount(error)) LiveNavState.NoAccount else throw error
+    }
+
+    suspend fun history(limit: Int = 100): List<LiveNav> = apiCall {
+        api.getLiveNavHistory(limit).history.orEmpty().map { it.toDomain(null, null) }
+    }
+
+    companion object {
+        fun isNoAccount(error: RetrofitApiException): Boolean =
+            error.status == 404 && (error.detail?.code ?: error.code) == "TRADING_ACCOUNT_NOT_FOUND"
+    }
+}
+
+internal fun LiveNavDto.toDomain(dailyPnl: String?, dailyReturn: String?) = LiveNav(
+    accountId = accountId.orEmpty(),
+    currency = currency ?: "USD",
+    nav = decimalOrNull(nav),
+    cash = decimalOrNull(cash),
+    grossExposure = decimalOrNull(grossExposure),
+    netExposure = decimalOrNull(netExposure),
+    realizedPnl = decimalOrNull(realizedPnl),
+    unrealizedPnl = decimalOrNull(unrealizedPnl),
+    dailyPnl = decimalOrNull(dailyPnl),
+    dailyReturn = decimalOrNull(dailyReturn),
+    calculatedAt = calculatedAt?.let { parseInstantOrNull(it) },
+    isStale = isStale ?: false,
+)
 
 class ResearchRepository(private val api: PureGammaApi) {
 
@@ -238,6 +297,7 @@ private fun ConversationDto.toDomain() = AgentConversation(
     status = status,
     summary = summary,
     updatedAt = updatedAt?.let { parseInstant(it) },
+    permissionMode = permissionMode,
 )
 
 private fun MessageDto.toDomain() = AgentMessage(
@@ -261,8 +321,8 @@ private fun PortfolioDto.toDomain() = Portfolio(
     connected = connected ?: false,
     stale = stale ?: false,
     asOf = dataAsOf?.let { parseInstant(it) },
-    nav = nav,
-    availableCash = availableCash,
+    nav = decimalOrNull(nav),
+    availableCash = decimalOrNull(availableCash),
     connections = connections?.map { conn ->
         PortfolioConnection(
             id = conn.id,
@@ -273,8 +333,8 @@ private fun PortfolioDto.toDomain() = Portfolio(
             error = conn.error,
         )
     } ?: emptyList(),
-    navHistory = navHistory?.map { point ->
-        NavPoint(date = parseInstant(point.date), value = point.nav)
+    navHistory = navHistory?.mapNotNull { point ->
+        decimalOrNull(point.nav)?.let { NavPoint(date = parseInstant(point.date), value = it) }
     } ?: emptyList(),
 )
 
@@ -304,6 +364,4 @@ private fun OptionCandidateDto.toDomain() = OptionCandidate(
     rationale = rationale ?: emptyList(),
 )
 
-private fun parseInstant(raw: String): java.time.Instant {
-    return runCatching { java.time.Instant.parse(raw) }.getOrNull() ?: java.time.Instant.EPOCH
-}
+private fun parseInstant(raw: String): java.time.Instant = parseInstantOrNull(raw) ?: java.time.Instant.EPOCH

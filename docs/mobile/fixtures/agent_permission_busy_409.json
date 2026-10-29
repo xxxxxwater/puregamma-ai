@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "CONVERSATION_BUSY"
+  },
+  "request": {
+    "method": "PATCH",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000001"
+  },
+  "status": 409
+}

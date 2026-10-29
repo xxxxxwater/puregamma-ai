@@ -53,7 +53,8 @@ fun NavHistoryChart(
     else points.filter { it.date >= cutoff }
 
     val sortedPoints = remember(filtered) { filtered.sortedBy { it.date } }
-    val values = remember(sortedPoints) { sortedPoints.map { it.value } }
+    // Doubles for geometry only; labels format the exact BigDecimal.
+    val values = remember(sortedPoints) { sortedPoints.map { it.value.toDouble() } }
     val minVal = remember(values) { values.minOrNull() ?: 0.0 }
     val maxVal = remember(values) { values.maxOrNull() ?: 1.0 }
     val range = remember(minVal, maxVal) { max(maxVal - minVal, 1.0) }
@@ -158,7 +159,7 @@ fun NavHistoryChart(
                 val path = Path()
                 sortedPoints.forEachIndexed { index, point ->
                     val x = xForIndex(index)
-                    val y = yForValue(point.value)
+                    val y = yForValue(point.value.toDouble())
                     if (index == 0) path.moveTo(x, y) else path.lineTo(x, y)
                 }
                 drawPath(path, accentColor, style = Stroke(2f))
@@ -176,7 +177,7 @@ fun NavHistoryChart(
                 if (idx in sortedPoints.indices) {
                     val point = sortedPoints[idx]
                     val cx = xForIndex(idx)
-                    val cy = yForValue(point.value)
+                    val cy = yForValue(point.value.toDouble())
 
                     drawLine(accentColor.copy(alpha = 0.4f), Offset(cx, padding), Offset(cx, topPx), 1f)
                     drawCircle(accentColor, 5f, Offset(cx, cy))
@@ -240,7 +241,7 @@ private val _isoDateFormatter = DateTimeFormatter.ofPattern("MM/dd HH:mm")
 
 private fun formatDate(instant: Instant): String = _isoDateFormatter.format(instant)
 
-private fun formatMoney(value: Double): String {
+private fun formatMoney(value: java.math.BigDecimal): String {
     val nf = java.text.NumberFormat.getCurrencyInstance(java.util.Locale.US)
     nf.currency = java.util.Currency.getInstance("USD")
     return nf.format(value)

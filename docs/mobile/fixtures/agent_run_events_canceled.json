@@ -1,0 +1,67 @@
+{
+  "body": {
+    "conversationId": "00000000-0000-4000-8000-000000000003",
+    "events": [
+      {
+        "data": {
+          "assets": [
+            "BTC"
+          ],
+          "at": "2026-10-29T08:00:00.000000+00:00",
+          "intent": "market_research",
+          "runId": "00000000-0000-4000-8000-000000000001",
+          "seq": 2
+        },
+        "seq": 2,
+        "type": "plan.ready"
+      },
+      {
+        "data": {
+          "arguments": {
+            "symbols": [
+              "BTC"
+            ]
+          },
+          "at": "2026-10-29T08:00:01.000000+00:00",
+          "seq": 3,
+          "tool": "get_market_quote",
+          "toolCallId": "call-1"
+        },
+        "seq": 3,
+        "type": "tool.started"
+      },
+      {
+        "data": {
+          "at": "2026-10-29T08:00:02.000000+00:00",
+          "latencyMs": 12,
+          "seq": 5,
+          "summary": "1 quote",
+          "tool": "get_market_quote",
+          "toolCallId": "call-1"
+        },
+        "seq": 5,
+        "type": "tool.completed"
+      },
+      {
+        "data": {
+          "at": "2026-10-29T08:00:03.000000+00:00",
+          "creditBalance": 30,
+          "runId": "00000000-0000-4000-8000-000000000001",
+          "seq": 6
+        },
+        "seq": 6,
+        "type": "run.canceled"
+      }
+    ],
+    "lastSeq": 6,
+    "messageId": "00000000-0000-4000-8000-000000000002",
+    "runId": "00000000-0000-4000-8000-000000000001",
+    "status": "canceled",
+    "truncated": false
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/agent/runs/00000000-0000-4000-8000-000000000001/events?after=1"
+  },
+  "status": 200
+}

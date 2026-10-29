@@ -23,9 +23,17 @@ class SseClient(
     private val baseUrl: String = BuildConfig.API_BASE_URL,
 ) {
 
+    /**
+     * POST [body] and deliver each SSE frame. A refusal throws
+     * [RetrofitApiException] carrying the full error envelope (code and extra
+     * fields such as a 409's `runId`). [onOpen] runs once the server accepted
+     * the request with a 2xx, before any frame — from then on the request
+     * exists server-side even if the body later dies.
+     */
     suspend fun stream(
         path: String,
         body: Any,
+        onOpen: () -> Unit = {},
         onEvent: suspend (ServerEvent) -> Unit,
     ) = withContext(Dispatchers.IO) {
         val json = gson.toJson(body)
@@ -42,8 +50,9 @@ class SseClient(
         response.use { resp ->
             if (!resp.isSuccessful) {
                 val errorBody = resp.body?.string().orEmpty()
-                throw RetrofitApiException(resp.code, parseErrorMessage(errorBody))
+                throw RetrofitApiException.fromBody(resp.code, errorBody, fallback = parseErrorMessage(errorBody).ifBlank { "Request failed (${resp.code})" })
             }
+            onOpen()
             resp.body?.byteStream()?.bufferedReader()?.use { reader ->
                 parseEvents(reader, onEvent)
             }

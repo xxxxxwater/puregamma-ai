@@ -35,8 +35,8 @@ android {
         applicationId = "ai.puregamma.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.5.0"
+        versionCode = 10
+        versionName = "1.6.0"
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("String", "PRODUCT_WEB_BASE_URL", "\"$productWebBaseUrl\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
@@ -88,6 +88,14 @@ android {
         compilerOptions.jvmTarget.set(JvmTarget.JVM_17)
     }
     packaging.resources.excludes += "/META-INF/{AL2.0,LGPL2.1}"
+
+    // Unit tests decode the server's own responses, shared with the iOS tests
+    // and pinned by tests/contract/test_mobile_agent_contract.py.
+    testOptions {
+        unitTests.all {
+            it.systemProperty("pg.contractFixtures", rootProject.file("../../docs/mobile/fixtures").absolutePath)
+        }
+    }
 }
 
 // NOTE: no custom validateSigningRelease hook — a doFirst closure here breaks

@@ -37,7 +37,7 @@ struct AppRootView: View {
                 NavigationStack { ResearchView(repository: app.repositories.research) }
                     .tabItem { Label("Research", systemImage: "doc.text.magnifyingglass") }
                     .tag(AppTab.research)
-                NavigationStack { PortfolioView(repository: app.repositories.portfolio) }
+                NavigationStack { PortfolioView(repository: app.repositories.portfolio, liveNav: app.repositories.liveNav) }
                     .tabItem { Label("Portfolio", systemImage: "chart.pie") }
                     .tag(AppTab.portfolio)
                 NavigationStack { AccountView(repository: app.repositories.account) }

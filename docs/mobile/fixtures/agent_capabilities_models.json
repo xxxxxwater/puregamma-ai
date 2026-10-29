@@ -1,0 +1,107 @@
+{
+  "body": {
+    "models": [
+      {
+        "available": true,
+        "capabilities": {
+          "chat": true
+        },
+        "category": "generation",
+        "credit_cost": null,
+        "description": "Uses the existing Agent default configuration.",
+        "display_name": "existing-default-model",
+        "estimate": {
+          "basis": "typical_turn",
+          "max": 6,
+          "min": 2,
+          "task_type": "agent_chat_basic",
+          "unit": "credits"
+        },
+        "id": "default",
+        "limits": {
+          "image_input": false,
+          "plan_allowed": true,
+          "plans": null
+        },
+        "provider": "deepseek",
+        "reason": null
+      },
+      {
+        "available": false,
+        "capabilities": {
+          "chat": true
+        },
+        "category": "generation",
+        "credit_cost": null,
+        "description": "High-quality deep market research for selective use.",
+        "display_name": "GPT-5.6 Luna · OpenAI",
+        "estimate": {
+          "basis": "typical_turn",
+          "max": 15,
+          "min": 6,
+          "task_type": "agent_luna_research",
+          "unit": "credits"
+        },
+        "id": "gpt-5.6-luna",
+        "limits": {
+          "image_input": false,
+          "plan_allowed": false,
+          "plans": [
+            "Max",
+            "Enterprise"
+          ]
+        },
+        "provider": "openai",
+        "reason": "plan_required"
+      },
+      {
+        "available": false,
+        "capabilities": {
+          "chat": true
+        },
+        "category": "generation",
+        "credit_cost": null,
+        "description": "High-quality deep market research for selective use.",
+        "display_name": "GPT-6 Sol · OpenAI",
+        "estimate": null,
+        "id": "gpt-6-sol",
+        "limits": {
+          "image_input": false,
+          "plan_allowed": false,
+          "plans": [
+            "Max",
+            "Enterprise"
+          ]
+        },
+        "provider": "openai",
+        "reason": "pricing_not_configured"
+      },
+      {
+        "available": false,
+        "capabilities": {
+          "chat": false,
+          "endpoint": "/v1/systemone",
+          "evaluation": true
+        },
+        "category": "evaluation",
+        "credit_cost": null,
+        "description": "Evaluation model. Returns typed choices, scores and probabilities for routing and evidence ranking; it does not write replies.",
+        "display_name": "Jev (TypeSafe)",
+        "estimate": null,
+        "id": "jev",
+        "limits": {
+          "image_input": false,
+          "plan_allowed": true,
+          "plans": null
+        },
+        "provider": "typesafe",
+        "reason": "unavailable"
+      }
+    ]
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/agent/capabilities"
+  },
+  "status": 200
+}
