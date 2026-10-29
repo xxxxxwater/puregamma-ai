@@ -114,20 +114,20 @@ export class LegacyApiSkillsProvider extends SkillsService {
   }
 
   async catalog(includeDisabled = false): Promise<SkillDocument> {
-    return this.document('catalog', await this.request('GET', '/skills', { query: { include_disabled: includeDisabled } }))
+    return this.document('catalog', await this.request('GET', '/api/skills', { query: { include_disabled: includeDisabled } }))
   }
-  async installations(): Promise<SkillDocument> { return this.document('installations', await this.request('GET', '/skills/installations')) }
+  async installations(): Promise<SkillDocument> { return this.document('installations', await this.request('GET', '/api/skills/installations')) }
   async runs(limit = 50): Promise<SkillDocument> {
     if (!Number.isInteger(limit) || limit < 1 || limit > 200) throw new Error('skill run limit must be 1-200')
-    return this.document('runs', await this.request('GET', '/skills/runs', { query: { limit } }))
+    return this.document('runs', await this.request('GET', '/api/skills/runs', { query: { limit } }))
   }
   async run(skillSlug: string, inputs: Record<string, SkillJson> = {}, estimatedCredits = 0): Promise<SkillDocument> {
     if (!Number.isInteger(estimatedCredits) || estimatedCredits < 0 || estimatedCredits > 10000) throw new Error('estimatedCredits must be 0-10000')
-    return this.document('run', await this.request('POST', `/skills/${encodeURIComponent(slug(skillSlug))}/run`, { body: { inputs, estimated_credits: estimatedCredits } }))
+    return this.document('run', await this.request('POST', `/api/skills/${encodeURIComponent(slug(skillSlug))}/run`, { body: { inputs, estimated_credits: estimatedCredits } }))
   }
-  async runDetail(runId: string): Promise<SkillDocument> { return this.document('run', await this.request('GET', `/skills/runs/${encodeURIComponent(id(runId, 'runId'))}`)) }
+  async runDetail(runId: string): Promise<SkillDocument> { return this.document('run', await this.request('GET', `/api/skills/runs/${encodeURIComponent(id(runId, 'runId'))}`)) }
   async importBundle(request: SkillImportRequest): Promise<SkillDocument> {
-    return this.document('import', await this.request('POST', '/skills/import', { body: {
+    return this.document('import', await this.request('POST', '/api/skills/import', { body: {
       source_type: request.sourceType,
       ...(request.repoUrl === undefined ? {} : { repo_url: request.repoUrl }),
       ...(request.commitHash === undefined ? {} : { commit_hash: request.commitHash }),
@@ -135,7 +135,7 @@ export class LegacyApiSkillsProvider extends SkillsService {
     } }))
   }
   async validateInvocation(request: SkillInvocationRequest): Promise<SkillDocument> {
-    return this.document('validation', await this.request('POST', '/skills/validate-invocation', { body: {
+    return this.document('validation', await this.request('POST', '/api/skills/validate-invocation', { body: {
       skill_refs: request.skillRefs,
       trigger_source: request.triggerSource,
       allow_autopilot: request.allowAutopilot ?? false,
@@ -143,16 +143,16 @@ export class LegacyApiSkillsProvider extends SkillsService {
       estimated_credits: request.estimatedCredits ?? 0,
     } }))
   }
-  async detail(skillId: string): Promise<SkillDocument> { return this.document('skill', await this.request('GET', `/skills/${encodeURIComponent(id(skillId, 'skillId'))}`)) }
+  async detail(skillId: string): Promise<SkillDocument> { return this.document('skill', await this.request('GET', `/api/skills/${encodeURIComponent(id(skillId, 'skillId'))}`)) }
   async install(skillId: string, request: SkillInstallRequest = {}): Promise<SkillDocument> {
-    return this.document('installation', await this.request('POST', `/skills/${encodeURIComponent(id(skillId, 'skillId'))}/install`, { body: {
+    return this.document('installation', await this.request('POST', `/api/skills/${encodeURIComponent(id(skillId, 'skillId'))}/install`, { body: {
       ...(request.pinnedVersion === undefined ? {} : { pinned_version: request.pinnedVersion }),
       ...(request.workspaceId === undefined ? {} : { workspace_id: request.workspaceId }),
       config_overrides: request.configOverrides ?? {},
     } }))
   }
   async uninstall(installationId: string): Promise<SkillDocument> {
-    return this.document('mutation', await this.request('DELETE', `/skills/installations/${encodeURIComponent(id(installationId, 'installationId'))}`))
+    return this.document('mutation', await this.request('DELETE', `/api/skills/installations/${encodeURIComponent(id(installationId, 'installationId'))}`))
   }
 }
 

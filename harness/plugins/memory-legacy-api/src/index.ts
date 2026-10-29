@@ -172,7 +172,7 @@ export class LegacyApiMemoryProvider extends MemoryService {
   }
 
   async settings(): Promise<MemoryDocument> {
-    return this.document('settings', await this.requestJson('GET', '/memory/settings'))
+    return this.document('settings', await this.requestJson('GET', '/api/memory/settings'))
   }
 
   async updateSettings(patch: MemorySettingsPatch): Promise<MemoryDocument> {
@@ -184,52 +184,52 @@ export class LegacyApiMemoryProvider extends MemoryService {
     if (patch.portfolioMemoryEnabled !== undefined) body.portfolio_memory_enabled = patch.portfolioMemoryEnabled
     if (patch.consentGranted !== undefined) body.consent_granted = patch.consentGranted
     if (Object.keys(body).length === 0) throw new Error('memory settings patch must contain at least one field')
-    return this.document('settings', await this.requestJson('PATCH', '/memory/settings', { body }))
+    return this.document('settings', await this.requestJson('PATCH', '/api/memory/settings', { body }))
   }
 
   async listItems(scope: 'short_term' | 'mid_term' = 'short_term'): Promise<MemoryDocument> {
     const normalized = normalizeScope(scope)
     if (normalized === 'all') throw new Error('memory item listing does not accept all scope')
-    return this.document('items', await this.requestJson('GET', '/memory/items', { query: { scope: normalized } }))
+    return this.document('items', await this.requestJson('GET', '/api/memory/items', { query: { scope: normalized } }))
   }
 
   async listProposals(query: MemoryProposalQuery = {}): Promise<MemoryDocument> {
-    return this.document('proposals', await this.requestJson('GET', '/memory/proposals', {
+    return this.document('proposals', await this.requestJson('GET', '/api/memory/proposals', {
       query: { status: normalizeStatus(query.status) },
     }))
   }
 
   async approveProposal(proposalId: string): Promise<MemoryDocument> {
     const id = normalizeIdentifier(proposalId, 'proposalId')
-    return this.document('proposal', await this.requestJson('POST', `/memory/proposals/${encodeURIComponent(id)}/approve`))
+    return this.document('proposal', await this.requestJson('POST', `/api/memory/proposals/${encodeURIComponent(id)}/approve`))
   }
 
   async rejectProposal(proposalId: string): Promise<MemoryDocument> {
     const id = normalizeIdentifier(proposalId, 'proposalId')
-    return this.document('proposal', await this.requestJson('POST', `/memory/proposals/${encodeURIComponent(id)}/reject`))
+    return this.document('proposal', await this.requestJson('POST', `/api/memory/proposals/${encodeURIComponent(id)}/reject`))
   }
 
   async deleteItem(memoryId: string): Promise<MemoryDocument> {
     const id = normalizeIdentifier(memoryId, 'memoryId')
-    return this.document('mutation', await this.requestJson('DELETE', `/memory/items/${encodeURIComponent(id)}`))
+    return this.document('mutation', await this.requestJson('DELETE', `/api/memory/items/${encodeURIComponent(id)}`))
   }
 
   async clear(scope: MemoryScope = 'all'): Promise<MemoryDocument> {
     const normalized = normalizeScope(scope)
-    return this.document('mutation', await this.requestJson('POST', '/memory/clear', {
+    return this.document('mutation', await this.requestJson('POST', '/api/memory/clear', {
       body: { scope: normalized },
     }))
   }
 
   async exportDescriptor(): Promise<MemoryDocument> {
-    return this.document('export', await this.requestJson('GET', '/memory/export'))
+    return this.document('export', await this.requestJson('GET', '/api/memory/export'))
   }
 
   async exportData(): Promise<MemoryExport> {
     const controller = this.controller()
     const timer = setTimeout(() => controller.abort(), this.timeoutMs)
     try {
-      const response = await fetch(this.url('/memory/export', { download: 1 }), {
+      const response = await fetch(this.url('/api/memory/export', { download: 1 }), {
         signal: controller.signal,
         headers: {
           Accept: 'application/json',

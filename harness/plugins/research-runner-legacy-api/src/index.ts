@@ -113,7 +113,7 @@ export class LegacyApiResearchSandboxProvider extends ResearchSandboxService {
     const code = request.code
     if (!code.trim()) throw new Error('research code must not be empty')
     if (request.datasetRefs && request.datasetRefs.length > 8) throw new Error('research runner accepts at most 8 dataset refs')
-    return this.document(await this.json('POST', '/research/run', {
+    return this.document(await this.json('POST', '/api/research/run', {
       code,
       dataset_refs: request.datasetRefs ?? [],
       limits: request.limits ?? {},
@@ -122,17 +122,17 @@ export class LegacyApiResearchSandboxProvider extends ResearchSandboxService {
   }
 
   async getRun(runId: string): Promise<ResearchRunDocument> {
-    return this.document(await this.json('GET', `/research/run/${encodeURIComponent(identifier(runId, 'runId'))}`))
+    return this.document(await this.json('GET', `/api/research/run/${encodeURIComponent(identifier(runId, 'runId'))}`))
   }
 
   async cancelRun(runId: string): Promise<ResearchRunDocument> {
-    return this.document(await this.json('POST', `/research/run/${encodeURIComponent(identifier(runId, 'runId'))}/cancel`))
+    return this.document(await this.json('POST', `/api/research/run/${encodeURIComponent(identifier(runId, 'runId'))}/cancel`))
   }
 
   async figure(runId: string, name: string): Promise<ResearchArtifact> {
     const safeRunId = identifier(runId, 'runId')
     const safeName = figureName(name)
-    return this.withResponse(`/research/run/${encodeURIComponent(safeRunId)}/files/${encodeURIComponent(safeName)}`, {
+    return this.withResponse(`/api/research/run/${encodeURIComponent(safeRunId)}/files/${encodeURIComponent(safeName)}`, {
       method: 'GET', headers: { Accept: '*/*', Authorization: `Bearer ${this.token()}` },
     }, async response => {
       if (!response.ok) throw new Error(`research figure API returned HTTP ${response.status}`)
