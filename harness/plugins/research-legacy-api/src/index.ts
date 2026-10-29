@@ -6,6 +6,10 @@ import ResearchService, {
   type ResearchJson,
   type ResearchKind,
 } from '@puregamma/dsh-research'
+import { LegacyApiResearchRunsProvider } from './runs.ts'
+
+export { createResearchRunsClient, LegacyApiResearchRunsProvider, parseServerSentEvents, researchRunId } from './runs.ts'
+export type { ResearchRunsClient, ResearchRunsClientOptions } from './runs.ts'
 
 export interface Config {
   baseUrl?: string
@@ -105,6 +109,9 @@ export class LegacyApiResearchProvider extends ResearchService {
     this.bearer = createBearerSource(config)
     this.tokenEnv = this.bearer.description
     this.timeoutMs = config.requestTimeoutMs ?? 10000
+    // Deep-research run reads share this provider's base URL and bearer source;
+    // the child fiber is disposed with this plugin.
+    ctx.plugin(LegacyApiResearchRunsProvider, { ...config, baseUrl: this.baseUrl, bearer: this.bearer })
   }
 
   private async request(path: string, query: Record<string, string | number | undefined> = {}): Promise<Record<string, ResearchJson>> {

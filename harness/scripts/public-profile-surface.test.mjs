@@ -237,3 +237,25 @@ test('the browser gets a fileUpload service that refuses every upload without to
   assert.equal(result.error.code, UPLOAD_DISABLED_CODE)
   await assert.rejects(service.post({ path: 'x', body: new Uint8Array() }), /disabled/)
 })
+
+test('the research/backtest resource views ship off, and their overlay flips only that row', async () => {
+  const row = profileRows.get('puregamma-ui-research-resources')
+  assert.equal(row?.name, '@puregamma/dsh-ui-research-resources')
+  assert.equal(row?.disabled, true, 'new resource views are off unless resource-views.patch.yml is applied')
+  const viewRows = topLevelRows(await loadPatch(path.join(harnessRoot, 'profile', 'resource-views.patch.yml')))
+  assert.deepEqual([...viewRows.keys()], ['puregamma-ui-research-resources'])
+  assert.deepEqual(viewRows.get('puregamma-ui-research-resources'), { id: 'puregamma-ui-research-resources', disabled: false })
+  for (const overlays of [[viewRows], [overlayRows, viewRows]]) {
+    const effective = compose(await bundleRows(), profileRows, ...overlays)
+    assert.equal(effective.get('puregamma-ui-research-resources')?.disabled, false)
+    for (const id of ['file-upload', 'terminal-controller', 'workspace-files', 'ui-sidebar-terminal', 'ui-sidebar-files', 'ui-plugin-manager', 'preset-ptc', 'preset-minimal', 'preset-cordis', 'directory-picker']) {
+      assert.equal(effective.get(id)?.disabled, true, `${id} must stay disabled with the resource-views overlay`)
+    }
+  }
+  // Browser-only plugin: it injects only resource/sidebar/locale services and
+  // the PureGamma Remote assembly; nothing that reaches files, shells or uploads.
+  const manifest = JSON.parse(await fs.readFile(path.join(harnessRoot, 'plugins', 'ui-research-resources', 'package.json'), 'utf8'))
+  assert.deepEqual(manifest.dsh.client.inject, ['@puregamma/dsh-client-remotes', '@deepseek-ai/dsh-client-resources', '@deepseek-ai/dsh-client-ui-sidebar-right', '@deepseek-ai/dsh-client-locale', '@deepseek-ai/dsh-client-ui-renderer'])
+  const host = await fs.readFile(path.join(harnessRoot, 'plugins', 'ui-research-resources', 'src', 'index.ts'), 'utf8')
+  assert.match(host, /export function apply\(\): void \{\}/, 'the Host half registers nothing')
+})
