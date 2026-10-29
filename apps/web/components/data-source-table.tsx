@@ -6,6 +6,7 @@ import type { LucideIcon } from "lucide-react";
 import { DataSourceStatusBadge } from "@/components/puregamma";
 import type { Locale } from "@/i18n/routing";
 import { checkDataSource, controlDataSource, DataSourcePreview, DataSourceRow, getDataSourcePreview, getDataSources, syncDataSource } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 const PRIMARY = ["rss", "fintwit", "x-twitter", "bloomberg"];
 const primarySources = (rows: DataSourceRow[]) => rows.filter((row) => PRIMARY.includes(row.id)).sort((left, right) => PRIMARY.indexOf(left.id) - PRIMARY.indexOf(right.id));
@@ -90,4 +91,4 @@ export function DataSourceTable({ initialSources, locale }: { initialSources: Da
 }
 
 function Metric({ label, value }: { label: string; value: string }) { return <div className="min-w-0"><dt className="text-xs text-text-pg-dim">{label}</dt><dd className="mt-1 truncate font-medium" title={value}>{value}</dd></div>; }
-function IconButton({ title, disabled, onClick, icon: Icon, spin = false }: { title: string; disabled: boolean; onClick: () => void; icon: LucideIcon; spin?: boolean }) { return <button type="button" onClick={onClick} disabled={disabled} className="grid h-9 w-9 place-items-center border border-border-pg hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-35 rounded-lg" title={title} aria-label={title}><Icon className={`h-4 w-4 ${spin ? "animate-spin" : ""}`} /></button>; }
+function IconButton({ title, disabled, onClick, icon: Icon, spin = false }: { title: string; disabled: boolean; onClick: () => void; icon: LucideIcon; spin?: boolean }) { return <Button variant="secondary" type="button" onClick={onClick} disabled={disabled} className="grid h-9 w-9 place-items-center disabled:cursor-not-allowed disabled:opacity-35 rounded-lg" title={title} aria-label={title}><Icon className={`h-4 w-4 ${spin ? "animate-spin" : ""}`} /></Button>; }

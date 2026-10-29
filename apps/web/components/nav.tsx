@@ -21,6 +21,7 @@ import { useDialogFocus } from "@/lib/use-dialog-focus";
 import { Chronosphere } from "@/components/chrono/chronosphere";
 import { PluginRuntime } from "@/plugins/core/runtime";
 import { usePluginNavItems } from "@/plugins/core/services/navigation";
+import { Button } from "@/components/ui";
 
 type NavItem = {
   href: string;
@@ -192,7 +193,7 @@ export function MobileNavDrawer({ locale, open, onClose }: { locale: Locale; ope
           <Link href={withLocale(locale, "/")} className="flex min-w-0 items-center text-text-pg">
             <BrandLockup size="compact" />
           </Link>
-          <button type="button" onClick={onClose} aria-label={locale === "zh" ? "关闭导航" : "Close navigation"} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong rounded-lg"><X className="h-4 w-4" /></button>
+          <Button variant="secondary" type="button" onClick={onClose} aria-label={locale === "zh" ? "关闭导航" : "Close navigation"} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg"><X className="h-4 w-4" /></Button>
         </div>
         <nav className="mt-6 flex-1 space-y-7 overflow-y-auto" aria-label={locale === "zh" ? "主导航" : "Primary navigation"}>
           {groups.map((group) => (
@@ -337,7 +338,7 @@ export function TopStatusBar({ locale, onMenuClick, menuOpen = false }: { locale
           reachable, and the brand is no longer compressible. Font size was not
           reduced to make things fit.
         */}
-        <button type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} aria-expanded={menuOpen} aria-controls="mobile-primary-nav" aria-haspopup="dialog" className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted hover:border-border-pg-strong lg:hidden rounded-lg" data-testid="nav-menu-button"><Menu className="h-4 w-4" /></button>
+        <Button variant="secondary" type="button" onClick={onMenuClick} aria-label={locale === "zh" ? "打开导航" : "Open navigation"} aria-expanded={menuOpen} aria-controls="mobile-primary-nav" aria-haspopup="dialog" className="grid h-9 w-9 shrink-0 place-items-center lg:hidden rounded-lg" data-testid="nav-menu-button"><Menu className="h-4 w-4" /></Button>
         <Link
           href={withLocale(locale, "/")}
           className="flex shrink-0 items-center whitespace-nowrap text-text-pg lg:hidden"

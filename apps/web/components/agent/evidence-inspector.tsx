@@ -7,6 +7,7 @@ import type { Locale } from "@/i18n/routing";
 import type { AgentEvidenceSummary, AgentSource } from "@/lib/api";
 import { sourceAgeMinutes } from "@/lib/agent-run-events";
 import { useDialogFocus } from "@/lib/use-dialog-focus";
+import { Button } from "@/components/ui";
 
 const COPY = {
   en: {
@@ -101,7 +102,7 @@ export function EvidenceInspector({ locale, messageId, sources, evidence, focus,
       >
         <div className="flex items-center justify-between gap-2 border-b border-border-pg p-4">
           <h2 id="evidence-inspector-title" className="flex items-center gap-2 text-sm font-semibold"><SearchCheck className="h-4 w-4" aria-hidden />{copy.title} · {copy.sources(ordered.length)}</h2>
-          <button ref={closeRef} type="button" onClick={onClose} aria-label={copy.close} className="grid h-9 w-9 place-items-center rounded-lg hover:bg-[var(--pg-surface-hover)]"><X className="h-4 w-4" /></button>
+          <Button variant="ghost" ref={closeRef} type="button" onClick={onClose} aria-label={copy.close} className="grid h-9 w-9 place-items-center rounded-lg"><X className="h-4 w-4" /></Button>
         </div>
         <div className="min-h-0 flex-1 overflow-y-auto p-4 text-sm">
           <p className={`rounded-lg px-3 py-2 text-xs ${evidence ? (evidence.sufficient ? "bg-[var(--pg-surface-2)] text-text-pg-muted" : "bg-[var(--pg-warning-soft,var(--pg-surface-2))] text-status-warning") : "bg-[var(--pg-surface-2)] text-text-pg-dim"}`} data-testid="evidence-status">
@@ -126,7 +127,7 @@ export function EvidenceInspector({ locale, messageId, sources, evidence, focus,
                       </dl>
                       <p className={`mt-1 text-xs ${stale ? "text-status-warning" : "text-text-pg-dim"}`}>{age === null ? copy.unknownTime : copy.age(age)}{stale ? ` · ${copy.stale}` : ""}</p>
                       <div className="mt-2 flex flex-wrap gap-2">
-                        <button type="button" onClick={() => backToAnswer(source.citation_index)} className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs text-text-pg-muted hover:bg-[var(--pg-surface-hover)]"><CornerUpLeft className="h-3 w-3" aria-hidden />{copy.back}</button>
+                        <Button variant="ghost" size="sm" type="button" onClick={() => backToAnswer(source.citation_index)} className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs"><CornerUpLeft className="h-3 w-3" aria-hidden />{copy.back}</Button>
                         {source.url ? <a href={source.url} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-8 items-center gap-1 rounded-md px-2 text-xs text-accent hover:bg-[var(--pg-surface-hover)]">{copy.open}<ArrowUpRight className="h-3 w-3" aria-hidden /></a> : null}
                       </div>
                     </div>

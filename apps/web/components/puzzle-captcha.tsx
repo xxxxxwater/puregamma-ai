@@ -3,6 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { getCaptchaPuzzle } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 type Puzzle = {
   captcha_id: string;
@@ -96,9 +97,9 @@ export function PuzzleCaptcha({
     <div className="space-y-2">
       <div className="flex items-center justify-between text-11 text-text-pg-dim">
         <span>{labels.instruction}</span>
-        <button type="button" disabled={disabled} onClick={() => { onReset(); void load(); }} className="inline-flex items-center gap-1 text-text-pg-muted transition hover:text-text-pg disabled:cursor-not-allowed disabled:opacity-50" aria-label="refresh captcha">
+        <Button variant="ghost" type="button" disabled={disabled} onClick={() => { onReset(); void load(); }} className="inline-flex items-center gap-1 disabled:cursor-not-allowed disabled:opacity-50" aria-label="refresh captcha">
           <RefreshCw className="h-3 w-3" />
-        </button>
+        </Button>
       </div>
       <div ref={trackRef} className="relative select-none overflow-hidden border border-border-pg rounded-xl" style={{ width: TRACK_WIDTH, maxWidth: "100%" }}>
         {loading || !puzzle ? (

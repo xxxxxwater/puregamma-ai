@@ -3,6 +3,7 @@
 import { ChevronDown, ChevronUp, Radio } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiWebSocketBaseUrl } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 type Locale = "en" | "zh";
 
@@ -243,9 +244,9 @@ export function HyperliquidMarketPanel({ locale }: { locale: Locale }) {
           <h2 className="mt-1 text-lg font-semibold text-text-pg">{copy.title}</h2>
           <p className="mt-1 text-xs text-text-pg-muted">{copy.subtitle}</p>
         </div>
-        <button type="button" onClick={() => setIsOpen((open) => !open)} className="grid h-9 w-9 shrink-0 place-items-center border border-border-pg text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg" aria-expanded={isOpen} aria-label={isOpen ? copy.collapse : copy.expand} title={isOpen ? copy.collapse : copy.expand}>
+        <Button variant="secondary" type="button" onClick={() => setIsOpen((open) => !open)} className="grid h-9 w-9 shrink-0 place-items-center rounded-lg" aria-expanded={isOpen} aria-label={isOpen ? copy.collapse : copy.expand} title={isOpen ? copy.collapse : copy.expand}>
           {isOpen ? <ChevronUp className="h-4 w-4" /> : <ChevronDown className="h-4 w-4" />}
-        </button>
+        </Button>
       </div>
       {isOpen ? <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] font-mono text-sm">

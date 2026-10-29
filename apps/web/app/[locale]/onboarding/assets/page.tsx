@@ -7,6 +7,7 @@ import { Badge } from "@/components/puregamma";
 import { normalizeLocale, withLocale, type Locale } from "@/i18n/routing";
 import { SelectionBox } from "@/components/selection-box";
 import { getMessageNamespace, t } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 export default function LocalizedOnboardingAssetsPage({ params }: { params: { locale: string } }) {
   const locale = normalizeLocale(params.locale);
@@ -37,12 +38,12 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
         <h1 className="mt-4 text-3xl font-semibold">{copy.title}</h1>
         <p className="mt-3 max-w-xl text-sm leading-6 text-text-pg-muted">{copy.subtitle}</p>
         <div className="mt-4 flex gap-2">
-          <button onClick={() => setSelected(new Set(copy.items.map((asset) => asset.symbol)))} className="border border-border-pg px-3 py-1.5 text-xs hover:border-border-pg-strong rounded-lg">
+          <Button variant="secondary" size="sm" onClick={() => setSelected(new Set(copy.items.map((asset) => asset.symbol)))} className="px-3 py-1.5 text-xs rounded-lg">
             {copy.selectAll}
-          </button>
-          <button onClick={() => setSelected(new Set())} className="border border-border-pg px-3 py-1.5 text-xs hover:border-border-pg-strong rounded-lg">
+          </Button>
+          <Button variant="secondary" size="sm" onClick={() => setSelected(new Set())} className="px-3 py-1.5 text-xs rounded-lg">
             {copy.clear}
-          </button>
+          </Button>
         </div>
       </div>
 
@@ -77,13 +78,13 @@ export default function LocalizedOnboardingAssetsPage({ params }: { params: { lo
           <Info className="h-4 w-4 shrink-0" aria-hidden />
           {selectedLabel(locale, selected.size)}
         </div>
-        <button
+        <Button variant="primary"
           onClick={handleContinue}
           disabled={selected.size === 0}
-          className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-5 py-2.5 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
+          className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-40 rounded-lg"
         >
           {copy.continue} <ArrowRight className="h-4 w-4" aria-hidden />
-        </button>
+        </Button>
       </div>
     </div>
   );

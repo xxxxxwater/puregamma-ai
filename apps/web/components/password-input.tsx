@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { Eye, EyeOff } from "lucide-react";
+import { Button } from "@/components/ui";
 
 export function PasswordInput({
   value,
@@ -29,15 +30,15 @@ export function PasswordInput({
         minLength={minLength}
         autoComplete={autoComplete}
       />
-      <button
+      <Button variant="ghost"
         type="button"
         onClick={() => setVisible((current) => !current)}
         aria-label={visible ? "Hide password" : "Show password"}
         aria-pressed={visible}
-        className="absolute right-2 top-1/2 -translate-y-1/2 p-1 text-text-pg-dim transition hover:text-text-pg"
+        className="absolute right-2 top-1/2 -translate-y-1/2 p-1"
       >
         {visible ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-      </button>
+      </Button>
     </div>
   );
 }

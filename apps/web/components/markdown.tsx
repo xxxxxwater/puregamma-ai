@@ -4,6 +4,7 @@ import { useState, type ReactNode } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { Check, Copy } from "lucide-react";
+import { Button } from "@/components/ui";
 
 /** Every element override receives the same shape from react-markdown. */
 type MdProps = { children?: ReactNode; className?: string; href?: string; src?: string; alt?: string };
@@ -51,15 +52,15 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
     <div className="my-4 overflow-hidden border border-border-pg bg-bg-panel-muted rounded-lg">
       <div className="flex items-center justify-between gap-2 border-b border-border-pg px-3 py-1.5">
         <span className="font-mono text-11 uppercase tracking-[0.12em] text-text-pg-dim">{language || "text"}</span>
-        <button
+        <Button variant="ghost" size="sm"
           type="button"
           onClick={() => void copy()}
           aria-label={copied ? "Copied" : "Copy code"}
-          className="inline-flex min-h-7 items-center gap-1 px-1.5 text-11 text-text-pg-dim transition hover:text-text-pg rounded focus-visible:ring-2 focus-visible:ring-accent-ring focus-visible:outline-none"
+          className="inline-flex min-h-7 items-center gap-1 px-1.5 text-11 rounded"
         >
           {copied ? <Check className="h-3 w-3 text-status-positive" aria-hidden /> : <Copy className="h-3 w-3" aria-hidden />}
           {copied ? "Copied" : "Copy"}
-        </button>
+        </Button>
       </div>
       <pre className="touch-pan-x overflow-x-auto overscroll-x-contain p-3 text-13 leading-[20px]">
         <code className="font-mono text-text-pg">{code}</code>

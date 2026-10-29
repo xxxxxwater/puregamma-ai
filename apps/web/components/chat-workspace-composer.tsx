@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Paperclip, ArrowUp, Square, X, FileText, Loader2, RotateCcw, ShieldCheck } from "lucide-react";
 import { apiBaseUrl, uploadAgentAttachmentWithProgress, deleteAgentAttachment, getChatWorkspaceCapabilities, type AgentAttachment, type AgentPermissionMode } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 const copy = {
   zh: { add: "添加文件", remove: "移除", retry: "重试", uploading: "上传中", failed: "上传失败", send: "发送", stop: "停止生成", placeholder: "向 PureGamma 提问…", permission: "对话权限", read: "仅可查看", ask: "修改前确认", full: "自动执行（已停用，按修改前确认执行）", scope: "权限仅适用于你自己的 PureGamma 数据与工具。", drop: "松开以添加附件", unavailable: "附件服务暂不可用", limit: "文件数量或大小超限", storage: "存储额度已满，请先移除已上传的附件。", unsupported: "不支持此文件格式", error: "请检查文件格式、大小或存储额度后重试。", preview: "预览图片", close: "关闭预览", files: "附件", select: "请选择文件", details: "研究设置", research: "研究", online: "联网", imageNote: "图片仅支持 DeepSeek V4.1 Flash。", fileOnly: "请分析所附文件。", removeStored: "移除并释放额度", removing: "移除中", removed: "已移除", removeFailed: "无法移除，请稍后重试。" },
@@ -19,20 +20,20 @@ export function AttachmentCards({ files, locale, onRemove }: { files: AgentAttac
   return <>
     <div className="flex max-w-full gap-2 overflow-x-auto py-2" aria-label={t.files}>
       {files.map((file, index) => <div key={file.id || `${file.name}-${index}`} className="relative flex h-16 w-56 shrink-0 items-center gap-3 rounded-lg bg-[var(--pg-surface-2)] px-3 text-sm">
-        {file.kind === "image" && file.url ? <button type="button" onClick={() => setPreview(file)} aria-label={`${t.preview}: ${file.name}`} className="shrink-0 rounded-md focus-visible:ring-2">
+        {file.kind === "image" && file.url ? <Button variant="ghost" type="button" onClick={() => setPreview(file)} aria-label={`${t.preview}: ${file.name}`} className="shrink-0 rounded-md">
           {/* Authenticated immutable image endpoint; never a public storage URL. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img src={url(file)} alt={file.name} className="h-12 w-12 rounded-md object-cover" />
-        </button> : <FileText className="h-6 w-6 shrink-0 text-text-pg-muted" />}
+        </Button> : <FileText className="h-6 w-6 shrink-0 text-text-pg-muted" />}
         <div className="min-w-0 flex-1">
           {file.url ? <a href={url(file)} target="_blank" rel="noreferrer" className="block truncate underline-offset-2 hover:underline" title={file.name}>{file.name}</a> : <span className="block truncate" title={file.name}>{file.name}</span>}
           <span className="text-xs text-text-pg-muted">{file.name.split(".").pop()?.toUpperCase()} · {file.removed ? t.removed : `${Math.ceil((file.size ?? new TextEncoder().encode(file.content).length) / 1024)} KB`}</span>
         </div>
-        {onRemove && !file.removed ? <button type="button" onClick={() => onRemove(index)} aria-label={`${t.remove}: ${file.name}`} className="grid h-9 w-8 shrink-0 place-items-center rounded-md hover:bg-[var(--pg-surface-hover)]"><X className="h-4 w-4" /></button> : null}
+        {onRemove && !file.removed ? <Button variant="ghost" type="button" onClick={() => onRemove(index)} aria-label={`${t.remove}: ${file.name}`} className="grid h-9 w-8 shrink-0 place-items-center rounded-md"><X className="h-4 w-4" /></Button> : null}
       </div>)}
     </div>
     <dialog ref={dialog} onClose={() => setPreview(null)} onClick={event => { if (event.target === dialog.current) dialog.current.close(); }} className="max-h-[90dvh] max-w-[92vw] rounded-xl bg-[var(--pg-surface-1)] p-4 text-text-pg backdrop:bg-black/60">
-      <button type="button" autoFocus onClick={() => dialog.current?.close()} className="mb-3 flex min-h-10 items-center gap-2" aria-label={t.close}><X className="h-5 w-5" />{t.close}</button>
+      <Button variant="ghost" type="button" autoFocus onClick={() => dialog.current?.close()} className="mb-3 flex min-h-10 items-center gap-2" aria-label={t.close}><X className="h-5 w-5" />{t.close}</Button>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {preview ? <img src={url(preview)} alt={preview.name} className="max-h-[72dvh] max-w-full object-contain" /> : null}
     </dialog>
@@ -141,7 +142,7 @@ export function ChatWorkspaceComposer(p: Props) {
     {p.attachments.length ? <AttachmentCards files={p.attachments} locale={p.locale} onRemove={p.busy || uploading || removing ? undefined : index => void removeStored(index)} /> : null}
     {removing ? <div className="flex items-center gap-2 py-1 text-sm" role="status"><Loader2 className="h-4 w-4 animate-spin" />{t.removing} · {p.attachments.find(item => item.id === removing)?.name || ""}</div> : null}
     {uploading ? <div className="flex items-center gap-2 py-2 text-sm" role="status"><Loader2 className="h-4 w-4 animate-spin motion-reduce:animate-none" />{t.uploading} · {uploading}{progress !== null ? <><span className="tabular-nums text-text-pg-muted">{Math.round(progress * 100)}%</span><span className="h-1 w-24 overflow-hidden rounded-full bg-[var(--pg-surface-2)]" aria-hidden><span className="block h-full bg-text-pg-muted transition-[width]" style={{ width: `${Math.round(progress * 100)}%` }} /></span></> : null}</div> : null}
-    {failed.map((file, index) => <div key={`${file.name}-${index}`} className="flex items-center gap-2 py-1 text-sm text-status-negative"><span className="min-w-0 flex-1 truncate">{t.failed}: {file.name}</span><button disabled={!!uploading || p.busy} type="button" className="p-2" onClick={() => void add([file])} aria-label={`${t.retry}: ${file.name}`}><RotateCcw className="h-4 w-4" /></button><button type="button" className="p-2" onClick={() => setFailed(current => current.filter(item => item !== file))} aria-label={`${t.remove}: ${file.name}`}><X className="h-4 w-4" /></button></div>)}
+    {failed.map((file, index) => <div key={`${file.name}-${index}`} className="flex items-center gap-2 py-1 text-sm text-status-negative"><span className="min-w-0 flex-1 truncate">{t.failed}: {file.name}</span><Button variant="ghost" disabled={!!uploading || p.busy} type="button" className="p-2" onClick={() => void add([file])} aria-label={`${t.retry}: ${file.name}`}><RotateCcw className="h-4 w-4" /></Button><Button variant="ghost" type="button" className="p-2" onClick={() => setFailed(current => current.filter(item => item !== file))} aria-label={`${t.remove}: ${file.name}`}><X className="h-4 w-4" /></Button></div>)}
     <form onSubmit={event => { event.preventDefault(); if (!uploadLock.current && !changing && !failed.length) p.onSend(); }} className="rounded-2xl border border-border-pg bg-[var(--pg-surface-raised)] p-3 shadow-card transition focus-within:border-border-pg-strong focus-within:ring-2 focus-within:ring-[var(--pg-focus-ring)]">
       <textarea ref={node => { textarea.current = node; p.onTextarea?.(node); }} value={p.input} onChange={event => p.onInput(event.target.value)} rows={2} aria-label={t.placeholder} placeholder={t.placeholder} data-testid="chat-composer-input"
         onPaste={event => { if (event.clipboardData.files.length) { event.preventDefault(); void add(Array.from(event.clipboardData.files)); } }}
@@ -149,15 +150,15 @@ export function ChatWorkspaceComposer(p: Props) {
         className="block min-h-16 w-full resize-none bg-transparent px-1 py-2 text-base leading-6 text-text-pg outline-none" />
       <div className="flex flex-wrap items-center gap-1.5">
         <input ref={input} type="file" multiple accept={limits?.file_types.map(ext => `.${ext}`).join(",")} className="hidden" onChange={event => void add(Array.from(event.target.files || []))} />
-        <button type="button" disabled={p.busy || !!uploading || !limits} onClick={() => input.current?.click()} aria-label={t.add} title={limits ? `${limits.max_files} files · ${limits.max_file_bytes / 1048576} MB/file` : t.unavailable} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg hover:bg-[var(--pg-surface-hover)] disabled:opacity-40"><Paperclip className="h-5 w-5" /></button>
+        <Button variant="ghost" type="button" disabled={p.busy || !!uploading || !limits} onClick={() => input.current?.click()} aria-label={t.add} title={limits ? `${limits.max_files} files · ${limits.max_file_bytes / 1048576} MB/file` : t.unavailable} className="grid h-10 w-10 shrink-0 place-items-center rounded-lg disabled:opacity-40"><Paperclip className="h-5 w-5" /></Button>
         <div className="min-w-0 max-w-full">{p.modelControl}{p.modelNote ? <span className="sr-only">{p.modelNote}</span> : null}</div>
         <label className="flex min-w-0 items-center gap-1 text-xs text-text-pg-muted" title={t.scope}><ShieldCheck className="h-4 w-4 shrink-0" /><span className="sr-only">{t.permission}</span><select aria-label={t.permission} disabled={p.busy || changing} value={p.permission} onChange={event => void changePermission(event.target.value as AgentPermissionMode)} className="min-h-10 max-w-full rounded-xl bg-transparent text-text-pg focus-visible:ring-2">{selectable.includes("read-only") ? <option value="read-only">{t.read}</option> : null}{selectable.includes("workspace-write") ? <option value="workspace-write">{t.ask}</option> : null}{p.permission === "full-access" ? <option value="full-access" disabled>{t.full}</option> : null}</select></label>
-        <button type="button" disabled={p.busy} onClick={() => p.onResearch(!p.researchMode)} aria-pressed={p.researchMode} className="min-h-10 rounded-xl px-2 text-xs text-text-pg-muted hover:bg-[var(--pg-surface-hover)]">{p.researchMode ? t.research : t.online}</button>
-        <div className="ml-auto">{p.busy ? <button type="button" onClick={p.onStop} aria-label={t.stop} data-testid="chat-stop" className="grid h-11 w-11 place-items-center rounded-xl text-status-negative hover:bg-[var(--pg-surface-hover)]"><Square className="h-5 w-5" /></button> : <button type="submit" disabled={(!p.input.trim() && !p.attachments.length) || !!uploading || changing || !!failed.length} aria-label={t.send} className="grid h-11 w-11 place-items-center rounded-xl bg-[var(--pg-surface-inverse)] text-[var(--pg-text-inverse)] transition hover:shadow-card-hover disabled:opacity-40"><ArrowUp className="h-5 w-5" /></button>}</div>
+        <Button variant="ghost" size="sm" type="button" disabled={p.busy} onClick={() => p.onResearch(!p.researchMode)} aria-pressed={p.researchMode} className="min-h-10 rounded-xl px-2 text-xs">{p.researchMode ? t.research : t.online}</Button>
+        <div className="ml-auto">{p.busy ? <Button variant="danger" size="lg" type="button" onClick={p.onStop} aria-label={t.stop} data-testid="chat-stop" className="grid h-11 w-11 place-items-center rounded-xl"><Square className="h-5 w-5" /></Button> : <Button variant="primary" size="lg" type="submit" disabled={(!p.input.trim() && !p.attachments.length) || !!uploading || changing || !!failed.length} aria-label={t.send} className="grid h-11 w-11 place-items-center rounded-xl disabled:opacity-40"><ArrowUp className="h-5 w-5" /></Button>}</div>
       </div>
     </form>
     {p.modelNote ? <p className="mt-1 px-1 text-11 text-text-pg-dim" data-testid="model-note">{p.modelNote}</p> : null}
-    {error ? <p role="alert" className="mt-2 text-sm text-status-negative">{error} <button onClick={() => setError("")} aria-label={t.remove} type="button" className="p-1">×</button></p> : null}
+    {error ? <p role="alert" className="mt-2 text-sm text-status-negative">{error} <Button variant="ghost" onClick={() => setError("")} aria-label={t.remove} type="button" className="p-1">×</Button></p> : null}
     {p.researchMode ? <details className="mt-2 text-sm text-text-pg-muted"><summary className="cursor-pointer py-1">{t.details}</summary><div className="max-h-[40dvh] overflow-y-auto py-3">{p.settings}</div></details> : null}
   </div>;
 }

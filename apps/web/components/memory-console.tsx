@@ -6,6 +6,7 @@ import { CapabilityGate, useCapabilityGate } from "@/components/ocean/capability
 import { StatusBadge } from "@/components/ocean/status-badge";
 import { clearMemory, decideMemoryProposal, deleteMemoryItem, exportMemory, getMemoryItems, getMemoryProposals, getMemorySettings, updateMemorySettings, type MemoryItem, type MemoryProposal, type MemorySettings } from "@/lib/api";
 import { type Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 type ScopeKey = "short_term" | "mid_term" | "conversation_summary" | "research_memory" | "portfolio_memory";
 
@@ -242,8 +243,8 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
                         : `Enabling "${SCOPES.find((item) => item.key === consentPrompt)?.en}" lets the Agent propose memory items in this scope; nothing is saved until you approve each proposal. You can disable or delete at any time.`}
                     </p>
                     <div className="mt-3 flex flex-wrap gap-2">
-                      <button type="button" onClick={() => void grantConsent()} disabled={busy.startsWith("consent")} className="inline-flex items-center gap-1.5 border border-border-pg-strong px-3 py-2 text-xs font-medium disabled:opacity-40 rounded-lg"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden />{zh ? "同意并开启" : "Agree and enable"}</button>
-                      <button type="button" onClick={() => setConsentPrompt(null)} className="border border-border-pg px-3 py-2 text-xs rounded-lg">{zh ? "暂不开启" : "Not now"}</button>
+                      <Button variant="secondary" size="sm" type="button" onClick={() => void grantConsent()} disabled={busy.startsWith("consent")} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs disabled:opacity-40 rounded-lg"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden />{zh ? "同意并开启" : "Agree and enable"}</Button>
+                      <Button variant="secondary" size="sm" type="button" onClick={() => setConsentPrompt(null)} className="px-3 py-2 text-xs rounded-lg">{zh ? "暂不开启" : "Not now"}</Button>
                     </div>
                   </div>
                 </div>
@@ -271,8 +272,8 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
                         <p className="mt-1 text-11 text-text-pg-dim">{zh ? "来源" : "Source"}: {proposal.source}</p>
                       </div>
                       <div className="flex shrink-0 gap-2">
-                        <button type="button" onClick={() => void approve(proposal)} disabled={busy === `proposal:${proposal.id}`} className="inline-flex items-center gap-1 border border-border-pg-strong px-2.5 py-1.5 text-xs font-medium disabled:opacity-40 rounded-lg"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden />{zh ? "批准写入" : "Approve"}</button>
-                        <button type="button" onClick={() => void reject(proposal)} disabled={busy === `proposal:${proposal.id}`} className="inline-flex items-center gap-1 border border-border-pg px-2.5 py-1.5 text-xs disabled:opacity-40 rounded-lg"><XCircle className="h-3.5 w-3.5" aria-hidden />{zh ? "拒绝" : "Reject"}</button>
+                        <Button variant="secondary" size="sm" type="button" onClick={() => void approve(proposal)} disabled={busy === `proposal:${proposal.id}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs disabled:opacity-40 rounded-lg"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden />{zh ? "批准写入" : "Approve"}</Button>
+                        <Button variant="secondary" size="sm" type="button" onClick={() => void reject(proposal)} disabled={busy === `proposal:${proposal.id}`} className="inline-flex items-center gap-1 px-2.5 py-1.5 text-xs disabled:opacity-40 rounded-lg"><XCircle className="h-3.5 w-3.5" aria-hidden />{zh ? "拒绝" : "Reject"}</Button>
                       </div>
                     </li>
                   ))}
@@ -300,11 +301,11 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
                       </div>
                       {confirmDelete === item.id ? (
                         <div className="flex shrink-0 gap-2">
-                          <button type="button" onClick={() => void removeItem(item)} disabled={busy === `delete:${item.id}`} className="border border-status-negative px-2.5 py-1.5 text-xs font-medium text-status-negative disabled:opacity-40 rounded-lg">{zh ? "确认删除" : "Confirm delete"}</button>
-                          <button type="button" onClick={() => setConfirmDelete(null)} className="border border-border-pg px-2.5 py-1.5 text-xs rounded-lg">{zh ? "取消" : "Cancel"}</button>
+                          <Button variant="danger" size="sm" type="button" onClick={() => void removeItem(item)} disabled={busy === `delete:${item.id}`} className="px-2.5 py-1.5 text-xs disabled:opacity-40 rounded-lg">{zh ? "确认删除" : "Confirm delete"}</Button>
+                          <Button variant="secondary" size="sm" type="button" onClick={() => setConfirmDelete(null)} className="px-2.5 py-1.5 text-xs rounded-lg">{zh ? "取消" : "Cancel"}</Button>
                         </div>
                       ) : (
-                        <button type="button" onClick={() => setConfirmDelete(item.id)} className="inline-flex shrink-0 items-center gap-1 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted hover:border-status-negative hover:text-status-negative rounded-lg"><Trash2 className="h-3.5 w-3.5" aria-hidden />{zh ? "删除" : "Delete"}</button>
+                        <Button variant="danger" size="sm" type="button" onClick={() => setConfirmDelete(item.id)} className="inline-flex shrink-0 items-center gap-1 px-2.5 py-1.5 text-xs rounded-lg"><Trash2 className="h-3.5 w-3.5" aria-hidden />{zh ? "删除" : "Delete"}</Button>
                       )}
                     </li>
                   ))}
@@ -316,15 +317,15 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
               {confirmClear ? (
                 <>
                   <p className="w-full text-xs text-status-warning">{zh ? "清空操作不可撤销。确认清空所选范围的记忆？" : "Clearing is irreversible. Confirm clearing the selected memory scope?"}</p>
-                  <button type="button" onClick={() => void clear(confirmClear)} disabled={busy === "clear"} className="border border-status-negative px-3 py-2 text-xs font-medium text-status-negative disabled:opacity-40 rounded-lg">{zh ? "确认清空" : "Confirm clear"}</button>
-                  <button type="button" onClick={() => setConfirmClear(null)} className="border border-border-pg px-3 py-2 text-xs rounded-lg">{zh ? "取消" : "Cancel"}</button>
+                  <Button variant="danger" size="sm" type="button" onClick={() => void clear(confirmClear)} disabled={busy === "clear"} className="px-3 py-2 text-xs disabled:opacity-40 rounded-lg">{zh ? "确认清空" : "Confirm clear"}</Button>
+                  <Button variant="secondary" size="sm" type="button" onClick={() => setConfirmClear(null)} className="px-3 py-2 text-xs rounded-lg">{zh ? "取消" : "Cancel"}</Button>
                 </>
               ) : (
                 <>
-                  <button type="button" onClick={() => setConfirmClear("all")} className="inline-flex items-center gap-1.5 border border-border-pg px-3 py-2 text-xs hover:border-status-negative hover:text-status-negative rounded-lg"><Trash2 className="h-3.5 w-3.5" aria-hidden />{zh ? "清空全部记忆" : "Clear all memory"}</button>
-                  <button type="button" onClick={() => setConfirmClear("short_term")} className="inline-flex items-center gap-1.5 border border-border-pg px-3 py-2 text-xs hover:border-status-negative hover:text-status-negative rounded-lg"><Trash2 className="h-3.5 w-3.5" aria-hidden />{zh ? "清空短期记忆" : "Clear short-term"}</button>
-                  <button type="button" onClick={() => setConfirmClear("mid_term")} className="inline-flex items-center gap-1.5 border border-border-pg px-3 py-2 text-xs hover:border-status-negative hover:text-status-negative rounded-lg"><Trash2 className="h-3.5 w-3.5" aria-hidden />{zh ? "清空中期记忆" : "Clear mid-term"}</button>
-                  <button type="button" onClick={() => void exportAll()} disabled={busy === "export"} className="inline-flex items-center gap-1.5 border border-border-pg px-3 py-2 text-xs disabled:opacity-40 rounded-lg"><Download className="h-3.5 w-3.5" aria-hidden />{zh ? "导出记忆" : "Export memory"}</button>
+                  <Button variant="danger" size="sm" type="button" onClick={() => setConfirmClear("all")} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg"><Trash2 className="h-3.5 w-3.5" aria-hidden />{zh ? "清空全部记忆" : "Clear all memory"}</Button>
+                  <Button variant="danger" size="sm" type="button" onClick={() => setConfirmClear("short_term")} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg"><Trash2 className="h-3.5 w-3.5" aria-hidden />{zh ? "清空短期记忆" : "Clear short-term"}</Button>
+                  <Button variant="danger" size="sm" type="button" onClick={() => setConfirmClear("mid_term")} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs rounded-lg"><Trash2 className="h-3.5 w-3.5" aria-hidden />{zh ? "清空中期记忆" : "Clear mid-term"}</Button>
+                  <Button variant="secondary" size="sm" type="button" onClick={() => void exportAll()} disabled={busy === "export"} className="inline-flex items-center gap-1.5 px-3 py-2 text-xs disabled:opacity-40 rounded-lg"><Download className="h-3.5 w-3.5" aria-hidden />{zh ? "导出记忆" : "Export memory"}</Button>
                 </>
               )}
             </section>

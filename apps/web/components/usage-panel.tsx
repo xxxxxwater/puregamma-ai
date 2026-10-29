@@ -6,6 +6,7 @@ import { ChartTooltip } from "@/components/charts";
 import { EmptyState, MetricCard, ResearchCard } from "@/components/puregamma";
 import { getGatewayUsage, type GatewayUsage, type GatewayUsageBucket, type GatewayUsageBreakdownRow } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 const grid = "var(--border)";
 const text = "var(--muted)";
@@ -159,7 +160,7 @@ export function UsagePanel({ locale, initialUsage }: Props) {
         <div className="flex items-end gap-2">
           <label className="text-xs text-text-pg-muted">{zh ? "起" : "From"}<input type="date" value={customStart} onChange={(event) => setCustomStart(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>
           <label className="text-xs text-text-pg-muted">{zh ? "止" : "To"}<input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)} className="mt-1 block border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" /></label>
-          <button type="button" disabled={loading || !customStart || !customEnd} onClick={applyCustom} className="border border-border-pg bg-bg-panel-muted px-3 py-1.5 text-sm disabled:opacity-50 rounded-lg">{zh ? "应用" : "Apply"}</button>
+          <Button variant="secondary" type="button" disabled={loading || !customStart || !customEnd} onClick={applyCustom} className="px-3 py-1.5 text-sm disabled:opacity-50 rounded-lg">{zh ? "应用" : "Apply"}</Button>
         </div>
         <select value={modelFilter ?? ""} onChange={(event) => selectModel(event.target.value || null)} className="border border-border-pg bg-bg-panel-muted px-2 py-1.5 text-sm rounded-lg" aria-label="Filter by model">
           <option value="">{zh ? "全部模型" : "All models"}</option>

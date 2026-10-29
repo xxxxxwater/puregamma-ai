@@ -8,6 +8,7 @@ import { useLocale } from "@/components/i18n/LocaleProvider";
 import { forgotPassword } from "@/lib/api";
 import { withLocale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 
 
@@ -63,10 +64,10 @@ export default function ForgotPasswordPage() {
           {failed ? <p className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative rounded-lg">{zh ? "发送失败，请稍后重试" : "Failed to send the reset link. Please try again later."}</p> : null}
           <form onSubmit={handleSubmit} className="space-y-3">
             <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder={t(locale, "common.auth.emailPlaceholder")} className="w-full border border-border-pg bg-bg-panel-muted px-3 py-2 text-sm text-text-pg placeholder:text-text-pg-dim outline-none focus:border-border-pg-strong rounded-lg" required />
-            <button type="submit" disabled={busy || !email} className="inline-flex w-full items-center justify-center gap-2 border border-border-pg bg-[var(--pg-surface-inverse)] px-4 py-2.5 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg">
+            <Button variant="primary" type="submit" disabled={busy || !email} className="inline-flex w-full items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-50 rounded-lg">
               {busy ? <Loader2 className="h-4 w-4 animate-spin" /> : null}
               {t(locale, "common.auth.sendResetLink")}
-            </button>
+            </Button>
           </form>
         </div>
 

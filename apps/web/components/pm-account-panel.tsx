@@ -6,6 +6,7 @@ import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YA
 import { ResearchCard } from "@/components/puregamma";
 import type { PmAccountView, PmNavHistory, PmNavPoint } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 /**
  * Private Binance Portfolio Margin account, collected read-only by riskbot.
@@ -286,9 +287,9 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
             </span>
             <span className="border border-border-pg px-2 py-1 text-11 text-text-pg-muted rounded-lg">READ ONLY</span>
             {onRefresh ? (
-              <button type="button" onClick={onRefresh} className="grid h-6 w-6 place-items-center border border-border-pg text-text-pg-muted hover:text-text-pg rounded-lg" title={zh ? "刷新" : "Refresh"}>
+              <Button variant="secondary" type="button" onClick={onRefresh} className="grid h-6 w-6 place-items-center rounded-lg" title={zh ? "刷新" : "Refresh"}>
                 {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
-              </button>
+              </Button>
             ) : null}
           </div>
         </div>

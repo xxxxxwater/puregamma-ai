@@ -5,6 +5,7 @@ import { Loader2, Wallet } from "lucide-react";
 import type { Locale } from "@/i18n/routing";
 import { t } from "@/lib/translations";
 import { getWalletNonce, verifyWallet, extractApiError } from "@/lib/api";
+import { Button } from "@/components/ui";
 
 type Eip1193Provider = {
   isMetaMask?: boolean;
@@ -86,24 +87,24 @@ export function WalletLoginButtons({ locale, onError }: { locale: Locale; onErro
 
   return (
     <div className="grid grid-cols-2 gap-3">
-      <button
+      <Button variant="secondary"
         type="button"
         disabled={Boolean(busy)}
         onClick={() => void signIn("metamask")}
-        className="inline-flex items-center justify-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm font-semibold text-text-pg transition hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-50 rounded-lg"
+        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 rounded-lg"
       >
         {busy === "metamask" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
         MetaMask
-      </button>
-      <button
+      </Button>
+      <Button variant="secondary"
         type="button"
         disabled={Boolean(busy)}
         onClick={() => void signIn("zerion")}
-        className="inline-flex items-center justify-center gap-2 border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm font-semibold text-text-pg transition hover:border-border-pg-strong disabled:cursor-not-allowed disabled:opacity-50 rounded-lg"
+        className="inline-flex items-center justify-center gap-2 px-4 py-2.5 text-sm font-semibold disabled:cursor-not-allowed disabled:opacity-50 rounded-lg"
       >
         {busy === "zerion" ? <Loader2 className="h-4 w-4 animate-spin" /> : <Wallet className="h-4 w-4" />}
         Zerion
-      </button>
+      </Button>
     </div>
   );
 }

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useEffect } from "react";
 import { RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui";
 
 /**
  * Route-level error boundary for every localized page.
@@ -32,10 +33,10 @@ export default function LocaleRouteError({ error, reset }: { error: Error & { di
       </p>
       {error.digest ? <p className="mt-3 font-mono text-xs text-text-pg-dim">{zh ? "参考编号" : "Reference"}: {error.digest}</p> : null}
       <div className="mt-5 flex flex-wrap gap-2">
-        <button type="button" onClick={reset} className="inline-flex min-h-10 items-center gap-2 rounded-lg bg-[var(--pg-surface-inverse)] px-4 text-sm font-semibold text-[var(--pg-text-inverse)] hover:opacity-90">
+        <Button variant="primary" type="button" onClick={reset} className="inline-flex min-h-10 items-center gap-2 rounded-lg px-4 text-sm font-semibold hover:opacity-90">
           <RefreshCw className="h-4 w-4" aria-hidden />
           {zh ? "重试" : "Try again"}
-        </button>
+        </Button>
         <Link href={`/${zh ? "zh" : "en"}/dashboard`} className="inline-flex min-h-10 items-center rounded-lg border border-border-pg px-4 text-sm hover:border-border-pg-strong">
           {zh ? "返回工作台" : "Back to the workspace"}
         </Link>

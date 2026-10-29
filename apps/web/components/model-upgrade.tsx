@@ -9,6 +9,7 @@ import { FLASH_ALIAS_ID, FLASH_MODEL_ID, compactTokens, flashAvailability, type 
 import { withLocale, type Locale } from "@/i18n/routing";
 import { getMessageNamespace } from "@/lib/translations";
 import { useGatewayBaseUrl } from "@/lib/gateway-base-url";
+import { Button } from "@/components/ui";
 
 function availabilityCopy(state: ModelCatalogState, copy: ModelCopy, gatewayEnabled: boolean | null) {
   if (gatewayEnabled === false) {
@@ -197,14 +198,14 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
           {catalog?.gateway_enabled && state === "available" && priceReviewed ? <div className="mt-4 border border-border-pg bg-bg-app rounded-xl">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-pg px-3 py-2">
               <span className="text-11 font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.preview.demoTitle}</span>
-              <button
+              <Button variant="secondary" size="sm"
                 type="button"
                 onClick={() => void copyValue("request", sampleRequest)}
-                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-text-pg"
+                className="inline-flex min-h-9 items-center gap-1.5 rounded-lg px-2.5 py-1.5 text-xs"
               >
                 {copied === "request" ? <Check className="h-3.5 w-3.5 text-text-pg" aria-hidden /> : <Copy className="h-3.5 w-3.5" aria-hidden />}
                 {copied === "request" ? copy.preview.copied : copy.preview.copy}
-              </button>
+              </Button>
             </div>
             <pre className="touch-pan-x overflow-x-auto overscroll-x-contain p-3 text-11 leading-5 text-text-pg"><code>{sampleRequest}</code></pre>
           </div> : <p role="status" className="mt-4 rounded-xl border border-border-pg bg-bg-app p-3 text-xs leading-5 text-text-pg-muted">{availability.detail}</p>}

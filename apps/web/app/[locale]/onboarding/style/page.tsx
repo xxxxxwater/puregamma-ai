@@ -6,6 +6,7 @@ import { ArrowRight, Crosshair, Globe, Info, Shield, TrendingUp, Zap, type Lucid
 import { normalizeLocale, withLocale } from "@/i18n/routing";
 import { SelectionBox } from "@/components/selection-box";
 import { getMessageNamespace, t } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 const styleIcons: Record<string, LucideIcon> = {
   "risk-controlled": Shield,
@@ -74,9 +75,9 @@ export default function LocalizedOnboardingStylePage({ params }: { params: { loc
           <Info className="h-4 w-4 shrink-0" aria-hidden />
           {t(locale, "onboarding.style.riskProfile", { label: selectedStyle.label, risk: selectedStyle.risk })}
         </div>
-        <button onClick={handleContinue} className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-5 py-2.5 text-sm font-semibold text-[var(--pg-text-inverse)] transition hover:opacity-90 rounded-lg">
+        <Button variant="primary" onClick={handleContinue} className="inline-flex items-center gap-2 px-5 py-2.5 text-sm font-semibold hover:opacity-90 rounded-lg">
           {copy.continue} <ArrowRight className="h-4 w-4" aria-hidden />
-        </button>
+        </Button>
       </div>
     </div>
   );

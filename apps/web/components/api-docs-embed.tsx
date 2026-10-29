@@ -26,6 +26,7 @@ import { useGatewayBaseUrl } from "@/lib/gateway-base-url";
 import { catalogAvailabilityLabel, catalogProviderLabel } from "@/lib/model-catalog";
 import { getMessageNamespace } from "@/lib/translations";
 import { withLocale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 const docsBaseUrl = (process.env.NEXT_PUBLIC_DOCS_URL || "https://puregamma-ai.gitbook.io/puregamma-ai").replace(/\/+$/, "");
 
@@ -172,14 +173,14 @@ function CopyButton({ value, label, copiedLabel }: { value: string; label: strin
   }
 
   return (
-    <button
+    <Button variant="secondary" size="sm"
       type="button"
       onClick={() => void copy()}
-      className="inline-flex min-h-9 items-center gap-1.5 border border-border-pg px-2.5 py-1.5 text-xs text-text-pg-muted transition hover:border-border-pg-strong hover:text-text-pg rounded-lg"
+      className="inline-flex min-h-9 items-center gap-1.5 px-2.5 py-1.5 text-xs rounded-lg"
     >
       {copied ? <Check className="h-3.5 w-3.5 text-text-pg" /> : <Copy className="h-3.5 w-3.5" />}
       {copied ? copiedLabel : label}
-    </button>
+    </Button>
   );
 }
 
@@ -602,7 +603,7 @@ PUREGAMMA_MODEL=${selectedId}
                       <tr key={model.id} className="border-t border-border-pg align-top">
                         <td className="px-3 py-3 font-medium text-text-pg">{model.display_name}</td>
                         <td className="px-3 py-3 font-mono text-text-pg-muted">
-                          <button type="button" onClick={() => setSelectedId(model.id)} className="underline decoration-dotted underline-offset-2 hover:text-text-pg">{model.id}</button>
+                          <Button variant="ghost" type="button" onClick={() => setSelectedId(model.id)} className="underline decoration-dotted underline-offset-2">{model.id}</Button>
                         </td>
                         <td className="px-3 py-3 text-text-pg-muted">{providerLabel(model, model.id)}</td>
                         <td className="px-3 py-3 font-mono text-text-pg-muted">{model.provider_model_id}</td>

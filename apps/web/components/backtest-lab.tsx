@@ -8,6 +8,7 @@ import { type Locale, withLocale } from "@/i18n/routing";
 import { apiBaseUrl, BacktestLabRun, BacktestLabSpec, BacktestLabStatus, exportBacktestLabRun, generateBacktestLabSpec, getBacktestLabRuns, getBacktestLabStatus, refreshBacktestLabData, runBacktestLab } from "@/lib/api";
 import { PlotlyChart } from "@/components/plotly-chart";
 import { getMessageNamespace } from "@/lib/translations";
+import { Button } from "@/components/ui";
 
 type Copy = ReturnType<typeof getLabCopy>;
 function getLabCopy(locale: Locale) {
@@ -165,10 +166,10 @@ export function BacktestLab({ locale }: { locale: Locale }) {
               </span>
             );
           })}
-          <button type="button" onClick={handleRefreshData} disabled={refreshing} className="ml-auto inline-flex items-center gap-1.5 border border-border-pg px-2.5 py-1.5 font-medium transition hover:border-border-pg-strong disabled:opacity-50 rounded-lg">
+          <Button variant="secondary" type="button" onClick={handleRefreshData} disabled={refreshing} className="ml-auto inline-flex items-center gap-1.5 px-2.5 py-1.5 disabled:opacity-50 rounded-lg">
             {refreshing ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <RefreshCw className="h-3.5 w-3.5" />}
             {refreshing ? copy.coverage.refreshing : copy.coverage.refresh}
-          </button>
+          </Button>
         </div>
         {status && Object.values(status.coverage || {}).every((item) => !item.bars) ? <p className="mt-2 text-xs text-text-pg-dim">{copy.coverage.empty}</p> : null}
       </section>
@@ -181,10 +182,10 @@ export function BacktestLab({ locale }: { locale: Locale }) {
             <input type="checkbox" checked={useMemory} onChange={(event) => setUseMemory(event.target.checked)} className="accent-[var(--foreground)]" />
             {copy.generate.useMemory}
           </label>
-          <button type="button" onClick={handleGenerate} disabled={generating} className="inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-2 text-sm font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50 rounded-lg">
+          <Button variant="primary" type="button" onClick={handleGenerate} disabled={generating} className="inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:opacity-50 rounded-lg">
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <Sparkles className="h-4 w-4" />}
             {generating ? copy.generate.generating : copy.generate.button}
-          </button>
+          </Button>
           {specMeta ? (
             <p className="text-11 text-text-pg-dim">
               {specMeta.fallback ? copy.generate.fallbackNotice : `${specMeta.context_notes} ${copy.generate.contextNotes}`}
@@ -204,10 +205,10 @@ export function BacktestLab({ locale }: { locale: Locale }) {
                 {copy.run[option.key]}
               </button>
             ))}
-            <button type="button" onClick={handleRun} disabled={!parsedSpec || running} className="ml-auto inline-flex items-center gap-2 border border-border-pg-strong bg-[var(--pg-surface-inverse)] px-4 py-2 text-sm font-semibold text-[var(--pg-text-inverse)] disabled:opacity-50 rounded-lg">
+            <Button variant="primary" type="button" onClick={handleRun} disabled={!parsedSpec || running} className="ml-auto inline-flex items-center gap-2 px-4 py-2 text-sm font-semibold disabled:opacity-50 rounded-lg">
               {running ? <Loader2 className="h-4 w-4 animate-spin" /> : <Play className="h-4 w-4" />}
               {running ? copy.run.running : `${copy.run.button} · 50 ${copy.run.creditsHint}`}
-            </button>
+            </Button>
           </div>
         </section>
       </div>
@@ -246,7 +247,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
               </div>
             ))}
           </div>
-          <div className="flex gap-2 text-xs"><button type="button" onClick={() => handleExport("json")} disabled={exporting || selected.status !== "completed"} className="inline-flex items-center gap-1 border border-border-pg px-2.5 py-1.5 hover:border-border-pg-strong disabled:opacity-50 rounded-lg"><Download className="h-3 w-3" /> JSON · 50 credits</button><button type="button" onClick={() => handleExport("csv")} disabled={exporting || selected.status !== "completed"} className="border border-border-pg px-2.5 py-1.5 hover:border-border-pg-strong disabled:opacity-50 rounded-lg">CSV · 50 credits</button></div>
+          <div className="flex gap-2 text-xs"><Button variant="secondary" type="button" onClick={() => handleExport("json")} disabled={exporting || selected.status !== "completed"} className="inline-flex items-center gap-1 px-2.5 py-1.5 disabled:opacity-50 rounded-lg"><Download className="h-3 w-3" /> JSON · 50 credits</Button><Button variant="secondary" type="button" onClick={() => handleExport("csv")} disabled={exporting || selected.status !== "completed"} className="px-2.5 py-1.5 disabled:opacity-50 rounded-lg">CSV · 50 credits</Button></div>
           {selected.charts?.equity ? (
             <div>
               <h3 className="mb-2 text-xs font-semibold text-text-pg-muted">{copy.performance.equityCurve}</h3>

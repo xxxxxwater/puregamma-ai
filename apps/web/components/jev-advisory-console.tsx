@@ -6,6 +6,7 @@ import { Activity, RefreshCw, ShieldCheck, TriangleAlert } from "lucide-react";
 import { Badge, MetricCard, ResearchCard } from "@/components/puregamma";
 import { getJevAdvisoryStatus, type JevAdvisoryStatus } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 function percent(value: number | undefined): string {
   return typeof value === "number" && Number.isFinite(value) ? `${(value * 100).toFixed(1)}%` : "—";
@@ -62,9 +63,9 @@ export function JevAdvisoryConsole({ locale }: { locale: Locale }) {
           </div>
           <div className="flex items-center gap-2">
             <Badge tone={fresh ? "emerald" : "neutral"}>{fresh ? (zh ? "已验证 · 新鲜" : "verified · fresh") : (zh ? "不可用 / 未验证" : "unavailable / unverified")}</Badge>
-            <button type="button" aria-label={zh ? "刷新 Jev 状态" : "Refresh Jev status"} onClick={() => void refresh()} className="inline-flex h-8 items-center gap-1.5 rounded-lg border border-border-pg px-2 text-xs text-text-pg-muted hover:text-text-pg">
+            <Button variant="secondary" size="sm" type="button" aria-label={zh ? "刷新 Jev 状态" : "Refresh Jev status"} onClick={() => void refresh()} className="inline-flex h-8 items-center gap-1.5 rounded-lg px-2 text-xs">
               <RefreshCw className={loading ? "h-3.5 w-3.5 animate-spin" : "h-3.5 w-3.5"} />{zh ? "刷新" : "Refresh"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>

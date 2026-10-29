@@ -26,6 +26,7 @@ import {
   type GatewayUsageBucket,
 } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
+import { Button } from "@/components/ui";
 
 const money = (value: string) => `$${Number(value || 0).toFixed(4)}`;
 const num = (value: number) => value.toLocaleString();
@@ -169,7 +170,7 @@ function AdminUsageCharts({ locale }: { locale: Locale }) {
         </div>
         <div style={{ display: "flex", flexWrap: "wrap", alignItems: "flex-end", gap: 8 }}>
           {presets.map((item) => (
-            <button key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)}
+            <Button variant="ghost" key={item.id} type="button" disabled={loading} onClick={() => selectPreset(item.id)}
               style={{
                 border: `1px solid ${preset === item.id ? dsw.inkStrong : dsw.line}`,
                 background: preset === item.id ? "var(--pg-surface-inverse)" : dsw.cardBg,
@@ -177,7 +178,7 @@ function AdminUsageCharts({ locale }: { locale: Locale }) {
                 padding: "6px 14px", fontSize: 13, borderRadius: 14, cursor: "pointer", fontWeight: preset === item.id ? 600 : 400,
               }}>
               {item.label}
-            </button>
+            </Button>
           ))}
           <div style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
             <label style={{ fontSize: 12, color: dsw.inkMuted }}>{zh ? "起" : "From"}
@@ -188,10 +189,10 @@ function AdminUsageCharts({ locale }: { locale: Locale }) {
               <input type="date" value={customEnd} onChange={(event) => setCustomEnd(event.target.value)}
                 style={{ display: "block", marginTop: 4, border: `1px solid ${dsw.line}`, background: dsw.cardBg, padding: "5px 8px", fontSize: 13, borderRadius: 14 }} />
             </label>
-            <button type="button" disabled={loading || !customStart || !customEnd} onClick={applyCustom}
+            <Button variant="ghost" type="button" disabled={loading || !customStart || !customEnd} onClick={applyCustom}
               style={{ border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "6px 14px", fontSize: 13, borderRadius: 14, cursor: "pointer" }}>
               {zh ? "应用" : "Apply"}
-            </button>
+            </Button>
           </div>
         </div>
       </div>
@@ -362,8 +363,8 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
             <p style={{ margin: "6px 0 0", fontSize: 13, color: dsw.inkMuted }}>{zh ? "同步只创建待审核版本；确认后才会对用户生效。" : "Sync creates pending revisions only; approval is required before customers can use them."}</p>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-            <button type="button" disabled={busy} onClick={() => void healthcheck()} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "8px 14px", fontSize: 13, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Activity className="h-4 w-4" />{zh ? "健康检查" : "Health check"}</button>
-            <button type="button" disabled={busy} onClick={() => void sync()} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${dsw.line}`, background: "var(--pg-surface-inverse)", color: "var(--pg-text-inverse)", padding: "8px 14px", fontSize: 13, fontWeight: 600, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />{zh ? "立即同步" : "Sync now"}</button>
+            <Button variant="ghost" type="button" disabled={busy} onClick={() => void healthcheck()} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "8px 14px", fontSize: 13, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Activity className="h-4 w-4" />{zh ? "健康检查" : "Health check"}</Button>
+            <Button variant="ghost" type="button" disabled={busy} onClick={() => void sync()} style={{ display: "inline-flex", alignItems: "center", gap: 6, border: `1px solid ${dsw.line}`, background: "var(--pg-surface-inverse)", color: "var(--pg-text-inverse)", padding: "8px 14px", fontSize: 13, fontWeight: 600, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><RefreshCw className={`h-4 w-4 ${busy ? "animate-spin" : ""}`} />{zh ? "立即同步" : "Sync now"}</Button>
           </div>
         </div>
         {error ? <p style={{ margin: "12px 0 0", fontSize: 13, color: dsw.errorInk }}>{error}</p> : null}
@@ -389,7 +390,7 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
               </div>
               <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
                 <Badge tone={providerTone(provider.health_status)}><StatusDot tone={providerTone(provider.health_status)} /> {provider.health_status}</Badge>
-                <button type="button" disabled={busy} onClick={() => void toggleProvider(provider)} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "4px 10px", fontSize: 12, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Power className="h-3 w-3" />{provider.enabled ? (zh ? "停用" : "Disable") : (zh ? "启用" : "Enable")}</button>
+                <Button variant="ghost" type="button" disabled={busy} onClick={() => void toggleProvider(provider)} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "4px 10px", fontSize: 12, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Power className="h-3 w-3" />{provider.enabled ? (zh ? "停用" : "Disable") : (zh ? "启用" : "Enable")}</Button>
               </div>
             </div>)}
             {!providers.length ? <p style={{ fontSize: 13, color: dsw.inkMuted }}>{zh ? "尚未初始化 Provider。" : "Providers are not initialized yet."}</p> : null}
@@ -399,7 +400,7 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
         <DswCard title={zh ? "默认 Markup" : "Default markup"}>
           <div style={{ display: "flex", gap: 8 }}>
             <input value={markup} onChange={(event) => setMarkup(event.target.value)} inputMode="numeric" style={{ minWidth: 0, flex: 1, border: `1px solid ${dsw.line}`, background: dsw.panelBg, color: dsw.ink, padding: "8px 12px", fontSize: 13, borderRadius: 14 }} aria-label="Markup basis points" />
-            <button type="button" onClick={() => void saveMarkup()} disabled={busy} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "8px 12px", fontSize: 13, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Save className="h-4 w-4" />{zh ? "保存" : "Save"}</button>
+            <Button variant="ghost" type="button" onClick={() => void saveMarkup()} disabled={busy} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "8px 12px", fontSize: 13, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Save className="h-4 w-4" />{zh ? "保存" : "Save"}</Button>
           </div>
           <p style={{ margin: "8px 0 0", fontSize: 12, color: dsw.inkMuted }}>3000 bp = 30%. {zh ? "保存后，会基于官方价格重新计算所有已激活模型。" : "Saving recalculates every active model from official prices."}</p>
           <p style={{ margin: "12px 0 0", fontSize: 12, color: dsw.inkMuted }}>{zh ? "此设置不会修改 Provider 的官方价格，也不会变更用户 Stripe 订阅。" : "This does not change Provider official pricing or a user's Stripe subscription."}</p>
@@ -414,7 +415,7 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
               <div style={{ marginTop: 4, fontSize: 12, color: dsw.inkMuted }}>{revision.source_reference || revision.source_type} · {new Date(revision.synced_at).toLocaleString(locale)}</div>
               <div style={{ marginTop: 4, maxWidth: 720, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: 12, color: dsw.inkMuted }}>official: {JSON.stringify(revision.official_prices)} → final: {JSON.stringify(revision.final_prices)}</div>
             </div>
-            <button type="button" disabled={busy} onClick={() => void approve(revision.id)} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.successInk}`, background: dsw.cardBg, color: dsw.successInk, padding: "8px 14px", fontSize: 13, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Check className="h-4 w-4" />{zh ? "确认生效" : "Approve"}</button>
+            <Button variant="ghost" type="button" disabled={busy} onClick={() => void approve(revision.id)} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.successInk}`, background: dsw.cardBg, color: dsw.successInk, padding: "8px 14px", fontSize: 13, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Check className="h-4 w-4" />{zh ? "确认生效" : "Approve"}</Button>
           </div>)}
           {!revisions.length ? <p style={{ fontSize: 13, color: dsw.inkMuted }}>{zh ? "没有待确认的价格变更。" : "No price changes await approval."}</p> : null}
         </div>
@@ -435,7 +436,7 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
                 <td style={{ fontSize: 12 }}><div>{money(account.current_month_spend_usd)}</div><div style={{ color: dsw.inkMuted }}>{money(account.lifetime_spend_usd)}</div></td>
                 <td>{account.active_key_count} / 10</td>
                 <td><input value={edit.monthlyLimit} onChange={(event) => setAccountEdits((current) => ({ ...current, [account.user_id]: { ...edit, monthlyLimit: event.target.value } }))} inputMode="decimal" style={{ width: 112, border: `1px solid ${dsw.line}`, background: dsw.panelBg, color: dsw.ink, padding: "4px 8px", fontSize: 13, borderRadius: 14 }} aria-label={`${account.email} monthly spend limit`} /></td>
-                <td><button type="button" disabled={busy} onClick={() => void saveAccount(account)} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "4px 10px", fontSize: 12, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Save className="h-3 w-3" />{zh ? "保存" : "Save"}</button></td>
+                <td><Button variant="ghost" type="button" disabled={busy} onClick={() => void saveAccount(account)} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "4px 10px", fontSize: 12, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Save className="h-3 w-3" />{zh ? "保存" : "Save"}</Button></td>
               </tr>;
             })}</tbody>
           </table>
