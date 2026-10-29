@@ -142,6 +142,16 @@ class MobileContractFixtureTest {
         assertEquals(AgentSendFailure.ConversationGone, AgentSendFailure.classify(error))
     }
 
+    @Test
+    fun codedNotFoundOnSendIsARefusalNotADeletedConversation() {
+        // POST /api/agent/conversations/{id}/messages answers SKILL_NOT_FOUND as a coded 404.
+        val skill = RetrofitApiException.fromBody(404, """{"detail":{"code":"SKILL_NOT_FOUND","message":"Skill not found"}}""")
+        assertTrue(AgentSendFailure.classify(skill) is AgentSendFailure.Final)
+        // The rate limiter's bare 429 clears with time.
+        val limited = RetrofitApiException.fromBody(429, """{"detail":"Rate limit exceeded"}""")
+        assertTrue(AgentSendFailure.classify(limited) is AgentSendFailure.Retryable)
+    }
+
     // ---- (f) model menu
 
     @Test

@@ -56,10 +56,14 @@ sealed interface AgentSendFailure {
             val runId = detail.fields["runId"]
             return when {
                 detail.status == 409 && detail.code == "DUPLICATE_SUBMISSION" && !runId.isNullOrBlank() -> Duplicate(runId, detail.fields["status"])
-                detail.status == 404 -> ConversationGone
+                // Only the bare "Conversation not found" 404 means it is gone; a coded
+                // 404 (SKILL_NOT_FOUND, SKILL_VERSION_NOT_FOUND) refuses this request.
+                detail.status == 404 && detail.code == null -> ConversationGone
                 detail.code in RETRYABLE_CODES -> Retryable(error)
                 // A coded refusal says why; an unpriced model stays unpriced however often it is resent.
                 detail.code != null -> Final(error)
+                // The rate limiter's bare 429 clears with time, as on iOS (.rateLimited).
+                detail.status == 429 -> Retryable(error)
                 detail.status >= 500 -> Retryable(error)
                 else -> Final(error)
             }

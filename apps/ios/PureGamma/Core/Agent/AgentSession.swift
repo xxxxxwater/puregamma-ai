@@ -31,7 +31,10 @@ enum AgentSendFailure: Equatable {
             if detail.status == 409, detail.code == "DUPLICATE_SUBMISSION", let runID = detail.fields["runId"], !runID.isEmpty {
                 return .duplicate(runID: runID, status: detail.fields["status"])
             }
-            if detail.status == 404 { return .conversationGone }
+            // Only the bare "Conversation not found" 404 means the conversation is
+            // gone; a coded 404 (SKILL_NOT_FOUND, SKILL_VERSION_NOT_FOUND) is a
+            // refusal of this request, not a deleted conversation.
+            if detail.status == 404, detail.code == nil { return .conversationGone }
             switch detail.code {
             case "AGENT_CONCURRENT_LIMIT_REACHED", "AGENT_GLOBAL_CAPACITY_REACHED", "AGENT_MODEL_UNAVAILABLE": return .retryable(error)
             // A coded refusal says why; only the codes above clear up on their own

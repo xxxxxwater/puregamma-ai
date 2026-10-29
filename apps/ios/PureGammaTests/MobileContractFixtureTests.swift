@@ -115,6 +115,17 @@ enum ContractFixture {
         #expect(AgentSendFailure.classify(.rejected(detail)) == .conversationGone)
     }
 
+    @Test func codedNotFoundOnSendIsARefusalNotADeletedConversation() {
+        // POST /api/agent/conversations/{id}/messages answers SKILL_NOT_FOUND as a coded 404.
+        let body = Data(#"{"detail":{"code":"SKILL_NOT_FOUND","message":"Skill not found"}}"#.utf8)
+        let detail = APIErrorDetail(status: 404, body: body)
+        #expect(detail.code == "SKILL_NOT_FOUND")
+        guard case .final = AgentSendFailure.classify(.rejected(detail)) else {
+            Issue.record("a coded 404 was read as a deleted conversation")
+            return
+        }
+    }
+
     // MARK: (f) model menu
 
     @Test func modelMenuHidesEvaluationAndExplainsUnavailableModels() throws {
