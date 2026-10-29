@@ -164,7 +164,7 @@
 - **Harness 退役（v0.3.4，§14）**：Market Data、Portfolio 有了对等测试和逐项门槛对照，但 `retired` 仍为空：缺部署镜像 digest、staging 上的 HTTPS E2E 产物（需要 staging 与真实模型 key）和人工审阅，另有 `pgPortfolio.health()`、后台任务归插件、provider 转发 trace 等工程缺口。
 - **Round 5 视觉（v0.3.4，§14）**：border 宽度工具类 804 → 559，未达到 ≤ 450；剩余主要是顶层卡片边框，需要设计决定卡片用 0.5 px hairline 还是只用阴影。raw `<button>` 剩 60 个（动态类），需给 Button 增加 `selected`/`tone`。登录后页面与预览站的逐页对比仍是视觉假设（需要测试账号）。
 - **生产构建下的不稳定用例**：`visual-style.spec.ts` 的 “financial routes raise panel opacity; ocean routes skip double blur” 在生产构建下偶发读到空的 `data-surface-tier`（页面刚加载就读取，客户端尚未写入）；CI 的 dev 模式与新的生产构建 job 都不运行这个 spec 的生产版本。W3 的 `tests/contract/test_mobile_agent_contract.py::test_a_reopened_conversation_names_its_active_run_and_pending_approvals` 在一次全量运行中失败过一次（单独与后续全量运行都通过），疑似测试间共享状态。
-- **skills provider 与多租户**：`skills-legacy-api` 目前没有挂进 profile。Host token 的路由白名单（`apps/api/dependencies.py#_DSH_HOST_ROUTES`）不含 `/skills`；将来挂进多租户 profile 前，需要决定是否只开放读接口（`run`/`import`/`install` 涉及扣费与写入）。
+- **skills provider 与多租户**：`skills-legacy-api` 目前没有挂进 profile（CI 守卫），Host token 对 `/skills` 一律拒绝，`744c5b6` 用测试固定了这一行为。Host token 的路由白名单（`apps/api/dependencies.py#_DSH_HOST_ROUTES`）不含 `/skills`；将来挂进多租户 profile 前，需要决定是否只开放读接口（`run`/`import`/`install` 涉及扣费与写入）。
 - **计费**：v0.3.3 起没有显式费率的模型直接拒绝（`AGENT_MODEL_PRICING_NOT_CONFIGURED`），不再按默认费率计费；代码里没有新增任何价格。`gpt-6-luna/sol/astra` 因此在菜单中显示“未配置计价”，需要产品批准费率后通过 `AGENT_MODEL_CREDIT_RATES` 配置。
 - **上传上限**：已在 `7f61371` 统一（`/api/agent/attachments` 放行到 10 MiB，其余路径保持 2 MB）；需要随下次部署生效。
 - **有状态工具**：`STATEFUL_TOOLS` 为空，审批卡目前只能通过 stub 和已有的待审批记录验证。
@@ -301,6 +301,11 @@ v0.3.3 之后合入 `main` 的变更（均未执行生产部署、生产数据�
 | W4 rebase 到 `main` 后：harness 删除 node_modules 后 `pnpm install --frozen-lockfile` + `pnpm run check` | 132 通过、0 失败、3 跳过 |
 | W4 rebase 后：`pytest tests` / ruff / web typecheck / lint | 1530 通过、9 跳过、4 xfailed、0 失败 / 通过 / 通过 / 9 个已有警告 |
 | W4 rebase 后：Playwright 全部 32 个 spec（生产构建 + `next start`，chromium + mobile-chrome） | 除下列外全部通过（route-audit 116、contrast-audit 20、agent-session-reliability 30、model-upgrade 40、i18n 30 …）：`live-trading` 4 项与 `plugins-runtime` 2 项读取仅 `next dev` 存在的诊断钩子（CI 在 dev 模式运行，通过）；`visual-style` “financial routes raise panel opacity” 在生产构建下偶发失败——`--repeat-each=3` 时 W4 树 24/24，不含 W4 的 `main` 22/24，属既有的时序问题，列为遗留 |
+| GitHub Actions（`main`） | `0186a72`、`d597b59`→`04b8263`→`913ba27`、`ec3a266`、`6345cbe` 逐次全绿（`d597b59` 的 Harness 失败见下文，`04b8263`/`913ba27` 修复）。`6345cbe`：Harness、Commercial Release Gate、commercial readiness、Web E2E 8 个 job（含新增的生产构建 job）全部成功；`ec3a266`：Mobile Unit Tests（contract、Android、iOS）首次在 `main` 上运行并成功 |
+| 发布 | v0.3.4（App 1.6.0），见 `release: v0.3.4` 提交与 GitHub Release |
 
-合并时发现并修复：`0186a72` 新增的 `/admin/trading` 页面没有登记到 Harness 迁移台账，`architecture-check` 因此失败；harness-v2 CI 只在 `harness/**` 变化时运行，所以 `main` 上没有暴露（`1fb1da7` 补登记，owner `admin`）。
+合并时发现并修复：
+
+- `0186a72` 新增的 `/admin/trading` 页面没有登记到 Harness 迁移台账，`architecture-check` 因此失败；harness-v2 CI 只在 `harness/**` 变化时运行，所以 `main` 上没有暴露（`1fb1da7` 补登记，owner `admin`）。
+- `d597b59` 上 Harness CI 失败：systemd launcher 的 live 测试只检查有无 user manager，GitHub 的 Ubuntu runner 因 AppArmor 限制非特权用户命名空间而无法启动带 `PrivateUsers=` 的 unit（226/NAMESPACE），broker 按设计 fail closed。`04b8263` 改为先探测能力、不支持时带原因跳过；`913ba27` 更正原因并把“允许非特权 userns”写入 runbook 前置条件（生产 Ubuntu 主机同样受限）。
 
