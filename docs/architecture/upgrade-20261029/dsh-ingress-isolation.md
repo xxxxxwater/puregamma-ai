@@ -270,6 +270,76 @@ BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   Bind
 - **SQLite 下旧路径的取消不可靠**：旧路径在流式回复期间每个增量都会 `flush`，直到结束才提交，一直持有 SQLite 写锁；并发的取消请求等满 5 s busy timeout 后返回 500（实测 `cancel HTTP 500 after 5016 ms`，全量运行 3 次中失败 2 次，单独运行 3 次都通过）。在 Postgres 上运行全部通过。生产使用 Postgres，所以这只是测试环境问题，但说明旧路径的流式事务一直持有写事务。
 - **断线与刷新**：两条路径行为不同（见表）。HARNESS_CORE_V2 的“刷新恢复”“断线重连”门槛，DSH 侧的表现优于旧路径。
 
+## 5. 上线 runbook、回滚与威胁模型
+
+### 5.1 前置条件（全部满足才开始）
+
+1. 本分支合并到 `main`，CI（harness check、pytest、commercial-release-gate 的 Caddy 步骤、web typecheck/lint/Playwright）全绿。
+2. **用户拍板**：上线时间窗口；`HARNESS_DOMAIN`（建议 `harness.puregamma.ai`）的 DNS；staging 环境与真实模型 key；测试账号（§8）。
+3. 生产主机准备（部署侧，一次性，需要 root；本次未执行）：
+   - 创建无特权账号 `pg-dsh`，开启 `loginctl enable-linger pg-dsh`，确认 `systemctl --user` 可用（systemd ≥ 257，cgroup v2 下委派了 cpu/memory/pids）。
+   - 在宿主机安装固定版本 `@deepseek-ai/dsh@0.1.7-rc.1` 和本仓库的 harness 构建（`pnpm --dir harness install && build`），归 `pg-dsh` 所有、对 Host 只读。
+   - 出口防火墙（nftables）：对 `pg-dsh` 用户的 `pgdsh.slice`（`socket cgroupv2 level … "user.slice/user-<uid>.slice/user@<uid>.service/pgdsh.slice"`）只放行 FastAPI 内网地址与模型 provider，拒绝其他 loopback 端口、内网段与云元数据地址（169.254.169.254）。
+   - 在 `pgdsh.slice` 上设置合计 `MemoryMax`（例如主机内存的 40%），作为所有 Host 的总上限。
+   - 为 broker 写 systemd 服务（`User=pg-dsh`），监听 Caddy 可达但公网不可达的地址（docker 网桥 IP 或 host-gateway）。
+4. 密钥：生成 ≥32 字符的 `DSH_BROKER_SECRET`，API 的 `DSH_BROKER_SECRET` 和 broker 的 `PUREGAMMA_DSH_BROKER_SECRET` 取同一个值，放在服务器密钥管理中，不进仓库。
+
+### 5.2 开关顺序
+
+| 步 | 动作 | 验证 | 失败即回滚到 |
+| --- | --- | --- | --- |
+| 1 | API：`DSH_MULTI_TENANT_ENABLED=true`、`DSH_BROKER_SECRET=…`，重启 API | 不带密钥调 `/internal/dsh/host-tokens` 返回 403；生产配置校验通过 | 关掉该开关 |
+| 2 | broker：`PUREGAMMA_DSH_BROKER_ENABLED=true`、`PUREGAMMA_DSH_HOST_LAUNCHER=systemd`、`PUREGAMMA_DSH_PUBLIC_ORIGIN=https://harness.puregamma.ai`、`PUREGAMMA_DSH_CLIENT_IP_HEADER=x-real-ip`、`PUREGAMMA_DSH_LOGIN_URL=https://app.puregamma.ai/<locale>/auth/login`、限额保持默认、`PUREGAMMA_DSH_HOST_ENV_PASSTHROUGH=DEEPSEEK_API_KEY,DEEPSEEK_BASE_URL,DSH_TELEMETRY_MODE`（且 `DSH_TELEMETRY_MODE=DISABLED`，除非另行决定） | `curl <内部地址>/__broker/healthz` 返回 200；日志 `listening …`；`launcher` 为 systemd | 停止 broker 服务 |
+| 3 | 内部冒烟（Caddy 未接入）：在主机上用测试账号 cookie 运行 `e2e-conversation.mjs` 的 staging 模式，或至少运行 `session-broker.integration.mjs` | 全部 pass；`systemctl --user list-units 'pg-dsh-*'` 每用户一个 unit | 停止 broker |
+| 4 | Caddy：`docker compose -f docker-compose.production.yml -f docker-compose.harness-sessions.yml up -d caddy`（设置 `HARNESS_DOMAIN`、`DSH_BROKER_UPSTREAM`） | `https://harness…/__broker/healthz` 返回 404；未登录访问 `/` 返回 401 页面；跨站 `fetch` 返回 403；测试账号能打开 UI 并对话 | 去掉 override 重新 `up -d caddy` |
+| 5 | API：`DSH_BROKER_REVOKE_URL=http://<broker 内部地址>/__broker/revoke` | 测试账号登出后，审计中出现 `revoke` 行，其 WebSocket 被关闭 | 清空该变量 |
+| 6 | Web：以 `NEXT_PUBLIC_DSH_SESSIONS_URL=https://harness.puregamma.ai/` 构建并发布（先只给内部账号或 staging） | 聊天页头出现入口；Playwright `harness-sessions-entry.spec.ts` 在 flag 打开时通过 | 用不带该变量的构建回滚 |
+
+### 5.3 观测指标
+
+- **broker 审计（stdout JSON）**：按 `event=limit`（429）、`status>=500`、`result` 统计；`host:start` 的 `ms` p95；`host:exit` 的非零退出；`host:quota`；`ws` 的 `revalidation-failed`/`revoked`。
+- **主机**：`systemctl --user status pgdsh.slice` 的内存与任务数；每个 unit 的 OOM 次数（`MemoryMax` 触发）；磁盘（`hostsRoot` 总量）。
+- **API**：`/internal/dsh/host-tokens` 的 4xx/5xx 比例、`/me` 请求速率（应当受 broker 缓存与 per-IP 限制约束）。
+- **告警阈值（建议）**：5 分钟内 5xx > 1%；`host-unavailable` 或 `capacity` 持续出现；任一 Host 1 小时内 OOM 超过 3 次；审计中出现非 HMAC 格式的 `user`（不应发生）。
+
+### 5.4 验收步骤
+
+1. 两个测试账号 A、B 分别登录。A 新建 Session 并对话；B 的列表中看不到 A 的 Session；B 按 id 读取或改名 A 的 Session 失败。
+2. 刷新、断线重连、取消、归档、Skill、图片（§4 场景）在真实模型下各做一次。结果按 §4 表格记录，并标注“真实 key”。
+3. 跨站：从其他域名 `fetch` 返回 403，WebSocket 返回 403；`/__broker/*` 返回 404。
+4. 登出 A：A 的 WebSocket 在 1 秒内关闭（启用 revoke 时）或 60 秒内关闭（只依赖复查时），之后 A 访问返回 401。
+5. 限流：用 A 并发 150 个请求，A 出现 429，B 不受影响。
+6. 隔离：在主机上确认 `systemctl --user show pg-dsh-… -p MemoryMax,TasksMax`；通过 `/proc/<pid>/root` 确认 Host 只看得到自己的目录；Host 访问不在白名单的地址失败（验证出口防火墙）。
+
+### 5.5 回滚
+
+- **触发条件（任一即可）**：跨用户数据可见；审计或日志中出现凭证、prompt 或 email；broker 或 API 5xx 持续超过阈值；主机内存压力影响主站；出口防火墙未生效。
+- **步骤（逐级执行，每一步都可单独完成）**：
+  1. Web：发布不带 `NEXT_PUBLIC_DSH_SESSIONS_URL` 的构建，入口消失。
+  2. Caddy：去掉 `docker-compose.harness-sessions.yml` 重新 `up -d caddy`，`HARNESS_DOMAIN` 不再路由。
+  3. broker：停止服务（或设 `PUREGAMMA_DSH_BROKER_ENABLED=false`），`close()` 停止所有 Host；再执行 `systemctl --user stop 'pg-dsh-*' pgdsh.slice` 兜底。
+  4. API：`DSH_MULTI_TENANT_ENABLED=false`，签发端点返回 404；已签发的 Host token 最多 15 分钟后过期，并且只能访问白名单路由。清空 `DSH_BROKER_REVOKE_URL`。
+- **数据**：没有数据库迁移。每用户的 Session 数据在 `PUREGAMMA_DSH_HOSTS_ROOT` 下，回滚时保留，重新启用后可以继续使用。只有确认放弃时才删除，删除前先备份。
+- **代码**：各阶段是独立提交，可以分别 `git revert`。顺序：e2e（681a3bf）→ 限流审计（97b60d1、b16e871）→ launcher（254da45、a9b9f09）→ 入口（34ab9ed）→ fileUpload client face（8aa0e8a）。
+
+### 5.6 威胁模型（更新 v0.3.3 文档 §3）
+
+| 威胁 | 控制 | 状态与证据 |
+| --- | --- | --- |
+| A 读写 B 的 Session | 每用户独立 Host 和 `DSH_HOME`，路由只按 `/me` 的 user_id；**profile 私有化**（v0.3.3 的共享软链接会让各租户写同一个 `cordis.yml`） | 真实 DSH 集成；launcher 测试中的 profile 私有化 |
+| Host 之间的进程与文件访问（v0.3.3 遗留：同一 uid） | `systemd`：user、PID、mount 命名空间，hosts 根目录与 `/data` 隐藏，只读系统，seccomp；`docker`：容器隔离 | Host 内部自检：只看得到自己的目录，`EROFS`/`ENOENT`，PID 1 |
+| 资源耗尽（内存、CPU、进程、文件描述符、磁盘） | cgroup + rlimit（systemd/docker）、磁盘配额（507）、Host 数上限、全局启动速率、空闲回收 | §2.2、§7.2 |
+| 滥用和洪泛（v0.3.3 遗留：broker 不做限速） | 每用户速率与并发、每地址 `/me` 查询限速、全局启动速率；429 + Retry-After，不影响他人 | §3、真实 DSH 洪泛测试 |
+| 未认证访问 / CSRF / 跨站 WebSocket | 认证在路由之前；Origin/Sec-Fetch-Site 围栏；WebSocket 必须带公开 Origin；只放行无 Origin 的顶层导航 | ingress 测试与真实 Caddy |
+| 登出后继续使用（v0.3.3 遗留：只靠 15 s 缓存，且已打开的 WebSocket 永不复查） | revoke 端点 + API 通知（默认关）+ 隧道定期复查（默认开） | limits 测试；真实 DSH 中 revoke 关闭 B 的隧道 |
+| 同源脚本扩大爆炸半径（DSH 需要 `unsafe-eval` 和 `unsafe-inline`） | 独立子域；CSP 只允许同源，禁止嵌入，`object-src 'none'` | §1.2/§1.4 |
+| 审计日志泄露 | 带密钥的 user 哈希；只取请求/响应中的标识符；不记录正文、查询串、请求头 | limits 测试；真实 DSH 审计检查 |
+| 内部端点暴露 | Caddy 对 `/__broker/*` 返回 404；revoke 需要常量时间比较的密钥 | ingress 测试 |
+| 共享的可执行缓存 | `NARB_DISABLE_NATIVE_CACHE=1` | broker 测试 |
+| **Host 出网（尚未在本仓库内解决）** | systemd **user** manager **静默忽略** `IPAddressDeny`/`IPAddressAllow`（本机实测：设置后外网仍可达）。所以在推荐的 user-unit 方案下，Host 能访问模型 provider 与 FastAPI 之外的任意地址：其他 loopback 服务、内网、云元数据。docker launcher 有独立的网络命名空间，但默认的 bridge 仍可出网 | **需要部署侧补上（三选一）**：① 对 `pgdsh.slice` 用 nftables `socket cgroupv2` 规则做出口白名单（推荐，配合 user-unit）；② 以 system 级 unit + `User=`/`DynamicUser=` 运行 Host 并启用 `IPAddressDeny=any` + `IPAddressAllow=<API>,<provider>`（需要 broker 有创建 system unit 的权限，等同 root；不同 uid 的 Host 也读不了 broker 写的 0600 token 文件，需要 root helper 来 chown）；③ docker 自定义网络（`--internal` 或关闭 ICC）+ 出口白名单代理（例如只放行模型域名的 HTTP CONNECT 代理）。**本机为什么只验证了 user-unit**：system unit 需要 root 创建，而且会给 broker 等同 root 的能力；nftables 规则会修改主机全局防火墙；按照约束都没有在本机执行，只用 user-unit 实测了 IP ACL 被忽略这一事实 |
+| 上游 `session/create` 接受任意 `cwd` | 公开 profile 中 fs、workspace files、terminal 都已禁用；沙箱下 Host 也看不到用户目录以外的路径 | 仍需在开放任何文件能力之前，先在 Session 层限定 cwd |
+| Host token 被窃取 | ≤15 min、只能作 Bearer、路由白名单、登出即失效 | v0.3.3 pytest |
+
 ## 6. 开关汇总（全部默认关闭或采用安全值）
 
 | 变量 | 默认 | 作用 |
@@ -365,3 +435,31 @@ BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   Bind
 | mock 模型 | `node --test scripts/mock-llm.test.mjs`（`mock-llm-check`，已加入 check） | 2 passed |
 | 端到端（mock，Postgres） | `E2E_POSTGRES=docker PUREGAMMA_DSH_BIN=… tsx scripts/e2e-conversation.mjs` | 10 个场景、20 个侧面：19 pass，DSH 审批为 missing，0 fail；模型请求 39 次，审计 92 行；Postgres 容器结束后已删除 |
 | 端到端（mock，SQLite） | 同上，不加 `E2E_POSTGRES` | 旧路径的取消间歇性 500（SQLite 写锁，见 4.3），其余通过 |
+
+## 8. 遗留项与需要用户拍板的事项
+
+**遗留（本次没有完成或无法在本机完成）**：
+
+- 出口限制需要部署侧实施（§5.6）。本仓库只提供推荐的规则形态，没有实测 nftables 规则。
+- 硬性磁盘配额（XFS project quota、loop 设备）需要 root 和系统配置。当前是软限制（周期检查）加单文件硬上限。
+- 生产用 broker 的 systemd 服务文件和 docker 镜像（docker launcher 需要预装 node 与 DSH 的镜像）没有写。本机 docker 验证用的是 `python:3.12-slim` 加只读挂载宿主 node。
+- Host 调用 FastAPI（legacy-api provider）时不透传 `traceparent`。broker 到 Host、broker 到 FastAPI 的两段已经透传。
+- WebSocket mux 内部的 RPC 不进入审计（只记录打开/关闭）。
+- DSH 的工具审批在公开 profile 中无从触发；开放有副作用的工具时需要补上 pre-execute 的 `ask` 与对应场景。
+- CSP 需要 `'unsafe-eval'`（上游 Cordis loader）。可以向上游反馈，改为不依赖 `new Function` 的表达式求值。
+- 真实模型 key 下的端到端验证没有做（本机没有 key、没有 staging）。
+- 旧路径在 SQLite 下取消会间歇性 500（写锁）。这只影响本地/测试环境，如需修复，属于旧路径自身的事务结构问题。
+
+**需要用户拍板**：
+
+- 上线时间、`HARNESS_DOMAIN` 的 DNS 与证书、是否在生产 compose 中启用 override。
+- staging 环境、真实模型 key、测试账号（§5.4 的验收需要两个账号）。
+- 选择出口限制方案（§5.6 中三选一）以及是否允许修改主机防火墙。
+- 是否在生产关闭 DSH 遥测（建议透传 `DSH_TELEMETRY_MODE=DISABLED`）。
+- （沿用）gpt-6-luna/sol/astra 的费率、把 GitHub 默认分支改为 main、claude.ai 连接器授权。
+
+## 9. 交接
+
+- **已完成**：§0–§5 全部阶段，各自独立提交并已推送（`upgrade/dsh-ingress-isolation`）。
+- **已验证的命令**：见 §7。真实 DSH 脚本：`session-broker.integration.mjs`（`PG_BROKER_IT_LAUNCHER`、`PG_BROKER_IT_BASE_PATH`、`PG_BROKER_IT_BROWSER`）和 `e2e-conversation.mjs`（`E2E_POSTGRES=docker`）。
+- **下一步**：由协调者审查与合并；部署侧按 §5.1 准备；用户拍板 §8 中的事项。
