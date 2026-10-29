@@ -117,7 +117,7 @@ function ConfirmDialog({ locale, title, summary, phrase, busy, error, onCancel, 
         <div className="mt-3 text-sm leading-6 text-text-pg-muted">{summary}</div>
         <label className="mt-4 block text-xs text-text-pg-muted">
           {zh ? "输入以下文字以确认" : "Type the following to confirm"}
-          <code className="mt-1 block break-all rounded-lg border border-border-pg bg-bg-panel-muted p-2 text-xs text-text-pg">{phrase}</code>
+          <code className="mt-1 block break-all rounded-lg bg-bg-panel-muted p-2 text-xs text-text-pg">{phrase}</code>
           <input value={typed} onChange={(event) => setTyped(event.target.value)} autoComplete="off" spellCheck={false} className={`${inputClass} font-mono`} />
         </label>
         {error ? <p role="alert" className="mt-2 text-sm text-status-negative">{error}</p> : null}

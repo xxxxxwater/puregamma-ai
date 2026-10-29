@@ -64,7 +64,7 @@ export default async function StripeEventsPage({ params, searchParams }: { param
         </div>
         <div className="grid gap-2 md:grid-cols-2 xl:grid-cols-4">
           {products.items.length ? products.items.map((item) => (
-            <div key={item.plan_name} className="border border-border-pg bg-bg-panel-muted p-3 text-sm rounded-lg">
+            <div key={item.plan_name} className="bg-bg-panel-muted p-3 text-sm rounded-lg">
               <div className="flex items-center justify-between gap-2">
                 <span className="font-medium">{item.plan_name}</span>
                 <Badge tone="neutral"><StatusDot tone={item.status === "in_sync" ? "emerald" : item.status === "mismatch" ? "amber" : "neutral"} /> {item.status}</Badge>
@@ -87,7 +87,7 @@ export default async function StripeEventsPage({ params, searchParams }: { param
         </div>
         <div className="space-y-2">
           {visibleEvents.length ? visibleEvents.map((event) => (
-            <div key={event.id} className="grid gap-2 border border-border-pg bg-bg-panel-muted p-3 text-sm lg:grid-cols-[1.5fr_1fr_auto] rounded-lg">
+            <div key={event.id} className="grid gap-2 bg-bg-panel-muted p-3 text-sm lg:grid-cols-[1.5fr_1fr_auto] rounded-lg">
               <div>
                 <div className="font-medium">{event.event_type}</div>
                 <div className="mt-1 text-xs text-text-pg-muted">{event.stripe_event_id || event.id}</div>

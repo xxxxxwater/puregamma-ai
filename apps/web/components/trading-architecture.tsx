@@ -120,7 +120,7 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
         className="relative mx-auto mt-7 max-w-4xl rounded-[30px] border-[7px] border-border-pg bg-bg-panel-muted p-1.5 shadow-card"
       >
         <div className="pointer-events-none absolute left-1/2 top-0 z-30 h-4 w-24 -translate-x-1/2 rounded-b-[10px] bg-border-pg" aria-hidden />
-        <div className="overflow-hidden rounded-[21px] border border-border-pg bg-bg-panel">
+        <div className="overflow-hidden rounded-[21px] bg-bg-panel">
           <div className="flex h-9 items-center justify-between border-b border-border-pg bg-bg-panel px-3 text-11 text-text-pg-muted">
             <div className="flex items-center gap-1.5" aria-label={copy.windowControls}>
               <span role="img" aria-label={copy.closePreview} className="h-2.5 w-2.5 rounded-full bg-border-pg-strong" />
@@ -131,11 +131,11 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
               <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 shadow-[0_0_10px_rgba(52,211,153,0.9)]" />
               <span>PUREGAMMA.AI</span>
             </div>
-            <div className="rounded-full border border-border-pg bg-bg-panel-muted px-2 py-0.5 font-semibold tracking-[0.12em] text-text-pg-muted">{copy.live}</div>
+            <div className="rounded-full bg-bg-panel-muted px-2 py-0.5 font-semibold tracking-[0.12em] text-text-pg-muted">{copy.live}</div>
           </div>
 
           <div data-testid="architecture-system-map" className="architecture-system-map relative h-[520px] w-full overflow-hidden bg-bg-panel-muted/40">
-            <div data-testid="architecture-map-caption" className="absolute bottom-2 left-2 z-20 rounded-md border border-border-pg bg-bg-panel px-2 py-1 text-11 uppercase tracking-[0.14em] text-text-pg-muted backdrop-blur-sm">
+            <div data-testid="architecture-map-caption" className="absolute bottom-2 left-2 z-20 rounded-md bg-bg-panel px-2 py-1 text-11 uppercase tracking-[0.14em] text-text-pg-muted backdrop-blur-sm">
               <span className="font-semibold">{copy.runtimeMap}</span>
               <span className="ml-2 text-text-pg-dim">{copy.signedTopology}</span>
             </div>
@@ -179,12 +179,12 @@ export function TradingArchitecture({ locale }: { locale: Locale }) {
         <NodeCard title={copy.notify} detail={copy.notifyDetail} className="architecture-notify left-[50%] top-[88%]" />
 
         {/* HMAC label on the trading→runtime link */}
-        <span className="absolute left-1/2 top-[75.5%] z-10 -translate-x-1/2 border border-border-pg bg-bg-panel px-1.5 py-0.5 text-11 font-semibold tracking-wide text-text-pg-dim rounded">
+        <span className="absolute left-1/2 top-[75.5%] z-10 -translate-x-1/2 bg-bg-panel px-1.5 py-0.5 text-11 font-semibold tracking-wide text-text-pg-dim rounded">
           {copy.hmac}
         </span>
 
         {/* Legend */}
-        <div className="absolute bottom-2 right-2 flex items-center gap-3 rounded-md border border-border-pg/60 bg-bg-panel/90 px-2 py-1 text-11 text-text-pg-dim">
+        <div className="absolute bottom-2 right-2 flex items-center gap-3 rounded-md border-border-pg/60 bg-bg-panel/90 px-2 py-1 text-11 text-text-pg-dim">
           <span className="flex items-center gap-1"><span className="h-1 w-3 rounded bg-current opacity-40" />{copy.legend}</span>
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-text-pg-muted" />API</span>
           <span className="flex items-center gap-1"><span className="h-1.5 w-1.5 rounded-full bg-text-pg-muted" />Trading</span>

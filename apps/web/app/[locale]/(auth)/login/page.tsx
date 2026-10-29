@@ -99,9 +99,9 @@ export default function LoginPage() {
         </div>
 
         <div className="space-y-4 rounded-3xl border border-border-pg bg-bg-panel p-7 shadow-panel">
-          {error ? <p className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative rounded-lg">{error}</p> : null}
+          {error ? <p className="bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative rounded-lg">{error}</p> : null}
           {verifyError ? (
-            <div className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 space-y-2 rounded-lg">
+            <div className="bg-bg-panel-muted px-4 py-2.5 space-y-2 rounded-lg">
               <p className="text-sm text-status-negative">{t(locale, "common.auth.emailNotVerified")}</p>
               <Button variant="ghost" type="button" onClick={async () => { setVerifyError(""); try { await resendVerificationEmail(verifyError); setError(t(locale, "common.auth.verificationResent")); } catch { setError(zh ? "发送失败，请稍后重试" : "Failed to send"); } }} className="text-sm underline underline-offset-2">{t(locale, "common.auth.resendVerification")}</Button>
             </div>

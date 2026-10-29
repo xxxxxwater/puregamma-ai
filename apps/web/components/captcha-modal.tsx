@@ -74,7 +74,7 @@ export function CaptchaModal({
         </div>
 
         {error ? (
-          <p className="border border-border-pg bg-bg-panel-muted px-3 py-2 text-xs text-status-negative rounded-lg">{error}</p>
+          <p className="bg-bg-panel-muted px-3 py-2 text-xs text-status-negative rounded-lg">{error}</p>
         ) : null}
 
         <PuzzleCaptcha

@@ -253,7 +253,7 @@ export function ResearchRunDetail({ locale, runId }: { locale: Locale; runId: st
                       <ul className="mt-4 space-y-2 border-t border-border-pg pt-3">
                         {artifacts.map((artifact) => (
                           <li key={artifact.id} className="flex items-center gap-2 text-xs">
-                            <span className="rounded-lg border border-border-pg px-1.5 py-0.5 uppercase text-text-pg-muted">{artifact.type}</span>
+                            <span className="rounded-lg px-1.5 py-0.5 uppercase text-text-pg-muted bg-bg-panel-muted">{artifact.type}</span>
                             {artifact.url ? (
                               <a href={artifact.url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-ocean-cyan hover:underline">
                                 <LinkIcon className="h-3 w-3" aria-hidden />

@@ -284,7 +284,7 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
             {tradingNavDaily.pnl ? <p className={`pb-1 text-sm font-medium ${Number(tradingNavDaily.pnl) >= 0 ? "text-status-positive" : "text-status-negative"}`}>{Number(tradingNavDaily.pnl) >= 0 ? "+" : ""}{money(Number(tradingNavDaily.pnl))}{tradingNavDaily.ret ? ` (${Number(tradingNavDaily.ret) >= 0 ? "+" : ""}${(Number(tradingNavDaily.ret) * 100).toFixed(2)}%)` : ""} · {zh ? "今日" : "today"}</p> : null}
             {tradingNav.reconciliation_status ? <StatusBadge domain="data" value={tradingNav.reconciliation_status === "ok" ? "reconciled" : "needs_review"} locale={locale} /> : null}
           </div>
-          <div className="mt-3 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-2 lg:grid-cols-4">
+          <div className="mt-3 grid gap-px bg-border-pg sm:grid-cols-2 lg:grid-cols-4">
             <NavField label={zh ? "现金" : "Cash"} value={money(Number(tradingNav.cash))} />
             <NavField label={zh ? "总敞口" : "Gross exposure"} value={money(Number(tradingNav.gross_exposure))} />
             <NavField label={zh ? "净敞口" : "Net exposure"} value={money(Number(tradingNav.net_exposure))} />
@@ -306,7 +306,7 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
           <div className="text-xs font-semibold uppercase text-text-pg-muted">{zh ? "资产配置" : "Asset allocation"}</div>
           <h2 className="mt-2 text-lg font-semibold">{zh ? "持仓与预言机价格" : "Holdings and oracle prices"}</h2>
         </div>
-        <div className="flex gap-3 text-11 text-text-pg-muted">{Object.entries(portfolio.asset_classes ?? {}).map(([key, value]) => <span key={key} className="border border-border-pg px-2 py-1 rounded-lg">{key.toUpperCase()} {money(value)}</span>)}</div>
+        <div className="flex gap-3 text-11 text-text-pg-muted">{Object.entries(portfolio.asset_classes ?? {}).map(([key, value]) => <span key={key} className="px-2 py-1 rounded-lg bg-bg-panel-muted">{key.toUpperCase()} {money(value)}</span>)}</div>
       </div>
       <div className="grid gap-px bg-border-pg lg:grid-cols-[minmax(0,2fr)_minmax(0,3fr)]">
         <div className="bg-bg-panel p-4">{allocation.length > 1 ? <AllocationChart data={allocation} /> : <div className="grid h-64 place-items-center text-xs text-text-pg-muted">{zh ? "单一资产" : "Single asset"}</div>}</div>
@@ -326,7 +326,7 @@ export function PortfolioConsole({ locale }: { locale: Locale }) {
           <h2 className="mt-2 text-lg font-semibold">{zh ? "投资与现金交易" : "Investment and cash activity"}</h2>
           <p className="mt-2 text-xs leading-5 text-text-pg-muted">{zh ? "投资交易和已授权现金账户交易最多保留 24 个月。首次历史加载可能需要数分钟。" : "Investment and authorized cash-account activity is retained for up to 24 months. The first history load may take a few minutes."}</p>
         </div>
-        <span className="border border-border-pg px-2 py-1 text-11 text-text-pg-muted rounded-lg">READ ONLY</span>
+        <span className="px-2 py-1 text-11 text-text-pg-muted rounded-lg bg-bg-panel-muted">READ ONLY</span>
       </div>
       {plaidTransactions.length ? <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-xs"><thead><tr className="border-b border-border-pg text-left text-11 uppercase text-text-pg-dim"><th className="px-4 py-3 font-medium">{zh ? "日期" : "Date"}</th><th className="px-3 py-3 font-medium">{zh ? "活动" : "Activity"}</th><th className="px-3 py-3 font-medium">{zh ? "资产" : "Asset"}</th><th className="px-3 py-3 text-right font-medium">{zh ? "数量" : "Qty"}</th><th className="px-3 py-3 text-right font-medium">{zh ? "价格" : "Price"}</th><th className="px-3 py-3 text-right font-medium">{zh ? "金额" : "Amount"}</th><th className="px-4 py-3 text-right font-medium">{zh ? "费用" : "Fee"}</th></tr></thead><tbody className="divide-y divide-border-pg">{plaidTransactions.map((transaction) => <tr key={transaction.id} className={transaction.cancelled ? "text-text-pg-dim line-through" : ""}><td className="px-4 py-3 text-text-pg-muted">{new Date(`${transaction.date}T00:00:00`).toLocaleDateString(locale)}</td><td className="px-3 py-3"><div className="font-medium">{transaction.name}</div><div className="mt-0.5 text-11 uppercase text-text-pg-dim">{transaction.type}{transaction.subtype ? ` · ${transaction.subtype}` : ""}</div></td><td className="px-3 py-3">{transaction.symbol || "—"}</td><td className="px-3 py-3 text-right">{transaction.quantity ? quantity(transaction.quantity) : "—"}</td><td className="px-3 py-3 text-right">{transaction.price ? money(transaction.price) : "—"}</td><td className="px-3 py-3 text-right">{money(transaction.amount)}</td><td className="px-4 py-3 text-right">{transaction.fees ? money(transaction.fees) : "—"}</td></tr>)}</tbody></table></div> : <div className="p-5 text-sm text-text-pg-muted">{zh ? "正在准备 Plaid 交易历史。数据可用后将自动显示。" : "Plaid activity history is being prepared and will appear automatically when available."}</div>}
     </ResearchCard> : null}

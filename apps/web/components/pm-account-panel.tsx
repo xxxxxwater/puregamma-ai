@@ -277,7 +277,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
       {/* ------------------------------------------------ hero */}
       <div className="p-5">
         <div className="flex flex-wrap items-center justify-between gap-3">
-          <span className="inline-flex items-center gap-1.5 border border-border-pg bg-bg-panel-muted px-2 py-1 text-11 font-medium uppercase tracking-wide text-text-pg-muted rounded-lg">
+          <span className="inline-flex items-center gap-1.5 bg-bg-panel-muted px-2 py-1 text-11 font-medium uppercase tracking-wide text-text-pg-muted rounded-lg">
             Portfolio Margin
           </span>
           <div className="flex items-center gap-2">
@@ -285,7 +285,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
               <span className={`h-1.5 w-1.5 rounded-full ${live ? "bg-status-positive" : "bg-status-warning"}`} aria-hidden />
               <span className={live ? "text-status-positive" : "text-status-warning"}>{live ? "LIVE" : "STALE"}</span>
             </span>
-            <span className="border border-border-pg px-2 py-1 text-11 text-text-pg-muted rounded-lg">READ ONLY</span>
+            <span className="px-2 py-1 text-11 text-text-pg-muted rounded-lg bg-bg-panel-muted">READ ONLY</span>
             {onRefresh ? (
               <Button variant="secondary" type="button" onClick={onRefresh} className="grid h-6 w-6 place-items-center rounded-lg" title={zh ? "刷新" : "Refresh"}>
                 {loading ? <Loader2 className="h-3 w-3 animate-spin" /> : <RefreshCw className="h-3 w-3" />}
@@ -298,7 +298,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
         <p className={`mt-1 text-4xl font-semibold tracking-normal tabular-nums sm:text-5xl ${rising ? "text-status-positive" : "text-status-negative"}`}>{heroText}</p>
 
         {/* The three BTC figures, each with the field it comes from. */}
-        <div className="mt-4 grid gap-px border border-border-pg bg-border-pg sm:grid-cols-3">
+        <div className="mt-4 grid gap-px bg-border-pg sm:grid-cols-3">
           {/* The hero already shows the equity, so these three carry the
               remaining facts: the coin actually held, the official margin
               basis, and the liability that makes equity smaller than it. */}
@@ -320,7 +320,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
         {/* ------------------------------------------------ chart */}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3 border-t border-border-pg pt-4">
           <h3 className="text-sm font-semibold">{zh ? "净值表现" : "NAV performance"}</h3>
-          <div className="flex items-center gap-0.5 border border-border-pg p-0.5 rounded-lg">
+          <div className="flex items-center gap-0.5 p-0.5 rounded-lg bg-bg-panel-muted">
             {(["USD", "BTC"] as const).map((item) => (
               <button key={item} type="button" onClick={() => setCurrency(item)} className={`h-6 px-2.5 text-11 font-medium ${currency === item ? "bg-text-pg text-bg-app" : "text-text-pg-dim hover:text-text-pg"}`}>{item}</button>
             ))}
@@ -396,7 +396,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
           ) : null}
         </>
       ) : (
-        <div className="mx-5 mb-4 grid h-32 place-items-center border border-border-pg text-sm text-text-pg-muted">
+        <div className="mx-5 mb-4 grid h-32 place-items-center text-sm text-text-pg-muted bg-bg-panel-muted">
           {history && !history.available
             ? (zh ? "历史数据暂不可用，未绘制曲线。" : "History is unavailable, so no curve is drawn.")
             : (zh ? "数据不足：该区间至少需要 2 个真实快照（不插值、不伪造）。" : "Not enough data in this range: at least two real snapshots are required (no interpolation).")}

@@ -115,7 +115,7 @@ export default function SignUpPage() {
         </div>
 
         <div className="space-y-4 border border-border-pg bg-bg-panel p-6 rounded-2xl">
-          {error ? <p className="border border-border-pg bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative rounded-lg">{error}</p> : null}
+          {error ? <p className="bg-bg-panel-muted px-4 py-2.5 text-sm text-status-negative rounded-lg">{error}</p> : null}
 
           <form onSubmit={handleEmailRegister} className="space-y-3">
             <input

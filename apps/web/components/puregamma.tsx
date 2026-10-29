@@ -60,7 +60,7 @@ export type IntegrationRow = {
 
 export function PGResearchCard({ children, className = "", ...props }: HTMLAttributes<HTMLElement> & { children: ReactNode; className?: string }) {
   return (
-    <section className={clsx("min-w-0 rounded-2xl border border-border-pg bg-bg-panel p-5 text-text-pg shadow-card transition-[border-color,box-shadow] hover:border-border-pg-strong hover:shadow-card-hover", className)} {...props}>
+    <section className={clsx("min-w-0 rounded-2xl bg-bg-panel p-5 text-text-pg shadow-card transition-[box-shadow] hover:shadow-card-hover", className)} {...props}>
       {children}
     </section>
   );
@@ -347,15 +347,15 @@ export function StrategyCard({ item, locale = defaultLocale }: { item: StrategyR
 }
 
 export function BacktestResultCard({ metrics, locale = defaultLocale }: { metrics: { label: string; value: string }[]; locale?: Locale }) {
-  return <PGResearchCard><h3 className="mb-3 font-semibold">{t(locale, "nautilus.modules.backtestResults")}</h3><div className="grid grid-cols-2 gap-px border border-border-pg bg-border-pg text-sm md:grid-cols-4 rounded-xl overflow-hidden">{metrics.map((metric) => <div key={metric.label} className="bg-bg-panel p-3"><div className="text-text-pg-muted">{metric.label}</div><div className="mt-1 text-lg font-semibold">{metric.value}</div></div>)}</div><p className="mt-3 text-xs text-text-pg-dim">{t(locale, "compliance.backtestShort")}</p></PGResearchCard>;
+  return <PGResearchCard><h3 className="mb-3 font-semibold">{t(locale, "nautilus.modules.backtestResults")}</h3><div className="grid grid-cols-2 gap-px bg-border-pg text-sm md:grid-cols-4 rounded-xl overflow-hidden">{metrics.map((metric) => <div key={metric.label} className="bg-bg-panel p-3"><div className="text-text-pg-muted">{metric.label}</div><div className="mt-1 text-lg font-semibold">{metric.value}</div></div>)}</div><p className="mt-3 text-xs text-text-pg-dim">{t(locale, "compliance.backtestShort")}</p></PGResearchCard>;
 }
 
 export function DailyBriefPreview({ locale = defaultLocale }: { locale?: Locale }) {
   return (
     <PGResearchCard>
-      <div className="mx-auto max-w-sm border border-border-pg bg-bg-app p-4 rounded-xl">
+      <div className="mx-auto max-w-sm bg-bg-app p-4 rounded-xl">
         <div className="text-xs uppercase tracking-[0.14em] text-text-pg-muted">{t(locale, "daily-push.preview.label")}</div>
-        <div className="mt-4 whitespace-pre-line border border-border-pg bg-bg-panel-muted p-4 text-sm leading-6 rounded-xl">
+        <div className="mt-4 whitespace-pre-line bg-bg-panel-muted p-4 text-sm leading-6 rounded-xl">
           {t(locale, "daily-push.preview.message")}
         </div>
       </div>
@@ -429,7 +429,7 @@ export function EmptyState({ title, description }: { title: string; description:
 }
 
 export function LoadingSkeleton() {
-  return <div className="animate-pulse space-y-3"><div className="h-5 w-1/3 bg-bg-panel-muted" /><div className="h-32 border border-border-pg bg-bg-panel-muted rounded-xl" /><div className="h-32 border border-border-pg bg-bg-panel-muted rounded-xl" /></div>;
+  return <div className="animate-pulse space-y-3"><div className="h-5 w-1/3 bg-bg-panel-muted" /><div className="h-32 bg-bg-panel-muted rounded-xl" /><div className="h-32 bg-bg-panel-muted rounded-xl" /></div>;
 }
 
 export function ErrorState({ title, description }: { title: string; description: string }) {

@@ -183,7 +183,7 @@ export function NewsFeed({ locale, initial, copy }: { locale: Locale; initial: N
             <span className="inline-flex items-center gap-1.5"><RefreshCw className="h-3.5 w-3.5" />{copy.autoRefresh}</span>
             <span>{copy.lastSync}: {lastSync}</span>
           </div>
-          <span className="rounded-full border border-border-pg px-2.5 py-1 text-[0.68rem] text-text-pg-muted">{copy.latency}</span>
+          <span className="rounded-full px-2.5 py-1 text-[0.68rem] text-text-pg-muted bg-bg-panel-muted">{copy.latency}</span>
         </div>
 
         <div className="mt-4 grid gap-4 xl:grid-cols-[auto_auto_auto_auto_1fr] xl:items-end">
@@ -235,7 +235,7 @@ export function NewsFeed({ locale, initial, copy }: { locale: Locale; initial: N
                   </h2>
                   {top.summary ? <p className="mt-2 line-clamp-3 text-sm leading-6 text-text-pg-muted">{top.summary}</p> : null}
                   <div className="mt-3 flex flex-wrap items-center gap-2">
-                    {top.symbols.map((symbol) => <span key={symbol} className="rounded-md border border-border-pg bg-bg-app px-2 py-0.5 text-[0.68rem] font-medium">{symbol}</span>)}
+                    {top.symbols.map((symbol) => <span key={symbol} className="rounded-md bg-bg-app px-2 py-0.5 text-[0.68rem] font-medium">{symbol}</span>)}
                     <a href={askAgentHref(top, locale)} className="text-xs font-medium text-text-pg-muted underline-offset-2 hover:text-text-pg hover:underline">{copy.askAgent}</a>
                   </div>
                 </section>

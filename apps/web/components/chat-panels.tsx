@@ -131,22 +131,22 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
       <ToolMetric label={zh ? "数据覆盖" : "Coverage"} value={`${coveragePct.toFixed(1)}%`} />
     </div>
     <div className="mt-3 grid gap-2 text-xs sm:grid-cols-2">
-      <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "目标约束" : "Goal constraints"}</span><p className="mt-1">Sharpe {targetSharpe} · MaxDD {targetDrawdown}</p></div>
-      <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "最佳策略家族" : "Best strategy family"}</span><p className="mt-1">{bestFamily.replaceAll("_", " ")} · {bestVariant.replaceAll("_", " ")}</p><p className="mt-1 text-text-pg-dim">{parameterText || "-"}</p></div>
+      <div className="bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "目标约束" : "Goal constraints"}</span><p className="mt-1">Sharpe {targetSharpe} · MaxDD {targetDrawdown}</p></div>
+      <div className="bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "最佳策略家族" : "Best strategy family"}</span><p className="mt-1">{bestFamily.replaceAll("_", " ")} · {bestVariant.replaceAll("_", " ")}</p><p className="mt-1 text-text-pg-dim">{parameterText || "-"}</p></div>
     </div>
     <div className="mt-3 flex flex-wrap gap-2 text-11 text-text-pg-muted">
-      <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "探索" : "Evaluations"} {String(compute.evaluations ?? nodes.length)}</span>
-      <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "代数" : "Generations"} {String(compute.generations ?? "-")}</span>
-      <span className="border border-border-pg px-2 py-1 rounded-lg">Replay · {String(replay.selected_policy || "-")}</span>
-      <span className="border border-border-pg px-2 py-1 rounded-lg">{String(coverage.data_freshness || "unknown")}</span>
-      <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "约束口径" : "Constraint basis"} · OOS</span>
+      <span className="px-2 py-1 rounded-lg bg-bg-panel-muted">{zh ? "探索" : "Evaluations"} {String(compute.evaluations ?? nodes.length)}</span>
+      <span className="px-2 py-1 rounded-lg bg-bg-panel-muted">{zh ? "代数" : "Generations"} {String(compute.generations ?? "-")}</span>
+      <span className="px-2 py-1 rounded-lg bg-bg-panel-muted">Replay · {String(replay.selected_policy || "-")}</span>
+      <span className="px-2 py-1 rounded-lg bg-bg-panel-muted">{String(coverage.data_freshness || "unknown")}</span>
+      <span className="px-2 py-1 rounded-lg bg-bg-panel-muted">{zh ? "约束口径" : "Constraint basis"} · OOS</span>
     </div>
     <details className="mt-3 border-t border-border-pg pt-3 text-xs">
       <summary className="cursor-pointer text-text-pg-muted">{zh ? `查看 Family Budget 与 Discovery Tree（${nodes.length} 个节点）` : `View family budget and Discovery Tree (${nodes.length} nodes)`}</summary>
       <div className="mt-2 grid gap-2 sm:grid-cols-2">
         {families.map((raw, index) => {
           const family = asRecord(raw);
-          return <div key={String(family.id || index)} className="border border-border-pg p-2 rounded-lg">
+          return <div key={String(family.id || index)} className="p-2 rounded-lg bg-bg-panel-muted">
             <div className="flex items-center justify-between gap-2"><span className="font-medium">{String(family.label || family.family || "-")}</span><span className="font-mono text-11">budget {String(family.generation_1_budget ?? 0)}</span></div>
             <p className="mt-1 text-text-pg-dim">{String(family.status || "-")} · {String(family.evaluations ?? 0)} eval</p>
           </div>;
@@ -156,7 +156,7 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
         {nodes.slice(0, 8).map((raw, index) => {
           const node = asRecord(raw);
           const nodeMetrics = asRecord(node.metrics);
-          return <div key={String(node.id || index)} className="border border-border-pg bg-bg-panel-muted p-2 rounded-lg">
+          return <div key={String(node.id || index)} className="bg-bg-panel-muted p-2 rounded-lg">
             <div className="flex items-center justify-between gap-2"><span className="font-mono text-11">{String(node.id || `node-${index + 1}`)}</span><span>{Boolean(node.meets_constraints) ? "✓" : "·"}</span></div>
             <p className="mt-1">{String(node.family || "-").replaceAll("_", " ")} · {String(node.factor_variant || "-").replaceAll("_", " ")}</p>
             <p className="mt-1">S {numeric(nodeMetrics.sharpe_ratio).toFixed(2)} · DD {(Math.abs(numeric(nodeMetrics.max_drawdown)) * 100).toFixed(1)}%</p>
@@ -175,7 +175,7 @@ export function StrategyToolResult({ result, locale }: { result: { tool: string;
   const draft = (data.draft || (data.payload as Record<string, unknown> | undefined)?.strategy || {}) as Record<string, unknown>;
   const run = (data.run || {}) as Record<string, unknown>;
   return <section className="border border-border-pg-strong bg-bg-panel p-4 text-sm rounded-xl">
-    <div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase text-text-pg-dim">{result.tool}</p><h3 className="mt-1 font-semibold">{String(data.name || (data.intent_type ? `${data.execution_mode} activation` : "Strategy control"))}</h3></div><span className="border border-border-pg px-2 py-1 text-xs rounded-lg">{String(data.status || run.status || "PREVIEW")}</span></div>
+    <div className="flex items-start justify-between gap-3"><div><p className="text-xs uppercase text-text-pg-dim">{result.tool}</p><h3 className="mt-1 font-semibold">{String(data.name || (data.intent_type ? `${data.execution_mode} activation` : "Strategy control"))}</h3></div><span className="px-2 py-1 text-xs rounded-lg bg-bg-panel-muted">{String(data.status || run.status || "PREVIEW")}</span></div>
     <div className="mt-4 grid gap-3 sm:grid-cols-3"><ToolMetric label={zh ? "版本" : "Version"} value={String(data.current_version || data.strategy_version || run.strategy_version || "-")} /><ToolMetric label={zh ? "模式" : "Mode"} value={String(data.execution_mode || run.execution_mode || draft.execution_mode || "-")} /><ToolMetric label={zh ? "标的" : "Instrument"} value={Array.isArray(draft.instruments) ? draft.instruments.join(", ") : String(data.instrument || "-")} /></div>
     {Array.isArray(draft.sentiment_sources) ? <p className="mt-3 text-xs text-text-pg-muted">{zh ? "数据源" : "Sources"}: {draft.sentiment_sources.join(", ") || "market"}</p> : null}
     {data.confirmation ? <div className="mt-3 border border-status-warning bg-bg-panel-muted p-3 rounded-lg"><p className="text-xs text-status-warning">{zh ? "Runtime 尚未启动。下一轮需完整发送：" : "Runtime not started. Send this exact phrase in a new turn:"}</p><code className="mt-2 block overflow-x-auto text-xs">{String(data.confirmation)}</code></div> : null}

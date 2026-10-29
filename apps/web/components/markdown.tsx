@@ -49,7 +49,7 @@ function CodeBlock({ language, code }: { language: string; code: string }) {
   };
 
   return (
-    <div className="my-4 overflow-hidden border border-border-pg bg-bg-panel-muted rounded-lg">
+    <div className="my-4 overflow-hidden bg-bg-panel-muted rounded-lg">
       <div className="flex items-center justify-between gap-2 border-b border-border-pg px-3 py-1.5">
         <span className="font-mono text-11 uppercase tracking-[0.12em] text-text-pg-dim">{language || "text"}</span>
         <Button variant="ghost" size="sm"
