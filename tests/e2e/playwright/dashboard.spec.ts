@@ -30,4 +30,28 @@ test.describe("/dashboard", () => {
     await expect(page.getByText("账户与计费数据暂不可用")).toBeVisible();
     await expect(page.getByText("暂无研究简报")).toBeVisible();
   });
+
+  // The legacy API (and the client's own fallback) answers `nav: 0` with
+  // `connected: false`. A missing NAV is unavailable, never a $0.00 portfolio.
+  test("a portfolio without a connected snapshot shows NAV as unavailable, never $0.00", async ({ page }) => {
+    await page.route("**/__dev-api/portfolio", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ connected: false, stale: false, nav: 0, available_cash: 0, accounts: [], connections: [], holdings: [], nav_history: [] }) }));
+    await page.goto("/en/dashboard");
+    const nav = page.getByTestId("briefing-portfolio-nav");
+    await expect(nav).toHaveAttribute("data-state", "unavailable");
+    await expect(nav).toHaveText("—");
+    await expect(page.getByText("No investment account connected", { exact: true })).toBeVisible();
+    await expect(page.locator(".portfolio-nav")).not.toContainText("$0.00");
+    // The activity panel's portfolio snapshot follows the same rule.
+    const snapshot = page.getByTestId("today-portfolio-nav");
+    await expect(snapshot).toHaveAttribute("data-state", "unavailable");
+    await expect(snapshot).toHaveText("—");
+  });
+
+  test("a connected portfolio shows the server NAV", async ({ page }) => {
+    await page.route("**/__dev-api/portfolio", (route) => route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ connected: true, stale: false, data_as_of: "2026-10-29T11:55:00+00:00", nav: 12500.25, available_cash: 2500.5, accounts: [], connections: [], holdings: [], nav_history: [] }) }));
+    await page.goto("/en/dashboard");
+    const nav = page.getByTestId("briefing-portfolio-nav");
+    await expect(nav).toHaveAttribute("data-state", "available");
+    await expect(nav).toHaveText("$12,500.25");
+  });
 });
