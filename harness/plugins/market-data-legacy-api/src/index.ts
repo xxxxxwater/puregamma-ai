@@ -32,6 +32,7 @@ interface LegacyAsset {
   source?: unknown
   is_realtime?: unknown
   asset_type?: unknown
+  is_mock?: unknown
 }
 
 interface LegacySnapshot {
@@ -134,6 +135,8 @@ export class LegacyApiMarketDataProvider extends MarketDataService {
       const observedAt = asString(raw.timestamp)
       const source = asString(raw.source)
       if (symbol === undefined || last === undefined || observedAt === undefined || source === undefined) continue
+      // MARKET_DATA_MODE=mock quotes are invented prices; they never reach a consumer as a quote.
+      if (raw.is_mock === true || source.toLowerCase() === 'mock') continue
       const realtime = raw.is_realtime === true
       quotes.push({
         instrument: {
