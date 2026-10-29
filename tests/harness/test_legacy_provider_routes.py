@@ -25,8 +25,8 @@ INTERPOLATION = re.compile(r"\$\{(?:[^{}]|\{[^{}]*\})*\}")
 
 
 def _strip_comments(source: str) -> str:
-    source = re.sub(r"/\*.*?\*/", "", source, flags=re.S)
-    return re.sub(r"^\s*//.*$", "", source, flags=re.M)
+    source = re.sub(r"/\*.*?\*/", "", source, flags=re.DOTALL)
+    return re.sub(r"^\s*//.*$", "", source, flags=re.MULTILINE)
 
 
 CHOICE = re.compile(r"\$\{[^{}]*\?\s*'([^']+)'\s*:\s*'([^']+)'\s*\}")
