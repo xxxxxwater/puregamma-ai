@@ -1,0 +1,11 @@
+{
+  "body": {
+    "id": "00000000-0000-4000-8000-000000000001",
+    "status": "canceled"
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/agent/runs/00000000-0000-4000-8000-000000000001/cancel"
+  },
+  "status": 200
+}

@@ -1,0 +1,73 @@
+{
+  "body": {
+    "active_run_id": "00000000-0000-4000-8000-000000000004",
+    "active_run_message_id": "00000000-0000-4000-8000-000000000003",
+    "conversation": {
+      "archived_at": null,
+      "created_at": "2026-10-29T08:00:00.000000",
+      "id": "00000000-0000-4000-8000-000000000001",
+      "permission_mode": "workspace-write",
+      "status": "active",
+      "summary": null,
+      "title": "contract",
+      "updated_at": "2026-10-29T08:00:01.000000"
+    },
+    "messages": [
+      {
+        "content": "What moved BTC today?",
+        "context": {
+          "attachments": []
+        },
+        "conversation_id": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-29T08:00:02.000000",
+        "credits_refunded": false,
+        "credits_used": null,
+        "error_code": null,
+        "error_message": null,
+        "id": "00000000-0000-4000-8000-000000000002",
+        "input_tokens": 0,
+        "model": null,
+        "output_tokens": 0,
+        "role": "user",
+        "sources": [],
+        "status": "completed"
+      },
+      {
+        "content": "",
+        "context": {
+          "attachments": []
+        },
+        "conversation_id": "00000000-0000-4000-8000-000000000001",
+        "created_at": "2026-10-29T08:00:03.000000",
+        "credits_refunded": false,
+        "credits_used": 0,
+        "error_code": null,
+        "error_message": null,
+        "id": "00000000-0000-4000-8000-000000000003",
+        "input_tokens": 0,
+        "model": null,
+        "output_tokens": 0,
+        "role": "assistant",
+        "sources": [],
+        "status": "streaming"
+      }
+    ],
+    "pending_approvals": [
+      {
+        "arguments": {
+          "symbols": [
+            "BTC"
+          ]
+        },
+        "expiresAt": "2026-10-29T08:00:04.000000",
+        "tool": "save_watchlist",
+        "toolCallId": "00000000-0000-4000-8000-000000000005"
+      }
+    ]
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000001"
+  },
+  "status": 200
+}

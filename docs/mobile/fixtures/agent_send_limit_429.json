@@ -1,0 +1,12 @@
+{
+  "body": {
+    "detail": {
+      "code": "AGENT_CONCURRENT_LIMIT_REACHED"
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000001/messages"
+  },
+  "status": 429
+}

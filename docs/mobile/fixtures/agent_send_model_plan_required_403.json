@@ -1,0 +1,13 @@
+{
+  "body": {
+    "detail": {
+      "code": "AGENT_MODEL_PLAN_REQUIRED",
+      "message": "The selected Agent model requires an eligible plan."
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000001/messages"
+  },
+  "status": 403
+}
