@@ -57,7 +57,10 @@ sealed interface AgentSendFailure {
             return when {
                 detail.status == 409 && detail.code == "DUPLICATE_SUBMISSION" && !runId.isNullOrBlank() -> Duplicate(runId, detail.fields["status"])
                 detail.status == 404 -> ConversationGone
-                detail.code in RETRYABLE_CODES || detail.status >= 500 -> Retryable(error)
+                detail.code in RETRYABLE_CODES -> Retryable(error)
+                // A coded refusal says why; an unpriced model stays unpriced however often it is resent.
+                detail.code != null -> Final(error)
+                detail.status >= 500 -> Retryable(error)
                 else -> Final(error)
             }
         }

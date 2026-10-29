@@ -24,6 +24,17 @@ import Testing
         for sample in samples { let event = ServerSentEvent(event: sample.0, data: Data(sample.1.utf8)); _ = try AgentSSEEvent.decode(event) }
     }
 
+    /// `URLSession.AsyncBytes.lines` drops blank lines: frames must still split.
+    @Test func framesSplitWithoutBlankLines() {
+        var parser = SSEParser()
+        var frames: [ServerSentEvent] = []
+        for line in ["event: run.started", "data: {\"runId\":\"r1\"}", "event: message.delta", "data: {\"delta\":\"x\"}", "event: message.completed", "data: {}"] {
+            if let frame = parser.consume(line) { frames.append(frame) }
+        }
+        if let last = parser.finish() { frames.append(last) }
+        #expect(frames.map(\.event) == ["run.started", "message.delta", "message.completed"])
+    }
+
     @Test func joinsMultiLineDataWithNewline() {
         var parser = SSEParser()
         _ = parser.consume("event: citation")

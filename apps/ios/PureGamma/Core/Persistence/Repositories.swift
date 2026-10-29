@@ -86,7 +86,7 @@ struct RepositoryContainer {
         let payload = AgentMessageRequestDTO(content: prompt, locale: locale, dataSources: context.dataSources, skills: context.skills, customPrompt: context.customPrompt, attachments: context.attachments.map { .init(name: $0.name, content: $0.content, mime: $0.mime) }, model: context.model, clientRequestID: clientRequestID)
         let (bytes, _) = try await client.stream("/api/agent/conversations/\(conversationID)/messages", body: payload, codedErrors: true)
         return AsyncThrowingStream { continuation in
-            let task = Task { do { var parser = SSEParser(); for try await line in bytes.lines { if let event = parser.consume(line) { continuation.yield(AgentStreamFrame.decode(event)) } }; continuation.finish() } catch { continuation.finish(throwing: error) } }
+            let task = Task { do { var parser = SSEParser(); for try await line in bytes.lines { if let event = parser.consume(line) { continuation.yield(AgentStreamFrame.decode(event)) } }; if let last = parser.finish() { continuation.yield(AgentStreamFrame.decode(last)) }; continuation.finish() } catch { continuation.finish(throwing: error) } }
             continuation.onTermination = { _ in task.cancel() }
         }
     }
