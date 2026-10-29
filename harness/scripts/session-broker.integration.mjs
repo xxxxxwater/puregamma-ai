@@ -90,7 +90,11 @@ const config = {
   instance: `it${randomBytes(3).toString('hex')}`,
   dockerImage: process.env.PG_BROKER_IT_DOCKER_IMAGE ?? '',
   dockerNode: process.execPath,
+  audit: '',
 }
+config.audit = path.join(root, 'audit.jsonl')
+// Loose enough for a real browser boot (~30 parallel requests), tight enough to trip in the flood step.
+config.limits = { ...config.limits, userBurst: 80, userRatePerSec: 20, userMaxInflight: 32 }
 config.hostLimits = { ...config.hostLimits, memoryMb: config.hostHeapMb + 512, cpuPercent: 100, tasksMax: 128, nofile: 2048, fileSizeMb: 64 }
 console.log(`# launcher ${config.launcher}`)
 const broker = createBroker(config, { log: message => console.log(`  [broker] ${message}`) })
@@ -211,6 +215,35 @@ try {
     const response = await fetch(`${base}/api/session/list`, { method: 'POST', headers: { ...as('sess-a'), origin: 'https://evil.test' } })
     assert.equal(response.status, 403)
   })
+  await step('flooding A\'s real Host draws 429 + Retry-After for A only; B keeps working', async () => {
+    const flood = await Promise.all(Array.from({ length: 150 }, () => rpc('sess-a', 'session/list', { _request: {} })))
+    const during = await rpc('sess-b', 'session/list', { _request: {} })
+    const statuses = flood.reduce((count, answer) => ({ ...count, [answer.status]: (count[answer.status] ?? 0) + 1 }), {})
+    console.log(`  A flood statuses: ${JSON.stringify(statuses)}; B during flood: ${during.status}`)
+    assert.ok((statuses[429] ?? 0) > 0, 'A is limited')
+    assert.ok((statuses[200] ?? 0) > 0, 'A is not locked out')
+    assert.deepEqual(Object.keys(statuses).filter(status => !['200', '429'].includes(status)), [])
+    assert.equal(during.status, 200, 'B unaffected')
+    const limited = flood.find(answer => answer.status === 429)
+    assert.match(String(limited.body?.error), /rate-limited|too-many-requests/)
+    await new Promise(resolve => setTimeout(resolve, 4000))
+    assert.equal((await rpc('sess-a', 'session/list', { _request: {} })).status, 200, 'A recovers')
+  })
+
+  await step('the audit log records hashed users, Session ids, RPC plugin and trace ids, and no credentials or user content', async () => {
+    const lines = readFileSync(config.audit, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const text = JSON.stringify(lines)
+    for (const forbidden of ['sess-a', 'sess-b', 'user-a', 'user-b', 'host.user', 'pg_session', 'dsh-auth', 'A private plan', 'owned by B', SECRET]) {
+      assert.ok(!text.includes(forbidden), `audit contains ${forbidden}`)
+    }
+    const renames = lines.filter(line => line.action === 'rpc:session/rename')
+    assert.ok(renames.some(line => line.session === sessionA && line.plugin === 'session' && line.status === 200), JSON.stringify(renames))
+    assert.ok(lines.some(line => line.event === 'limit' && line.status === 429))
+    assert.ok(lines.some(line => line.action === 'host:start' && line.result === 'ok'))
+    assert.ok(lines.every(line => /^[0-9a-f]{24}$/.test(line.user ?? '0'.repeat(24)) && typeof line.trace === 'string'))
+    console.log(`  ${lines.length} audit lines; e.g. ${JSON.stringify(renames[0])}`)
+  })
+
   if (config.launcher !== 'direct') {
     await step(`${config.launcher}: each real Host runs under its own kernel limits and sees only its own directory`, async () => {
       const launched = broker.hosts.launched()
@@ -290,6 +323,20 @@ try {
       }
     })
   }
+  await step('a logout notification closes B\'s WebSocket and stops B\'s Host; A keeps working', async () => {
+    const socket = await new Promise(resolve => {
+      const req = http.request(`${base}/api/remote.mux`, { headers: { ...as('sess-b'), origin: config.publicOrigin, connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-version': '13', 'sec-websocket-key': randomBytes(16).toString('base64') } })
+      req.on('upgrade', (_res, sock) => resolve(sock))
+      req.end()
+    })
+    const closed = new Promise(resolve => socket.once('close', resolve))
+    const revoked = await fetch(`${origin}/__broker/revoke`, { method: 'POST', headers: { 'x-puregamma-broker-secret': SECRET, 'content-type': 'application/json' }, body: JSON.stringify({ user_id: 'user-b' }) })
+    assert.equal(revoked.status, 204)
+    await closed
+    assert.equal(broker.hosts.launched().length, 1)
+    assert.equal((await rpc('sess-a', 'session/list', { _request: {} })).status, 200)
+  })
+
   if (config.launcher !== 'direct') {
     await step(`${config.launcher}: idle reaping stops the real Hosts`, async () => {
       const names = broker.hosts.launched().map(entry => entry.name)

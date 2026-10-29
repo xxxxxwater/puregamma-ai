@@ -45,6 +45,7 @@ export function brokerConfig({ api, root, harness, secret, ...overrides }) {
     idleMs: 60_000,
     startTimeoutMs: 15_000,
     authCacheMs: 1000,
+    audit: 'off',
     ...overrides,
   }
 }

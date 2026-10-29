@@ -55,6 +55,7 @@ const config = {
   idleMs: 60_000,
   startTimeoutMs: 15_000,
   authCacheMs: 1000,
+  audit: 'off',
 }
 const broker = createBroker(config, { log: () => {} })
 await new Promise(resolve => broker.server.listen(0, '127.0.0.1', resolve))

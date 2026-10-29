@@ -32,18 +32,19 @@ export class TokenKeeper {
   ) {}
 
   /** Mint with the user's own credential unless the current token is still comfortably valid. */
-  async ensure(credential: UserCredential): Promise<void> {
+  async ensure(credential: UserCredential, trace: Record<string, string> = {}): Promise<void> {
     const now = Math.floor(Date.now() / 1000)
     if (this.current && this.current.expiresAt - now > 120) return
-    await this.mint(credentialHeaders(credential))
+    await this.mint(credentialHeaders(credential), trace)
   }
 
-  private async mint(auth: Record<string, string>): Promise<void> {
+  private async mint(auth: Record<string, string>, trace: Record<string, string> = {}): Promise<void> {
     const response = await this.fetchImpl(`${this.apiBaseUrl}/internal/dsh/host-tokens`, {
       method: 'POST',
       headers: {
         'content-type': 'application/json',
         accept: 'application/json',
+        ...trace,
         'x-puregamma-broker-secret': this.brokerSecret,
         // FastAPI's cookie CSRF guard admits the site's own origin only.
         origin: this.publicOrigin,

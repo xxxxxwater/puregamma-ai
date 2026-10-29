@@ -7,7 +7,17 @@ import process from 'node:process'
 import { NEVER_PASSED, type BrokerConfig } from './config.ts'
 import type { UserCredential } from './identity.ts'
 import { createLauncher, type HostLauncher, type LaunchPlan } from './launchers.ts'
+import { RateLimited, TokenBucket } from './limits.ts'
 import { TokenKeeper } from './tokens.ts'
+
+/** Host lifecycle notifications (for the audit log). Carries the user id; the listener hashes it. */
+export interface HostEvent {
+  action: 'start' | 'stop' | 'exit' | 'quota' | 'start-rate'
+  userId: string
+  reason?: string
+  result: string
+  ms?: number
+}
 
 /** One user's running DSH Web Host. */
 export interface Host {
@@ -105,6 +115,7 @@ export class HostManager {
   private readonly reaper: NodeJS.Timeout
   private readonly diskTimer: NodeJS.Timeout
   private readonly overQuota = new Set<string>()
+  private readonly starts: TokenBucket
   readonly launcher: HostLauncher
   /** Resolves once Hosts left by an earlier run of this broker instance are gone. */
   readonly ready: Promise<void>
@@ -114,8 +125,10 @@ export class HostManager {
     private readonly log: (message: string) => void = message => console.error(`[dsh-broker] ${message}`),
     private readonly fetchImpl: typeof fetch = fetch,
     launcher?: HostLauncher,
+    private readonly onEvent: (event: HostEvent) => void = () => {},
   ) {
     this.launcher = launcher ?? createLauncher(config)
+    this.starts = new TokenBucket(config.limits.hostStartBurst, config.limits.hostStartsPerMin / 60)
     this.ready = this.launcher.sweep().then(count => { if (count) this.log(`removed ${count} stale ${this.launcher.kind} Host(s)`) }, () => {})
     this.reaper = setInterval(() => void this.reap(), Math.min(60_000, Math.max(1000, config.idleMs / 4)))
     this.reaper.unref()
@@ -134,7 +147,8 @@ export class HostManager {
       if (used > this.quotaBytes) {
         this.overQuota.add(userId)
         this.log(`host ${userKey(userId)} over disk quota (${Math.round(used / 1048576)} MB > ${this.config.diskQuotaMb} MB); stopping`)
-        await this.stop(userId)
+        this.onEvent({ action: 'quota', userId, result: 'stopped' })
+        await this.stop(userId, 'quota')
         stopped.push(userKey(userId))
       }
     }
@@ -156,35 +170,50 @@ export class HostManager {
   }
 
   /** Running Host for the user, starting it (and seeding its token) on first use. */
-  async acquire(userId: string, credential: UserCredential): Promise<Host> {
+  async acquire(userId: string, credential: UserCredential, trace: Record<string, string> = {}): Promise<Host> {
     await this.ready
     let record = this.records.get(userId)
     if (!record) {
       const used = await directoryUsage(hostPaths(this.config.hostsRoot, userId).dir, this.quotaBytes)
       if (used > this.quotaBytes) {
         this.overQuota.add(userId)
+        this.onEvent({ action: 'quota', userId, result: 'refused' })
         throw new QuotaError('user directory is over its disk quota')
       }
       this.overQuota.delete(userId)
       if (this.records.size >= this.config.maxHosts) await this.reap(true)
       if (this.records.size >= this.config.maxHosts) throw new CapacityError('all Host slots are in use')
+      // Global budget for new Hosts: a burst of new users (or one user
+      // cycling credentials) cannot fork-bomb the machine with DSH processes.
+      const start = this.starts.take()
+      if (!start.ok) {
+        this.onEvent({ action: 'start-rate', userId, result: 'refused' })
+        throw new RateLimited('host-start-rate', start.retryAfterSec)
+      }
       const paths = hostPaths(this.config.hostsRoot, userId)
       record = { tokens: new TokenKeeper(userId, paths.tokenFile, this.config.apiBaseUrl, this.config.brokerSecret, this.config.publicOrigin, this.fetchImpl, this.log) }
       this.records.set(userId, record)
     }
     try {
       await prepareDirs(hostPaths(this.config.hostsRoot, userId), this.config)
-      await record.tokens.ensure(credential)
+      await record.tokens.ensure(credential, trace)
       if (record.host) {
         record.host.lastActive = Date.now()
         return record.host
       }
-      record.starting ??= this.start(userId, record)
+      if (!record.starting) {
+        const began = Date.now()
+        record.starting = this.start(userId, record)
+        record.starting.then(
+          () => this.onEvent({ action: 'start', userId, result: 'ok', ms: Date.now() - began }),
+          error => this.onEvent({ action: 'start', userId, result: 'failed', reason: (error as Error).message.slice(0, 120), ms: Date.now() - began }),
+        )
+      }
       const host = await record.starting
       host.lastActive = Date.now()
       return host
     } catch (error) {
-      if (!record.host) await this.stop(userId)
+      if (!record.host) await this.stop(userId, 'start-failed')
       throw error
     }
   }
@@ -200,7 +229,10 @@ export class HostManager {
     record.plan = plan
     child.once('exit', (code, signal) => {
       this.log(`host ${userKey(userId)} exited (${signal ?? code})`)
-      if (this.records.get(userId)?.child === child) void this.stop(userId)
+      if (this.records.get(userId)?.child === child) {
+        this.onEvent({ action: 'exit', userId, result: String(signal ?? code) })
+        void this.stop(userId, 'exited')
+      }
     })
     child.stderr?.on('data', chunk => process.env.PUREGAMMA_DSH_BROKER_DEBUG === 'true' && process.stderr.write(chunk))
     const ready = await new Promise<{ port: number; token: string }>((resolve, reject) => {
@@ -233,17 +265,18 @@ export class HostManager {
       .filter(record => record.host && record.host.openSockets === 0)
       .sort((a, b) => a.host!.lastActive - b.host!.lastActive)
     for (const record of idle) {
-      if (now - record.host!.lastActive >= this.config.idleMs) await this.stop(record.host!.userId)
+      if (now - record.host!.lastActive >= this.config.idleMs) await this.stop(record.host!.userId, 'idle')
     }
     if (pressure && this.records.size >= this.config.maxHosts && idle[0]?.host && this.records.has(idle[0].host.userId)) {
-      await this.stop(idle[0].host.userId)
+      await this.stop(idle[0].host.userId, 'capacity')
     }
   }
 
-  async stop(userId: string): Promise<void> {
+  async stop(userId: string, reason = 'requested'): Promise<void> {
     const record = this.records.get(userId)
     if (!record) return
     this.records.delete(userId)
+    if (reason !== 'exited') this.onEvent({ action: 'stop', userId, reason, result: 'ok' })
     await record.tokens.close()
     await record.plan?.stop()
     const child = record.child
@@ -261,7 +294,7 @@ export class HostManager {
   async close(): Promise<void> {
     clearInterval(this.reaper)
     clearInterval(this.diskTimer)
-    await Promise.all([...this.records.keys()].map(userId => this.stop(userId)))
+    await Promise.all([...this.records.keys()].map(userId => this.stop(userId, 'shutdown')))
   }
 }
 
