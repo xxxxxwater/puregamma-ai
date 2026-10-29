@@ -53,7 +53,8 @@ fun NavHistoryChart(
     else points.filter { it.date >= cutoff }
 
     val sortedPoints = remember(filtered) { filtered.sortedBy { it.date } }
-    val values = remember(sortedPoints) { sortedPoints.map { it.value.toDouble() } // geometry only; labels use the exact value }
+    // Doubles for geometry only; labels format the exact BigDecimal.
+    val values = remember(sortedPoints) { sortedPoints.map { it.value.toDouble() } }
     val minVal = remember(values) { values.minOrNull() ?: 0.0 }
     val maxVal = remember(values) { values.maxOrNull() ?: 1.0 }
     val range = remember(minVal, maxVal) { max(maxVal - minVal, 1.0) }
