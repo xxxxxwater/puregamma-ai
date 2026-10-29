@@ -76,4 +76,18 @@
     <string name="live_trading_disabled_caption">本应用永久禁用 — 无下单能力</string>
     <string name="connect_plaid">连接 Plaid</string>
     <string name="plaid_connect_hint">连接券商、退休金与投资账户（只读）。</string>
+    <!-- Agent 会话契约（docs/mobile/MOBILE_API_CONTRACT.md §8） -->
+    <string name="dismiss">关闭</string>
+    <string name="unavailable">不可用</string>
+    <string name="agent_recovering">连接中断，正在从服务端记录恢复——尚未判定失败。</string>
+    <string name="agent_conversation_deleted">该会话已被删除。</string>
+    <string name="agent_permissions">权限</string>
+    <string name="permission_read_only">只读</string>
+    <string name="permission_workspace_write">可写入工作区</string>
+    <string name="agent_run_canceled">已停止，显示部分回答。</string>
+    <string name="agent_run_interrupted">生成中断，显示部分回答。</string>
+    <string name="model_reason_plan_required">需要升级套餐</string>
+    <string name="model_reason_pricing_not_configured">尚未配置计价</string>
+    <string name="model_reason_unavailable">暂不可用</string>
+    <string name="live_nav_no_account">未连接实盘账户</string>
 </resources>

@@ -54,7 +54,11 @@ import androidx.compose.ui.unit.sp
 import androidx.core.view.WindowCompat
 import ai.puregamma.android.*
 import ai.puregamma.android.R
+import ai.puregamma.android.agent.AgentModelMenu
+import ai.puregamma.android.agent.AgentPermissionMode
 import ai.puregamma.android.model.*
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import ai.puregamma.android.ui.component.NavHistoryChart
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -546,10 +550,22 @@ private fun AgentScreen(model: AppViewModel) {
         if (rows.isNotEmpty()) listState.scrollToItem(rows.lastIndex)
     }
     Column(Modifier.fillMaxSize()) {
+        // Back in the foreground: re-read the server's record and reattach to a
+        // run it is still producing. Leaving never cancels; only Stop does.
+        LifecycleEventEffect(Lifecycle.Event.ON_START) { model.resumeAgent() }
         ScreenHeader(model.selectedConversation?.title ?: stringResource(R.string.agent), if (model.isStreaming) "RUNNING" else "READY", model::loadAgent)
         ConversationBar(model)
+        if (model.isRecovering) {
+            Text(stringResource(R.string.agent_recovering), Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 6.dp), style = MaterialTheme.typography.bodySmall, color = Warning)
+        }
+        model.agentNotice?.let { notice ->
+            Row(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 4.dp), verticalAlignment = Alignment.CenterVertically) {
+                Text(notice, Modifier.weight(1f), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                TextButton(onClick = model::clearAgentNotice) { Text(stringResource(R.string.dismiss)) }
+            }
+        }
         if (showContext && caps != null) {
-            AgentContextPanel(caps.value, model.selectedModel, { model.setModel(it) }, onDismiss = { showContext = false })
+            AgentContextPanel(caps.value, model.selectedModel, { model.setModel(it) }, model.permissionModes, model.permission, model::setPermission, onDismiss = { showContext = false })
         }
         when (val state = model.messages) {
             LoadState.Idle, LoadState.Loading -> LoadingBlock(Modifier.weight(1f))
@@ -569,6 +585,10 @@ private fun AgentScreen(model: AppViewModel) {
                     item { Text("RUNNING / $activity", style = MaterialTheme.typography.labelSmall, color = Warning) }
                 }
             }
+        }
+        if (model.pendingAttempt?.accepted == false && model.globalError != null && !model.isStreaming) {
+            // Same attempt, same request id: a send that did arrive is attached to, not repeated.
+            TextButton(onClick = model::retryAgentMessage, modifier = Modifier.padding(horizontal = 8.dp)) { Text(stringResource(R.string.retry)) }
         }
         HorizontalDivider()
         Row(Modifier.fillMaxWidth().padding(12.dp), verticalAlignment = Alignment.Bottom) {
@@ -610,7 +630,15 @@ private fun AgentScreen(model: AppViewModel) {
 }
 
 @Composable
-private fun AgentContextPanel(caps: AgentCapabilities, selectedModel: String?, setModel: (String) -> Unit, onDismiss: () -> Unit) {
+private fun AgentContextPanel(
+    caps: AgentCapabilities,
+    selectedModel: String?,
+    setModel: (String) -> Unit,
+    permissionModes: List<AgentPermissionMode>,
+    permission: AgentPermissionMode,
+    setPermission: (AgentPermissionMode) -> Unit,
+    onDismiss: () -> Unit,
+) {
     Column(
         Modifier.fillMaxWidth().background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(6.dp)).padding(12.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp),
@@ -623,14 +651,35 @@ private fun AgentContextPanel(caps: AgentCapabilities, selectedModel: String?, s
             }
         }
         Text("Models", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-        Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-            caps.models.take(4).forEach { md ->
+        // Chat models only (evaluation models never write a reply); an
+        // unavailable one is greyed out with its reason, never silently hidden.
+        val menu = AgentModelMenu.entries(caps.models)
+        val chosen = AgentModelMenu.resolve(selectedModel, caps.models)
+        LazyRow(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+            items(menu, key = { it.id }) { entry ->
                 FilterChip(
-                    selected = md.id == (selectedModel ?: caps.models.firstOrNull { it.available }?.id),
-                    onClick = { if (md.available) setModel(md.id) },
-                    label = { Text(md.name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                    enabled = md.available,
+                    selected = entry.id == chosen,
+                    onClick = { if (entry.selectable) setModel(entry.id) },
+                    label = {
+                        Column {
+                            Text(entry.name, maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            entry.reason?.let { Text(stringResource(modelReasonRes(it)), style = MaterialTheme.typography.labelSmall) }
+                        }
+                    },
+                    enabled = entry.selectable,
                 )
+            }
+        }
+        if (permissionModes.isNotEmpty()) {
+            Text(stringResource(R.string.agent_permissions), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                permissionModes.forEach { mode ->
+                    FilterChip(
+                        selected = mode == permission,
+                        onClick = { setPermission(mode) },
+                        label = { Text(stringResource(if (mode == AgentPermissionMode.READ_ONLY) R.string.permission_read_only else R.string.permission_workspace_write)) },
+                    )
+                }
             }
         }
         Text(caps.dataSources.joinToString(" / "), style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
@@ -671,6 +720,10 @@ private fun AgentMessageRow(message: AgentMessage) {
     ) {
         Text(if (user) "YOU" else "PG / AGENT", style = MaterialTheme.typography.labelSmall, color = if (user) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.primary)
         Text(message.content.ifEmpty { "..." })
+        when (message.status) {
+            "canceled" -> Text(stringResource(R.string.agent_run_canceled), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            "interrupted" -> Text(stringResource(R.string.agent_run_interrupted), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
         message.error?.let { Text(it, style = MaterialTheme.typography.bodySmall, color = Negative) }
         if (message.sources.isNotEmpty()) {
             HorizontalDivider()
@@ -764,6 +817,7 @@ private fun PortfolioScreen(model: AppViewModel, openBrowser: (Uri) -> Unit) {
     var navPoints by remember { mutableStateOf<List<NavPoint>>(emptyList()) }
     LazyColumn(Modifier.fillMaxSize(), contentPadding = PaddingValues(bottom = 24.dp)) {
         item { ScreenHeader(stringResource(R.string.portfolio), "READ-ONLY / NO EXECUTION", model::loadPortfolio) }
+        item { LiveNavCard(model.liveNav) }
         when (val state = model.portfolio) {
             LoadState.Idle, LoadState.Loading -> item { LoadingBlock() }
             is LoadState.Failed -> item { ErrorBlock(state.message, model::loadPortfolio) }
@@ -1117,6 +1171,41 @@ private fun EmptyBlock() {
 private fun money(value: Double?): String {
     if (value == null || !value.isFinite()) return "-"
     return NumberFormat.getCurrencyInstance(Locale.US).apply { currency = Currency.getInstance("USD") }.format(value)
+}
+
+/** Exact money: formatted from the BigDecimal itself, never via Double. */
+private fun money(value: java.math.BigDecimal?, currency: String = "USD"): String {
+    if (value == null) return "-"
+    val code = runCatching { Currency.getInstance(currency) }.getOrDefault(Currency.getInstance("USD"))
+    return NumberFormat.getCurrencyInstance(Locale.US).apply { this.currency = code }.format(value)
+}
+
+private fun modelReasonRes(reason: String): Int = when (reason) {
+    "plan_required" -> R.string.model_reason_plan_required
+    "pricing_not_configured" -> R.string.model_reason_pricing_not_configured
+    else -> R.string.model_reason_unavailable
+}
+
+/** Server-computed LIVE NAV (contract §8.3): no account is an empty state, an unpriced NAV is "unavailable"; neither is 0. */
+@Composable
+private fun LiveNavCard(state: LoadState<LiveNavState>) {
+    Column(Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 8.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text("LIVE NAV", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        when (state) {
+            LoadState.Idle, LoadState.Loading -> Text("...", style = MaterialTheme.typography.bodySmall)
+            is LoadState.Failed -> Text(state.message, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            is LoadState.Ready -> when (val nav = state.value) {
+                LiveNavState.NoAccount -> Text(stringResource(R.string.live_nav_no_account), style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                is LiveNavState.Loaded -> {
+                    Text(nav.nav.nav?.let { money(it, nav.nav.currency) } ?: stringResource(R.string.unavailable), style = MaterialTheme.typography.titleMedium)
+                    Text(
+                        "${stringResource(R.string.available_cash)} ${money(nav.nav.cash, nav.nav.currency)} / Day ${money(nav.nav.dailyPnl, nav.nav.currency)}" + if (nav.nav.isStale) " / STALE" else "",
+                        style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+            }
+        }
+    }
 }
 
 private fun percent(value: Double?): String = value?.let { "%+.2f%%".format(Locale.US, it) } ?: "-"
