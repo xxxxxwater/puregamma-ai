@@ -130,6 +130,9 @@ jobs:
           ')"
           echo "udid=$udid" >> "$GITHUB_OUTPUT"
 
+      # Ad-hoc ("-") signing rather than CODE_SIGNING_ALLOWED=NO: an unsigned
+      # simulator app has no keychain access group, so the Keychain tests
+      # fail with errSecMissingEntitlement (-34018).
       - name: Run unit tests
         working-directory: apps/ios
         run: |
@@ -139,7 +142,8 @@ jobs:
             -destination "platform=iOS Simulator,id=${{ steps.sim.outputs.udid }}" \
             -derivedDataPath build -resultBundlePath build/PureGammaTests.xcresult \
             -only-testing:PureGammaTests \
-            CODE_SIGNING_ALLOWED=NO SWIFT_VERSION=5.0 \
+            CODE_SIGN_STYLE=Manual CODE_SIGN_IDENTITY=- DEVELOPMENT_TEAM= PROVISIONING_PROFILE_SPECIFIER= \
+            SWIFT_VERSION=5.0 \
             test
 
       - name: Summarise results
