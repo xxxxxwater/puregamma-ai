@@ -158,11 +158,16 @@ enum ContractFixture {
     @Test func cursorDropsReplayedAndForeignFrames() {
         var cursor = AgentRunCursor()
         let started = AgentStreamFrame(name: "run.started", seq: 1, runID: "r1", event: .runStarted("r1"))
-        #expect(cursor.admit(started) && cursor.runID == "r1")
-        #expect(!cursor.admit(started))  // re-delivered
-        #expect(cursor.admit(.init(name: "message.delta", seq: 2, runID: nil, event: .delta("x"))))
-        #expect(!cursor.admit(.init(name: "tool.started", seq: 3, runID: "other", event: .toolStarted("t"))))  // another run
-        #expect(cursor.admit(.init(name: "message.completed", seq: 4, runID: "r1", event: .completed)))
+        let first = cursor.admit(started)
+        #expect(first && cursor.runID == "r1")
+        let again = cursor.admit(started)
+        #expect(!again)  // re-delivered
+        let delta = cursor.admit(.init(name: "message.delta", seq: 2, runID: nil, event: .delta("x")))
+        #expect(delta)
+        let foreign = cursor.admit(.init(name: "tool.started", seq: 3, runID: "other", event: .toolStarted("t")))
+        #expect(!foreign)  // another run
+        let done = cursor.admit(.init(name: "message.completed", seq: 4, runID: "r1", event: .completed))
+        #expect(done)
         #expect(cursor.lastSeq == 4)
     }
 

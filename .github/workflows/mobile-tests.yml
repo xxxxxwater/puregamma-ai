@@ -26,7 +26,8 @@ permissions:
 
 concurrency:
   group: mobile-tests-${{ github.ref }}
-  cancel-in-progress: true
+  # Queue rather than cancel: every pushed head gets a complete result.
+  cancel-in-progress: false
 
 jobs:
   contract:
