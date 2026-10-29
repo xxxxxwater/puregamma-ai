@@ -1,0 +1,37 @@
+# DSH Session front door (multi-tenant broker). NOT imported by the production
+# Caddyfile: it is only loaded through Caddyfile.harness-sessions, which the
+# docker-compose.harness-sessions.yml override mounts. Without that override
+# production Caddy has no route to the broker at all.
+#
+# Layout: a dedicated subdomain (HARNESS_DOMAIN, e.g. harness.puregamma.ai) at
+# the origin root. DSH Web would also work under a path prefix of APP_DOMAIN
+# (PUREGAMMA_DSH_BASE_PATH), but then DSH plugin scripts would run on the app
+# origin, which the API's CORS allow-list trusts with credentials; a separate
+# origin keeps a Host-side script bug away from the app and the API.
+#
+# Authentication, Origin/Sec-Fetch-Site fencing, per-user routing, rate limits
+# and the CSP all live in the broker (harness/packages/session-broker); Caddy
+# only terminates TLS, caps bodies and forwards HTTP + the WebSocket mux.
+{$HARNESS_DOMAIN} {
+	encode zstd gzip
+	# The Session surface has no upload route (file uploads are refused).
+	request_body {
+		max_size 2MB
+	}
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		-Server
+	}
+	# Broker-internal endpoints (health, FastAPI's logout notification) are
+	# never routed from the internet; the API reaches the broker directly.
+	@broker_internal path /__broker/*
+	respond @broker_internal 404
+	# Same rule as the API site: {client_ip} is the only client address the
+	# broker trusts (audit log, per-address limits for anonymous floods).
+	reverse_proxy {$DSH_BROKER_UPSTREAM} {
+		header_up X-Real-IP {client_ip}
+		# Keep Session WebSockets alive across a Caddy config reload.
+		stream_close_delay 5m
+	}
+}

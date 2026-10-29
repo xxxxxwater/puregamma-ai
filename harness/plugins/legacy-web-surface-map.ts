@@ -29,6 +29,7 @@ export const LEGACY_WEB_SURFACES: readonly LegacyWebSurfaceOwner[] = [
   { surface: 'apps/web/app/[locale]/admin/gateway/page.tsx', owner: 'admin', target: 'settings.admin.gateway', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/admin/page.tsx', owner: 'admin', target: 'settings.admin', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/admin/stripe-events/page.tsx', owner: 'admin', target: 'settings.admin.stripe-events', disposition: 'plugin-ui' },
+  { surface: 'apps/web/app/[locale]/admin/trading/page.tsx', owner: 'admin', target: 'settings.admin.trading-live', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/api/page.tsx', owner: 'api-gateway', target: 'settings.api-gateway.keys', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/auth/google/callback/page.tsx', owner: 'auth', target: 'conversation.auth.oauth-callback', disposition: 'plugin-ui' },
   { surface: 'apps/web/app/[locale]/backtest/page.tsx', owner: 'backtest', target: 'resource.backtest-artifact', disposition: 'plugin-ui' },

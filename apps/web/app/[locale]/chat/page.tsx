@@ -3,6 +3,7 @@ import { AgentChat } from "@/components/agent-chat";
 import { ChronoSlices, ChronoSlice } from "@/components/chrono/chrono-slices";
 import { isLocale, type Locale } from "@/i18n/routing";
 import { IntelligenceShell } from "@/components/terminal/intelligence-shell";
+import { HarnessSessionsLink } from "@/components/harness-sessions-link";
 
 export function generateMetadata({ params }: { params: { locale: string } }): Metadata {
   const locale = isLocale(params.locale) ? params.locale : "en";
@@ -14,7 +15,7 @@ export default function ChatPage({ params }: { params: { locale: Locale } }) {
   return (
     <ChronoSlices>
       <ChronoSlice>
-        <IntelligenceShell compact eyebrow={params.locale === "zh" ? "Reason" : "Reason"} title={params.locale === "zh" ? "与 Agent 共同推理。" : "Reason with your Agent."} byline={params.locale === "zh" ? "围绕策略、事件与风险的持续推理对象。" : "A continuously updating counterpart for strategies, events and risk."}>
+        <IntelligenceShell compact eyebrow={params.locale === "zh" ? "Reason" : "Reason"} title={params.locale === "zh" ? "与 Agent 共同推理。" : "Reason with your Agent."} byline={params.locale === "zh" ? "围绕策略、事件与风险的持续推理对象。" : "A continuously updating counterpart for strategies, events and risk."} actions={<HarnessSessionsLink locale={params.locale} />}>
           <AgentChat locale={params.locale} />
         </IntelligenceShell>
       </ChronoSlice>

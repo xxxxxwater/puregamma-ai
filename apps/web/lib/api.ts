@@ -2147,6 +2147,135 @@ export function getLivePortfolioPositions() {
   return requestStrict<{ positions: LivePositionRow[] }>("/api/portfolio/positions");
 }
 
+// Owner-scoped, read-only ledger + reconciliation. Money is a decimal string;
+// `null` means "not recorded" and is rendered as such, never as 0.
+export type LiveLedgerAccount = { id: string; name: string; venue: string; account_type: string; base_currency: string; status: string };
+
+export type LiveLedgerEntry = {
+  id: string;
+  account_id: string;
+  mandate_id: string | null;
+  entry_type: string;
+  ref_type: string | null;
+  ref_id: string | null;
+  symbol: string | null;
+  quantity: string | null;
+  price: string | null;
+  amount: string;
+  currency: string;
+  balance_after: string | null;
+  trace_id: string | null;
+  created_at: string;
+};
+
+export type LiveLedgerPage = { account: LiveLedgerAccount; entries: LiveLedgerEntry[]; next_cursor: string | null; limit: number };
+
+export type LiveReconciliationRecord = {
+  id: string;
+  account_id: string;
+  mandate_id: string | null;
+  status: string;
+  exchange_balance: Record<string, string | null>;
+  ledger_balance: Record<string, string | null>;
+  nav: Record<string, string | null>;
+  differences: Array<Record<string, string | null>>;
+  actions: string[];
+  created_at: string;
+  reviewed: { status: string; reviewed_at: string; note?: string | null; reviewed_by?: string | null } | null;
+};
+
+export type LiveReconciliationView = {
+  account: LiveLedgerAccount;
+  ledger: {
+    entry_count: number;
+    empty: boolean;
+    last_entry_at: string | null;
+    balances: Array<{ currency: string; amount: string }>;
+    positions: Array<{ symbol: string; quantity: string }>;
+  };
+  latest: LiveReconciliationRecord | null;
+  history: Array<{ id: string; status: string; created_at: string; difference_count: number; reviewed: boolean }>;
+};
+
+export function getLiveLedger(options: { accountId?: string; cursor?: string | null; limit?: number } = {}) {
+  const params = new URLSearchParams();
+  if (options.accountId) params.set("account_id", options.accountId);
+  if (options.cursor) params.set("cursor", options.cursor);
+  if (options.limit) params.set("limit", String(options.limit));
+  const query = params.toString();
+  return requestStrict<LiveLedgerPage>(`/api/trading/ledger${query ? `?${query}` : ""}`);
+}
+
+// UNKNOWN-order sync: when the venue was last asked and what it said. The
+// re-check endpoint only ever queries the venue; it never places an order.
+export type LiveOrderSyncResult = {
+  at: string | null;
+  trigger: string | null;
+  outcome: "resolved" | "still_unknown" | "query_failed" | string | null;
+  state_before: string | null;
+  state_after: string | null;
+  reason: string | null;
+};
+
+export type LiveOrderSyncStatus = {
+  order_id: string;
+  status: string;
+  error_code: string | null;
+  last_sync_at: string | null;
+  latest: LiveOrderSyncResult | null;
+  history: LiveOrderSyncResult[];
+  recheck: { enabled: boolean; allowed: boolean; blocked_reason: "disabled" | "terminal" | "rate_limited" | null; min_interval_seconds: number; next_allowed_at: string | null };
+};
+
+export function getLiveOrderSyncStatus(orderId: string) {
+  return requestStrict<{ sync: LiveOrderSyncStatus }>(`/api/trading/orders/${encodeURIComponent(orderId)}/sync-status`);
+}
+
+export function recheckLiveOrder(orderId: string) {
+  return requestStrict<{ sync: LiveOrderSyncStatus }>(`/api/trading/orders/${encodeURIComponent(orderId)}/recheck`, { method: "POST" });
+}
+
+// ── LIVE admin review (server enforces the admin role on every call) ──────
+export type AdminKillSwitch = { id: string; scope: string; scope_id: string | null; state: string; reason: string; triggered_by: string; triggered_at: string | null; resolved_by: string | null; resolved_at: string | null; trace_id: string | null };
+export type AdminLiveApproval = { id: string; user_id: string; email: string | null; status: string; max_total_notional: string | null; reviewed_by: string | null; reviewed_at: string | null; revoked_at: string | null; notes: string | null };
+export type AdminReconciliation = LiveReconciliationRecord & { user_id: string; trace_id: string };
+export type AdminTradingAuditEvent = { id: string; action: string; status: string; user_id: string; admin_user_id: string | null; request: Record<string, unknown>; result: Record<string, unknown>; trace_id: string | null; created_at: string };
+
+export function getAdminKillSwitches() {
+  return requestStrict<{ active: AdminKillSwitch[]; released: AdminKillSwitch[] }>("/admin/trading/kill-switches");
+}
+
+export function setAdminKillSwitch(payload: { scope: string; scope_id: string | null; active: boolean; reason: string }) {
+  return requestStrict<{ trace_id: string; active: boolean; scope: string }>("/admin/trading/kill-switch", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function getAdminLiveApprovals() {
+  return requestStrict<{ approvals: AdminLiveApproval[] }>("/admin/trading/live-approvals");
+}
+
+export function setAdminLiveApproval(payload: { user_id: string; approve: boolean; max_total_notional: string; notes: string }) {
+  return requestStrict<{ approval: AdminLiveApproval }>("/admin/trading/live-approvals", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function getAdminReconciliations(options: { unreviewedOnly?: boolean } = {}) {
+  const query = new URLSearchParams({ exceptions_only: "true" });
+  if (options.unreviewedOnly) query.set("unreviewed_only", "true");
+  return requestStrict<{ reconciliations: AdminReconciliation[] }>(`/admin/trading/reconciliations?${query.toString()}`);
+}
+
+export function reviewAdminReconciliation(reconciliationId: string, note: string) {
+  return requestStrict<{ reconciliation: AdminReconciliation }>(`/admin/trading/reconciliations/${encodeURIComponent(reconciliationId)}/review`, { method: "POST", body: JSON.stringify({ note }) });
+}
+
+export function getAdminTradingAudit() {
+  return requestStrict<{ events: AdminTradingAuditEvent[] }>("/admin/trading/audit");
+}
+
+export function getLiveReconciliation(accountId?: string) {
+  const query = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
+  return requestStrict<LiveReconciliationView>(`/api/trading/reconciliation${query}`);
+}
+
 // ── Memory service (contract: docs/mobile/MOBILE_API_CONTRACT.md) ──────────
 // HTTP layer not open yet; strict calls so 404/501 surface as gated UI.
 

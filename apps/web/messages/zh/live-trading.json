@@ -169,7 +169,8 @@
     "cancelConfirmBody": "熔断开关激活期间仍允许撤单。仅未成交订单可撤销。",
     "cancelDone": "撤单请求已提交。",
     "fillsTitle": "成交",
-    "fillsUnavailable": "成交明细尚未通过用户侧 API 开放；成交随订单在服务端记录，并可在管理控制台查看。"
+    "fillsUnavailable": "成交明细尚未通过用户侧 API 开放；成交随订单在服务端记录，并可在管理控制台查看。",
+    "cancelUnconfirmed": "交易所没有确认撤单。订单仍为 {status}，没有任何重发。请再次撤单或核对状态。"
   },
   "account": {
     "title": "账户",
@@ -186,8 +187,8 @@
     "colQuantity": "数量",
     "colMark": "标记价",
     "colValue": "市值",
-    "ledger": "Ledger 流水（仅追加）",
-    "ledgerUnavailable": "用户侧 Ledger 列表尚未通过 API 开放。Ledger 记录仅追加（9 类 entry_type），可在管理控制台查看；历史永不改写。",
+    "ledger": "Ledger（仅追加）",
+    "ledgerUnavailable": "暂时无法读取 Ledger。这不代表 Ledger 为空，也不代表余额为零。",
     "mandates": "Mandate 限额与生命周期",
     "noMandates": "尚无实盘 Mandate。",
     "mandatePaused": "已暂停",
@@ -204,7 +205,36 @@
     "mandateWhitelist": "允许标的",
     "mandateExpiry": "到期",
     "mandateFrequencyValue": "{seconds}s",
-    "neverExpires": "永不过期"
+    "neverExpires": "永不过期",
+    "ledgerNote": "实盘账户的每一笔资金和交易变动，按时间倒序。记录不会被修改或删除；更正以新记录追加。",
+    "ledgerNoAccount": "没有实盘账户：Ledger 不可用（不是零）。",
+    "ledgerEmpty": "该账户还没有 Ledger 记录。",
+    "ledgerNotRecorded": "未记录",
+    "ledgerColTime": "时间",
+    "ledgerColType": "类型",
+    "ledgerColPrice": "价格",
+    "ledgerColAmount": "金额",
+    "ledgerColBalance": "变动后余额",
+    "ledgerColRef": "关联",
+    "ledgerShown": "已显示 {count} 条",
+    "ledgerMore": "加载更早的记录",
+    "ledgerMoreFailed": "更早的记录加载失败，上面的记录不受影响，请重试。",
+    "ledgerEnd": "已到达 Ledger 起点",
+    "reconTitle": "对账",
+    "reconUnavailable": "暂时无法读取对账结果。这不等于“没有差异”。",
+    "reconLedgerBalances": "Ledger 推导余额（按币种）",
+    "reconNever": "该账户尚未与交易所对账，比较结果不可用。",
+    "reconAt": "执行时间 {time}",
+    "reconReviewed": "管理员已于 {time} 审阅",
+    "reconExchange": "交易所现金",
+    "reconLedger": "Ledger 现金",
+    "reconNav": "NAV 现金",
+    "reconAdminOnly": "出现差异时相关 Mandate 会被暂停，只能由管理员审阅；历史记录不会被改写。",
+    "reconStatus": {
+      "ok": "无差异",
+      "discrepancy": "存在差异",
+      "error": "对账失败"
+    }
   },
   "common": {
     "loading": "加载中…",
@@ -325,6 +355,24 @@
       "reconciliation": "因对账暂停——需要管理员处理后才能恢复。",
       "killSwitch": "熔断已触发——需要管理员解除后才能恢复。",
       "reason": "暂停原因"
+    },
+    "sync": {
+      "lastAsked": "最近一次查询交易所",
+      "answer": "最近结果",
+      "outcome": {
+        "resolved": "交易所已给出明确状态",
+        "still_unknown": "交易所仍无法确认",
+        "query_failed": "查询失败",
+        "none": "还没有查询记录"
+      },
+      "recheck": "请求重新核对",
+      "queryOnly": "仅查询：不会下单、重发或修改订单。",
+      "disabled": "本部署未开启按需重新核对；服务器仍会在后台持续查询。",
+      "rateLimited": "该订单刚刚核对过，请稍后再试。",
+      "nextAt": "{time} 后可再次核对",
+      "asked": "已再次查询交易所，结果见上方。",
+      "failed": "请求未能发出。",
+      "unavailable": "暂时无法读取同步记录。"
     }
   }
 }

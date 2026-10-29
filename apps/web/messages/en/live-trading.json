@@ -169,7 +169,8 @@
     "cancelConfirmBody": "Cancellation stays allowed even while kill switches are engaged. Only open orders can be canceled.",
     "cancelDone": "Cancel requested.",
     "fillsTitle": "Fills",
-    "fillsUnavailable": "Fill details are not exposed through the user API yet; fills are recorded server-side with the order and visible in the admin console."
+    "fillsUnavailable": "Fill details are not exposed through the user API yet; fills are recorded server-side with the order and visible in the admin console.",
+    "cancelUnconfirmed": "The venue did not confirm the cancel. The order is still {status}; nothing was re-sent. Try cancelling again or check its status."
   },
   "account": {
     "title": "Account",
@@ -187,7 +188,7 @@
     "colMark": "Mark price",
     "colValue": "Market value",
     "ledger": "Ledger (append-only)",
-    "ledgerUnavailable": "The user-facing ledger list is not exposed by the API yet. Ledger entries are append-only (9 entry types) and visible in the admin console; history is never rewritten.",
+    "ledgerUnavailable": "The ledger could not be read right now. This is not an empty ledger and not a zero balance.",
     "mandates": "Mandate limits & lifecycle",
     "noMandates": "No LIVE mandates exist yet.",
     "mandatePaused": "paused",
@@ -204,7 +205,36 @@
     "mandateWhitelist": "Allowed symbols",
     "mandateExpiry": "Expires",
     "mandateFrequencyValue": "{seconds}s",
-    "neverExpires": "never"
+    "neverExpires": "never",
+    "ledgerNote": "Every cash and trade movement on your LIVE account, newest first. Rows are never edited or deleted; corrections are new rows.",
+    "ledgerNoAccount": "No LIVE trading account: the ledger is unavailable (it is not zero).",
+    "ledgerEmpty": "This account has no ledger entries yet.",
+    "ledgerNotRecorded": "not recorded",
+    "ledgerColTime": "Time",
+    "ledgerColType": "Type",
+    "ledgerColPrice": "Price",
+    "ledgerColAmount": "Amount",
+    "ledgerColBalance": "Balance after",
+    "ledgerColRef": "Reference",
+    "ledgerShown": "{count} entries shown",
+    "ledgerMore": "Load older entries",
+    "ledgerMoreFailed": "Older entries could not be loaded. The rows above are unchanged; try again.",
+    "ledgerEnd": "Start of ledger reached",
+    "reconTitle": "Reconciliation",
+    "reconUnavailable": "Reconciliation could not be read right now. This is not the same as \"no differences\".",
+    "reconLedgerBalances": "Ledger-derived balances (per currency)",
+    "reconNever": "This account has never been reconciled against the exchange, so the comparison is unavailable.",
+    "reconAt": "Run at {time}",
+    "reconReviewed": "reviewed by an administrator {time}",
+    "reconExchange": "Exchange cash",
+    "reconLedger": "Ledger cash",
+    "reconNav": "NAV cash",
+    "reconAdminOnly": "Differences pause the affected mandate. Only an administrator can review them; history is never rewritten.",
+    "reconStatus": {
+      "ok": "No differences",
+      "discrepancy": "Differences found",
+      "error": "Reconciliation failed"
+    }
   },
   "common": {
     "loading": "Loading…",
@@ -325,6 +355,24 @@
       "reconciliation": "Paused by reconciliation — an administrator must resolve it before it can resume.",
       "killSwitch": "A kill switch is engaged — an administrator must release it before resuming.",
       "reason": "Pause reason"
+    },
+    "sync": {
+      "lastAsked": "Venue last asked",
+      "answer": "Last answer",
+      "outcome": {
+        "resolved": "The venue gave a definite state",
+        "still_unknown": "Still unknown at the venue",
+        "query_failed": "The query failed",
+        "none": "No query result recorded yet"
+      },
+      "recheck": "Ask the venue again",
+      "queryOnly": "Query only: this never places, re-sends or changes an order.",
+      "disabled": "Asking again on request is not enabled on this deployment; the server keeps querying in the background.",
+      "rateLimited": "Asked too recently for this order. Wait before asking again.",
+      "nextAt": "Can ask again after {time}",
+      "asked": "The venue was asked again; the answer is shown above.",
+      "failed": "The request could not be sent.",
+      "unavailable": "The sync history could not be read right now."
     }
   }
 }

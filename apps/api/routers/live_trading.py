@@ -22,6 +22,7 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_current_user, get_db, require_admin
 from packages.database.models import TradingAccount, User
 from packages.live_trading import control_plane, nav as nav_service, ledger as ledger_service
+from packages.live_trading import ledger_view, mandate_proposals, order_sync
 from packages.live_trading import price_feed as price_feed_service
 from packages.live_trading.control_plane import ControlPlaneError, OrderRejected
 from packages.live_trading.decimal_text import decimal_text
@@ -289,6 +290,48 @@ def get_order(
         raise _http_error(exc) from exc
 
 
+@trading_router.get("/orders/{order_id}/sync-status")
+def order_sync_status(
+    order_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """When the venue was last asked about this order and what it said."""
+    try:
+        return {"sync": order_sync.sync_status(db, user.id, order_id)}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "ORDER_NOT_FOUND", "message": str(exc)}) from exc
+
+
+@trading_router.post("/orders/{order_id}/recheck")
+def order_recheck(
+    order_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Ask the venue once more about an open order. Query only: this never
+    submits, re-submits, amends or cancels anything."""
+    try:
+        return {"sync": order_sync.request_recheck(db, user.id, order_id)}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "ORDER_NOT_FOUND", "message": str(exc)}) from exc
+    except order_sync.RecheckDisabled as exc:
+        raise HTTPException(status_code=403, detail={"code": "LIVE_ORDER_RECHECK_DISABLED", "message": str(exc)}) from exc
+    except order_sync.RecheckNotApplicable as exc:
+        raise HTTPException(status_code=409, detail={"code": "ORDER_FINAL", "message": str(exc)}) from exc
+    except order_sync.RecheckRateLimited as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "LIVE_ORDER_RECHECK_RATE_LIMITED",
+                "message": str(exc),
+                "retry_after_seconds": exc.retry_after_seconds,
+                "next_allowed_at": exc.next_allowed_at.isoformat(),
+            },
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
+
+
 @trading_router.get("/fills")
 def list_fills(
     order_id: str | None = None,
@@ -369,6 +412,142 @@ def order_cancel(
         return {"order": control_plane._serialize_order(order)}
     except Exception as exc:
         raise _http_error(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# /api/trading/ledger + /api/trading/reconciliation (owner-scoped, read-only)
+# ---------------------------------------------------------------------------
+
+
+def _not_found(exc: LookupError) -> HTTPException:
+    # Somebody else's account/mandate id and a nonexistent one get the same
+    # answer, so ids cannot be probed.
+    code = "TRADING_MANDATE_NOT_FOUND" if "mandate" in str(exc).lower() else "TRADING_ACCOUNT_NOT_FOUND"
+    return HTTPException(status_code=404, detail={"code": code, "message": str(exc)})
+
+
+@trading_router.get("/ledger")
+def ledger_entries(
+    account_id: str | None = Query(default=None, max_length=64),
+    mandate_id: str | None = Query(default=None, max_length=64),
+    entry_type: str | None = Query(default=None, max_length=64),
+    cursor: str | None = Query(default=None, max_length=512),
+    limit: int = Query(default=ledger_view.DEFAULT_PAGE_SIZE, ge=1, le=ledger_view.MAX_PAGE_SIZE),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """The caller's append-only ledger, newest first, keyset-paginated."""
+    try:
+        return ledger_view.ledger_page(
+            db,
+            user.id,
+            account_id=account_id,
+            mandate_id=mandate_id,
+            entry_type=entry_type,
+            cursor=cursor,
+            limit=limit,
+        )
+    except LookupError as exc:
+        raise _not_found(exc) from exc
+    except ledger_view.CursorError as exc:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_CURSOR", "message": str(exc)}) from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail={"code": "INVALID_FILTER", "message": str(exc)}) from exc
+
+
+@trading_router.get("/reconciliation")
+def reconciliation_status(
+    account_id: str | None = Query(default=None, max_length=64),
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Ledger-derived balances next to the latest exchange reconciliation."""
+    try:
+        return ledger_view.reconciliation_view(db, user.id, account_id=account_id)
+    except LookupError as exc:
+        raise _not_found(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# /api/trading/mandate-proposals (owner side; LIVE_MANDATE_PROPOSALS_ENABLED)
+# ---------------------------------------------------------------------------
+
+
+class MandateProposalRequest(BaseModel):
+    terms: dict = Field(default_factory=dict)
+    target_mandate_id: str | None = Field(default=None, max_length=64)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ProposalReasonRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+def proposal_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, mandate_proposals.ProposalsDisabled):
+        return HTTPException(status_code=404, detail={"code": "MANDATE_PROPOSALS_DISABLED", "message": str(exc)})
+    if isinstance(exc, mandate_proposals.ProposalsUnavailable):
+        return HTTPException(status_code=503, detail={"code": "MANDATE_PROPOSALS_UNAVAILABLE", "message": str(exc)})
+    if isinstance(exc, LookupError):
+        return HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": str(exc)})
+    if isinstance(exc, mandate_proposals.ProposalForbidden):
+        return HTTPException(status_code=403, detail={"code": "PROPOSAL_FORBIDDEN", "message": str(exc)})
+    if isinstance(exc, mandate_proposals.ProposalConflict):
+        return HTTPException(status_code=409, detail={"code": "PROPOSAL_CONFLICT", "message": str(exc)})
+    if isinstance(exc, mandate_proposals.ProposalInvalid):
+        return HTTPException(status_code=400, detail={"code": "PROPOSAL_INVALID", "message": str(exc)})
+    return HTTPException(status_code=500, detail="Mandate proposal failed")
+
+
+_PROPOSAL_ERRORS = (
+    LookupError,
+    mandate_proposals.ProposalsDisabled,
+    mandate_proposals.ProposalsUnavailable,
+    mandate_proposals.ProposalForbidden,
+    mandate_proposals.ProposalConflict,
+    mandate_proposals.ProposalInvalid,
+)
+
+
+@trading_router.get("/mandate-proposals")
+def my_mandate_proposals(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        return {"proposals": mandate_proposals.list_for_user(db, user.id)}
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
+
+
+@trading_router.post("/mandate-proposals")
+def propose_mandate(
+    payload: MandateProposalRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Propose a LIVE mandate (or an amendment) for yourself. It takes effect
+    only after two different administrators approve it, starts paused, and
+    never bypasses the deployment's LIVE gates."""
+    try:
+        return {
+            "proposal": mandate_proposals.propose(
+                db, user, user_id=user.id, terms=payload.terms,
+                target_mandate_id=payload.target_mandate_id, reason=payload.reason,
+            )
+        }
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
+
+
+@trading_router.post("/mandate-proposals/{proposal_id}/revoke")
+def revoke_mandate_proposal(
+    proposal_id: str,
+    payload: ProposalReasonRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    try:
+        return {"proposal": mandate_proposals.revoke(db, user, proposal_id, reason=payload.reason)}
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
 
 
 @trading_router.get("/safety-status")

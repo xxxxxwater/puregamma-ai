@@ -12,7 +12,7 @@ import { expect, test, type Page } from "@playwright/test";
  */
 
 const ROUTES = [
-  "/", "/account", "/admin", "/admin/billing-intents", "/admin/gateway", "/admin/stripe-events", "/api",
+  "/", "/account", "/admin", "/admin/billing-intents", "/admin/gateway", "/admin/stripe-events", "/admin/trading", "/api",
   "/backtest", "/billing", "/billing/cancel", "/billing/success", "/chat", "/chat/c-audit", "/daily-push",
   "/dashboard", "/data-sources", "/docs", "/forgot-password", "/gateway", "/integrations", "/jev-trader",
   "/login", "/memory", "/mobile-access", "/nautilus", "/news", "/onboarding/assets", "/onboarding/channels",

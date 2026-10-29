@@ -27,7 +27,10 @@ import {
   describeApiError,
   getLiveConnections,
   getLiveFills,
+  getLiveLedger,
   getLiveOrders,
+  getLiveOrderSyncStatus,
+  getLiveReconciliation,
   getLivePortfolioPositions,
   getTradingMandates,
   getTradingNav,
@@ -35,13 +38,17 @@ import {
   LiveOrderRejectedError,
   pauseTradingMandate,
   previewLiveOrder,
+  recheckLiveOrder,
   resumeTradingMandate,
   revokeLiveConnection,
   testLiveConnection,
   type LiveBrokerConnection,
   type LiveFillRow,
+  type LiveLedgerEntry,
   type LiveOrderPreviewResult,
   type LiveOrderRow,
+  type LiveOrderSyncStatus,
+  type LiveReconciliationView,
   type NavSnapshot,
   type TradingMandate,
   type TradingSafetyStatus,
@@ -978,9 +985,15 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
     setBusy(`cancel:${order.client_order_id}`);
     setError("");
     try {
-      await cancelLiveOrder(order.client_order_id);
+      const { order: after } = await cancelLiveOrder(order.client_order_id);
       setCancelTarget(null);
-      setNotice(t(locale, "live-trading.orders.cancelDone"));
+      // The server answers 200 even when the venue did not confirm the
+      // cancel; that is not "cancelled" and must not be reported as such.
+      if (after && after.status !== "canceled" && after.error_code === "CANCEL_UNKNOWN") {
+        setError(t(locale, "live-trading.orders.cancelUnconfirmed", { status: after.status }));
+      } else {
+        setNotice(t(locale, "live-trading.orders.cancelDone"));
+      }
       await load();
     } catch (cause) {
       setError(describeApiError(cause).message);
@@ -1190,7 +1203,7 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => <OrderRow key={order.id} order={order} locale={locale} onCancel={() => setCancelTarget(order)} />)}
+                {orders.map((order) => <OrderRow key={order.id} order={order} locale={locale} onCancel={() => setCancelTarget(order)} onSynced={() => void load()} />)}
               </tbody>
             </table>
           </div>
@@ -1234,7 +1247,7 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
   );
 }
 
-function OrderRow({ order, locale, onCancel }: { order: LiveOrderRow; locale: Locale; onCancel: () => void }) {
+function OrderRow({ order, locale, onCancel, onSynced }: { order: LiveOrderRow; locale: Locale; onCancel: () => void; onSynced?: () => void }) {
   const unknown = isUnknownLiveOrderStatus(order.status);
   return (
     <>
@@ -1256,6 +1269,7 @@ function OrderRow({ order, locale, onCancel }: { order: LiveOrderRow; locale: Lo
       <tr className="border-b border-border-pg last:border-0">
         <td colSpan={9} className="px-2.5 pb-2.5 pt-0">
           {unknown ? <p className="mb-1 text-xs text-status-warning">{t(locale, "live-trading.workflow.unknown.row")} · {order.last_sync_at ? t(locale, "live-trading.workflow.unknown.lastSync", { time: new Date(order.last_sync_at).toLocaleString(locale) }) : t(locale, "live-trading.workflow.unknown.neverSynced")}</p> : null}
+          {unknown ? <OrderSyncPanel locale={locale} orderId={order.id} onChanged={onSynced} /> : null}
           <details className="text-xs text-text-pg-muted">
             <summary className="cursor-pointer select-none rounded py-0.5 hover:text-text-pg">{t(locale, "live-trading.workflow.details.show")}</summary>
             <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
@@ -1270,6 +1284,75 @@ function OrderRow({ order, locale, onCancel }: { order: LiveOrderRow; locale: Lo
         </td>
       </tr>
     </>
+  );
+}
+
+/**
+ * What the server last heard from the venue about an UNKNOWN order, and a
+ * query-only "ask again". The button never places, re-sends or changes an
+ * order; it is rate-limited per order by the server, which also decides
+ * whether it is offered at all.
+ */
+function OrderSyncPanel({ locale, orderId, onChanged }: { locale: Locale; orderId: string; onChanged?: () => void }) {
+  const [sync, setSync] = useState<LiveOrderSyncStatus | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const read = useCallback(async () => {
+    try {
+      setSync((await getLiveOrderSyncStatus(orderId)).sync);
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    }
+  }, [orderId]);
+  useEffect(() => { void read(); }, [read]);
+
+  const recheck = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = (await recheckLiveOrder(orderId)).sync;
+      setSync(result);
+      setMessage(t(locale, "live-trading.workflow.sync.asked"));
+      if (result.status !== "unknown") onChanged?.();
+    } catch (error) {
+      const { status, message: detail } = describeApiError(error);
+      setMessage(status === 429 ? t(locale, "live-trading.workflow.sync.rateLimited") : status === 403 ? t(locale, "live-trading.workflow.sync.disabled") : detail || t(locale, "live-trading.workflow.sync.failed"));
+      await read();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (failed) return <p className="mb-1 text-xs text-text-pg-muted" data-testid="live-order-sync-unavailable">{t(locale, "live-trading.workflow.sync.unavailable")}</p>;
+  if (!sync) return null;
+  const latest = sync.latest;
+  const outcomeKey = `live-trading.workflow.sync.outcome.${latest?.outcome ?? "none"}` as TranslationKey;
+  const blocked = sync.recheck.blocked_reason;
+  return (
+    <div className="mb-2 rounded-lg border border-border-pg px-3 py-2 text-xs" data-testid="live-order-sync">
+      <p>
+        <span className="text-text-pg-muted">{t(locale, "live-trading.workflow.sync.lastAsked")}: </span>
+        <span>{sync.last_sync_at ? new Date(sync.last_sync_at).toLocaleString(locale) : t(locale, "live-trading.workflow.unknown.neverSynced")}</span>
+      </p>
+      <p className="mt-0.5" data-testid="live-order-sync-latest">
+        <span className="text-text-pg-muted">{t(locale, "live-trading.workflow.sync.answer")}: </span>
+        {latest ? <>{hasTranslation(locale, outcomeKey) ? t(locale, outcomeKey) : latest.outcome}{latest.reason ? <span className="text-text-pg-dim"> · {latest.reason}</span> : null}{latest.at ? <span className="text-text-pg-dim"> · {new Date(latest.at).toLocaleString(locale)}</span> : null}</> : t(locale, "live-trading.workflow.sync.outcome.none")}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {sync.recheck.enabled ? (
+          <button type="button" onClick={() => void recheck()} disabled={busy || !sync.recheck.allowed} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-pg px-3 hover:border-border-pg-strong disabled:opacity-40" data-testid="live-order-recheck">
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />{t(locale, "live-trading.workflow.sync.recheck")}
+          </button>
+        ) : null}
+        <span className="text-text-pg-dim">
+          {blocked === "disabled" ? t(locale, "live-trading.workflow.sync.disabled") : blocked === "rate_limited" && sync.recheck.next_allowed_at ? t(locale, "live-trading.workflow.sync.nextAt", { time: new Date(sync.recheck.next_allowed_at).toLocaleTimeString(locale) }) : t(locale, "live-trading.workflow.sync.queryOnly")}
+        </span>
+      </div>
+      {message ? <p role="status" className="mt-1 text-text-pg-muted">{message}</p> : null}
+    </div>
   );
 }
 
@@ -1385,10 +1468,9 @@ function AccountView({ locale, safety, onReload }: { locale: Locale; safety: Tra
         ) : null}
       </section>
 
-      <section className="border border-border-pg bg-bg-panel p-4 rounded-xl">
-        <h3 className="font-semibold">{t(locale, "live-trading.account.ledger")}</h3>
-        <p className="mt-2 text-sm leading-6 text-text-pg-muted">{t(locale, "live-trading.account.ledgerUnavailable")}</p>
-      </section>
+      <ReconciliationSection locale={locale} />
+
+      <LedgerSection locale={locale} />
 
       <section className="border border-border-pg bg-bg-panel rounded-xl">
         <div className="border-b border-border-pg p-4"><h2 className="font-semibold">{t(locale, "live-trading.account.mandates")}</h2></div>
@@ -1424,6 +1506,194 @@ function AccountView({ locale, safety, onReload }: { locale: Locale; safety: Tra
       </section>
     </div>
   );
+}
+
+// ── Ledger + reconciliation (owner-scoped, read-only) ─────────────────────
+
+type ReadFailure = "no-account" | "unavailable";
+
+function readFailure(error: unknown): ReadFailure {
+  const { status, code } = describeApiError(error);
+  return status === 404 && code === "TRADING_ACCOUNT_NOT_FOUND" ? "no-account" : "unavailable";
+}
+
+type LedgerLoad =
+  | { kind: "loading" }
+  | { kind: "failed"; reason: ReadFailure }
+  | { kind: "ready"; entries: LiveLedgerEntry[]; nextCursor: string | null; more: "idle" | "loading" | "failed" };
+
+const LEDGER_PAGE_SIZE = 50;
+
+/**
+ * The caller's append-only ledger, newest first. "No account", "could not be
+ * read" and "no rows yet" are three different statements and never render as
+ * a zero; older pages are fetched with the server's keyset cursor.
+ */
+function LedgerSection({ locale }: { locale: Locale }) {
+  const [load, setLoad] = useState<LedgerLoad>({ kind: "loading" });
+
+  const firstPage = useCallback(async () => {
+    setLoad({ kind: "loading" });
+    try {
+      const page = await getLiveLedger({ limit: LEDGER_PAGE_SIZE });
+      setLoad({ kind: "ready", entries: page.entries || [], nextCursor: page.next_cursor, more: "idle" });
+    } catch (error) {
+      setLoad({ kind: "failed", reason: readFailure(error) });
+    }
+  }, []);
+  useEffect(() => { void firstPage(); }, [firstPage]);
+
+  const loadMore = async () => {
+    if (load.kind !== "ready" || !load.nextCursor || load.more === "loading") return;
+    const cursor = load.nextCursor;
+    setLoad({ ...load, more: "loading" });
+    try {
+      const page = await getLiveLedger({ cursor, limit: LEDGER_PAGE_SIZE });
+      setLoad((current) => current.kind === "ready" ? { kind: "ready", entries: [...current.entries, ...(page.entries || [])], nextCursor: page.next_cursor, more: "idle" } : current);
+    } catch {
+      // Keep what is already shown; only the next page failed.
+      setLoad((current) => current.kind === "ready" ? { ...current, more: "failed" } : current);
+    }
+  };
+
+  const none = t(locale, "live-trading.common.noValue");
+  return (
+    <section className="rounded-xl border border-border-pg bg-bg-panel" data-testid="live-ledger">
+      <div className="border-b border-border-pg p-4">
+        <h2 className="font-semibold">{t(locale, "live-trading.account.ledger")}</h2>
+        <p className="mt-1 text-xs text-text-pg-dim">{t(locale, "live-trading.account.ledgerNote")}</p>
+      </div>
+      {load.kind === "loading" ? <p className="p-4 text-sm text-text-pg-muted">{t(locale, "live-trading.common.loading")}</p> : null}
+      {load.kind === "failed" ? (
+        <div className="flex flex-wrap items-center gap-3 p-4" role="status" data-testid={load.reason === "no-account" ? "live-ledger-no-account" : "live-ledger-unavailable"}>
+          <p className="text-sm text-text-pg-muted">{t(locale, load.reason === "no-account" ? "live-trading.account.ledgerNoAccount" : "live-trading.account.ledgerUnavailable")}</p>
+          {load.reason === "unavailable" ? <button type="button" onClick={() => void firstPage()} className="min-h-9 rounded-lg border border-border-pg px-3 text-xs hover:border-border-pg-strong">{t(locale, "live-trading.common.retry")}</button> : null}
+        </div>
+      ) : null}
+      {load.kind === "ready" && load.entries.length === 0 ? <p className="p-4 text-sm text-text-pg-muted" data-testid="live-ledger-empty">{t(locale, "live-trading.account.ledgerEmpty")}</p> : null}
+      {load.kind === "ready" && load.entries.length > 0 ? (
+        <>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[760px] text-sm">
+              <caption className="sr-only">{t(locale, "live-trading.account.ledger")}</caption>
+              <thead className="text-left text-xs uppercase tracking-wide text-text-pg-muted">
+                <tr className="border-b border-border-pg">
+                  {[t(locale, "live-trading.account.ledgerColTime"), t(locale, "live-trading.account.ledgerColType"), t(locale, "live-trading.account.colSymbol"), t(locale, "live-trading.account.colQuantity"), t(locale, "live-trading.account.ledgerColPrice"), t(locale, "live-trading.account.ledgerColAmount"), t(locale, "live-trading.account.ledgerColBalance"), t(locale, "live-trading.account.ledgerColRef")].map((head) => <th key={head} scope="col" className="p-2.5 font-medium">{head}</th>)}
+                </tr>
+              </thead>
+              <tbody>
+                {load.entries.map((entry) => (
+                  <tr key={entry.id} className="border-b border-border-pg last:border-0" data-testid="live-ledger-row">
+                    <td className="p-2.5 text-xs text-text-pg-muted">{new Date(entry.created_at).toLocaleString(locale)}</td>
+                    <td className="p-2.5 font-mono text-xs">{entry.entry_type}</td>
+                    <td className="p-2.5 font-mono text-xs">{entry.symbol || none}</td>
+                    <td className="p-2.5 font-mono text-xs tabular-nums">{entry.quantity == null ? none : formatDecimalString(entry.quantity)}</td>
+                    <td className="p-2.5 font-mono text-xs tabular-nums">{entry.price == null ? none : formatDecimalString(entry.price)}</td>
+                    <td className={`p-2.5 font-mono text-xs tabular-nums ${entry.amount.startsWith("-") ? "text-status-negative" : ""}`}>{formatDecimalString(entry.amount)} {entry.currency}</td>
+                    <td className="p-2.5 font-mono text-xs tabular-nums">{entry.balance_after == null ? <span className="text-text-pg-dim">{t(locale, "live-trading.account.ledgerNotRecorded")}</span> : formatDecimalString(entry.balance_after)}</td>
+                    <td className="max-w-[12rem] truncate p-2.5 font-mono text-xs text-text-pg-dim">{entry.ref_type ? `${entry.ref_type}:${(entry.ref_id || "").slice(0, 8)}` : none}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+          <div className="flex flex-wrap items-center gap-3 border-t border-border-pg p-3 text-xs text-text-pg-muted">
+            <span>{t(locale, "live-trading.account.ledgerShown", { count: load.entries.length })}</span>
+            {load.nextCursor ? (
+              <button type="button" onClick={() => void loadMore()} disabled={load.more === "loading"} className="min-h-9 rounded-lg border border-border-pg px-3 hover:border-border-pg-strong disabled:opacity-40" data-testid="live-ledger-more">
+                {load.more === "loading" ? t(locale, "live-trading.common.loading") : t(locale, "live-trading.account.ledgerMore")}
+              </button>
+            ) : <span data-testid="live-ledger-end">{t(locale, "live-trading.account.ledgerEnd")}</span>}
+            {load.more === "failed" ? <span role="alert" className="text-status-warning">{t(locale, "live-trading.account.ledgerMoreFailed")}</span> : null}
+          </div>
+        </>
+      ) : null}
+    </section>
+  );
+}
+
+type ReconciliationLoad = { kind: "loading" } | { kind: "failed"; reason: ReadFailure } | { kind: "ready"; view: LiveReconciliationView };
+
+/**
+ * Ledger-derived balances beside the latest exchange reconciliation. Balances
+ * are per currency (a BTC fee is not USD cash). "Never reconciled" means the
+ * comparison is unavailable, which is not the same as "no differences".
+ */
+function ReconciliationSection({ locale }: { locale: Locale }) {
+  const [load, setLoad] = useState<ReconciliationLoad>({ kind: "loading" });
+  const read = useCallback(async () => {
+    setLoad({ kind: "loading" });
+    try {
+      setLoad({ kind: "ready", view: await getLiveReconciliation() });
+    } catch (error) {
+      setLoad({ kind: "failed", reason: readFailure(error) });
+    }
+  }, []);
+  useEffect(() => { void read(); }, [read]);
+
+  const none = t(locale, "live-trading.common.noValue");
+  const amount = (value: string | null | undefined) => (value == null ? none : formatDecimalString(value));
+  return (
+    <section className="rounded-xl border border-border-pg bg-bg-panel" data-testid="live-reconciliation">
+      <div className="border-b border-border-pg p-4"><h2 className="font-semibold">{t(locale, "live-trading.account.reconTitle")}</h2></div>
+      <div className="space-y-4 p-4">
+        {load.kind === "loading" ? <p className="text-sm text-text-pg-muted">{t(locale, "live-trading.common.loading")}</p> : null}
+        {load.kind === "failed" ? (
+          <div className="flex flex-wrap items-center gap-3" role="status" data-testid={load.reason === "no-account" ? "live-recon-no-account" : "live-recon-unavailable"}>
+            <p className="text-sm text-text-pg-muted">{t(locale, load.reason === "no-account" ? "live-trading.account.ledgerNoAccount" : "live-trading.account.reconUnavailable")}</p>
+            {load.reason === "unavailable" ? <button type="button" onClick={() => void read()} className="min-h-9 rounded-lg border border-border-pg px-3 text-xs hover:border-border-pg-strong">{t(locale, "live-trading.common.retry")}</button> : null}
+          </div>
+        ) : null}
+        {load.kind === "ready" ? (
+          <>
+            <div>
+              <h3 className="text-xs font-semibold uppercase tracking-wide text-text-pg-muted">{t(locale, "live-trading.account.reconLedgerBalances")}</h3>
+              {load.view.ledger.empty ? (
+                <p className="mt-1 text-sm text-text-pg-muted" data-testid="live-recon-ledger-empty">{t(locale, "live-trading.account.ledgerEmpty")}</p>
+              ) : (
+                <ul className="mt-1 flex flex-wrap gap-x-6 gap-y-1 text-sm" data-testid="live-recon-balances">
+                  {load.view.ledger.balances.map((row) => <li key={row.currency} className="font-mono tabular-nums">{formatDecimalString(row.amount)} {row.currency}</li>)}
+                </ul>
+              )}
+            </div>
+            {load.view.latest ? (
+              <div data-testid="live-recon-latest">
+                <p className="flex flex-wrap items-center gap-2 text-sm">
+                  <span className={load.view.latest.status === "ok" ? "text-status-positive" : "font-semibold text-status-warning"}>{reconStatusLabel(load.view.latest.status, locale)}</span>
+                  <span className="text-xs text-text-pg-dim">{t(locale, "live-trading.account.reconAt", { time: new Date(load.view.latest.created_at).toLocaleString(locale) })}</span>
+                  {load.view.latest.reviewed ? <span className="text-xs text-text-pg-muted">· {t(locale, "live-trading.account.reconReviewed", { time: new Date(load.view.latest.reviewed.reviewed_at).toLocaleString(locale) })}</span> : null}
+                </p>
+                <div className="mt-3 grid gap-px overflow-hidden rounded-lg border border-border-pg bg-border-pg sm:grid-cols-3">
+                  <Field label={t(locale, "live-trading.account.reconExchange")} value={amount(load.view.latest.exchange_balance.cash)} />
+                  <Field label={t(locale, "live-trading.account.reconLedger")} value={amount(load.view.latest.ledger_balance.cash)} />
+                  <Field label={t(locale, "live-trading.account.reconNav")} value={amount(load.view.latest.nav.cash)} />
+                </div>
+                {load.view.latest.differences.length ? (
+                  <ul className="mt-3 space-y-1 text-xs" data-testid="live-recon-differences">
+                    {load.view.latest.differences.map((difference, index) => (
+                      <li key={index} className="rounded-lg border border-status-warning px-3 py-2">
+                        <span className="font-mono">{difference.source || none}</span>
+                        {difference.delta != null ? <span className="ml-2 font-mono tabular-nums">Δ {formatDecimalString(difference.delta)}</span> : null}
+                        {difference.detail ? <span className="ml-2 text-text-pg-muted">{difference.detail}</span> : null}
+                      </li>
+                    ))}
+                  </ul>
+                ) : null}
+                {load.view.latest.status !== "ok" ? <p className="mt-2 text-xs text-text-pg-muted">{t(locale, "live-trading.account.reconAdminOnly")}</p> : null}
+              </div>
+            ) : (
+              <p className="text-sm text-text-pg-muted" data-testid="live-recon-never">{t(locale, "live-trading.account.reconNever")}</p>
+            )}
+          </>
+        ) : null}
+      </div>
+    </section>
+  );
+}
+
+function reconStatusLabel(status: string, locale: Locale): string {
+  const key = `live-trading.account.reconStatus.${status}` as TranslationKey;
+  return hasTranslation(locale, key) ? t(locale, key) : status;
 }
 
 function reconciliationLabel(status: string, locale: Locale): string {

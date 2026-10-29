@@ -148,3 +148,43 @@ def test_concurrent_post_entry_serializes_balance_after(pg_sessionmaker):
     # Without per-account serialization concurrent writers read the same
     # running sum and record duplicate balance_after values.
     assert balances == [Decimal(i) for i in range(1, writers + 1)]
+
+
+def test_keyset_pages_with_identical_timestamps_neither_repeat_nor_skip(pg_sessionmaker):
+    """Postgres stores microseconds and compares tuples natively; rows that
+    share one created_at must still split across pages by id, exactly once."""
+    from datetime import datetime, timezone
+
+    from packages.live_trading import ledger_view
+
+    user_id, account_id = _seed_account(pg_sessionmaker)
+    same = datetime(2026, 10, 29, 12, 0, 0, 123456, tzinfo=timezone.utc)
+    with pg_sessionmaker() as session:
+        for index in range(23):
+            at = same if index < 17 else same.replace(second=index)
+            session.add(
+                LedgerEntry(
+                    user_id=user_id, account_id=account_id, entry_type="cash_deposit",
+                    amount=Decimal("1"), currency="USD", idempotency_key=f"pg:tie:{index}",
+                    trace_id="pg", created_at=at,
+                )
+            )
+        session.commit()
+
+    for page_size in (1, 4, 5, 17, 22):
+        seen: list[str] = []
+        cursor = None
+        with pg_sessionmaker() as session:
+            for _ in range(50):
+                page = ledger_view.ledger_page(session, user_id, account_id=account_id, cursor=cursor, limit=page_size)
+                assert len(page["entries"]) <= page_size
+                seen.extend(row["id"] for row in page["entries"])
+                cursor = page["next_cursor"]
+                if not cursor:
+                    break
+        assert len(seen) == len(set(seen)) == 23, page_size
+
+    with pg_sessionmaker() as session:
+        # The service clamps whatever it is given (HTTP rejects these with 422).
+        assert ledger_view.ledger_page(session, user_id, account_id=account_id, limit=10**9)["limit"] == ledger_view.MAX_PAGE_SIZE
+        assert ledger_view.ledger_page(session, user_id, account_id=account_id, limit=0)["limit"] == 1

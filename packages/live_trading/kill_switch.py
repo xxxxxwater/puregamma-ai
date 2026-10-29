@@ -71,20 +71,26 @@ def release(
     resolved_by: str,
     trace_id: str | None = None,
 ) -> bool:
-    """Admin-only recovery. Marks every active switch in scope as inactive."""
+    """Admin-only recovery. Marks every active switch in scope as inactive.
+
+    Returns whether a switch with exactly this ``scope_id`` was released (an
+    active switch for a different id in the same scope does not count).
+    """
     rows = (
         db.query(TradingKillSwitch)
         .filter_by(scope=str(scope), state="active")
         .all()
     )
+    released = 0
     for row in rows:
         if row.scope_id != scope_id:
             continue
         row.state = "inactive"
         row.resolved_by = resolved_by
         row.resolved_at = utcnow()
+        released += 1
     db.flush()
-    return len(rows) > 0
+    return released > 0
 
 
 def mandate_trade_allowed(db: Session, mandate: TradingMandate) -> tuple[bool, str]:

@@ -132,6 +132,9 @@ class Settings:
     dsh_broker_secret: str = os.getenv("DSH_BROKER_SECRET", "")
     dsh_host_token_ttl_seconds: int = int(os.getenv("DSH_HOST_TOKEN_TTL_SECONDS", "600") or 600)
     dsh_host_session_max_seconds: int = int(os.getenv("DSH_HOST_SESSION_MAX_SECONDS", "28800") or 28800)
+    # Broker endpoint told about logouts (e.g. http://127.0.0.1:3480/__broker/revoke).
+    # Empty (default) = no notification; the broker's own socket re-check still applies.
+    dsh_broker_revoke_url: str = os.getenv("DSH_BROKER_REVOKE_URL", "")
     session_max_age_seconds: int = int(
         os.getenv("SESSION_MAX_AGE_SECONDS", "604800") or 604800
     )
@@ -698,6 +701,22 @@ class Settings:
     live_credential_encryption_key: str = os.getenv(
         "LIVE_CREDENTIAL_ENCRYPTION_KEY", ""
     )
+    # User-triggered "re-check this order" (query only, never re-submits).
+    # Off by default; the background order sync runs regardless.
+    live_order_recheck_enabled: bool = (
+        os.getenv("LIVE_ORDER_RECHECK_ENABLED", "false").lower() == "true"
+    )
+    live_order_recheck_min_interval_seconds: int = max(
+        10, int(os.getenv("LIVE_ORDER_RECHECK_MIN_INTERVAL_SECONDS", "60") or 60)
+    )
+    # Mandate proposal -> two-admin approval workflow. Off by default; an
+    # effective mandate still passes every static/user/kill-switch gate.
+    live_mandate_proposals_enabled: bool = (
+        os.getenv("LIVE_MANDATE_PROPOSALS_ENABLED", "false").lower() == "true"
+    )
+    live_mandate_proposal_ttl_hours: int = max(
+        1, int(os.getenv("LIVE_MANDATE_PROPOSAL_TTL_HOURS", "72") or 72)
+    )
 
     # ---- Memory service (enabled by default) ----
     memory_service_enabled: bool = (
@@ -841,6 +860,8 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("INTERNAL_RUNTIME_SECRET must be at least 32 characters")
     if settings.dsh_multi_tenant_enabled and len(settings.dsh_broker_secret) < 32:
         errors.append("DSH_BROKER_SECRET must be at least 32 characters when DSH_MULTI_TENANT_ENABLED=true")
+    if settings.dsh_broker_revoke_url and not settings.dsh_broker_revoke_url.startswith(("http://", "https://")):
+        errors.append("DSH_BROKER_REVOKE_URL must be an http(s) URL")
     if not settings.metrics_bearer_token or len(settings.metrics_bearer_token) < 32:
         errors.append("METRICS_BEARER_TOKEN must be at least 32 characters in production")
     if settings.jwt_secret in {"", "change-me", "dev-only-change-me"} or len(settings.jwt_secret) < 32:

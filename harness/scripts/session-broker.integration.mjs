@@ -4,6 +4,16 @@
 //   PUREGAMMA_DSH_BIN=/abs/path/to/@deepseek-ai/dsh/lib/bin.js \
 //     pnpm --dir harness exec tsx scripts/session-broker.integration.mjs
 //
+// PG_BROKER_IT_BASE_PATH=/harness mounts the broker under a path prefix (the
+// default is the origin root, i.e. the dedicated-subdomain layout).
+// PG_BROKER_IT_LAUNCHER=systemd|docker starts the real Hosts under that
+// launcher (docker also needs PG_BROKER_IT_DOCKER_IMAGE, e.g. python:3.12-slim
+// with the host Node mounted read-only) and adds isolation and reaping checks.
+// PG_BROKER_IT_BROWSER=1 adds a real-browser step (Playwright from apps/web,
+// Chromium at PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH or /usr/bin/chromium):
+// the full DSH Web client boots for user A behind the broker's CSP and no
+// request leaves the mount prefix.
+//
 // FastAPI is stubbed in-process (GET /me + the Host-token mint; the real
 // endpoint is covered by tests/security/test_dsh_host_tokens.py). Everything
 // else is real: the PureGamma profile + multi-tenant overlay on
@@ -16,7 +26,9 @@ import http from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
-import { createBroker, hostPaths, loadConfig } from '../packages/session-broker/src/index.ts'
+import { execFileSync } from 'node:child_process'
+import { createRequire } from 'node:module'
+import { createBroker, defaultContentSecurityPolicy, hostPaths, loadConfig } from '../packages/session-broker/src/index.ts'
 
 const dshBin = process.env.PUREGAMMA_DSH_BIN
 if (!dshBin || !existsSync(dshBin)) {
@@ -73,10 +85,26 @@ const config = {
   maxHosts: 2,
   startTimeoutMs: 180_000,
   hostHeapMb: Number(process.env.PG_BROKER_IT_HOST_HEAP_MB ?? 512),
+  basePath: process.env.PG_BROKER_IT_BASE_PATH ?? '',
+  launcher: process.env.PG_BROKER_IT_LAUNCHER ?? 'direct',
+  instance: `it${randomBytes(3).toString('hex')}`,
+  dockerImage: process.env.PG_BROKER_IT_DOCKER_IMAGE ?? '',
+  dockerNode: process.execPath,
+  audit: '',
 }
+config.audit = path.join(root, 'audit.jsonl')
+// Loose enough for a real browser boot (~30 parallel requests), tight enough to trip in the flood step.
+config.limits = { ...config.limits, userBurst: 80, userRatePerSec: 20, userMaxInflight: 32 }
+config.hostLimits = { ...config.hostLimits, memoryMb: config.hostHeapMb + 512, cpuPercent: 100, tasksMax: 128, nofile: 2048, fileSizeMb: 64 }
+console.log(`# launcher ${config.launcher}`)
 const broker = createBroker(config, { log: message => console.log(`  [broker] ${message}`) })
 await new Promise(resolve => broker.server.listen(Number(process.env.PG_BROKER_IT_PORT ?? 0), '127.0.0.1', resolve))
-const base = `http://127.0.0.1:${broker.server.address().port}`
+const origin = `http://127.0.0.1:${broker.server.address().port}`
+// A browser can only be same-origin with the broker's real address.
+config.publicOrigin = origin
+config.contentSecurityPolicy = defaultContentSecurityPolicy(origin)
+const base = `${origin}${config.basePath}`
+console.log(`# broker at ${base}/`)
 
 const as = session => ({ cookie: `pg_session=${session}` })
 let rpcId = 0
@@ -187,6 +215,145 @@ try {
     const response = await fetch(`${base}/api/session/list`, { method: 'POST', headers: { ...as('sess-a'), origin: 'https://evil.test' } })
     assert.equal(response.status, 403)
   })
+  await step('flooding A\'s real Host draws 429 + Retry-After for A only; B keeps working', async () => {
+    const flood = await Promise.all(Array.from({ length: 150 }, () => rpc('sess-a', 'session/list', { _request: {} })))
+    const during = await rpc('sess-b', 'session/list', { _request: {} })
+    const statuses = flood.reduce((count, answer) => ({ ...count, [answer.status]: (count[answer.status] ?? 0) + 1 }), {})
+    console.log(`  A flood statuses: ${JSON.stringify(statuses)}; B during flood: ${during.status}`)
+    assert.ok((statuses[429] ?? 0) > 0, 'A is limited')
+    assert.ok((statuses[200] ?? 0) > 0, 'A is not locked out')
+    assert.deepEqual(Object.keys(statuses).filter(status => !['200', '429'].includes(status)), [])
+    assert.equal(during.status, 200, 'B unaffected')
+    const limited = flood.find(answer => answer.status === 429)
+    assert.match(String(limited.body?.error), /rate-limited|too-many-requests/)
+    await new Promise(resolve => setTimeout(resolve, 4000))
+    assert.equal((await rpc('sess-a', 'session/list', { _request: {} })).status, 200, 'A recovers')
+  })
+
+  await step('the audit log records hashed users, Session ids, RPC plugin and trace ids, and no credentials or user content', async () => {
+    const lines = readFileSync(config.audit, 'utf8').trim().split('\n').map(line => JSON.parse(line))
+    const text = JSON.stringify(lines)
+    for (const forbidden of ['sess-a', 'sess-b', 'user-a', 'user-b', 'host.user', 'pg_session', 'dsh-auth', 'A private plan', 'owned by B', SECRET]) {
+      assert.ok(!text.includes(forbidden), `audit contains ${forbidden}`)
+    }
+    const renames = lines.filter(line => line.action === 'rpc:session/rename')
+    assert.ok(renames.some(line => line.session === sessionA && line.plugin === 'session' && line.status === 200), JSON.stringify(renames))
+    assert.ok(lines.some(line => line.event === 'limit' && line.status === 429))
+    assert.ok(lines.some(line => line.action === 'host:start' && line.result === 'ok'))
+    assert.ok(lines.every(line => /^[0-9a-f]{24}$/.test(line.user ?? '0'.repeat(24)) && typeof line.trace === 'string'))
+    console.log(`  ${lines.length} audit lines; e.g. ${JSON.stringify(renames[0])}`)
+  })
+
+  if (config.launcher !== 'direct') {
+    await step(`${config.launcher}: each real Host runs under its own kernel limits and sees only its own directory`, async () => {
+      const launched = broker.hosts.launched()
+      assert.equal(launched.length, 2)
+      for (const { userKey: key, name } of launched) {
+        let visible
+        if (config.launcher === 'systemd') {
+          const show = Object.fromEntries(execFileSync('systemctl', ['--user', 'show', name, '-p', 'MainPID,MemoryMax,TasksMax,CPUQuotaPerSecUSec,LimitNOFILE,LimitFSIZE,NoNewPrivileges,PrivateUsers,ProtectSystem'], { encoding: 'utf8' })
+            .trim().split('\n').map(line => line.split(/=(.*)/s).slice(0, 2)))
+          console.log(`  ${name}: ${JSON.stringify(show)}`)
+          assert.equal(show.MemoryMax, String(config.hostLimits.memoryMb * 1024 * 1024))
+          assert.equal(show.TasksMax, String(config.hostLimits.tasksMax))
+          assert.equal(show.CPUQuotaPerSecUSec, '1s')
+          assert.equal(show.LimitNOFILE, String(config.hostLimits.nofile))
+          assert.equal(show.LimitFSIZE, String(config.hostLimits.fileSizeMb * 1024 * 1024))
+          assert.equal(show.NoNewPrivileges, 'yes')
+          assert.equal(show.ProtectSystem, 'strict')
+          // The Host's own view of the filesystem, through its mount namespace.
+          const pids = execFileSync('systemctl', ['--user', 'show', name, '-p', 'ControlGroup', '--value'], { encoding: 'utf8' }).trim()
+          const pid = readFileSync(path.join('/sys/fs/cgroup', pids, 'cgroup.procs'), 'utf8').trim().split('\n').at(-1)
+          visible = readdirSync(`/proc/${pid}/root${config.hostsRoot}`)
+          assert.throws(() => readdirSync(`/proc/${pid}/root/data/home`), /ENOENT/)
+        } else {
+          const inspect = JSON.parse(execFileSync('docker', ['inspect', name], { encoding: 'utf8' }))[0].HostConfig
+          console.log(`  ${name}: ${JSON.stringify({ Memory: inspect.Memory, NanoCpus: inspect.NanoCpus, PidsLimit: inspect.PidsLimit, ReadonlyRootfs: inspect.ReadonlyRootfs, CapDrop: inspect.CapDrop, SecurityOpt: inspect.SecurityOpt, Ulimits: inspect.Ulimits })}`)
+          assert.equal(inspect.Memory, config.hostLimits.memoryMb * 1024 * 1024)
+          assert.equal(inspect.PidsLimit, config.hostLimits.tasksMax)
+          assert.equal(inspect.ReadonlyRootfs, true)
+          assert.deepEqual(inspect.CapDrop, ['ALL'])
+          assert.ok(inspect.SecurityOpt.includes('no-new-privileges'))
+          visible = JSON.parse(execFileSync('docker', ['exec', name, process.execPath, '-e', `console.log(JSON.stringify(require('fs').readdirSync(${JSON.stringify(config.hostsRoot)})))`], { encoding: 'utf8' }))
+        }
+        assert.deepEqual(visible, [key], `${name} sees only its own directory`)
+      }
+    })
+  }
+
+  if (process.env.PG_BROKER_IT_BROWSER === '1') {
+    await step('a real browser boots the full DSH Web client for A behind the CSP, inside the mount prefix', async () => {
+      const { chromium } = createRequire(path.join(harness, '..', 'apps', 'web', 'package.json'))('@playwright/test')
+      const browser = await chromium.launch({ executablePath: process.env.PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH ?? '/usr/bin/chromium', headless: true })
+      try {
+        const context = await browser.newContext()
+        await context.addCookies([{ name: 'pg_session', value: 'sess-a', url: origin }])
+        const page = await context.newPage()
+        const requests = []
+        const problems = []
+        const sockets = []
+        page.on('request', request => requests.push(request.url()))
+        page.on('websocket', socket => sockets.push(socket.url()))
+        page.on('console', message => { if (message.type() === 'error') problems.push(message.text()) })
+        page.on('pageerror', error => problems.push(String(error)))
+        await page.goto(`${base}/`, { waitUntil: 'domcontentloaded', timeout: 60_000 })
+        const statuses = []
+        page.on('response', response => { if (response.status() >= 400) statuses.push(`${response.status()} ${response.url()}`) })
+        try {
+          await page.getByText('New Session').first().waitFor({ timeout: 60_000 })
+        } catch (error) {
+          console.log(`  page text: ${(await page.locator('body').innerText().catch(() => '')).slice(0, 300)}`)
+          console.log(`  failed responses: ${statuses.slice(0, 10).join(' | ')}`)
+          console.log(`  console errors: ${problems.slice(0, 5).join(' | ').slice(0, 1500)}`)
+          throw error
+        }
+        await page.waitForTimeout(3000)
+        const socketOrigin = origin.replace(/^http/, 'ws')
+        const escaped = [
+          ...requests.filter(url => { const u = new URL(url); return u.origin !== origin || !u.pathname.startsWith(`${config.basePath}/`) }),
+          ...sockets.filter(url => !url.startsWith(`${socketOrigin}${config.basePath}/`)),
+        ]
+        console.log(`  browser: ${requests.length} requests + ${sockets.length} WebSocket(s) [${sockets.map(url => new URL(url).pathname).join(', ')}], ${escaped.length} outside ${config.basePath || '/'}, ${problems.length} console errors`)
+        assert.deepEqual(escaped, [])
+        assert.deepEqual(problems.filter(text => /did not activate|Content Security Policy|Refused to/i.test(text)), [])
+        assert.ok(sockets.some(url => url.endsWith(`${config.basePath}/api/remote.mux`)), 'the Remote WebSocket mux was opened under the prefix')
+        assert.ok(!(await page.content()).includes('?token='), 'no launch token in the page')
+      } finally {
+        await browser.close()
+      }
+    })
+  }
+  await step('a logout notification closes B\'s WebSocket and stops B\'s Host; A keeps working', async () => {
+    const socket = await new Promise(resolve => {
+      const req = http.request(`${base}/api/remote.mux`, { headers: { ...as('sess-b'), origin: config.publicOrigin, connection: 'Upgrade', upgrade: 'websocket', 'sec-websocket-version': '13', 'sec-websocket-key': randomBytes(16).toString('base64') } })
+      req.on('upgrade', (_res, sock) => resolve(sock))
+      req.end()
+    })
+    const closed = new Promise(resolve => socket.once('close', resolve))
+    const revoked = await fetch(`${origin}/__broker/revoke`, { method: 'POST', headers: { 'x-puregamma-broker-secret': SECRET, 'content-type': 'application/json' }, body: JSON.stringify({ user_id: 'user-b' }) })
+    assert.equal(revoked.status, 204)
+    await closed
+    assert.equal(broker.hosts.launched().length, 1)
+    assert.equal((await rpc('sess-a', 'session/list', { _request: {} })).status, 200)
+  })
+
+  if (config.launcher !== 'direct') {
+    await step(`${config.launcher}: idle reaping stops the real Hosts`, async () => {
+      const names = broker.hosts.launched().map(entry => entry.name)
+      config.idleMs = 0
+      await broker.hosts.reap()
+      const alive = () => names.filter(name => {
+        try {
+          return config.launcher === 'systemd'
+            ? execFileSync('systemctl', ['--user', 'is-active', name], { encoding: 'utf8' }).trim() === 'active'
+            : execFileSync('docker', ['ps', '-q', '--filter', `name=^${name}$`], { encoding: 'utf8' }).trim() !== ''
+        } catch { return false }
+      })
+      for (let i = 0; i < 100 && alive().length; i++) await new Promise(resolve => setTimeout(resolve, 100))
+      assert.deepEqual(alive(), [])
+      assert.equal(broker.hosts.size, 0)
+    })
+  }
 } finally {
   await broker.close()
   api.close()

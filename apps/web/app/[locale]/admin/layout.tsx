@@ -28,6 +28,11 @@ const GROUPS: Array<{ zh: string; en: string; items: AdminNavItem[] }> = [
     ],
   },
   {
+    zh: "实盘",
+    en: "LIVE",
+    items: [{ href: "/admin/trading", zh: "实盘审阅", en: "LIVE review" }],
+  },
+  {
     zh: "计费",
     en: "Billing",
     items: [

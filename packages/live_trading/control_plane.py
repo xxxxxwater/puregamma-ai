@@ -285,6 +285,21 @@ def confirm_order(
 
     # Row lock serializes all operations on this mandate (no concurrent modify).
     mandate = owned_mandate(db, user_id, intent.mandate_id, lock=True)
+    # A concurrent confirm of the same intent may have committed while we
+    # waited for the lock: answer with its order instead of re-running risk
+    # (which could otherwise mark the already-approved intent REJECTED).
+    db.refresh(intent)
+    existing_order = (
+        db.query(LiveOrder)
+        .filter_by(order_intent_id=intent.id, user_id=user_id)
+        .one_or_none()
+    )
+    if existing_order:
+        db.rollback()
+        return existing_order
+    if intent.status != IntentStatus.PENDING.value:
+        db.rollback()
+        raise ControlPlaneError("Order intent is no longer pending")
     connection = _mandate_connection(db, mandate)
     gate = flags_service.evaluate_full_gate(db, user_id, mandate, connection)
     if not gate.enabled:
@@ -575,9 +590,22 @@ def _apply_fill(
     return fill
 
 
-def sync_order_status(db: Session, order: LiveOrder, gateway: ExecutionGateway | None = None) -> LiveOrder:
+def sync_order_status(
+    db: Session,
+    order: LiveOrder,
+    gateway: ExecutionGateway | None = None,
+    *,
+    trigger: str = "background",
+) -> LiveOrder:
     """Background order-state sync. UNKNOWN states are resolved by QUERYING
-    the gateway — never by re-submitting."""
+    the gateway — never by re-submitting.
+
+    Each answer is classified (resolved / still unknown / query failed) and
+    appended to the audit log via ``order_sync.record_sync_result`` so the
+    owner can see when the venue was last asked and what it said.
+    """
+    from packages.live_trading import order_sync
+
     if order.status in {
         LiveOrderStatus.FILLED.value,
         LiveOrderStatus.CANCELED.value,
@@ -585,6 +613,7 @@ def sync_order_status(db: Session, order: LiveOrder, gateway: ExecutionGateway |
         LiveOrderStatus.EXPIRED.value,
     }:
         return order
+    state_before = order.status
     mandate = db.query(TradingMandate).filter_by(id=order.mandate_id).one_or_none()
     account_id = mandate.account_id if mandate else ""
     connection_id = mandate.broker_connection_id if mandate else None
@@ -597,16 +626,33 @@ def sync_order_status(db: Session, order: LiveOrder, gateway: ExecutionGateway |
             symbol=order.symbol,
         )
         state = str(result.get("state") or LiveOrderStatus.UNKNOWN.value).lower()
-        if state in {item.value for item in LiveOrderStatus}:
+        known = state in {item.value for item in LiveOrderStatus}
+        if known:
             order.status = state
         order.last_sync_at = utcnow()
         broker = result.get("order") or {}
         if broker.get("broker_order_id") or broker.get("exchange_order_id"):
             order.broker_order_id = broker.get("broker_order_id") or broker.get("exchange_order_id")
         _sync_fills_from_ack(db, order, account_id, {"fills": broker.get("fills") or []})
-    except (GatewayError, GatewayOrderUnknown):
+        if not known:
+            outcome, reason = order_sync.OUTCOME_STILL_UNKNOWN, f"unrecognized venue state: {state[:40]}"
+        elif state == LiveOrderStatus.UNKNOWN.value:
+            outcome, reason = order_sync.OUTCOME_STILL_UNKNOWN, result.get("reason") or "venue did not report a definite state"
+        else:
+            outcome, reason = order_sync.OUTCOME_RESOLVED, result.get("reason")
+    except (GatewayError, GatewayOrderUnknown) as exc:
         # Keep last known state; UNKNOWN stays UNKNOWN until gateway answers.
         order.last_sync_at = utcnow()
+        outcome, reason = order_sync.OUTCOME_FAILED, str(exc)[:300] or type(exc).__name__
+    order_sync.record_sync_result(
+        db,
+        order,
+        outcome=outcome,
+        state_before=state_before,
+        state_after=order.status,
+        reason=reason,
+        trigger=trigger,
+    )
     db.commit()
     _trigger_nav_update(order.user_id, account_id, order.mandate_id)
     return order
@@ -671,6 +717,9 @@ def cancel_order(
         state = str(ack.get("state") or LiveOrderStatus.CANCELED.value).lower()
         if state in {item.value for item in LiveOrderStatus}:
             order.status = state
+        if order.error_code == "CANCEL_UNKNOWN":
+            order.error_code = None
+            order.error_message = None
     except GatewayError as exc:
         order.error_code = "CANCEL_UNKNOWN"
         order.error_message = str(exc)[:300]
@@ -681,9 +730,11 @@ def cancel_order(
         action="LIVE_ORDER_CANCEL",
         status=order.status,
         trace_id=order.trace_id,
-        idempotency_key=f"audit:cancel:{order.id}",
+        # One row per cancel attempt: a retried cancel after a failed one used
+        # to reuse the first key and leave no trace.
+        idempotency_key=f"audit:cancel:{order.id}:{uuid.uuid4().hex}",
         actor_type="user",
-        result_json={"order_id": order.id},
+        result_json={"order_id": order.id, "error_code": order.error_code},
     )
     db.commit()
     db.refresh(order)
@@ -714,7 +765,9 @@ def pause_mandate(
         action="LIVE_MANDATE_PAUSE",
         status="PAUSED",
         trace_id=audit_service.new_trace_id(),
-        idempotency_key=f"audit:pause:{mandate.id}:{int(utcnow().timestamp())}",
+        # One row per transition: a per-second key silently dropped the audit
+        # of a second pause within the same second.
+        idempotency_key=f"audit:pause:{mandate.id}:{uuid.uuid4().hex}",
         actor_type="admin" if actor_is_admin else "user",
         result_json={"mandate_id": mandate.id, "reason": reason},
     )
@@ -766,7 +819,7 @@ def resume_mandate(
         action="LIVE_MANDATE_RESUME",
         status="RESUMED",
         trace_id=audit_service.new_trace_id(),
-        idempotency_key=f"audit:resume:{mandate.id}:{int(utcnow().timestamp())}",
+        idempotency_key=f"audit:resume:{mandate.id}:{uuid.uuid4().hex}",
         actor_type="user",
         result_json={"mandate_id": mandate.id},
     )

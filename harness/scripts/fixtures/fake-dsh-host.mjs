@@ -11,6 +11,9 @@ import process from 'node:process'
 const home = process.env.DSH_HOME
 const sessions = path.join(home, 'sessions')
 mkdirSync(sessions, { recursive: true })
+// Like DSH's prepareProfile: rewrite the profile's root cordis.yml at boot.
+const profile = path.join(home, 'profiles', process.argv[2] ?? 'puregamma')
+try { writeFileSync(path.join(profile, 'cordis.yml'), `# written by ${home}\n[]\n`) } catch {}
 const token = randomBytes(16).toString('base64url')
 const cookie = `dsh-auth-test=${randomBytes(16).toString('base64url')}`
 let port = 0
@@ -42,16 +45,48 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/api/session/list') {
       return json(res, 200, { sessions: readdirSync(sessions).map(f => JSON.parse(readFileSync(path.join(sessions, f), 'utf8')).title) })
     }
+    if (url.pathname === '/api/slow') return void setTimeout(() => json(res, 200, { ok: true }), Number(url.searchParams.get('ms') ?? 500))
+    if (url.pathname === '/api/sandbox') return json(res, 200, sandbox(url.searchParams))
+    if (url.pathname === '/api/redirect') {
+      res.writeHead(302, { location: '/api/debug?from=redirect' })
+      return res.end()
+    }
     if (url.pathname === '/api/debug') {
       return json(res, 200, {
         home, cwd: process.cwd(), query: url.search, cookie: req.headers.cookie, authorization: req.headers.authorization ?? null,
         tokenFile: process.env.PUREGAMMA_LEGACY_API_TOKEN_FILE, sharedToken: process.env.PUREGAMMA_LEGACY_API_TOKEN ?? null,
         brokerSecret: process.env.PUREGAMMA_DSH_BROKER_SECRET ?? null, workspaceRoot: process.env.PUREGAMMA_DSH_WORKSPACE_ROOT,
+        headers: req.headers,
       })
     }
     json(res, 404, { error: 'not found' })
   })
 })
+/** What this process can see and do from inside its launcher's sandbox. */
+function sandbox(params) {
+  const attempt = fn => { try { return fn() } catch (error) { return `ERR ${error.code ?? error.message}` } }
+  const dir = path.dirname(home)
+  const cgroup = readFileSync('/proc/self/cgroup', 'utf8').trim().split(':').pop()
+  const cg = name => attempt(() => readFileSync(path.join('/sys/fs/cgroup', cgroup, name), 'utf8').trim())
+  const limit = name => attempt(() => readFileSync('/proc/self/limits', 'utf8').split('\n').find(line => line.startsWith(name))?.replace(/\s+/g, ' ').trim())
+  const big = Number(params.get('writeMb') ?? 0)
+  return {
+    uid: process.getuid(), pid: process.pid,
+    visibleProcesses: attempt(() => readdirSync('/proc').filter(entry => /^\d+$/.test(entry)).length),
+    hostsRoot: attempt(() => readdirSync(path.dirname(dir))),
+    ownDir: path.basename(dir),
+    writeOwn: attempt(() => { writeFileSync(path.join(dir, 'workspace', 'probe.txt'), 'ok'); return 'ok' }),
+    writeHostsRoot: attempt(() => { writeFileSync(path.join(path.dirname(dir), 'escape.txt'), 'x'); return 'ok' }),
+    writeEtc: attempt(() => { writeFileSync('/etc/pg-escape', 'x'); return 'ok' }),
+    readHidden: params.get('hidden') ? attempt(() => readdirSync(params.get('hidden')).length) : null,
+    bigFile: big ? attempt(() => { writeFileSync(path.join(dir, 'workspace', 'big.bin'), Buffer.alloc(big * 1024 * 1024)); return 'ok' }) : null,
+    memoryMax: cg('memory.max'), pidsMax: cg('pids.max'), cpuMax: cg('cpu.max'),
+    nofile: limit('Max open files'), fsize: limit('Max file size'),
+    noNewPrivs: attempt(() => readFileSync('/proc/self/status', 'utf8').match(/NoNewPrivs:\s+(\d)/)?.[1]),
+    capEff: attempt(() => readFileSync('/proc/self/status', 'utf8').match(/CapEff:\s+(\w+)/)?.[1]),
+  }
+}
+
 server.on('upgrade', (req, socket) => {
   const rejected = req.url !== '/api/remote.mux' ? 404 : fenced(req)
   if (rejected) return socket.end(`HTTP/1.1 ${rejected} Rejected\r\nConnection: close\r\n\r\n`)
