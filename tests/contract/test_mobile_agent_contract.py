@@ -546,3 +546,28 @@ def test_cancel_reports_the_runs_recorded_status(api_client, db, normal_user):
     assert response.status_code == 200
     assert response.json() == {"id": run.id, "status": "canceled"}
     _http_fixture("agent_run_cancel_200.json", "POST", path, response)
+
+
+# ---------------------------------------------------------------------------
+# client versions (§10)
+# ---------------------------------------------------------------------------
+
+
+def _version(text: str) -> tuple[int, ...]:
+    return tuple(int(part) for part in text.split("."))
+
+
+def test_mobile_clients_ship_in_step_and_stay_above_the_server_minimum():
+    root = Path(__file__).resolve().parents[2]
+    pbxproj = (root / "apps/ios/PureGamma.xcodeproj/project.pbxproj").read_text(encoding="utf-8")
+    gradle = (root / "apps/android/app/build.gradle.kts").read_text(encoding="utf-8")
+    ios_versions = set(re.findall(r"MARKETING_VERSION = ([0-9.]+);", pbxproj))
+    android_version = re.search(r'versionName = "([0-9.]+)"', gradle).group(1)
+    assert ios_versions == {android_version}, (ios_versions, android_version)
+
+    from apps.api.routers.mobile import APP_MIN_VERSION
+
+    # Raising the minimum forces every older client to upgrade: a product
+    # decision, so this test pins it rather than letting it drift.
+    assert APP_MIN_VERSION == "1.5.0"
+    assert _version(android_version) >= _version(APP_MIN_VERSION)
