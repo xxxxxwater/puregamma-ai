@@ -55,6 +55,7 @@
 | 通知 | 已实现（旧） | 不变 | `routers/notifications.py` | — | — |
 | 记忆 | 已实现（默认关闭） | 不变 | `routers/memory.py` | — | — |
 | 移动端 | 部分实现：抽屉 Escape 后焦点不返回、导航抽屉关闭时仍可聚焦并漏出 12px、历史抽屉被页头遮挡 | 已实现：键盘与读屏可用，抽屉通过 portal 渲染、不透明，桌面折叠状态持久化 | `nav.tsx`、`agent-chat.tsx`、`use-dialog-focus.ts` | E2E `phone drawers` | — |
+| 原生 App（iOS / Android） | 部分实现：发送不带 `client_request_id`（“重试”可能二次扣费）、iOS 遇到未知 SSE 事件中断流、无断线回放、金额用浮点、模型菜单含评估模型；移动端单元测试从不在 CI 运行 | 已实现（v0.3.4，App 1.6.0）：幂等发送与 409 附着原 run、按 `seq` 去重与 `/runs/{id}/events?after=` 回放、未知事件忽略、进入后台只停止观察不取消、十进制金额、NAV 无账户显示“未连接实盘账户”、已删除会话 404 处理、模型菜单只列可用生成模型并说明原因；契约文档 + 服务端契约测试 + 共享样例，`Mobile Unit Tests` 工作流（§14） | `apps/ios`、`apps/android`、`docs/mobile/MOBILE_API_CONTRACT.md`、`docs/mobile/fixtures/`、`tests/contract/` | `Mobile Unit Tests`（contract、Android 81、iOS 97）；`tests/contract` 28 | 后台继续生成需要服务端把执行与连接解耦（旧路径断开即 `interrupted`）；没有工具审批 UI；旧 `/portfolio` 仍返回 float；`APP_MIN_VERSION` 仍为 1.5.0（是否强制升级待定） |
 
 ### 2.1 Catalog：目标能力与“已安装/健康/已授权”
 
@@ -155,6 +156,7 @@
 
 ## 8. 尚未上线 / 已知缺口
 
+- **原生 App（v0.3.4，§14）**：App 升到 1.6.0；服务端 `APP_MIN_VERSION` 仍为 1.5.0（服务端向后兼容）。是否强制升级到 1.6.0 需要产品决定。iOS 1.5.0 的 SSE 解析在真实流上从未产出帧，强制升级可以让旧版本用户得到修复。
 - **实盘与账务（v0.3.4，§14）**：新增的写入口全部默认关闭——`LIVE_ORDER_RECHECK_ENABLED`（只查询的重新核对）、`LIVE_MANDATE_PROPOSALS_ENABLED`（需先在生产执行迁移 0036）。是否开启、审批人范围、限流间隔、`LIVE_ORDER_SYNC` 审计行的保留策略需要产品决定。管理端 `notes` 改为必填、释放不存在的 kill switch 返回 404，仓库外的脚本需同步。
 - **DSH 多租户**：v0.3.3 实现了每用户隔离 Host 的 session broker；v0.3.4 补上入口、内核级 Host 隔离、限流审计和登出联动（均默认关闭，§14，上线步骤见 [runbook](upgrade-20261029/dsh-ingress-isolation.md) §5）。仍未上线：需要用户决定上线时间与 `HARNESS_DOMAIN`、提供 staging 与真实模型 key、两个测试账号、选择出口限制方案（user manager 会忽略 `IPAddressDeny`）；systemd launcher 要求主机 systemd ≥ 257 且允许 broker 账号创建非特权用户命名空间（Ubuntu 23.10+ 默认由 AppArmor 限制，否则 unit 以 226/NAMESPACE 失败、broker fail closed）；硬性磁盘配额、broker 的 systemd 服务文件和 docker 镜像属于部署工作；CSP 仍需 `'unsafe-eval'`（上游限制）。
 - **Harness 编译依赖对齐**：v0.3.3 已把 npm 上的 `@deepseek-ai/*` 升到 `0.1.7-rc.1`（与 vendored gitlink 同 tag）。vendored 源码本身没有在本机构建（磁盘和内存不足），用的是同 tag 的 npm 包。
@@ -259,6 +261,13 @@ v0.3.3 之后合入 `main` 的变更（均未执行生产部署、生产数据�
   - 登出联动：FastAPI `DSH_BROKER_REVOKE_URL`（默认关）在登出后通知 broker 关闭隧道并停止 Host；broker 另外每 60 s 复查已打开的隧道（补上 v0.3.3“登出后 WebSocket 隧道仍可用”的缺口）。
   - 端到端对照（本地确定性 mock 模型，**不是真实 key**）：DSH 与旧 Web 路径各 10 个场景，19 通过、0 失败，DSH“工具审批”为缺失（两条路径出厂配置下都无法触发）。DSH 在刷新恢复、断线重连、归档后阻止新回合上优于旧路径；首次跑通“模型工具调用 → legacy-api provider → 用户 Host token → FastAPI”链路；图片走内联，不需要上传 provider。
 
+- **移动端与 API 契约对齐**（`1a49572`…`c709782`，详见 [upgrade-20261029/mobile-contract-align.md](upgrade-20261029/mobile-contract-align.md)）：
+  - 契约：`docs/mobile/MOBILE_API_CONTRACT.md` 新增 §8（幂等发送与 409、权限模式、NAV 404、已删除会话、十进制金额、模型目录、事件回放）、§9 错误码表、§10 客户端版本表，修正过期的头部与实现状态；`tests/contract/test_mobile_agent_contract.py` 用真实路由生成 `docs/mobile/fixtures/`，样例与实时响应逐字节比较，服务端改形状而不更新样例即失败。
+  - iOS 与 Android 同构适配：每次发起生成 `client_request_id`，“重试”复用同一个 id，409 `DUPLICATE_SUBMISSION` 附着原 run；按 `seq` 去重、忽略其他 run 的帧、断线后从 `lastSeq` 回放，以服务端记录为准；未知事件忽略；进入后台只停止观察、不再取消；NAV 无账户显示“未连接实盘账户”；已删除会话从列表移除；金额用十进制类型；权限模式只提供 `read-only`/`workspace-write`；模型菜单只列可用的生成模型并说明其他模型的原因。
+  - CI 发现并修复的既有缺陷：iOS 的 `SSEParser` 在真实流上从未产出帧（`AsyncBytes.lines` 丢弃空行）；无时区偏移的时间戳会让 iOS 整条响应解码失败、Android 退化为 1970 年。
+  - 新工作流 `Mobile Unit Tests`（只读权限、不发布产物）：服务端契约 + 样例漂移检查、Android 单元测试、iOS 模拟器单元测试（ad-hoc 签名，Keychain 测试可运行）。iOS 测试此前从未在 CI 运行。
+  - App 版本 1.6.0（iOS build 3、Android versionCode 10）。
+
 验证（协调会话在合并前的树上复跑，另附工作会话报告）：
 
 | 项目 | 结果 |
@@ -275,6 +284,8 @@ v0.3.3 之后合入 `main` 的变更（均未执行生产部署、生产数据�
 | W1 rebase 后：Playwright（生产构建） | harness-sessions-entry 2 通过（开关关闭；开启用例按设计跳过）、chat-design 10 通过；agent-session-reliability 28 通过、2 失败——同样的 2 项在不含 W1 的 `main` 生产构建上也失败（手机历史抽屉选择会话后焦点未返回），CI 的 dev 模式通过，列为遗留项 |
 | 工作会话报告：真实 DSH `0.1.7-rc.1` | direct 13/13；systemd、docker launcher 各 12/12（浏览器、上限回读、目录隔离、空闲回收）；根路径与 `/harness` 前缀下浏览器均正常 |
 | 工作会话报告：端到端对照（mock 模型 + 一次性 Postgres） | 19 通过、0 失败，DSH 工具审批为缺失 |
+| W3 rebase 到 `main` 后：`pytest tests/contract` / `pytest tests` / ruff | 28 通过 / 1411 通过、9 跳过、4 xfailed、0 失败 / 通过 |
+| 工作会话报告：`Mobile Unit Tests`（分支） | contract ✅、Android 81/81、iOS 97/97（基线 Android 57、iOS 72 其中 2 个失败）；客户端变异（未知帧不忽略、409 不附着）使 iOS 4 项、Android 5 项失败 |
 
 合并时发现并修复：`0186a72` 新增的 `/admin/trading` 页面没有登记到 Harness 迁移台账，`architecture-check` 因此失败；harness-v2 CI 只在 `harness/**` 变化时运行，所以 `main` 上没有暴露（`1fb1da7` 补登记，owner `admin`）。
 
