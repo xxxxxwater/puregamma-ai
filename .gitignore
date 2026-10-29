@@ -68,9 +68,9 @@ tests/e2e/.auth/
 
 
 # PureGamma Harness build output. `pnpm --dir harness run check` emits lib/ for
-# every plugin/package; none of it is source.
+# every plugin/package; none of it is source. harness/pnpm-lock.yaml IS source:
+# CI installs it with --frozen-lockfile (harness/scripts/lockfile.test.mjs).
 harness/**/lib/
-harness/pnpm-lock.yaml
 
 # Screenshots written by local Playwright runs
 .preview-*

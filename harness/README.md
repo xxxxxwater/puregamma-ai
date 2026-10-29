@@ -152,8 +152,23 @@ From the repository root:
 git submodule update --init --recursive
 corepack enable
 pnpm --dir vendor/deepseek-harness install --frozen-lockfile --ignore-scripts
-pnpm --dir harness install --no-frozen-lockfile
-pnpm --dir harness run check
+cd harness            # run pnpm inside harness/ so corepack picks pnpm@11.7.0
+pnpm install --frozen-lockfile
+pnpm run check
+```
+
+`harness/pnpm-lock.yaml` is committed and CI installs it frozen.
+`pnpm run lockfile-check` fails when `@deepseek-ai/cordis` resolves to more
+than one version or peer variant, when any `@deepseek-ai/dsh-*` package drifts
+from the pinned version, or when a workspace package was added without
+re-locking. To change dependencies (including a DSH upgrade), edit the
+manifests, then from `harness/`:
+
+```bash
+find . -name node_modules -type d -prune -exec rm -rf {} +
+pnpm install                  # pnpm 11.7.0; rewrites pnpm-lock.yaml
+pnpm run lockfile-check && pnpm run check
+git add pnpm-lock.yaml
 ```
 
 `pnpm run check` runs an architecture guard before TypeScript/build. It rejects:
