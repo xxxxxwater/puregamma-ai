@@ -137,6 +137,7 @@ enum MobileGate {
                     for try await line in bytes.lines {
                         if let event = parser.consume(line) { continuation.yield(ResearchRunEvent.decode(event)) }
                     }
+                    if let last = parser.finish() { continuation.yield(ResearchRunEvent.decode(last)) }
                     continuation.finish()
                 } catch { continuation.finish(throwing: error) }
             }

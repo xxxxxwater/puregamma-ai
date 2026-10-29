@@ -34,7 +34,10 @@ enum AgentSendFailure: Equatable {
             if detail.status == 404 { return .conversationGone }
             switch detail.code {
             case "AGENT_CONCURRENT_LIMIT_REACHED", "AGENT_GLOBAL_CAPACITY_REACHED", "AGENT_MODEL_UNAVAILABLE": return .retryable(error)
-            default: return detail.status >= 500 ? .retryable(error) : .final(error)
+            // A coded refusal says why; only the codes above clear up on their own
+            // (an unpriced model stays unpriced however often it is resent).
+            case .some: return .final(error)
+            case .none: return detail.status >= 500 ? .retryable(error) : .final(error)
             }
         case .transport, .unavailable, .rateLimited: return .retryable(error)
         case .server(let status, _): return status >= 500 ? .retryable(error) : .final(error)
