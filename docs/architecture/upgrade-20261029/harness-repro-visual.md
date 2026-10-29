@@ -82,6 +82,14 @@ FastAPI 以 `prefix="/api"` 挂载 research、research_runner、memory、secreta
 
 新增 `tests/harness/test_legacy_provider_routes.py`：把 `harness/plugins/*-legacy-api/src` 里每个路径模板（含 `${cond ? 'a' : 'b'}` 展开）对到真实路由表。修复前 34 个路径失败，修复后 116/116 通过。
 
+**多租户 Host token 白名单**（`apps/api/dependencies.py#_DSH_HOST_ROUTES`，判断时会去掉前导 `/api`）：
+- research、research-runner、memory、secretary 修好前缀后都在白名单内。资源视图网关用到的读接口（`/api/research/runs*` 含 SSE、`/backtest-lab/runs*`）也都在白名单内。
+- **skills 在多租户模式下保持拒绝**，原因有两点：
+  - `@puregamma/dsh-skills-legacy-api` 本来就不在公开 profile 里。CI 用 grep 守卫这一点，skill 由 DSH 原生 registry 提供。
+  - 这个 provider 还要用写接口（run、import、install、uninstall），只放行 GET 会让它一半能用一半不能用。而且会给 Host token 打开一条没有任何调用方的路径。
+- 如果以后挂载它，多租户下的调用会得到 403 `DSH_HOST_TOKEN_SCOPE`，这是失败关闭的预期行为。
+- `tests/security/test_dsh_host_tokens.py` 新增 2 例：资源视图的读取路由放行；`/api/skills*` 的各种方法都拒绝。变异测试：把 `("/skills", GET)` 加进白名单，该测试会失败。
+
 ---
 
 ## 2. lockfile 与冻结安装

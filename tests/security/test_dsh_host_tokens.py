@@ -11,6 +11,7 @@ import base64
 import dataclasses
 import json
 import time
+from pathlib import Path
 
 import pytest
 
@@ -146,3 +147,38 @@ def test_one_users_host_token_cannot_read_another_users_data(api_client, enabled
     assert api_client.get(f"/backtest/{mine.id}", headers=bearer(token)).status_code == 200
     assert api_client.get(f"/backtest/{theirs.id}", headers=bearer(token)).status_code == 404
     assert api_client.get("/me", headers=bearer(token)).json()["user"]["id"] == pro_user.id
+
+
+def test_host_token_allowlist_covers_the_resource_view_reads():
+    # The puregammaClient gateway reads behind @puregamma/dsh-ui-research-resources
+    # (research runs, artifacts, evidence, SSE progress; backtest runs and results).
+    from apps.api.dependencies import dsh_host_route_allowed
+
+    for path in [
+        "/api/research/runs",
+        "/api/research/runs/run-1",
+        "/api/research/runs/run-1/artifacts",
+        "/api/research/runs/run-1/evidence",
+        "/api/research/runs/run-1/events",
+        "/backtest-lab/runs",
+        "/backtest-lab/runs/bt-1",
+    ]:
+        assert dsh_host_route_allowed("GET", path), path
+
+
+def test_host_token_never_reaches_legacy_skills_routes(api_client, enabled, normal_user):
+    """Skills stay refused for Host tokens, in both directions.
+
+    The public profile does not mount @puregamma/dsh-skills-legacy-api (CI
+    greps for it; DSH's native skill registry serves skills), and that
+    provider needs write routes (run/import/install). Opening /skills to a
+    Host token would only widen what a per-user Host may do with no consumer.
+    """
+    from apps.api.dependencies import dsh_host_route_allowed
+
+    profile = json.loads((Path(__file__).resolve().parents[2] / "harness" / "profile" / "package.json").read_text())
+    assert "@puregamma/dsh-skills-legacy-api" not in profile["dependencies"]
+    for method, path in [("GET", "/api/skills"), ("GET", "/api/skills/runs"), ("POST", "/api/skills/x/run"), ("POST", "/api/skills/import"), ("DELETE", "/api/skills/installations/x")]:
+        assert not dsh_host_route_allowed(method, path), (method, path)
+    token = mint(api_client, normal_user).json()["token"]
+    assert api_client.get("/api/skills", headers=bearer(token)).status_code == 403
