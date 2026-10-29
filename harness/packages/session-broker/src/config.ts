@@ -76,6 +76,31 @@ export interface BrokerConfig {
   dockerAddHosts: string[]
   /** Absolute path of container-entry.mjs (inside a read-only mount). */
   containerEntry: string
+  /** Admission limits (429 + Retry-After when exceeded). */
+  limits: AdmissionLimits
+  /** Request header carrying the client address set by the edge (e.g. `x-real-ip`); '' = socket address. */
+  clientIpHeader: string
+  /** `stdout` (default), `off`, or a file path for the JSON-lines audit log. */
+  audit: string
+  /** Also audit static asset requests (noisy; off by default). */
+  auditAssets: boolean
+  /** How often open WebSocket tunnels re-check their user's credential (0 = never). */
+  socketRevalidateMs: number
+}
+
+export interface AdmissionLimits {
+  /** Per-user request rate (sustained per second) and burst. */
+  userRatePerSec: number
+  userBurst: number
+  /** Per-user in-flight HTTP requests and open WebSockets. */
+  userMaxInflight: number
+  userMaxSockets: number
+  /** Per-client-address identity lookups that miss the cache (protects FastAPI /me). */
+  ipLookupRatePerSec: number
+  ipLookupBurst: number
+  /** Global new-Host starts per minute and burst. */
+  hostStartsPerMin: number
+  hostStartBurst: number
 }
 
 export interface HostLimits {
@@ -178,6 +203,20 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BrokerConfig {
     dockerUser: env.PUREGAMMA_DSH_DOCKER_USER ?? `${userInfo().uid}:${userInfo().gid}`,
     dockerAddHosts: list(env.PUREGAMMA_DSH_DOCKER_ADD_HOSTS),
     containerEntry: path.resolve(import.meta.dirname, '..', 'container-entry.mjs'),
+    limits: {
+      userRatePerSec: int(env.PUREGAMMA_DSH_USER_RPS, 20, 1, 10_000),
+      userBurst: int(env.PUREGAMMA_DSH_USER_BURST, 80, 1, 100_000),
+      userMaxInflight: int(env.PUREGAMMA_DSH_USER_MAX_INFLIGHT, 32, 1, 10_000),
+      userMaxSockets: int(env.PUREGAMMA_DSH_USER_MAX_SOCKETS, 4, 1, 1000),
+      ipLookupRatePerSec: int(env.PUREGAMMA_DSH_IP_LOOKUP_RPS, 5, 1, 10_000),
+      ipLookupBurst: int(env.PUREGAMMA_DSH_IP_LOOKUP_BURST, 20, 1, 100_000),
+      hostStartsPerMin: int(env.PUREGAMMA_DSH_HOST_STARTS_PER_MIN, 30, 1, 10_000),
+      hostStartBurst: int(env.PUREGAMMA_DSH_HOST_START_BURST, 10, 1, 10_000),
+    },
+    clientIpHeader: (env.PUREGAMMA_DSH_CLIENT_IP_HEADER ?? '').toLowerCase(),
+    audit: env.PUREGAMMA_DSH_AUDIT ?? 'stdout',
+    auditAssets: bool(env.PUREGAMMA_DSH_AUDIT_ASSETS),
+    socketRevalidateMs: int(env.PUREGAMMA_DSH_SOCKET_REVALIDATE_MS, 60_000, 0, 3_600_000),
   }
 }
 
@@ -200,6 +239,7 @@ export function validateConfig(config: BrokerConfig): string[] {
   if (config.launcher === 'docker' && !config.dockerImage) errors.push('PUREGAMMA_DSH_DOCKER_IMAGE is required for the docker launcher')
   if (config.launcher === 'docker' && !/^\d+:\d+$/.test(config.dockerUser)) errors.push('PUREGAMMA_DSH_DOCKER_USER must be uid:gid')
   if (config.launcher === 'systemd' && config.sandboxHide.some(dir => !path.isAbsolute(dir) || dir === '/')) errors.push('PUREGAMMA_DSH_SANDBOX_HIDE entries must be absolute and not /')
+  if (config.clientIpHeader && !/^[a-z0-9-]{1,64}$/.test(config.clientIpHeader)) errors.push('PUREGAMMA_DSH_CLIENT_IP_HEADER must be a header name')
   if (config.basePath && !/^(\/[A-Za-z0-9._~-]+)+$/.test(config.basePath)) {
     errors.push('PUREGAMMA_DSH_BASE_PATH must look like /harness (no trailing slash, no query)')
   }

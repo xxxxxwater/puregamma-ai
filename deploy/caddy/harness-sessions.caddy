@@ -23,6 +23,10 @@
 		X-Content-Type-Options "nosniff"
 		-Server
 	}
+	# Broker-internal endpoints (health, FastAPI's logout notification) are
+	# never routed from the internet; the API reaches the broker directly.
+	@broker_internal path /__broker/*
+	respond @broker_internal 404
 	# Same rule as the API site: {client_ip} is the only client address the
 	# broker trusts (audit log, per-address limits for anonymous floods).
 	reverse_proxy {$DSH_BROKER_UPSTREAM} {

@@ -3,4 +3,6 @@ export { Authenticator, credentialOf, readCookie, type Identity, type UserCreden
 export { CapacityError, HostManager, QuotaError, directoryUsage, exchangeLaunchToken, hostEnv, hostPaths, prepareProfile, userKey, type Host } from './hosts.ts'
 export { CONTAINER_PORT, createLauncher, dockerArgs, readOnlyPaths, systemdProperties, type HostLauncher, type LauncherKind, type LaunchPlan } from './launchers.ts'
 export { TokenKeeper, writePrivate } from './tokens.ts'
+export { AuditLog, actionOf, identifiersOf, rpcOf, traceOf, type AuditEvent, type Trace } from './audit.ts'
+export { Concurrency, KeyedBuckets, RateLimited, TokenBucket } from './limits.ts'
 export { createBroker, isNavigation, routeRequest, withoutLaunchToken, type Broker, type Route } from './server.ts'

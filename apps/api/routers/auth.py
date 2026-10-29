@@ -6,7 +6,7 @@ import hashlib
 from datetime import datetime, timezone
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Request, Response
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -20,6 +20,7 @@ from apps.api.dependencies import (
 from apps.api.i18n import normalize_locale
 from apps.api.client_ip import client_ip
 from apps.api.config import get_settings
+from apps.api.services.dsh_broker import broker_revoke_enabled, notify_broker_logout
 from packages.database.models import Base, User, UserIdentity, UserPreference, utcnow
 
 
@@ -193,12 +194,17 @@ def me(user: User = Depends(get_current_user)) -> dict:
 @router.post("/auth/logout")
 def logout(
     response: Response,
+    background: BackgroundTasks,
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict:
     user.session_version = int(user.session_version or 0) + 1
     db.commit()
     clear_session_cookie(response)
+    # After the response: close the user's DSH Session tunnels and Host now
+    # instead of when the broker's cache expires (no-op unless configured).
+    if broker_revoke_enabled():
+        background.add_task(notify_broker_logout, user.id)
     return {"ok": True}
 
 

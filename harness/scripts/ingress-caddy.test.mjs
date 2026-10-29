@@ -42,6 +42,7 @@ test('production Caddyfile and compose stay unchanged unless the override is app
   const site = read('deploy/caddy/harness-sessions.caddy')
   assert.match(site, /header_up X-Real-IP \{client_ip\}/)
   assert.doesNotMatch(site, /CF-Connecting-IP|X-Forwarded-For/i)
+  assert.match(site, /@broker_internal path \/__broker\/\*\n\s*respond @broker_internal 404/)
 })
 
 function findCaddy() {
@@ -160,6 +161,10 @@ test('live Caddy: 401 signed out, 403 cross-site, own Host over HTTP and WebSock
     assert.match(a.body.cookie, /^dsh-auth-/)
     assert.equal(a.headers.get('strict-transport-security'), 'max-age=31536000; includeSubDomains')
     assert.match(a.headers.get('content-security-policy') ?? '', /frame-ancestors 'none'/)
+    const seenBefore = seen.length
+    assert.equal((await call(edge, '/__broker/healthz', { headers: host })).status, 404)
+    assert.equal((await call(edge, '/__broker/revoke', { method: 'POST', headers: { ...host, 'x-puregamma-broker-secret': SECRET }, body: { user_id: 'user-a' } })).status, 404)
+    assert.equal(seen.length, seenBefore, '/__broker/* never reaches the broker through the edge')
     const ws = await upgrade(edge, '/api/remote.mux', { ...host, cookie: 'pg_session=sess-a', ...origin })
     assert.equal(ws.status, 101)
     assert.equal(ws.greeting.trim(), `hello from ${a.body.home}`)

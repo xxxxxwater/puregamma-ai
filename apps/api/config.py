@@ -132,6 +132,9 @@ class Settings:
     dsh_broker_secret: str = os.getenv("DSH_BROKER_SECRET", "")
     dsh_host_token_ttl_seconds: int = int(os.getenv("DSH_HOST_TOKEN_TTL_SECONDS", "600") or 600)
     dsh_host_session_max_seconds: int = int(os.getenv("DSH_HOST_SESSION_MAX_SECONDS", "28800") or 28800)
+    # Broker endpoint told about logouts (e.g. http://127.0.0.1:3480/__broker/revoke).
+    # Empty (default) = no notification; the broker's own socket re-check still applies.
+    dsh_broker_revoke_url: str = os.getenv("DSH_BROKER_REVOKE_URL", "")
     session_max_age_seconds: int = int(
         os.getenv("SESSION_MAX_AGE_SECONDS", "604800") or 604800
     )
@@ -857,6 +860,8 @@ def validate_production_settings(settings: Settings) -> None:
         errors.append("INTERNAL_RUNTIME_SECRET must be at least 32 characters")
     if settings.dsh_multi_tenant_enabled and len(settings.dsh_broker_secret) < 32:
         errors.append("DSH_BROKER_SECRET must be at least 32 characters when DSH_MULTI_TENANT_ENABLED=true")
+    if settings.dsh_broker_revoke_url and not settings.dsh_broker_revoke_url.startswith(("http://", "https://")):
+        errors.append("DSH_BROKER_REVOKE_URL must be an http(s) URL")
     if not settings.metrics_bearer_token or len(settings.metrics_bearer_token) < 32:
         errors.append("METRICS_BEARER_TOKEN must be at least 32 characters in production")
     if settings.jwt_secret in {"", "change-me", "dev-only-change-me"} or len(settings.jwt_secret) < 32:

@@ -175,6 +175,52 @@ BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   Bind
 - `docker`：`reap()` 执行 `docker stop -t 5`（`--rm` 随后删除容器）。fake Host 测试和真实 DSH 中容器都会消失。
 - broker 崩溃后重启：同一 instance 的遗留 unit 被清除（systemd live 测试中模拟了崩溃）。
 
+## 3. 速率限制、并发上限、审计日志、登出联动
+
+### 3.1 准入顺序与限额（`src/limits.ts`、`src/server.ts`）
+
+每个请求按以下顺序检查，任何一步拒绝都会写一条审计记录：
+
+1. 前缀路由
+2. Origin / Sec-Fetch-Site 围栏（403）
+3. 身份
+4. 每用户速率
+5. 每用户并发
+6. Host（全局启动速率、容量、磁盘配额）
+
+| 限额 | 键 | 默认 | 超限 |
+| --- | --- | --- | --- |
+| 请求速率（令牌桶） | user_id | 20/s，突发 80 | 429 `rate-limited` + `Retry-After` |
+| 在途 HTTP 请求 | user_id | 32 | 429 `too-many-requests` + `Retry-After: 1` |
+| 并发 WebSocket | user_id | 4 | 429 `too-many-sockets`（升级握手中返回） |
+| 身份查询（缓存未命中才调用 FastAPI `/me`） | 客户端地址 | 5/s，突发 20 | 429 `lookup-rate`；已缓存的用户不受影响 |
+| 新 Host 启动 | 全局 | 30/min，突发 10 | 429 `host-start-rate` + `Retry-After`；已运行的 Host 不受影响 |
+
+- 突发默认 80、在途 32 是按真实浏览器启动 DSH Web 时约 30 个并行请求定的（插件合并包、静态资源、RPC）。
+- 客户端地址默认用 socket 对端；经过 Caddy 时设 `PUREGAMMA_DSH_CLIENT_IP_HEADER=x-real-ip`。Caddy 只写入 `{client_ip}`，与 API 站点同一规则。
+- 各键之间完全独立。唯一共享的预算是全局 Host 启动速率，而且只有需要新 Host 的请求才会消耗它。
+- KeyedBuckets 的键数有上限（默认 5 万）：先丢弃已满的桶，仍超出则丢弃最早的。
+
+### 3.2 审计日志（`src/audit.ts`）
+
+- 每个事件一行 JSON。默认写到 stdout（broker 的普通日志在 stderr）。`PUREGAMMA_DSH_AUDIT=off` 关闭，设为文件路径则以 0600 追加到文件。
+- 字段：`ts`、`event`（http/ws/host/revoke/limit）、`action`（`rpc:<插件>/<方法>`、`ws:remote.mux`、`page`、`asset`、`host:start|stop|exit|quota|start-rate`、`revoke`）、`user`、`session`、`plugin`、`provider`、`trace`、`result`、`status`、`ms`。
+- `user`：用 broker 密钥派生的 HMAC-SHA256 取前 24 位十六进制。user_id 本身可以猜测（来自 API 的 UUID），普通哈希能被持有日志的人确认，所以用带密钥的哈希。不写 email、cookie、Authorization、Host token、launch token。
+- `session`/`provider`：只对 RPC JSON 请求（≤64 KB）在请求或响应结束后做**标识符扫描**：取第一个 `sessionId`，以及 `provider`/`providerId` 字符串，并按格式校验。请求体和响应体的其他内容（prompt、工具输出、标题）不保留，查询串和请求头也不写。
+- `trace`：接受合法的 W3C `traceparent`（拒绝全零 trace id），否则接受 `X-Request-Id`（`[A-Za-z0-9._:-]{1,128}`），都没有就生成。转发给 Host 的是同一个 trace id 加新的 span id，以及 `X-Request-Id`。FastAPI 的 `/me` 和 Host token 签发请求也带上这两个头，响应头回传 `X-Request-Id`。
+- 静态资源成功请求默认不记（`PUREGAMMA_DSH_AUDIT_ASSETS=true` 才记）；被拒绝的请求一律记录。
+- 能看到什么：HTTP RPC 级别。WebSocket mux 只记录打开/关闭（包括关闭原因和时长），mux 内的帧不解析。Host 调 FastAPI（legacy-api provider）时还不透传 trace，列入遗留。
+
+### 3.3 登出联动
+
+| 方案 | 评估 |
+| --- | --- |
+| 只缩短 `/me` 缓存 | 每个请求都打 FastAPI；而且**已打开的 WebSocket 隧道根本不会再次检查**（v0.3.3 的缺口：用户登出后隧道一直可用） |
+| FastAPI 主动通知 broker（已实现，默认关闭） | `DSH_BROKER_REVOKE_URL` 配置后，`/auth/logout` 在响应发出后以后台任务 POST `{"user_id"}`（附 `X-PureGamma-Broker-Secret`，超时 2 s，不跟随重定向）。broker 收到后：清除该用户所有缓存身份、关闭该用户全部 WebSocket、停止其 Host（同时删除 token 文件），返回 204。通知失败只记日志，不影响登出 |
+| broker 定期复查已打开的隧道（已实现，默认开） | 每 `PUREGAMMA_DSH_SOCKET_REVALIDATE_MS`（默认 60 s）用隧道建立时的凭证经过同一缓存重新查一次 `/me`，查不到或用户变了就关闭（原因记为 `revalidation-failed`）。所有 `session_version` 递增（登出、在其他设备登录）都会在“缓存 TTL + 复查间隔”内生效；FastAPI 不可用时保持连接，只记日志，不会一次断开所有人 |
+
+- `/__broker/revoke` 和 `/__broker/healthz` 在 Caddy 站点中一律 404（`@broker_internal`）。FastAPI 直接访问 broker 的内部地址；broker 自己也用常量时间比较校验密钥（≥32 字符），只接受 POST，请求体不超过 1 KB。
+
 ## 6. 开关汇总（全部默认关闭或采用安全值）
 
 | 变量 | 默认 | 作用 |
@@ -192,6 +238,14 @@ BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   Bind
 | `PUREGAMMA_DSH_HOST_DISK_MB` / `_DISK_CHECK_MS` | 1024 / 60000 | 用户目录配额（所有 launcher）/ 运行中复查间隔 |
 | `PUREGAMMA_DSH_SANDBOX_RO_PATHS` | 空 | systemd/docker 额外的只读路径 |
 | `PUREGAMMA_DSH_SANDBOX_HIDE` | `/data,/srv,/mnt,/media,/opt` | systemd 下要隐藏的根目录 |
+| `PUREGAMMA_DSH_USER_RPS` / `_USER_BURST` | 20 / 80 | 每用户请求速率 |
+| `PUREGAMMA_DSH_USER_MAX_INFLIGHT` / `_USER_MAX_SOCKETS` | 32 / 4 | 每用户在途请求 / WebSocket |
+| `PUREGAMMA_DSH_IP_LOOKUP_RPS` / `_IP_LOOKUP_BURST` | 5 / 20 | 每个客户端地址的 `/me` 查询（仅缓存未命中时） |
+| `PUREGAMMA_DSH_HOST_STARTS_PER_MIN` / `_HOST_START_BURST` | 30 / 10 | 全局新 Host 启动 |
+| `PUREGAMMA_DSH_CLIENT_IP_HEADER` | 空（socket 地址） | 经 Caddy 时设为 `x-real-ip` |
+| `PUREGAMMA_DSH_AUDIT` / `_AUDIT_ASSETS` | `stdout` / `false` | 审计日志去向 / 是否记录静态资源 |
+| `PUREGAMMA_DSH_SOCKET_REVALIDATE_MS` | 60000 | 已打开隧道的复查间隔（0 = 关闭） |
+| `DSH_BROKER_REVOKE_URL`（API） | 空 | 登出时通知 broker；还需要 `DSH_MULTI_TENANT_ENABLED=true` 和 ≥32 字符的 `DSH_BROKER_SECRET`；生产校验要求必须是 http(s) |
 | `PUREGAMMA_DSH_DOCKER_IMAGE` / `_NODE` / `_NETWORK` / `_USER` / `_ADD_HOSTS` / `_BIN` | 空（docker 必填）/ `node` / `bridge` / broker 的 uid:gid / 空 / `docker` | docker launcher |
 
 ## 7. 测试证据（本机实测）
@@ -242,3 +296,15 @@ BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   Bind
 | 恢复 v0.3.3 的共享 profile 软链接 | profile 私有化测试失败 |
 | 启动前不检查配额 | 配额测试失败 |
 | docker 去掉 `--read-only`/`--cap-drop` | 参数测试失败 |
+
+### 7.3 速率限制、审计、登出
+
+| 范围 | 命令 | 结果 |
+| --- | --- | --- |
+| broker 单元 | `tsx --test scripts/session-broker-limits.test.mjs`（已并入 `session-broker-check`） | 8 passed：令牌桶/键数上限/并发计数；每用户速率 429 + Retry-After 且 B 为 200；在途请求与 WebSocket 上限（释放后恢复，B 不受影响）；按地址限制 `/me` 洪泛（已缓存用户和其他地址不受影响）；全局 Host 启动速率（已运行的 Host 不受影响）；审计字段，以及不含 cookie/用户 id/token/prompt/密钥/`@`；traceparent 同 trace 新 span、X-Request-Id 透传到 Host 与 FastAPI；revoke（错误密钥 403、GET 405、空 body 400、成功 204，关闭隧道、停止 Host、清缓存，B 不受影响）；隧道复查关闭已登出用户的连接 |
+| Caddy | `ingress-check` | `/__broker/healthz` 与 `/__broker/revoke` 经边缘返回 404，请求不到达 broker |
+| API | `pytest tests/security/test_dsh_broker_revoke.py tests/security/test_dsh_host_tokens.py tests/test_auth.py tests/security/test_production_configuration.py` | 47 passed（新增 6 例：默认不通知；只配 URL 而多租户关闭时不生效；只发送 user_id 与密钥，超时 ≤2 s，不跟随重定向；broker 失败不影响登出；对本地 HTTP 桩的线上格式（204 成功、403 失败）；生产拒绝非 http(s) URL） |
+| ruff | CI 子集 `--select E9,F63,F7,F82`；新文件全规则 | 通过 |
+| 真实 DSH（direct） | `PG_BROKER_IT_BROWSER=1 … session-broker.integration.mjs` | `# pass 13 / # fail 0`：并发 150 个 A 的 `session/list` → `{"200":65,"429":85}`，同时 B 为 200，4 s 后 A 恢复；178 行审计，rename 行带 `session-…` 与 `plugin: session`，不含会话标题、cookie 或 token；revoke 关闭 B 的真实 WebSocket 并停止 B 的 Host，A 不受影响；浏览器启动正常（默认限额不影响页面加载） |
+
+变异测试（每项单独做，恢复后 8/8 通过）：去掉每用户速率检查、所有用户共用一个桶、去掉在途上限、revoke 不校验密钥、复查不关闭隧道、审计写原始 user_id、去掉 `/me` 查询闸门——各自对应的测试都失败。

@@ -45,6 +45,7 @@ const server = http.createServer((req, res) => {
     if (url.pathname === '/api/session/list') {
       return json(res, 200, { sessions: readdirSync(sessions).map(f => JSON.parse(readFileSync(path.join(sessions, f), 'utf8')).title) })
     }
+    if (url.pathname === '/api/slow') return void setTimeout(() => json(res, 200, { ok: true }), Number(url.searchParams.get('ms') ?? 500))
     if (url.pathname === '/api/sandbox') return json(res, 200, sandbox(url.searchParams))
     if (url.pathname === '/api/redirect') {
       res.writeHead(302, { location: '/api/debug?from=redirect' })

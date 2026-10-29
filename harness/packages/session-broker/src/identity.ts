@@ -11,6 +11,13 @@ export interface Identity {
 
 export class ApiUnavailable extends Error {}
 
+export interface LookupOptions {
+  /** Called before a FastAPI lookup (cache miss); throw to refuse it. */
+  gate?: () => void
+  /** Trace headers forwarded to FastAPI. */
+  trace?: Record<string, string>
+}
+
 /** Parse a Cookie header without trusting duplicates: two values for one name is ambiguous and refused. */
 export function readCookie(header: string | undefined, name: string): string | undefined | null {
   if (!header) return undefined
@@ -59,18 +66,27 @@ export class Authenticator {
     private readonly now: () => number = Date.now,
   ) {}
 
-  async identify(headers: IncomingHttpHeaders): Promise<Identity | null> {
+  async identify(headers: IncomingHttpHeaders, options: LookupOptions = {}): Promise<Identity | null> {
     const credential = credentialOf(headers, this.cookieName)
-    if (!credential) return null
+    return credential ? this.identifyCredential(credential, options) : null
+  }
+
+  /**
+   * Resolve one credential. `options.gate` runs only on a cache miss, i.e.
+   * right before a call to FastAPI, so a flood of fresh credentials can be
+   * rate limited without slowing cached users down.
+   */
+  async identifyCredential(credential: UserCredential, options: LookupOptions = {}): Promise<Identity | null> {
     const key = createHash('sha256').update(`${credential.kind}\0${credential.value}`).digest('base64url')
     const at = this.now()
     const hit = this.cache.get(key)
     const ttl = hit?.userId === null ? Math.min(this.cacheMs, 2000) : this.cacheMs
     if (hit && at - hit.at < ttl) return hit.userId ? { userId: hit.userId, credential } : null
+    options.gate?.()
     let response: Response
     try {
       response = await this.fetchImpl(`${this.apiBaseUrl}/me`, {
-        headers: { accept: 'application/json', ...credentialHeaders(credential) },
+        headers: { accept: 'application/json', ...options.trace, ...credentialHeaders(credential) },
         signal: AbortSignal.timeout(5000),
         redirect: 'manual',
       })
@@ -87,6 +103,18 @@ export class Authenticator {
     if (typeof userId !== 'string' || !userId || userId.length > 64) throw new ApiUnavailable('identity service returned no user id')
     this.remember(key, userId, at)
     return { userId, credential }
+  }
+
+  /** Forget every cached credential of a user (logout notification). */
+  forgetUser(userId: string): number {
+    let dropped = 0
+    for (const [key, entry] of this.cache) {
+      if (entry.userId === userId) {
+        this.cache.delete(key)
+        dropped += 1
+      }
+    }
+    return dropped
   }
 
   private remember(key: string, userId: string | null, at: number): void {
