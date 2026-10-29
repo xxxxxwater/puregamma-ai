@@ -35,8 +35,8 @@ android {
         applicationId = "ai.puregamma.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 9
-        versionName = "1.5.0"
+        versionCode = 10
+        versionName = "1.6.0"
         buildConfigField("String", "API_BASE_URL", "\"$apiBaseUrl\"")
         buildConfigField("String", "PRODUCT_WEB_BASE_URL", "\"$productWebBaseUrl\"")
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
