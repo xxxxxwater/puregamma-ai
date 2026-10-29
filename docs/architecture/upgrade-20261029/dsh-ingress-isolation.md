@@ -277,7 +277,7 @@ BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   Bind
 1. 本分支合并到 `main`，CI（harness check、pytest、commercial-release-gate 的 Caddy 步骤、web typecheck/lint/Playwright）全绿。
 2. **用户拍板**：上线时间窗口；`HARNESS_DOMAIN`（建议 `harness.puregamma.ai`）的 DNS；staging 环境与真实模型 key；测试账号（§8）。
 3. 生产主机准备（部署侧，一次性，需要 root；本次未执行）：
-   - 创建无特权账号 `pg-dsh`，开启 `loginctl enable-linger pg-dsh`，确认 `systemctl --user` 可用（systemd ≥ 257，cgroup v2 下委派了 cpu/memory/pids）。
+   - 创建无特权账号 `pg-dsh`，开启 `loginctl enable-linger pg-dsh`，确认 `systemctl --user` 可用（systemd ≥ 257，cgroup v2 下委派了 cpu/memory/pids），并且该账号可以创建非特权用户命名空间（`PrivateUsers=yes` 需要）。Ubuntu 23.10 及以上默认由 AppArmor 限制（`kernel.apparmor_restrict_unprivileged_userns=1`），此时 unit 启动失败、退出码 226（NAMESPACE），broker 会 fail closed 返回 `host-unavailable`；需要为 broker 账号配置允许 userns 的 AppArmor profile，或由运维评估后放开该 sysctl。验证方法：`systemd-run --user --wait -p PrivateUsers=yes -p PrivatePIDs=yes true` 返回 0。（GitHub 的 Ubuntu runner 正是这种情况，所以 CI 中 live 用例带原因跳过。）
    - 在宿主机安装固定版本 `@deepseek-ai/dsh@0.1.7-rc.1` 和本仓库的 harness 构建（`pnpm --dir harness install && build`），归 `pg-dsh` 所有、对 Host 只读。
    - 出口防火墙（nftables）：对 `pg-dsh` 用户的 `pgdsh.slice`（`socket cgroupv2 level … "user.slice/user-<uid>.slice/user@<uid>.service/pgdsh.slice"`）只放行 FastAPI 内网地址与模型 provider，拒绝其他 loopback 端口、内网段与云元数据地址（169.254.169.254）。
    - 在 `pgdsh.slice` 上设置合计 `MemoryMax`（例如主机内存的 40%），作为所有 Host 的总上限。

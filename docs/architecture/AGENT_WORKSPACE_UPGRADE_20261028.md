@@ -156,7 +156,7 @@
 ## 8. 尚未上线 / 已知缺口
 
 - **实盘与账务（v0.3.4，§14）**：新增的写入口全部默认关闭——`LIVE_ORDER_RECHECK_ENABLED`（只查询的重新核对）、`LIVE_MANDATE_PROPOSALS_ENABLED`（需先在生产执行迁移 0036）。是否开启、审批人范围、限流间隔、`LIVE_ORDER_SYNC` 审计行的保留策略需要产品决定。管理端 `notes` 改为必填、释放不存在的 kill switch 返回 404，仓库外的脚本需同步。
-- **DSH 多租户**：v0.3.3 实现了每用户隔离 Host 的 session broker；v0.3.4 补上入口、内核级 Host 隔离、限流审计和登出联动（均默认关闭，§14，上线步骤见 [runbook](upgrade-20261029/dsh-ingress-isolation.md) §5）。仍未上线：需要用户决定上线时间与 `HARNESS_DOMAIN`、提供 staging 与真实模型 key、两个测试账号、选择出口限制方案（user manager 会忽略 `IPAddressDeny`）；硬性磁盘配额、broker 的 systemd 服务文件和 docker 镜像属于部署工作；CSP 仍需 `'unsafe-eval'`（上游限制）。
+- **DSH 多租户**：v0.3.3 实现了每用户隔离 Host 的 session broker；v0.3.4 补上入口、内核级 Host 隔离、限流审计和登出联动（均默认关闭，§14，上线步骤见 [runbook](upgrade-20261029/dsh-ingress-isolation.md) §5）。仍未上线：需要用户决定上线时间与 `HARNESS_DOMAIN`、提供 staging 与真实模型 key、两个测试账号、选择出口限制方案（user manager 会忽略 `IPAddressDeny`）；systemd launcher 要求主机 systemd ≥ 257 且允许 broker 账号创建非特权用户命名空间（Ubuntu 23.10+ 默认由 AppArmor 限制，否则 unit 以 226/NAMESPACE 失败、broker fail closed）；硬性磁盘配额、broker 的 systemd 服务文件和 docker 镜像属于部署工作；CSP 仍需 `'unsafe-eval'`（上游限制）。
 - **Harness 编译依赖对齐**：v0.3.3 已把 npm 上的 `@deepseek-ai/*` 升到 `0.1.7-rc.1`（与 vendored gitlink 同 tag）。vendored 源码本身没有在本机构建（磁盘和内存不足），用的是同 tag 的 npm 包。
 - **领域 tool-view 插件**：五个领域都已实现（v0.3.1–v0.3.2）。研究产物和回测产物的资源视图（`resource.*`）尚未实现。
 - **计费**：v0.3.3 起没有显式费率的模型直接拒绝（`AGENT_MODEL_PRICING_NOT_CONFIGURED`），不再按默认费率计费；代码里没有新增任何价格。`gpt-6-luna/sol/astra` 因此在菜单中显示“未配置计价”，需要产品批准费率后通过 `AGENT_MODEL_CREDIT_RATES` 配置。

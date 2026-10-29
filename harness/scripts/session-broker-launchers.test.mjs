@@ -139,11 +139,14 @@ test('disk quota (all launchers): an over-quota user gets 507 and no Host; other
 })
 
 /**
- * A running user manager is not enough: it must accept the properties the
- * launcher sets (PrivatePIDs= needs systemd >= 257, PrivateUsers= needs
- * unprivileged user namespaces). GitHub's ubuntu-24.04 runners ship systemd
- * 255, so CI skips the live run while the pure test above still pins every
- * property; production must meet the runbook's systemd >= 257 prerequisite.
+ * A running user manager is not enough: it must be able to start a unit with
+ * the launcher's sandbox properties (PrivatePIDs= needs systemd >= 257;
+ * PrivateUsers= needs unprivileged user namespaces). GitHub's Ubuntu runners
+ * have a new enough systemd but fail namespace setup (exit 226/NAMESPACE)
+ * because Ubuntu's AppArmor restricts unprivileged user namespaces, so CI
+ * skips the live run while the pure test above still pins every property.
+ * Production hosts must meet the runbook prerequisites (systemd >= 257 and
+ * unprivileged user namespaces allowed for the broker account).
  * Returns the reason to skip, or null when a sandboxed unit starts here.
  */
 function systemdLiveSkipReason() {
@@ -160,7 +163,7 @@ function systemdLiveSkipReason() {
     let version = 'systemd (unknown version)'
     try { version = execFileSync('systemctl', ['--version'], { encoding: 'utf8' }).split('\n')[0] } catch {}
     const detail = String(error.stderr ?? '').trim().split('\n')[0] || `exit ${error.status ?? '?'}`
-    return `${version} cannot start a sandboxed user unit (${detail}); the systemd launcher needs systemd >= 257 and unprivileged user namespaces`
+    return `${version} cannot start a sandboxed user unit (${detail}); the systemd launcher needs systemd >= 257 and unprivileged user namespaces (on Ubuntu, AppArmor restricts them by default)`
   }
 }
 const units = instance => execFileSync('systemctl', ['--user', 'list-units', '--all', '--plain', '--no-legend', `pg-dsh-${instance}-*`], { encoding: 'utf8' }).trim()
