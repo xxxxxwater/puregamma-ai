@@ -6,8 +6,25 @@
   "description": "Multi-tenant front door for DSH Web: authenticates the PureGamma user, runs one isolated DSH Web Host per user and proxies HTTP and the Remote WebSocket mux to that Host only. Off unless PUREGAMMA_DSH_BROKER_ENABLED=true.",
   "main": "lib/index.js",
   "types": "lib/index.d.ts",
-  "bin": { "puregamma-dsh-broker": "lib/main.js" },
-  "exports": { ".": { "types": "./lib/index.d.ts", "default": "./lib/index.js" }, "./src/*": "./src/*", "./package.json": "./package.json" },
-  "files": ["lib/*.js", "lib/*.d.ts", "lib/*.js.map"],
-  "scripts": { "bundle": "tsdown" }
+  "bin": {
+    "puregamma-dsh-broker": "lib/main.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./lib/index.d.ts",
+      "default": "./lib/index.js"
+    },
+    "./src/*": "./src/*",
+    "./package.json": "./package.json",
+    "./container-entry.mjs": "./container-entry.mjs"
+  },
+  "files": [
+    "lib/*.js",
+    "lib/*.d.ts",
+    "lib/*.js.map",
+    "container-entry.mjs"
+  ],
+  "scripts": {
+    "bundle": "tsdown"
+  }
 }

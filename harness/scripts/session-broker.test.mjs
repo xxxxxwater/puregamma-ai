@@ -133,6 +133,7 @@ test('user credentials, shared secrets and the launch token never reach a Host',
   const env = hostEnv({ ...config, envPassthrough: ['PUREGAMMA_LEGACY_API_TOKEN', 'DSH_BROKER_SECRET'] }, hostPaths(config.hostsRoot, 'x'), { PUREGAMMA_LEGACY_API_TOKEN: 't', DSH_BROKER_SECRET: 's', PATH: '/bin' })
   assert.equal(env.PUREGAMMA_LEGACY_API_TOKEN, undefined)
   assert.equal(env.DSH_BROKER_SECRET, undefined)
+  assert.equal(env.NARB_DISABLE_NATIVE_CACHE, '1', 'no shared writable native-addon cache')
   // Host cookies stay in the broker.
   assert.equal((await call('/api/session/list', { session: 'sess-a' })).headers.get('set-cookie'), null)
 })

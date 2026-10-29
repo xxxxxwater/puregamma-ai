@@ -83,6 +83,98 @@ manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; fra
 - 仍然成立的约束：脚本、连接、图片只能来自 broker 自己的 origin（以及 data/blob），不允许任何第三方 origin，`object-src 'none'`，`frame-ancestors 'none'`。
 - 这也是选择独立子域的另一个原因：宽松 CSP 只作用在 DSH 自己的 origin 上。
 
+## 2. Host 进程隔离与资源上限
+
+### 2.1 可插拔 launcher（`PUREGAMMA_DSH_HOST_LAUNCHER`，默认 `direct`）
+
+`harness/packages/session-broker/src/launchers.ts`。broker 只依赖一个接口：生成 launch plan（命令、参数、环境）、把就绪行里的端口映射为连接目标（`{ port, authority }`）、带外停止、启动时清理遗留的 Host。
+
+| launcher | 实现 | 本机真实验证 |
+| --- | --- | --- |
+| `direct`（默认，兼容 v0.3.3） | broker 的子进程，同一 uid，只有 V8 堆上限 | 真实 DSH 10/10 |
+| `systemd` | `systemd-run --user` transient unit：**不需要 root**，每个 Host 一个 `pg-dsh-<instance>-<key16>-<rand>.service`，放在 `pgdsh.slice` | fake Host 内部自检 + 真实 DSH 12/12 |
+| `docker` | 每个 Host 一个容器（`docker run --rm --init`），容器内 `container-entry.mjs` 做 loopback 转发 | fake Host 内部自检 + 真实 DSH 12/12 |
+
+**systemd unit 属性**（每一项都在 systemd 257 的 user manager 上实测生效）：
+
+```text
+MemoryMax=<memoryMb>M  MemorySwapMax=0  CPUQuota=<cpu>%  TasksMax=<n>  LimitNOFILE=<n>  LimitFSIZE=<bytes>  LimitCORE=0
+NoNewPrivileges  PrivateUsers  PrivatePIDs  PrivateTmp  ProtectSystem=strict  ProtectHome=tmpfs  ProtectKernelTunables/Modules
+ProtectControlGroups  RestrictNamespaces  RestrictSUIDSGID  RestrictRealtime  LockPersonality  UMask=0077
+SystemCallArchitectures=native  SystemCallFilter=@system-service ~@privileged @resources @mount @debug @cpu-emulation @obsolete
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX AF_NETLINK
+TemporaryFileSystem=<hostsRoot>:ro 以及 /data /srv /mnt /media /opt（存在才加）
+BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   BindPaths/ReadWritePaths=<本用户目录>
+```
+
+- 环境变量只用 `--setenv=NAME` 传名字，值来自 systemd-run 自己的环境，不出现在命令行上。
+- `MemoryDenyWriteExecute` 不能开：V8 JIT 需要 W+X。
+- **`IPAddressDeny`/`IPAddressAllow` 在 user manager 中被静默忽略**（实测外网仍然可达），所以不设置，避免造成“已限制网络”的错觉。网络控制见 2.4。
+
+**docker 参数**：
+
+```text
+--read-only --tmpfs /tmp:rw,nosuid,nodev,size=64m（docker 默认还有 noexec）
+--cap-drop ALL --security-opt no-new-privileges --user <broker uid:gid>
+--memory/--memory-swap <m> --cpus <c> --pids-limit <n> --ulimit nofile=<n>:<n> --ulimit fsize=<bytes> --ulimit core=0
+--network <PUREGAMMA_DSH_DOCKER_NETWORK> -p 127.0.0.1::3000（只发布到宿主 loopback）
+-v <DSH 安装>:ro -v <harness>:ro -v <node 目录>:ro -v <本用户目录>:rw；环境变量只用 -e NAME
+```
+
+- 容器以 broker 自己的 uid 运行，所以能读 0600 的 token 文件；隔离来自命名空间和只挂载本用户目录，而不是 uid。
+- DSH Web 拒绝绑定非 loopback 地址（`--host 0.0.0.0 is intentionally not supported yet for safety`），而容器的 loopback 从宿主不可达。所以 `container-entry.mjs` 让 DSH 监听容器内 127.0.0.1，再把容器网卡上的 3000 端口转发过去，并且等转发监听好以后才回显就绪行。broker 连接宿主上发布的端口，`Host`/`Origin` 用容器内 DSH 自己的 authority，DSH 的 Host/Origin 围栏和 cookie 认证照常生效。
+- 代价：同一 docker 网络上的其他容器可以连到这个转发端口（仍然需要该 Host 的 `dsh-auth` cookie）。部署时应为 Host 建专用网络并关闭 ICC（`com.docker.network.bridge.enable_icc=false`）。
+
+**启动清理**：每个 broker 实例（`PUREGAMMA_DSH_INSTANCE`）在启动时停止同名前缀的 unit，或 `docker rm -f` 带同一 label 的容器。broker 崩溃留下的 Host 因此会在下次启动时被清掉，不会误伤其他实例（测试用随机 instance）。
+
+### 2.2 资源上限覆盖
+
+| 资源 | direct | systemd | docker | 强度 |
+| --- | --- | --- | --- | --- |
+| 内存 | 仅 V8 堆（`--max-old-space-size`） | cgroup `memory.max` + 禁 swap | `--memory` = `--memory-swap` | 内核强制；超限 OOM 只杀该 Host |
+| CPU | 无 | `cpu.max`（CPUQuota） | `--cpus` | 内核强制 |
+| 进程/线程数 | 无 | `pids.max`（TasksMax） | `--pids-limit` | 内核强制 |
+| 文件描述符 | 继承 | RLIMIT_NOFILE | `--ulimit nofile` | 内核强制 |
+| 单文件大小 | 无 | RLIMIT_FSIZE | `--ulimit fsize` | 内核强制（写超限返回 `EFBIG`） |
+| 用户目录总量 | broker 检查 | broker 检查 | broker 检查 | **软限制**，见下 |
+| `/tmp` | 共享 | 私有（tmpfs 计入 cgroup 内存） | 64 MB tmpfs，noexec | — |
+
+**磁盘配额**（所有 launcher）：`PUREGAMMA_DSH_HOST_DISK_MB`（默认 1024）。
+
+- 启动 Host 前统计用户目录占用（`st_blocks`，不跟随符号链接，最多遍历 20 万项，超过配额即停止计数）。超限时返回 **507 `storage-quota-exceeded`**，不启动 Host，其他用户不受影响。
+- 运行中每 `PUREGAMMA_DSH_HOST_DISK_CHECK_MS`（默认 60 s）复查一次，超限就停止该 Host。
+- 强度：两次检查之间最多可以多写“写入速率 × 间隔”，单文件受 RLIMIT_FSIZE 硬限制。需要硬性总量时，部署侧可以选：XFS project quota（每用户目录一个 project id）、每用户一个 loop 设备/文件系统、或 docker overlay2 + xfs `pquota` 时的 `--storage-opt size=`。这些都需要 root 和系统级配置，本次没有改动系统全局配置。
+
+### 2.3 实测发现并已修复的问题
+
+| 问题 | 影响 | 修复 |
+| --- | --- | --- |
+| DSH 启动时总会重写 profile 根目录的 `cordis.yml`，Loader 运行时也可能写回组合树。v0.3.3 把每个用户的 `profiles/puregamma` 直接软链接到共享的 `harness/profile` | direct 模式下所有租户写同一个仓库文件（本机 `harness/profile/cordis.yml` 的 mtime 确实被 Host 改过）；沙箱模式下 profile 只读，DSH 直接 `EROFS` 退出 | 每个用户一个真实的 profile 目录：共享 profile 的每一项都软链接进来，只有 `cordis.yml` 是 0600 的私有副本（`prepareProfile`）。旧的软链接布局会自动迁移 |
+| DSH 的原生扩展加载器（`node-addon-native-custom-loader`）把 `.node` 复制到 `os.tmpdir()` 下的缓存再加载 | direct 模式下同 uid 的所有 Host 共享一个可写的可执行缓存（加载前有哈希校验，但存在 TOCTOU）；docker 的 noexec `/tmp` 下 DSH 无法启动 | 所有 Host 设置 `NARB_DISABLE_NATIVE_CACHE=1`，直接从只读安装目录加载 |
+
+### 2.4 方案取舍与生产推荐
+
+| 方案 | 优点 | 缺点 |
+| --- | --- | --- |
+| `direct` | 简单 | 只有进程和目录隔离：同 uid 可以互相 ptrace/信号，能看到彼此的 `/proc`，没有资源上限 |
+| `systemd`（user manager） | **broker 不需要任何特权**；独立的 user、PID、mount 命名空间；cgroup 上限；seccomp；其他用户目录和 `/data` 被隐藏；本机全套实测 | Host 与 broker 共用网络命名空间：Host 可以连其他 loopback 服务（包括其他 Host 的端口，但需要对方的 cookie）；user manager 不支持 IP ACL |
+| `systemd`（system manager，`User=`/`DynamicUser=`） | 每用户独立 uid，可用 `IPAddressDeny` | broker 能创建 system unit 就等于 root；不同 uid 的 Host 读不了 broker 写的 0600 token 文件（provider 只检查权限位，因此需要 root 帮忙 chown） |
+| `docker` | 独立网络命名空间（可配专用网络和出口防火墙）；只读根文件系统；按镜像交付 | broker 需要 docker socket（等于 root）；DSH 不允许非 loopback 绑定，需要容器内转发；镜像需要构建和发布 |
+| gVisor / Firecracker 微虚拟机 | 最强 | 运维成本最高，本次未评估实现 |
+
+**推荐生产用 `systemd`**：
+
+- broker 以专用的无特权账号（例如 `pg-dsh`，开启 `loginctl enable-linger`）作为 systemd 服务在宿主机运行。Caddy 容器通过 `DSH_BROKER_UPSTREAM=host.docker.internal:<port>`（或宿主机桥接 IP）访问 broker。
+- 网络缺口在部署侧补上：在 `pgdsh.slice` 上加 nftables 规则（`socket cgroupv2 level … "…/pgdsh.slice"`），只放行 FastAPI 和模型 provider 的出口，拒绝其他 loopback 端口和内网。
+- 在 slice 上设置总的 `MemoryMax`，限制所有 Host 合计的内存。
+- 等迁移到独立 Host 节点，或者需要 Host 级网络命名空间时，切换到 `docker` launcher（专用网络、关闭 ICC、出口防火墙、镜像中预装 node 与 DSH）。
+
+### 2.5 空闲回收在新 launcher 下同样有效
+
+- `systemd`：`reap()` 先 `systemctl --user stop <unit>`，再向 `systemd-run` 子进程发信号。fake Host 测试和真实 DSH 中 unit 都会消失。
+- `docker`：`reap()` 执行 `docker stop -t 5`（`--rm` 随后删除容器）。fake Host 测试和真实 DSH 中容器都会消失。
+- broker 崩溃后重启：同一 instance 的遗留 unit 被清除（systemd live 测试中模拟了崩溃）。
+
 ## 6. 开关汇总（全部默认关闭或采用安全值）
 
 | 变量 | 默认 | 作用 |
@@ -93,6 +185,14 @@ manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; fra
 | `PUREGAMMA_DSH_LOGIN_URL` | 空 | 未登录导航的 401 页面里的登录链接；只接受 http(s) |
 | `HARNESS_DOMAIN` / `DSH_BROKER_UPSTREAM`（compose override） | 无（必填） | 只有使用 `docker-compose.harness-sessions.yml` 时才需要 |
 | `NEXT_PUBLIC_DSH_SESSIONS_URL`（web 构建期） | 空 | 设置后聊天页头出现入口链接 |
+| `PUREGAMMA_DSH_HOST_LAUNCHER` | `direct` | `direct` / `systemd` / `docker` |
+| `PUREGAMMA_DSH_INSTANCE` | `default` | unit/容器名前缀与 label；启动时只清理本实例的遗留 Host |
+| `PUREGAMMA_DSH_HOST_MEMORY_MB` | 堆上限 + 512（默认 1536） | systemd/docker 的内存上限，至少比堆上限多 128 MB |
+| `PUREGAMMA_DSH_HOST_CPU_PERCENT` / `_TASKS_MAX` / `_NOFILE` / `_FILE_SIZE_MB` | 100 / 256 / 4096 / 256 | CPU、进程数、文件描述符、单文件大小 |
+| `PUREGAMMA_DSH_HOST_DISK_MB` / `_DISK_CHECK_MS` | 1024 / 60000 | 用户目录配额（所有 launcher）/ 运行中复查间隔 |
+| `PUREGAMMA_DSH_SANDBOX_RO_PATHS` | 空 | systemd/docker 额外的只读路径 |
+| `PUREGAMMA_DSH_SANDBOX_HIDE` | `/data,/srv,/mnt,/media,/opt` | systemd 下要隐藏的根目录 |
+| `PUREGAMMA_DSH_DOCKER_IMAGE` / `_NODE` / `_NETWORK` / `_USER` / `_ADD_HOSTS` / `_BIN` | 空（docker 必填）/ `node` / `bridge` / broker 的 uid:gid / 空 / `docker` | docker launcher |
 
 ## 7. 测试证据（本机实测）
 
@@ -120,3 +220,25 @@ manifest-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; fra
 | 去掉安全头 | 1 例失败 |
 | 恢复 `URLSearchParams` 重新序列化（修复 0.2 之前的代码） | 单元测试“routing”失败；修复前真实浏览器步骤实测为插件 404、页面空白 |
 | 移除 client face（修复 0.1 之前的代码） | `public-profile-check` 新增例失败；修复前真实浏览器实测 25 个 entry pending |
+
+### 7.2 Host 隔离
+
+| 范围 | 命令 | 结果 |
+| --- | --- | --- |
+| launcher 单元 + live | `PG_BROKER_DOCKER_IMAGE=python:3.12-slim tsx --test scripts/session-broker-launchers.test.mjs`（已并入 `session-broker-check`；没有 user manager 或镜像时对应 live 例 skip） | 7 passed：默认值与校验；systemd 属性与 docker 参数逐项断言（只有本用户目录可写，密钥值不在 argv 中）；磁盘配额（507、他人不受影响、运行中超限被停）；profile 私有化；systemd live；docker live |
+| systemd live（fake Host 内部自检） | 同上 | `pid 1`、可见进程 1 个；hosts 根目录只看到自己；写 hosts 根目录与 `/etc` 返回 `EROFS`；`/data/home` 返回 `ENOENT`；超过 4 MB 的文件返回 `EFBIG`；`memory.max=671088640`、`pids.max=64`、`cpu.max=50000 100000`；nofile 1024；NoNewPrivs=1；CapEff=0；unit 在 `pgdsh.slice`；空闲回收与崩溃后重启时 unit 都被清除 |
+| docker live（fake Host 内部自检） | 同上 | 可见进程 3 个（tini、入口、Host）；只看到自己的目录；写 hosts 根目录返回 `EACCES`、写 `/etc` 返回 `EROFS`；`EFBIG`；cgroup 与 rlimit 值同上；CapEff=0；空闲回收后容器被删除 |
+| 真实 DSH（systemd） | `PG_BROKER_IT_LAUNCHER=systemd PG_BROKER_IT_BROWSER=1 PG_BROKER_IT_HOST_HEAP_MB=384 … session-broker.integration.mjs` | `# pass 12 / # fail 0`：原有 9 项 + unit 属性（MemoryMax=939524096、TasksMax=128、CPUQuota 1s、NOFILE 2048、FSIZE 64 MB、NoNewPrivileges、ProtectSystem=strict）+ 通过 `/proc/<pid>/root` 确认每个 Host 只看到自己的目录、`/data/home` 不存在 + 浏览器（27 个请求 + 1 个 WebSocket，0 错误）+ 空闲回收 |
+| 真实 DSH（docker，`python:3.12-slim` + 只读挂载宿主 node） | `PG_BROKER_IT_LAUNCHER=docker PG_BROKER_IT_DOCKER_IMAGE=python:3.12-slim …` | `# pass 12 / # fail 0`：`docker inspect` 中 Memory、NanoCpus、PidsLimit=128、ReadonlyRootfs、CapDrop ALL、no-new-privileges、ulimits 都符合；`docker exec` 确认只看到自己的目录；浏览器 0 错误；空闲回收 |
+| 真实 DSH（direct，回归） | 不设置 launcher | `# pass 10 / # fail 0`，共享 `harness/profile/cordis.yml` 不再被修改 |
+
+变异测试：
+
+| 变异 | 结果 |
+| --- | --- |
+| systemd 不隐藏 hosts 根目录 | systemd live 失败 |
+| systemd 去掉 MemoryMax/TasksMax | 属性测试与 live 测试都失败 |
+| docker 把整个 hosts 根目录 rw 挂载 | 参数测试与 docker live 都失败 |
+| 恢复 v0.3.3 的共享 profile 软链接 | profile 私有化测试失败 |
+| 启动前不检查配额 | 配额测试失败 |
+| docker 去掉 `--read-only`/`--cap-drop` | 参数测试失败 |

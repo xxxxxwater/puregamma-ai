@@ -1,5 +1,7 @@
+import { userInfo } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import type { LauncherKind } from './launchers.ts'
 
 /**
  * Broker configuration. Everything defaults to the safe side: the broker
@@ -51,6 +53,38 @@ export interface BrokerConfig {
   hostApiBaseUrl: string
   /** V8 old-space cap per Host process, in MB. */
   hostHeapMb: number
+  /** How Hosts are started (see launchers.ts). `direct` keeps the v0.3.3 behaviour. */
+  launcher: LauncherKind
+  /** Names this broker's units/containers so a restart sweeps only its own leftovers. */
+  instance: string
+  /** Kernel-enforced per-Host limits (systemd/docker launchers; `direct` only applies the heap cap). */
+  hostLimits: HostLimits
+  /** Per-user directory quota in MB (all launchers; enforced by the broker's size check). */
+  diskQuotaMb: number
+  diskCheckMs: number
+  /** Extra read-only paths a sandboxed Host may see. */
+  sandboxReadOnlyPaths: string[]
+  /** Roots hidden from a systemd-sandboxed Host (replaced by an empty read-only tmpfs). */
+  sandboxHide: string[]
+  dockerBin: string
+  dockerImage: string
+  /** Node inside the image. */
+  dockerNode: string
+  dockerNetwork: string
+  /** `uid:gid` the container runs as; defaults to the broker's own, so it can read the 0600 token file. */
+  dockerUser: string
+  dockerAddHosts: string[]
+  /** Absolute path of container-entry.mjs (inside a read-only mount). */
+  containerEntry: string
+}
+
+export interface HostLimits {
+  memoryMb: number
+  cpuPercent: number
+  tasksMax: number
+  nofile: number
+  /** RLIMIT_FSIZE: no single file a Host writes can exceed this. */
+  fileSizeMb: number
 }
 
 const bool = (value: string | undefined) => value?.toLowerCase() === 'true'
@@ -99,6 +133,7 @@ const normalizeBasePath = (value: string | undefined) => (value ?? '').trim().re
 export function loadConfig(env: NodeJS.ProcessEnv = process.env): BrokerConfig {
   const profileDir = path.resolve(env.PUREGAMMA_DSH_PROFILE_DIR ?? path.join(import.meta.dirname, '..', '..', '..', 'profile'))
   const publicOrigin = (env.PUREGAMMA_DSH_PUBLIC_ORIGIN ?? 'http://127.0.0.1:3480').replace(/\/+$/, '')
+  const hostHeapMb = int(env.PUREGAMMA_DSH_HOST_HEAP_MB, 1024, 256, 8192)
   const apiBaseUrl = (env.PUREGAMMA_LEGACY_API_URL ?? 'http://127.0.0.1:8000').replace(/\/+$/, '')
   return {
     enabled: bool(env.PUREGAMMA_DSH_BROKER_ENABLED),
@@ -122,7 +157,27 @@ export function loadConfig(env: NodeJS.ProcessEnv = process.env): BrokerConfig {
     authCacheMs: int(env.PUREGAMMA_DSH_AUTH_CACHE_MS, 15_000, 0, 60_000),
     envPassthrough: list(env.PUREGAMMA_DSH_HOST_ENV_PASSTHROUGH).filter(name => !NEVER_PASSED.has(name)),
     hostApiBaseUrl: (env.PUREGAMMA_DSH_HOST_API_URL ?? apiBaseUrl).replace(/\/+$/, ''),
-    hostHeapMb: int(env.PUREGAMMA_DSH_HOST_HEAP_MB, 1024, 256, 8192),
+    hostHeapMb,
+    launcher: (['direct', 'systemd', 'docker'] as const).find(kind => kind === env.PUREGAMMA_DSH_HOST_LAUNCHER) ?? (env.PUREGAMMA_DSH_HOST_LAUNCHER ? 'invalid' as LauncherKind : 'direct'),
+    instance: env.PUREGAMMA_DSH_INSTANCE ?? 'default',
+    hostLimits: {
+      memoryMb: int(env.PUREGAMMA_DSH_HOST_MEMORY_MB, hostHeapMb + 512, 256, 16384),
+      cpuPercent: int(env.PUREGAMMA_DSH_HOST_CPU_PERCENT, 100, 10, 1600),
+      tasksMax: int(env.PUREGAMMA_DSH_HOST_TASKS_MAX, 256, 16, 4096),
+      nofile: int(env.PUREGAMMA_DSH_HOST_NOFILE, 4096, 256, 65536),
+      fileSizeMb: int(env.PUREGAMMA_DSH_HOST_FILE_SIZE_MB, 256, 1, 16384),
+    },
+    diskQuotaMb: int(env.PUREGAMMA_DSH_HOST_DISK_MB, 1024, 16, 1_048_576),
+    diskCheckMs: int(env.PUREGAMMA_DSH_HOST_DISK_CHECK_MS, 60_000, 1000, 3_600_000),
+    sandboxReadOnlyPaths: list(env.PUREGAMMA_DSH_SANDBOX_RO_PATHS),
+    sandboxHide: env.PUREGAMMA_DSH_SANDBOX_HIDE !== undefined ? list(env.PUREGAMMA_DSH_SANDBOX_HIDE) : ['/data', '/srv', '/mnt', '/media', '/opt'],
+    dockerBin: env.PUREGAMMA_DSH_DOCKER_BIN ?? 'docker',
+    dockerImage: env.PUREGAMMA_DSH_DOCKER_IMAGE ?? '',
+    dockerNode: env.PUREGAMMA_DSH_DOCKER_NODE ?? 'node',
+    dockerNetwork: env.PUREGAMMA_DSH_DOCKER_NETWORK ?? 'bridge',
+    dockerUser: env.PUREGAMMA_DSH_DOCKER_USER ?? `${userInfo().uid}:${userInfo().gid}`,
+    dockerAddHosts: list(env.PUREGAMMA_DSH_DOCKER_ADD_HOSTS),
+    containerEntry: path.resolve(import.meta.dirname, '..', 'container-entry.mjs'),
   }
 }
 
@@ -137,6 +192,14 @@ export function validateConfig(config: BrokerConfig): string[] {
   } catch {
     errors.push('PUREGAMMA_DSH_PUBLIC_ORIGIN is not a URL')
   }
+  if (!['direct', 'systemd', 'docker'].includes(config.launcher)) errors.push('PUREGAMMA_DSH_HOST_LAUNCHER must be direct, systemd or docker')
+  if (!/^[a-z0-9-]{1,24}$/.test(config.instance)) errors.push('PUREGAMMA_DSH_INSTANCE must be 1-24 of [a-z0-9-]')
+  if (config.launcher !== 'direct' && config.hostLimits.memoryMb < config.hostHeapMb + 128) {
+    errors.push('PUREGAMMA_DSH_HOST_MEMORY_MB must leave at least 128 MB above PUREGAMMA_DSH_HOST_HEAP_MB')
+  }
+  if (config.launcher === 'docker' && !config.dockerImage) errors.push('PUREGAMMA_DSH_DOCKER_IMAGE is required for the docker launcher')
+  if (config.launcher === 'docker' && !/^\d+:\d+$/.test(config.dockerUser)) errors.push('PUREGAMMA_DSH_DOCKER_USER must be uid:gid')
+  if (config.launcher === 'systemd' && config.sandboxHide.some(dir => !path.isAbsolute(dir) || dir === '/')) errors.push('PUREGAMMA_DSH_SANDBOX_HIDE entries must be absolute and not /')
   if (config.basePath && !/^(\/[A-Za-z0-9._~-]+)+$/.test(config.basePath)) {
     errors.push('PUREGAMMA_DSH_BASE_PATH must look like /harness (no trailing slash, no query)')
   }

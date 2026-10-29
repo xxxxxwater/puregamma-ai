@@ -1,5 +1,6 @@
-export { defaultContentSecurityPolicy, loadConfig, validateConfig, type BrokerConfig } from './config.ts'
+export { defaultContentSecurityPolicy, loadConfig, validateConfig, type BrokerConfig, type HostLimits } from './config.ts'
 export { Authenticator, credentialOf, readCookie, type Identity, type UserCredential } from './identity.ts'
-export { HostManager, hostEnv, hostPaths, userKey, exchangeLaunchToken, type Host } from './hosts.ts'
+export { CapacityError, HostManager, QuotaError, directoryUsage, exchangeLaunchToken, hostEnv, hostPaths, prepareProfile, userKey, type Host } from './hosts.ts'
+export { CONTAINER_PORT, createLauncher, dockerArgs, readOnlyPaths, systemdProperties, type HostLauncher, type LauncherKind, type LaunchPlan } from './launchers.ts'
 export { TokenKeeper, writePrivate } from './tokens.ts'
 export { createBroker, isNavigation, routeRequest, withoutLaunchToken, type Broker, type Route } from './server.ts'
