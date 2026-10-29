@@ -29,6 +29,7 @@ import {
   getLiveFills,
   getLiveLedger,
   getLiveOrders,
+  getLiveOrderSyncStatus,
   getLiveReconciliation,
   getLivePortfolioPositions,
   getTradingMandates,
@@ -37,6 +38,7 @@ import {
   LiveOrderRejectedError,
   pauseTradingMandate,
   previewLiveOrder,
+  recheckLiveOrder,
   resumeTradingMandate,
   revokeLiveConnection,
   testLiveConnection,
@@ -45,6 +47,7 @@ import {
   type LiveLedgerEntry,
   type LiveOrderPreviewResult,
   type LiveOrderRow,
+  type LiveOrderSyncStatus,
   type LiveReconciliationView,
   type NavSnapshot,
   type TradingMandate,
@@ -1194,7 +1197,7 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
                 </tr>
               </thead>
               <tbody>
-                {orders.map((order) => <OrderRow key={order.id} order={order} locale={locale} onCancel={() => setCancelTarget(order)} />)}
+                {orders.map((order) => <OrderRow key={order.id} order={order} locale={locale} onCancel={() => setCancelTarget(order)} onSynced={() => void load()} />)}
               </tbody>
             </table>
           </div>
@@ -1238,7 +1241,7 @@ function OrdersView({ locale, state, safety }: { locale: Locale; state: LiveUiSt
   );
 }
 
-function OrderRow({ order, locale, onCancel }: { order: LiveOrderRow; locale: Locale; onCancel: () => void }) {
+function OrderRow({ order, locale, onCancel, onSynced }: { order: LiveOrderRow; locale: Locale; onCancel: () => void; onSynced?: () => void }) {
   const unknown = isUnknownLiveOrderStatus(order.status);
   return (
     <>
@@ -1260,6 +1263,7 @@ function OrderRow({ order, locale, onCancel }: { order: LiveOrderRow; locale: Lo
       <tr className="border-b border-border-pg last:border-0">
         <td colSpan={9} className="px-2.5 pb-2.5 pt-0">
           {unknown ? <p className="mb-1 text-xs text-status-warning">{t(locale, "live-trading.workflow.unknown.row")} · {order.last_sync_at ? t(locale, "live-trading.workflow.unknown.lastSync", { time: new Date(order.last_sync_at).toLocaleString(locale) }) : t(locale, "live-trading.workflow.unknown.neverSynced")}</p> : null}
+          {unknown ? <OrderSyncPanel locale={locale} orderId={order.id} onChanged={onSynced} /> : null}
           <details className="text-xs text-text-pg-muted">
             <summary className="cursor-pointer select-none rounded py-0.5 hover:text-text-pg">{t(locale, "live-trading.workflow.details.show")}</summary>
             <dl className="mt-2 grid gap-x-6 gap-y-1 sm:grid-cols-2">
@@ -1274,6 +1278,75 @@ function OrderRow({ order, locale, onCancel }: { order: LiveOrderRow; locale: Lo
         </td>
       </tr>
     </>
+  );
+}
+
+/**
+ * What the server last heard from the venue about an UNKNOWN order, and a
+ * query-only "ask again". The button never places, re-sends or changes an
+ * order; it is rate-limited per order by the server, which also decides
+ * whether it is offered at all.
+ */
+function OrderSyncPanel({ locale, orderId, onChanged }: { locale: Locale; orderId: string; onChanged?: () => void }) {
+  const [sync, setSync] = useState<LiveOrderSyncStatus | null>(null);
+  const [failed, setFailed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [message, setMessage] = useState("");
+
+  const read = useCallback(async () => {
+    try {
+      setSync((await getLiveOrderSyncStatus(orderId)).sync);
+      setFailed(false);
+    } catch {
+      setFailed(true);
+    }
+  }, [orderId]);
+  useEffect(() => { void read(); }, [read]);
+
+  const recheck = async () => {
+    setBusy(true);
+    setMessage("");
+    try {
+      const result = (await recheckLiveOrder(orderId)).sync;
+      setSync(result);
+      setMessage(t(locale, "live-trading.workflow.sync.asked"));
+      if (result.status !== "unknown") onChanged?.();
+    } catch (error) {
+      const { status, message: detail } = describeApiError(error);
+      setMessage(status === 429 ? t(locale, "live-trading.workflow.sync.rateLimited") : status === 403 ? t(locale, "live-trading.workflow.sync.disabled") : detail || t(locale, "live-trading.workflow.sync.failed"));
+      await read();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (failed) return <p className="mb-1 text-xs text-text-pg-muted" data-testid="live-order-sync-unavailable">{t(locale, "live-trading.workflow.sync.unavailable")}</p>;
+  if (!sync) return null;
+  const latest = sync.latest;
+  const outcomeKey = `live-trading.workflow.sync.outcome.${latest?.outcome ?? "none"}` as TranslationKey;
+  const blocked = sync.recheck.blocked_reason;
+  return (
+    <div className="mb-2 rounded-lg border border-border-pg px-3 py-2 text-xs" data-testid="live-order-sync">
+      <p>
+        <span className="text-text-pg-muted">{t(locale, "live-trading.workflow.sync.lastAsked")}: </span>
+        <span>{sync.last_sync_at ? new Date(sync.last_sync_at).toLocaleString(locale) : t(locale, "live-trading.workflow.unknown.neverSynced")}</span>
+      </p>
+      <p className="mt-0.5" data-testid="live-order-sync-latest">
+        <span className="text-text-pg-muted">{t(locale, "live-trading.workflow.sync.answer")}: </span>
+        {latest ? <>{hasTranslation(locale, outcomeKey) ? t(locale, outcomeKey) : latest.outcome}{latest.reason ? <span className="text-text-pg-dim"> · {latest.reason}</span> : null}{latest.at ? <span className="text-text-pg-dim"> · {new Date(latest.at).toLocaleString(locale)}</span> : null}</> : t(locale, "live-trading.workflow.sync.outcome.none")}
+      </p>
+      <div className="mt-2 flex flex-wrap items-center gap-2">
+        {sync.recheck.enabled ? (
+          <button type="button" onClick={() => void recheck()} disabled={busy || !sync.recheck.allowed} className="inline-flex min-h-9 items-center gap-1.5 rounded-lg border border-border-pg px-3 hover:border-border-pg-strong disabled:opacity-40" data-testid="live-order-recheck">
+            <RefreshCw className="h-3.5 w-3.5" aria-hidden />{t(locale, "live-trading.workflow.sync.recheck")}
+          </button>
+        ) : null}
+        <span className="text-text-pg-dim">
+          {blocked === "disabled" ? t(locale, "live-trading.workflow.sync.disabled") : blocked === "rate_limited" && sync.recheck.next_allowed_at ? t(locale, "live-trading.workflow.sync.nextAt", { time: new Date(sync.recheck.next_allowed_at).toLocaleTimeString(locale) }) : t(locale, "live-trading.workflow.sync.queryOnly")}
+        </span>
+      </div>
+      {message ? <p role="status" className="mt-1 text-text-pg-muted">{message}</p> : null}
+    </div>
   );
 }
 

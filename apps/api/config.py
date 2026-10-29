@@ -698,6 +698,22 @@ class Settings:
     live_credential_encryption_key: str = os.getenv(
         "LIVE_CREDENTIAL_ENCRYPTION_KEY", ""
     )
+    # User-triggered "re-check this order" (query only, never re-submits).
+    # Off by default; the background order sync runs regardless.
+    live_order_recheck_enabled: bool = (
+        os.getenv("LIVE_ORDER_RECHECK_ENABLED", "false").lower() == "true"
+    )
+    live_order_recheck_min_interval_seconds: int = max(
+        10, int(os.getenv("LIVE_ORDER_RECHECK_MIN_INTERVAL_SECONDS", "60") or 60)
+    )
+    # Mandate proposal -> two-admin approval workflow. Off by default; an
+    # effective mandate still passes every static/user/kill-switch gate.
+    live_mandate_proposals_enabled: bool = (
+        os.getenv("LIVE_MANDATE_PROPOSALS_ENABLED", "false").lower() == "true"
+    )
+    live_mandate_proposal_ttl_hours: int = max(
+        1, int(os.getenv("LIVE_MANDATE_PROPOSAL_TTL_HOURS", "72") or 72)
+    )
 
     # ---- Memory service (enabled by default) ----
     memory_service_enabled: bool = (

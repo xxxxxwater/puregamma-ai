@@ -2206,6 +2206,35 @@ export function getLiveLedger(options: { accountId?: string; cursor?: string | n
   return requestStrict<LiveLedgerPage>(`/api/trading/ledger${query ? `?${query}` : ""}`);
 }
 
+// UNKNOWN-order sync: when the venue was last asked and what it said. The
+// re-check endpoint only ever queries the venue; it never places an order.
+export type LiveOrderSyncResult = {
+  at: string | null;
+  trigger: string | null;
+  outcome: "resolved" | "still_unknown" | "query_failed" | string | null;
+  state_before: string | null;
+  state_after: string | null;
+  reason: string | null;
+};
+
+export type LiveOrderSyncStatus = {
+  order_id: string;
+  status: string;
+  error_code: string | null;
+  last_sync_at: string | null;
+  latest: LiveOrderSyncResult | null;
+  history: LiveOrderSyncResult[];
+  recheck: { enabled: boolean; allowed: boolean; blocked_reason: "disabled" | "terminal" | "rate_limited" | null; min_interval_seconds: number; next_allowed_at: string | null };
+};
+
+export function getLiveOrderSyncStatus(orderId: string) {
+  return requestStrict<{ sync: LiveOrderSyncStatus }>(`/api/trading/orders/${encodeURIComponent(orderId)}/sync-status`);
+}
+
+export function recheckLiveOrder(orderId: string) {
+  return requestStrict<{ sync: LiveOrderSyncStatus }>(`/api/trading/orders/${encodeURIComponent(orderId)}/recheck`, { method: "POST" });
+}
+
 export function getLiveReconciliation(accountId?: string) {
   const query = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
   return requestStrict<LiveReconciliationView>(`/api/trading/reconciliation${query}`);

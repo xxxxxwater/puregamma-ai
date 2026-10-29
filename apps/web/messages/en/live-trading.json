@@ -354,6 +354,24 @@
       "reconciliation": "Paused by reconciliation — an administrator must resolve it before it can resume.",
       "killSwitch": "A kill switch is engaged — an administrator must release it before resuming.",
       "reason": "Pause reason"
+    },
+    "sync": {
+      "lastAsked": "Venue last asked",
+      "answer": "Last answer",
+      "outcome": {
+        "resolved": "The venue gave a definite state",
+        "still_unknown": "Still unknown at the venue",
+        "query_failed": "The query failed",
+        "none": "No query result recorded yet"
+      },
+      "recheck": "Ask the venue again",
+      "queryOnly": "Query only: this never places, re-sends or changes an order.",
+      "disabled": "Asking again on request is not enabled on this deployment; the server keeps querying in the background.",
+      "rateLimited": "Asked too recently for this order. Wait before asking again.",
+      "nextAt": "Can ask again after {time}",
+      "asked": "The venue was asked again; the answer is shown above.",
+      "failed": "The request could not be sent.",
+      "unavailable": "The sync history could not be read right now."
     }
   }
 }

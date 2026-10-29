@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_current_user, get_db, require_admin
 from packages.database.models import TradingAccount, User
 from packages.live_trading import control_plane, nav as nav_service, ledger as ledger_service
-from packages.live_trading import ledger_view
+from packages.live_trading import ledger_view, order_sync
 from packages.live_trading import price_feed as price_feed_service
 from packages.live_trading.control_plane import ControlPlaneError, OrderRejected
 from packages.live_trading.decimal_text import decimal_text
@@ -288,6 +288,48 @@ def get_order(
         return {"order": control_plane.get_order(db, user.id, order_id)}
     except Exception as exc:
         raise _http_error(exc) from exc
+
+
+@trading_router.get("/orders/{order_id}/sync-status")
+def order_sync_status(
+    order_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """When the venue was last asked about this order and what it said."""
+    try:
+        return {"sync": order_sync.sync_status(db, user.id, order_id)}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "ORDER_NOT_FOUND", "message": str(exc)}) from exc
+
+
+@trading_router.post("/orders/{order_id}/recheck")
+def order_recheck(
+    order_id: str,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Ask the venue once more about an open order. Query only: this never
+    submits, re-submits, amends or cancels anything."""
+    try:
+        return {"sync": order_sync.request_recheck(db, user.id, order_id)}
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail={"code": "ORDER_NOT_FOUND", "message": str(exc)}) from exc
+    except order_sync.RecheckDisabled as exc:
+        raise HTTPException(status_code=403, detail={"code": "LIVE_ORDER_RECHECK_DISABLED", "message": str(exc)}) from exc
+    except order_sync.RecheckNotApplicable as exc:
+        raise HTTPException(status_code=409, detail={"code": "ORDER_FINAL", "message": str(exc)}) from exc
+    except order_sync.RecheckRateLimited as exc:
+        raise HTTPException(
+            status_code=429,
+            detail={
+                "code": "LIVE_ORDER_RECHECK_RATE_LIMITED",
+                "message": str(exc),
+                "retry_after_seconds": exc.retry_after_seconds,
+                "next_allowed_at": exc.next_allowed_at.isoformat(),
+            },
+            headers={"Retry-After": str(exc.retry_after_seconds)},
+        ) from exc
 
 
 @trading_router.get("/fills")

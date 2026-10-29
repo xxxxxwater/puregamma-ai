@@ -575,9 +575,22 @@ def _apply_fill(
     return fill
 
 
-def sync_order_status(db: Session, order: LiveOrder, gateway: ExecutionGateway | None = None) -> LiveOrder:
+def sync_order_status(
+    db: Session,
+    order: LiveOrder,
+    gateway: ExecutionGateway | None = None,
+    *,
+    trigger: str = "background",
+) -> LiveOrder:
     """Background order-state sync. UNKNOWN states are resolved by QUERYING
-    the gateway — never by re-submitting."""
+    the gateway — never by re-submitting.
+
+    Each answer is classified (resolved / still unknown / query failed) and
+    appended to the audit log via ``order_sync.record_sync_result`` so the
+    owner can see when the venue was last asked and what it said.
+    """
+    from packages.live_trading import order_sync
+
     if order.status in {
         LiveOrderStatus.FILLED.value,
         LiveOrderStatus.CANCELED.value,
@@ -585,6 +598,7 @@ def sync_order_status(db: Session, order: LiveOrder, gateway: ExecutionGateway |
         LiveOrderStatus.EXPIRED.value,
     }:
         return order
+    state_before = order.status
     mandate = db.query(TradingMandate).filter_by(id=order.mandate_id).one_or_none()
     account_id = mandate.account_id if mandate else ""
     connection_id = mandate.broker_connection_id if mandate else None
@@ -597,16 +611,33 @@ def sync_order_status(db: Session, order: LiveOrder, gateway: ExecutionGateway |
             symbol=order.symbol,
         )
         state = str(result.get("state") or LiveOrderStatus.UNKNOWN.value).lower()
-        if state in {item.value for item in LiveOrderStatus}:
+        known = state in {item.value for item in LiveOrderStatus}
+        if known:
             order.status = state
         order.last_sync_at = utcnow()
         broker = result.get("order") or {}
         if broker.get("broker_order_id") or broker.get("exchange_order_id"):
             order.broker_order_id = broker.get("broker_order_id") or broker.get("exchange_order_id")
         _sync_fills_from_ack(db, order, account_id, {"fills": broker.get("fills") or []})
-    except (GatewayError, GatewayOrderUnknown):
+        if not known:
+            outcome, reason = order_sync.OUTCOME_STILL_UNKNOWN, f"unrecognized venue state: {state[:40]}"
+        elif state == LiveOrderStatus.UNKNOWN.value:
+            outcome, reason = order_sync.OUTCOME_STILL_UNKNOWN, result.get("reason") or "venue did not report a definite state"
+        else:
+            outcome, reason = order_sync.OUTCOME_RESOLVED, result.get("reason")
+    except (GatewayError, GatewayOrderUnknown) as exc:
         # Keep last known state; UNKNOWN stays UNKNOWN until gateway answers.
         order.last_sync_at = utcnow()
+        outcome, reason = order_sync.OUTCOME_FAILED, str(exc)[:300] or type(exc).__name__
+    order_sync.record_sync_result(
+        db,
+        order,
+        outcome=outcome,
+        state_before=state_before,
+        state_after=order.status,
+        reason=reason,
+        trigger=trigger,
+    )
     db.commit()
     _trigger_nav_update(order.user_id, account_id, order.mandate_id)
     return order

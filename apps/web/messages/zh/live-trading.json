@@ -354,6 +354,24 @@
       "reconciliation": "因对账暂停——需要管理员处理后才能恢复。",
       "killSwitch": "熔断已触发——需要管理员解除后才能恢复。",
       "reason": "暂停原因"
+    },
+    "sync": {
+      "lastAsked": "最近一次查询交易所",
+      "answer": "最近结果",
+      "outcome": {
+        "resolved": "交易所已给出明确状态",
+        "still_unknown": "交易所仍无法确认",
+        "query_failed": "查询失败",
+        "none": "还没有查询记录"
+      },
+      "recheck": "请求重新核对",
+      "queryOnly": "仅查询：不会下单、重发或修改订单。",
+      "disabled": "本部署未开启按需重新核对；服务器仍会在后台持续查询。",
+      "rateLimited": "该订单刚刚核对过，请稍后再试。",
+      "nextAt": "{time} 后可再次核对",
+      "asked": "已再次查询交易所，结果见上方。",
+      "failed": "请求未能发出。",
+      "unavailable": "暂时无法读取同步记录。"
     }
   }
 }
