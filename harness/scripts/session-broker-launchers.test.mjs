@@ -138,12 +138,29 @@ test('disk quota (all launchers): an over-quota user gets 507 and no Host; other
   })
 })
 
-function systemdUserManager() {
+/**
+ * A running user manager is not enough: it must accept the properties the
+ * launcher sets (PrivatePIDs= needs systemd >= 257, PrivateUsers= needs
+ * unprivileged user namespaces). GitHub's ubuntu-24.04 runners ship systemd
+ * 255, so CI skips the live run while the pure test above still pins every
+ * property; production must meet the runbook's systemd >= 257 prerequisite.
+ * Returns the reason to skip, or null when a sandboxed unit starts here.
+ */
+function systemdLiveSkipReason() {
   try {
     execFileSync('systemctl', ['--user', 'is-system-running'], { stdio: 'pipe' })
-    return true
   } catch (error) {
-    return /running|degraded/.test(String(error.stdout ?? ''))
+    if (!/running|degraded/.test(String(error.stdout ?? ''))) return 'no systemd user manager'
+  }
+  const probe = ['PrivateUsers=yes', 'PrivatePIDs=yes', 'PrivateTmp=yes', 'ProtectSystem=strict', 'ProtectHome=tmpfs', 'NoNewPrivileges=yes', 'RestrictNamespaces=yes', 'SystemCallFilter=@system-service']
+  try {
+    execFileSync('systemd-run', ['--user', '--wait', '--quiet', '--collect', ...probe.flatMap(property => ['-p', property]), 'true'], { stdio: 'pipe', timeout: 30_000 })
+    return null
+  } catch (error) {
+    let version = 'systemd (unknown version)'
+    try { version = execFileSync('systemctl', ['--version'], { encoding: 'utf8' }).split('\n')[0] } catch {}
+    const detail = String(error.stderr ?? '').trim().split('\n')[0] || `exit ${error.status ?? '?'}`
+    return `${version} cannot start a sandboxed user unit (${detail}); the systemd launcher needs systemd >= 257 and unprivileged user namespaces`
   }
 }
 const units = instance => execFileSync('systemctl', ['--user', 'list-units', '--all', '--plain', '--no-legend', `pg-dsh-${instance}-*`], { encoding: 'utf8' }).trim()
@@ -175,7 +192,7 @@ async function assertSandboxed(config, url, { hiddenProbe }) {
 
 const limits = { memoryMb: 640, cpuPercent: 50, tasksMax: 64, nofile: 1024, fileSizeMb: 4 }
 
-test('systemd launcher (live): kernel limits and namespaces hold from inside the Host; reaping and restart sweep stop units', { skip: systemdUserManager() ? false : 'no systemd user manager' }, async () => {
+test('systemd launcher (live): kernel limits and namespaces hold from inside the Host; reaping and restart sweep stop units', { skip: systemdLiveSkipReason() ?? false }, async () => {
   const instance = `t${randomBytes(3).toString('hex')}`
   const config = base({ hostsRoot: path.join(root, 'sd-hosts'), launcher: 'systemd', instance, hostLimits: limits, hostHeapMb: 256 })
   try {
