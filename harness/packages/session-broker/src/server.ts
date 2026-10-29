@@ -3,7 +3,7 @@ import net from 'node:net'
 import type { Duplex } from 'node:stream'
 import type { BrokerConfig } from './config.ts'
 import { ApiUnavailable, Authenticator, type Identity } from './identity.ts'
-import { CapacityError, HostManager, type Host } from './hosts.ts'
+import { CapacityError, HostManager, QuotaError, type Host } from './hosts.ts'
 
 /** Hop-by-hop and identity headers that never cross the broker. */
 const DROP_REQUEST = new Set([
@@ -106,6 +106,7 @@ export function createBroker(config: BrokerConfig, deps: { fetchImpl?: typeof fe
       return { ok: true, identity, host: await hosts.acquire(identity.userId, identity.credential) }
     } catch (error) {
       if (error instanceof CapacityError) return { ok: false, status: 503, code: 'capacity' }
+      if (error instanceof QuotaError) return { ok: false, status: 507, code: 'storage-quota-exceeded' }
       log(`host start failed: ${(error as Error).message}`)
       return { ok: false, status: 503, code: 'host-unavailable' }
     }
@@ -117,9 +118,9 @@ export function createBroker(config: BrokerConfig, deps: { fetchImpl?: typeof fe
       if (value === undefined || DROP_REQUEST.has(name) || name.startsWith('sec-websocket') || name === 'sec-fetch-site') continue
       out[name] = value
     }
-    out.host = `127.0.0.1:${host.port}`
+    out.host = host.authority
     out.cookie = host.cookie
-    if (headers.origin !== undefined) out.origin = `http://127.0.0.1:${host.port}`
+    if (headers.origin !== undefined) out.origin = `http://${host.authority}`
     return out
   }
 

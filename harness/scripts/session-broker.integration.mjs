@@ -6,6 +6,9 @@
 //
 // PG_BROKER_IT_BASE_PATH=/harness mounts the broker under a path prefix (the
 // default is the origin root, i.e. the dedicated-subdomain layout).
+// PG_BROKER_IT_LAUNCHER=systemd|docker starts the real Hosts under that
+// launcher (docker also needs PG_BROKER_IT_DOCKER_IMAGE, e.g. python:3.12-slim
+// with the host Node mounted read-only) and adds isolation and reaping checks.
 // PG_BROKER_IT_BROWSER=1 adds a real-browser step (Playwright from apps/web,
 // Chromium at PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH or /usr/bin/chromium):
 // the full DSH Web client boots for user A behind the broker's CSP and no
@@ -23,6 +26,7 @@ import http from 'node:http'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
+import { execFileSync } from 'node:child_process'
 import { createRequire } from 'node:module'
 import { createBroker, defaultContentSecurityPolicy, hostPaths, loadConfig } from '../packages/session-broker/src/index.ts'
 
@@ -82,7 +86,13 @@ const config = {
   startTimeoutMs: 180_000,
   hostHeapMb: Number(process.env.PG_BROKER_IT_HOST_HEAP_MB ?? 512),
   basePath: process.env.PG_BROKER_IT_BASE_PATH ?? '',
+  launcher: process.env.PG_BROKER_IT_LAUNCHER ?? 'direct',
+  instance: `it${randomBytes(3).toString('hex')}`,
+  dockerImage: process.env.PG_BROKER_IT_DOCKER_IMAGE ?? '',
+  dockerNode: process.execPath,
 }
+config.hostLimits = { ...config.hostLimits, memoryMb: config.hostHeapMb + 512, cpuPercent: 100, tasksMax: 128, nofile: 2048, fileSizeMb: 64 }
+console.log(`# launcher ${config.launcher}`)
 const broker = createBroker(config, { log: message => console.log(`  [broker] ${message}`) })
 await new Promise(resolve => broker.server.listen(Number(process.env.PG_BROKER_IT_PORT ?? 0), '127.0.0.1', resolve))
 const origin = `http://127.0.0.1:${broker.server.address().port}`
@@ -201,6 +211,43 @@ try {
     const response = await fetch(`${base}/api/session/list`, { method: 'POST', headers: { ...as('sess-a'), origin: 'https://evil.test' } })
     assert.equal(response.status, 403)
   })
+  if (config.launcher !== 'direct') {
+    await step(`${config.launcher}: each real Host runs under its own kernel limits and sees only its own directory`, async () => {
+      const launched = broker.hosts.launched()
+      assert.equal(launched.length, 2)
+      for (const { userKey: key, name } of launched) {
+        let visible
+        if (config.launcher === 'systemd') {
+          const show = Object.fromEntries(execFileSync('systemctl', ['--user', 'show', name, '-p', 'MainPID,MemoryMax,TasksMax,CPUQuotaPerSecUSec,LimitNOFILE,LimitFSIZE,NoNewPrivileges,PrivateUsers,ProtectSystem'], { encoding: 'utf8' })
+            .trim().split('\n').map(line => line.split(/=(.*)/s).slice(0, 2)))
+          console.log(`  ${name}: ${JSON.stringify(show)}`)
+          assert.equal(show.MemoryMax, String(config.hostLimits.memoryMb * 1024 * 1024))
+          assert.equal(show.TasksMax, String(config.hostLimits.tasksMax))
+          assert.equal(show.CPUQuotaPerSecUSec, '1s')
+          assert.equal(show.LimitNOFILE, String(config.hostLimits.nofile))
+          assert.equal(show.LimitFSIZE, String(config.hostLimits.fileSizeMb * 1024 * 1024))
+          assert.equal(show.NoNewPrivileges, 'yes')
+          assert.equal(show.ProtectSystem, 'strict')
+          // The Host's own view of the filesystem, through its mount namespace.
+          const pids = execFileSync('systemctl', ['--user', 'show', name, '-p', 'ControlGroup', '--value'], { encoding: 'utf8' }).trim()
+          const pid = readFileSync(path.join('/sys/fs/cgroup', pids, 'cgroup.procs'), 'utf8').trim().split('\n').at(-1)
+          visible = readdirSync(`/proc/${pid}/root${config.hostsRoot}`)
+          assert.throws(() => readdirSync(`/proc/${pid}/root/data/home`), /ENOENT/)
+        } else {
+          const inspect = JSON.parse(execFileSync('docker', ['inspect', name], { encoding: 'utf8' }))[0].HostConfig
+          console.log(`  ${name}: ${JSON.stringify({ Memory: inspect.Memory, NanoCpus: inspect.NanoCpus, PidsLimit: inspect.PidsLimit, ReadonlyRootfs: inspect.ReadonlyRootfs, CapDrop: inspect.CapDrop, SecurityOpt: inspect.SecurityOpt, Ulimits: inspect.Ulimits })}`)
+          assert.equal(inspect.Memory, config.hostLimits.memoryMb * 1024 * 1024)
+          assert.equal(inspect.PidsLimit, config.hostLimits.tasksMax)
+          assert.equal(inspect.ReadonlyRootfs, true)
+          assert.deepEqual(inspect.CapDrop, ['ALL'])
+          assert.ok(inspect.SecurityOpt.includes('no-new-privileges'))
+          visible = JSON.parse(execFileSync('docker', ['exec', name, process.execPath, '-e', `console.log(JSON.stringify(require('fs').readdirSync(${JSON.stringify(config.hostsRoot)})))`], { encoding: 'utf8' }))
+        }
+        assert.deepEqual(visible, [key], `${name} sees only its own directory`)
+      }
+    })
+  }
+
   if (process.env.PG_BROKER_IT_BROWSER === '1') {
     await step('a real browser boots the full DSH Web client for A behind the CSP, inside the mount prefix', async () => {
       const { chromium } = createRequire(path.join(harness, '..', 'apps', 'web', 'package.json'))('@playwright/test')
@@ -241,6 +288,23 @@ try {
       } finally {
         await browser.close()
       }
+    })
+  }
+  if (config.launcher !== 'direct') {
+    await step(`${config.launcher}: idle reaping stops the real Hosts`, async () => {
+      const names = broker.hosts.launched().map(entry => entry.name)
+      config.idleMs = 0
+      await broker.hosts.reap()
+      const alive = () => names.filter(name => {
+        try {
+          return config.launcher === 'systemd'
+            ? execFileSync('systemctl', ['--user', 'is-active', name], { encoding: 'utf8' }).trim() === 'active'
+            : execFileSync('docker', ['ps', '-q', '--filter', `name=^${name}$`], { encoding: 'utf8' }).trim() !== ''
+        } catch { return false }
+      })
+      for (let i = 0; i < 100 && alive().length; i++) await new Promise(resolve => setTimeout(resolve, 100))
+      assert.deepEqual(alive(), [])
+      assert.equal(broker.hosts.size, 0)
     })
   }
 } finally {

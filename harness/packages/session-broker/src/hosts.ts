@@ -6,12 +6,16 @@ import path from 'node:path'
 import process from 'node:process'
 import { NEVER_PASSED, type BrokerConfig } from './config.ts'
 import type { UserCredential } from './identity.ts'
+import { createLauncher, type HostLauncher, type LaunchPlan } from './launchers.ts'
 import { TokenKeeper } from './tokens.ts'
 
 /** One user's running DSH Web Host. */
 export interface Host {
   readonly userId: string
+  /** Loopback port the broker connects to. */
   readonly port: number
+  /** `host:port` the Host's own fence expects in Host/Origin (differs from `port` for containers). */
+  readonly authority: string
   /** `name=value` of the Host's browser-session cookie, held by the broker only. */
   readonly cookie: string
   lastActive: number
@@ -22,10 +26,36 @@ interface Record_ {
   host?: Host
   starting?: Promise<Host>
   child?: ChildProcess
+  plan?: LaunchPlan
   tokens: TokenKeeper
 }
 
 export class CapacityError extends Error {}
+/** The user's directory is over `diskQuotaMb`: no Host runs until they are under it again. */
+export class QuotaError extends Error {}
+
+/**
+ * Bytes allocated under `dir` (st_blocks, symlinks not followed), counted
+ * until `stopAt` is exceeded or `maxEntries` are visited.
+ */
+export async function directoryUsage(dir: string, stopAt = Number.POSITIVE_INFINITY, maxEntries = 200_000): Promise<number> {
+  let total = 0
+  let visited = 0
+  const stack = [dir]
+  while (stack.length && total <= stopAt && visited < maxEntries) {
+    const current = stack.pop()!
+    const entries = await fs.readdir(current, { withFileTypes: true }).catch(() => [])
+    for (const entry of entries) {
+      visited += 1
+      const full = path.join(current, entry.name)
+      const stat = await fs.lstat(full).catch(() => undefined)
+      if (!stat) continue
+      total += stat.blocks * 512
+      if (stat.isDirectory()) stack.push(full)
+    }
+  }
+  return total
+}
 
 /** The launcher's ready line: `dsh web: http://127.0.0.1:<port>/?token=<token>`. */
 const READY = /^dsh web: (http:\/\/127\.0\.0\.1:(\d+)\/\?token=([A-Za-z0-9_-]+))/m
@@ -57,6 +87,11 @@ export function hostEnv(config: BrokerConfig, paths: HostPaths, source: NodeJS.P
     PUREGAMMA_LEGACY_API_URL: config.hostApiBaseUrl,
     PUREGAMMA_LEGACY_API_TOKEN_FILE: paths.tokenFile,
     PUREGAMMA_DSH_WORKSPACE_ROOT: paths.workspace,
+    // DSH's native-addon loader otherwise copies `.node` files into a cache
+    // under os.tmpdir() and loads them from there: a writable executable
+    // cache shared by every same-uid Host, and impossible on a noexec /tmp.
+    // Load straight from the read-only install instead.
+    NARB_DISABLE_NATIVE_CACHE: '1',
   }
 }
 
@@ -68,14 +103,42 @@ export function hostEnv(config: BrokerConfig, paths: HostPaths, source: NodeJS.P
 export class HostManager {
   private readonly records = new Map<string, Record_>()
   private readonly reaper: NodeJS.Timeout
+  private readonly diskTimer: NodeJS.Timeout
+  private readonly overQuota = new Set<string>()
+  readonly launcher: HostLauncher
+  /** Resolves once Hosts left by an earlier run of this broker instance are gone. */
+  readonly ready: Promise<void>
 
   constructor(
     private readonly config: BrokerConfig,
     private readonly log: (message: string) => void = message => console.error(`[dsh-broker] ${message}`),
     private readonly fetchImpl: typeof fetch = fetch,
+    launcher?: HostLauncher,
   ) {
+    this.launcher = launcher ?? createLauncher(config)
+    this.ready = this.launcher.sweep().then(count => { if (count) this.log(`removed ${count} stale ${this.launcher.kind} Host(s)`) }, () => {})
     this.reaper = setInterval(() => void this.reap(), Math.min(60_000, Math.max(1000, config.idleMs / 4)))
     this.reaper.unref()
+    this.diskTimer = setInterval(() => void this.checkDisk(), config.diskCheckMs)
+    this.diskTimer.unref()
+  }
+
+  private get quotaBytes(): number { return this.config.diskQuotaMb * 1024 * 1024 }
+
+  /** Stop running Hosts whose user directory went over quota. Returns the stopped user keys. */
+  async checkDisk(): Promise<string[]> {
+    const stopped: string[] = []
+    for (const [userId, record] of [...this.records]) {
+      if (!record.host) continue
+      const used = await directoryUsage(hostPaths(this.config.hostsRoot, userId).dir, this.quotaBytes)
+      if (used > this.quotaBytes) {
+        this.overQuota.add(userId)
+        this.log(`host ${userKey(userId)} over disk quota (${Math.round(used / 1048576)} MB > ${this.config.diskQuotaMb} MB); stopping`)
+        await this.stop(userId)
+        stopped.push(userKey(userId))
+      }
+    }
+    return stopped
   }
 
   get size(): number { return this.records.size }
@@ -87,10 +150,22 @@ export class HostManager {
     return { hosts: this.records.size, openSockets }
   }
 
+  /** Unit/container names of running Hosts, keyed by user key (never user ids). */
+  launched(): Array<{ userKey: string; name: string }> {
+    return [...this.records].filter(([, record]) => record.host).map(([userId, record]) => ({ userKey: userKey(userId), name: record.plan?.name ?? '' }))
+  }
+
   /** Running Host for the user, starting it (and seeding its token) on first use. */
   async acquire(userId: string, credential: UserCredential): Promise<Host> {
+    await this.ready
     let record = this.records.get(userId)
     if (!record) {
+      const used = await directoryUsage(hostPaths(this.config.hostsRoot, userId).dir, this.quotaBytes)
+      if (used > this.quotaBytes) {
+        this.overQuota.add(userId)
+        throw new QuotaError('user directory is over its disk quota')
+      }
+      this.overQuota.delete(userId)
       if (this.records.size >= this.config.maxHosts) await this.reap(true)
       if (this.records.size >= this.config.maxHosts) throw new CapacityError('all Host slots are in use')
       const paths = hostPaths(this.config.hostsRoot, userId)
@@ -116,17 +191,19 @@ export class HostManager {
 
   private async start(userId: string, record: Record_): Promise<Host> {
     const paths = hostPaths(this.config.hostsRoot, userId)
-    const args = [this.config.dshBin, this.config.profileName]
-    for (const patch of this.config.patchFiles) args.push('--patch', patch)
-    args.push('--port', '0', '--no-open')
-    const child = spawn(process.execPath, args, { cwd: paths.workspace, env: hostEnv(this.config, paths), stdio: ['ignore', 'pipe', 'pipe'] })
+    const dshArgs = [this.config.profileName]
+    for (const patch of this.config.patchFiles) dshArgs.push('--patch', patch)
+    dshArgs.push('--port', '0', '--no-open')
+    const plan = this.launcher.plan({ userKey: userKey(userId), paths, env: hostEnv(this.config, paths), dshArgs })
+    const child = spawn(plan.command, plan.args, { cwd: plan.cwd, env: plan.env, stdio: ['ignore', 'pipe', 'pipe'] })
     record.child = child
+    record.plan = plan
     child.once('exit', (code, signal) => {
       this.log(`host ${userKey(userId)} exited (${signal ?? code})`)
       if (this.records.get(userId)?.child === child) void this.stop(userId)
     })
     child.stderr?.on('data', chunk => process.env.PUREGAMMA_DSH_BROKER_DEBUG === 'true' && process.stderr.write(chunk))
-    const ready = await new Promise<{ port: number; url: string }>((resolve, reject) => {
+    const ready = await new Promise<{ port: number; token: string }>((resolve, reject) => {
       let buffer = ''
       const timer = setTimeout(() => reject(new Error('Host did not become ready in time')), this.config.startTimeoutMs)
       child.stdout?.on('data', chunk => {
@@ -135,16 +212,17 @@ export class HostManager {
         const match = READY.exec(buffer)
         if (match) {
           clearTimeout(timer)
-          resolve({ url: match[1], port: Number(match[2]) })
+          resolve({ port: Number(match[2]), token: match[3] })
         }
       })
       child.once('exit', () => { clearTimeout(timer); reject(new Error('Host exited before it was ready')) })
     })
-    const cookie = await exchangeLaunchToken(ready.url, ready.port)
-    const host: Host = { userId, port: ready.port, cookie, lastActive: Date.now(), openSockets: 0 }
+    const target = await plan.connect(ready.port)
+    const cookie = await exchangeLaunchToken(ready.token, target)
+    const host: Host = { userId, port: target.port, authority: target.authority, cookie, lastActive: Date.now(), openSockets: 0 }
     record.host = host
     record.starting = undefined
-    this.log(`host ${userKey(userId)} ready on 127.0.0.1:${ready.port}`)
+    this.log(`host ${userKey(userId)} ready on 127.0.0.1:${target.port} (${this.launcher.kind})`)
     return host
   }
 
@@ -167,6 +245,7 @@ export class HostManager {
     if (!record) return
     this.records.delete(userId)
     await record.tokens.close()
+    await record.plan?.stop()
     const child = record.child
     if (child && child.exitCode === null && child.signalCode === null) {
       child.kill('SIGTERM')
@@ -176,22 +255,55 @@ export class HostManager {
     }
   }
 
+  /** True when the user's last start or size check found the directory over quota. */
+  isOverQuota(userId: string): boolean { return this.overQuota.has(userId) }
+
   async close(): Promise<void> {
     clearInterval(this.reaper)
+    clearInterval(this.diskTimer)
     await Promise.all([...this.records.keys()].map(userId => this.stop(userId)))
   }
 }
+
+/** Files DSH writes into the profile directory at boot (and its Loader may write back at runtime). */
+const PROFILE_WRITABLE = new Set(['cordis.yml'])
 
 async function prepareDirs(paths: HostPaths, config: BrokerConfig): Promise<void> {
   await fs.mkdir(config.hostsRoot, { recursive: true, mode: 0o700 })
   for (const dir of [paths.dir, paths.home, paths.workspace, path.join(paths.home, 'profiles')]) {
     await fs.mkdir(dir, { recursive: true, mode: 0o700 })
   }
-  const link = path.join(paths.home, 'profiles', config.profileName)
-  const current = await fs.readlink(link).catch(() => undefined)
-  if (current !== config.profileDir) {
-    await fs.rm(link, { force: true, recursive: false }).catch(() => {})
-    await fs.symlink(config.profileDir, link, 'dir')
+  await prepareProfile(path.join(paths.home, 'profiles', config.profileName), config.profileDir)
+}
+
+/**
+ * Each Host gets its own profile directory: every entry of the shared
+ * profile is linked in read-only, except the files DSH writes (the root
+ * `cordis.yml`), which are private copies. Symlinking the whole profile, as
+ * v0.3.3 did, made every Host rewrite one shared file in the repository, and
+ * a sandboxed Host cannot write a read-only profile at all.
+ */
+export async function prepareProfile(dir: string, shared: string): Promise<void> {
+  const stat = await fs.lstat(dir).catch(() => undefined)
+  if (stat && !stat.isDirectory()) await fs.rm(dir, { force: true })
+  await fs.mkdir(dir, { recursive: true, mode: 0o700 })
+  const wanted = new Set(await fs.readdir(shared))
+  for (const name of await fs.readdir(dir)) {
+    if (!wanted.has(name)) await fs.rm(path.join(dir, name), { recursive: true, force: true })
+  }
+  for (const name of wanted) {
+    const target = path.join(shared, name)
+    const entry = path.join(dir, name)
+    if (PROFILE_WRITABLE.has(name)) {
+      const current = await fs.lstat(entry).catch(() => undefined)
+      if (current?.isSymbolicLink()) await fs.rm(entry, { force: true })
+      if (!current || current.isSymbolicLink()) await fs.copyFile(target, entry)
+      await fs.chmod(entry, 0o600)
+      continue
+    }
+    if (await fs.readlink(entry).catch(() => undefined) === target) continue
+    await fs.rm(entry, { recursive: true, force: true })
+    await fs.symlink(target, entry)
   }
 }
 
@@ -200,9 +312,9 @@ async function prepareDirs(paths: HostPaths, config: BrokerConfig): Promise<void
  * the browser would: `GET /?token=` with the Host's own loopback authority.
  * The cookie stays in the broker; the browser never sees the token or cookie.
  */
-export function exchangeLaunchToken(url: string, port: number): Promise<string> {
+export function exchangeLaunchToken(token: string, target: { port: number; authority: string }): Promise<string> {
   return new Promise((resolve, reject) => {
-    const request = http.get(url, { headers: { host: `127.0.0.1:${port}` }, timeout: 10_000 }, response => {
+    const request = http.get({ host: '127.0.0.1', port: target.port, path: `/?token=${encodeURIComponent(token)}`, headers: { host: target.authority }, timeout: 10_000 }, response => {
       response.resume()
       const cookies = response.headers['set-cookie'] ?? []
       const pair = cookies.map(cookie => cookie.split(';')[0]).find(cookie => cookie.startsWith('dsh-auth-'))
