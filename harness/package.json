@@ -26,7 +26,9 @@
     "codex-guard-check": "node --test scripts/codex-guard.test.mjs",
     "session-broker-check": "tsx --test --test-timeout=120000 scripts/session-broker.test.mjs scripts/session-broker-ingress.test.mjs scripts/session-broker-launchers.test.mjs scripts/session-broker-limits.test.mjs",
     "ingress-check": "tsx --test --test-timeout=60000 scripts/ingress-caddy.test.mjs",
-    "check": "pnpm run architecture-check && pnpm run retirement-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run trading-observation-check && pnpm run release-boundary-check && pnpm run public-profile-check && pnpm run domain-toolviews-check && pnpm run legacy-auth-check && pnpm run session-broker-check && pnpm run ingress-check && pnpm run directory-picker-check && pnpm run codex-guard-check"
+    "mock-llm-check": "node --test scripts/mock-llm.test.mjs",
+    "e2e-conversation": "tsx scripts/e2e-conversation.mjs",
+    "check": "pnpm run architecture-check && pnpm run retirement-check && pnpm run build && pnpm run typecheck && pnpm run profile-check && pnpm run rsi-policy-check && pnpm run jev-contract-check && pnpm run mandates-policy-check && pnpm run pg-tsy-health-check && pnpm run trading-observation-check && pnpm run release-boundary-check && pnpm run public-profile-check && pnpm run domain-toolviews-check && pnpm run legacy-auth-check && pnpm run session-broker-check && pnpm run ingress-check && pnpm run mock-llm-check && pnpm run directory-picker-check && pnpm run codex-guard-check"
   },
   "devDependencies": {
     "@deepseek-ai/cordis": "4.0.4",

@@ -221,6 +221,55 @@ BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   Bind
 
 - `/__broker/revoke` 和 `/__broker/healthz` 在 Caddy 站点中一律 404（`@broker_internal`）。FastAPI 直接访问 broker 的内部地址；broker 自己也用常量时间比较校验密钥（≥32 字符），只接受 POST，请求体不超过 1 KB。
 
+## 4. 端到端对话验证（mock 模型）与旧 Web 路径对照
+
+> 以下结果全部来自**本机确定性 mock 模型**，**不是**真实模型 key 的验证。真实 key 与 staging 需要用户拍板（§8）。
+
+### 4.1 脚本
+
+`harness/scripts/e2e-conversation.mjs`（`pnpm --dir harness run e2e-conversation`，不在 check 中，会启动真实 DSH Host）。脚本启动下列组件：
+
+- **mock 模型**：`scripts/fixtures/mock-llm.mjs`，只监听 127.0.0.1。同时支持 OpenAI chat completions（旧路径使用）和 Anthropic messages（DSH 的 `llm-deepseek` 使用），流式和非流式都支持。回复只由请求内容决定：`[[tool:<名> <JSON>]]` 会产生工具调用，`[[slow]]` 会慢速输出 40 段，带图片时回复 `I see N image(s)`，旧路径的意图分类请求回复 `other`，其余回复 `Echo: …`。它对 `/v1/files` 返回 404，DSH 因此退回内联图片。单元测试 `mock-llm-check` 已加入 check。
+- **本地 FastAPI**：真实 `apps.api.main`，用 `/auth/mock-login` 登录，`DEEPSEEK_BASE_URL` 指向 mock，`DSH_MULTI_TENANT_ENABLED=true`，开启 revoke 通知。`E2E_POSTGRES=docker` 时数据库是一次性的 `postgres:17` 容器（loopback 端口、256 MB，结束即删除）；默认是 SQLite（见 4.3）。
+- **session broker**：在进程内运行，带一个真实 DSH Host（`@deepseek-ai/dsh 0.1.7-rc.1`，PureGamma profile + 多租户叠加层）。Host 通过环境变量透传拿到 `DEEPSEEK_BASE_URL`/`DEEPSEEK_API_KEY`，并设置 `DSH_TELEMETRY_MODE=DISABLED`，不上报遥测。
+- **DSH 侧客户端**：与浏览器一致，所有调用都经过 broker（cookie + Origin）。单次 RPC 走 HTTP，`session/follow` 走 `/api/remote.mux` WebSocket。
+- **旧路径客户端**：直接调用 `/api/agent/*`，并解析 SSE。
+
+模式切换：
+
+- `E2E_MODEL=real`：不启动 mock，DSH 与旧路径都使用 `DEEPSEEK_BASE_URL`/`DEEPSEEK_API_KEY`，依赖 mock 措辞的断言改为只要求回复非空。报告中会标注真实模型。
+- `E2E_LEGACY_APPROVAL_WRAPPER=0`：关闭旧路径的审批测试包装器（见下）。
+- `E2E_ONLY=<id,…>`：只运行指定场景。
+
+报告输出到 `$E2E_OUT/report.{json,md}`。
+
+### 4.2 本机结果（`E2E_POSTGRES=docker`，mock 模型；全部场景 0 失败）
+
+模型：local deterministic mock (127.0.0.1)；旧路径数据库：postgres:17 (docker, throwaway)；@deepseek-ai/dsh 0.1.7-rc.1 via session broker；模型请求 39 次；审计 92 行
+
+| 场景 | DSH | 旧 Web 路径 | 对照 |
+| --- | --- | --- | --- |
+| 新建对话并得到回复 | pass：reply "Echo: hello e2e" | pass：reply "Echo: hello e2e" | 相同：两条路径都把用户消息发给同一模型并返回同一回复 |
+| 继续对话（模型收到历史） | pass：reply "Echo: second turn", model saw 3 turns | pass：reply "Echo: second turn", model saw 3 turns | 相同：历史随下一轮发送给模型（轮数因各自的系统提示结构不同而不同） |
+| 刷新恢复（含进行中的回复） | pass：mid-turn reload shows the durable user message and an open turn; full reply after completion | pass：reload mid-run: active_run_id set, last message status "streaming", content length 0; run id seen, 46 events | 不同：DSH 刷新后可以通过 follow 快照继续看到正在生成的回复；旧路径刷新时只看到 streaming 状态和空内容（增量未提交），要等回复结束才能看到全文 |
+| 取消正在生成的回复 | pass：turn ended "aborted" | pass：run.canceled emitted | 相同：取消后回合结束（DSH `aborted` / 旧路径 `run.canceled`） |
+| 断线重连（回复进行中断开再连） | pass：resumed via a new follow (snapshot 17 records), turn completed with the full reply | pass：right after the disconnect the run is "running", it settles as "interrupted"; replay has 3 stored events (deltas are not stored); last message status "interrupted", 0 chars | 不同：DSH 断线不影响回合，重连后由 follow 快照继续收到完整回复；旧路径断线后运行被结算为 interrupted，回复不完整，只能回放已存储的事件（不含增量文本） |
+| 归档 / 取消归档 | pass：archived prompt ends "blocked" without a model call; unarchive restores | pass：archived_at set/cleared; a message to an archived conversation is still answered | 不同：DSH 归档后拒绝新回合（blocked）；旧路径归档只是列表标记，仍会回答 |
+| Skill | pass：slash command injected the SKILL.md body as a skill-invocation message; model received it | pass：skill_refs resolved server-side; prompt injected into the system prompt | 相同（能力）/不同（形式）：DSH 由用户输入 `/<skill>` 触发、Skill 正文作为会话消息可审计；旧路径由请求参数 `skill_refs` 选择、服务端注入系统提示 |
+| 图片附件 | pass：inline image accepted (no fileUploads); reply "I see 1 image(s)." | pass：upload + reference; reply "I see 1 image(s)." | 相同：图片到达模型。DSH 走内联图片（不经过被拒绝的 fileUploads）；旧路径先上传再引用 |
+| 工具调用（经 legacy-api 用 Host token 读 FastAPI） | pass：model tool call → legacy-api provider → FastAPI /market/snapshot with the user's Host token → result back to the model | pass：server-side planner ran tools [get_market_quote, search_source_documents] before the model call | 不同：DSH 由模型发起工具调用（tool-use 循环）；旧路径由服务端关键词规划器先运行工具，模型只生成文本 |
+| 工具审批 | missing：公开 profile 中没有任何会请求审批的工具（bash/jobs/hooks 已禁用，PureGamma 工具都是只读或由 API 自行授权）；审批机制（$events waterfall `approval/request`）存在但无从触发 | pass：仅在测试包装器把 create_strategy_draft 标记为有状态工具后：approval.required → 批准 → tool.completed。出厂配置下 STATEFUL_TOOLS 为空，审批同样不会触发 | DSH 缺失：公开 profile 无需审批的工具；旧路径的审批在出厂配置下同样不可达（STATEFUL_TOOLS 为空），只有测试包装器能触发 |
+
+**测试包装器**：旧路径的审批只有在把 `chat_workspace.STATEFUL_TOOLS` 设为 `{'create_strategy_draft'}` 的测试包装器下才能触发。出厂配置中 `STATEFUL_TOOLS` 为空，非只读工具会被直接拒绝（`READ_ONLY_PERMISSION`），审批流程不可达。
+
+### 4.3 发现
+
+- **DSH 缺口**：只有“工具审批”。公开 profile 中没有任何工具会走 `tools/pre-execute` 的 `ask` 分支（bash、jobs、hooks 都已禁用；PureGamma 领域工具只读，或者由 API 自行授权）。审批机制本身存在：`approval/asked` 写入 Session 日志，`$events` 上的 `approval/request` waterfall 由浏览器回答，没有客户端时 fail-closed。等到要开放有副作用的 PureGamma 工具时，应当让它在 pre-execute 返回 `ask`，并补上这一场景。旧路径在出厂配置下同样不会触发审批，因此这一项**两边都不可用**，不构成 DSH 的退役阻断项。
+- **图片附件不需要补实现**：DSH 的 composer 对 png/jpeg/webp/gif 走内联图片（`browserDraftAttachment` → prompt 的 `type:'image'` 部分，由 `dsh-attachment-local` 存进本用户的 `DSH_HOME`），不经过 `fileUploads`。只有非图片文件才走上传，那部分仍然被拒绝。因此没有新增图片上传 provider。通用文件附件、shell、fs、terminal、workspace files、plugin manager 都保持禁用。
+- **工具链首次端到端验证**：模型发起工具调用 → `market_snapshot` → `market-data-legacy-api` provider 读取 broker 写入的 0600 token 文件 → 以该用户的 Host token 调用 FastAPI `/market/snapshot` → 结果返回模型。这正是 v0.3.3 遗留的“带模型的端到端对话”链路，现在用 mock 跑通了。
+- **SQLite 下旧路径的取消不可靠**：旧路径在流式回复期间每个增量都会 `flush`，直到结束才提交，一直持有 SQLite 写锁；并发的取消请求等满 5 s busy timeout 后返回 500（实测 `cancel HTTP 500 after 5016 ms`，全量运行 3 次中失败 2 次，单独运行 3 次都通过）。在 Postgres 上运行全部通过。生产使用 Postgres，所以这只是测试环境问题，但说明旧路径的流式事务一直持有写事务。
+- **断线与刷新**：两条路径行为不同（见表）。HARNESS_CORE_V2 的“刷新恢复”“断线重连”门槛，DSH 侧的表现优于旧路径。
+
 ## 6. 开关汇总（全部默认关闭或采用安全值）
 
 | 变量 | 默认 | 作用 |
@@ -308,3 +357,11 @@ BindReadOnlyPaths=<DSH 安装目录> <harness 目录> <node 所在目录>   Bind
 | 真实 DSH（direct） | `PG_BROKER_IT_BROWSER=1 … session-broker.integration.mjs` | `# pass 13 / # fail 0`：并发 150 个 A 的 `session/list` → `{"200":65,"429":85}`，同时 B 为 200，4 s 后 A 恢复；178 行审计，rename 行带 `session-…` 与 `plugin: session`，不含会话标题、cookie 或 token；revoke 关闭 B 的真实 WebSocket 并停止 B 的 Host，A 不受影响；浏览器启动正常（默认限额不影响页面加载） |
 
 变异测试（每项单独做，恢复后 8/8 通过）：去掉每用户速率检查、所有用户共用一个桶、去掉在途上限、revoke 不校验密钥、复查不关闭隧道、审计写原始 user_id、去掉 `/me` 查询闸门——各自对应的测试都失败。
+
+### 7.4 端到端对话
+
+| 范围 | 命令 | 结果 |
+| --- | --- | --- |
+| mock 模型 | `node --test scripts/mock-llm.test.mjs`（`mock-llm-check`，已加入 check） | 2 passed |
+| 端到端（mock，Postgres） | `E2E_POSTGRES=docker PUREGAMMA_DSH_BIN=… tsx scripts/e2e-conversation.mjs` | 10 个场景、20 个侧面：19 pass，DSH 审批为 missing，0 fail；模型请求 39 次，审计 92 行；Postgres 容器结束后已删除 |
+| 端到端（mock，SQLite） | 同上，不加 `E2E_POSTGRES` | 旧路径的取消间歇性 500（SQLite 写锁，见 4.3），其余通过 |
