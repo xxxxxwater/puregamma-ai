@@ -31,10 +31,10 @@
 
 | 能力 | 之前 | 之后 | 代码位置 | 运行证据 | 仍存在的缺口 |
 | --- | --- | --- | --- | --- | --- |
-| 会话创建/继续 | 已实现（旧） | 已实现（旧） | `apps/api/routers/agent.py`、`components/agent-chat.tsx` | `test_agent_session_reliability.py`；E2E `agent-session-reliability` | DSH 路径：v0.3.3 已有每用户隔离 Host 的 session broker（默认关闭，见 §13），尚未接入 Caddy/Next 入口，也没有 OS 级隔离 |
+| 会话创建/继续 | 已实现（旧） | 已实现（旧） | `apps/api/routers/agent.py`、`components/agent-chat.tsx` | `test_agent_session_reliability.py`；E2E `agent-session-reliability` | DSH 路径：v0.3.3 已有每用户隔离 Host 的 session broker；v0.3.4 补上入口（独立子域 + Next 链接）、内核级 Host 隔离（systemd/docker launcher）、限流与审计、登出联动（全部默认关闭，§14）。尚未上线：需要 staging、真实模型 key 和部署侧出口限制 |
 | 历史搜索/归档 | 不可用（后端已支持 `archived`，前端未用；没有搜索） | 部分实现：标题搜索在前端完成，归档/取消归档走服务端，失败时回滚 | 同上 | E2E `history: search, archive…` | 服务端全文搜索接口不存在 |
 | 已删除会话 | **缺陷**：按 ID 仍可读、可继续发送 | 已修复：返回 404 | `agent_service.owned_conversation` | `test_a_deleted_conversation_cannot_be_read_or_continued` | — |
-| 流式与重连 | 部分实现：轮询事件，但事件**从未应用到界面**；没有按 seq 去重 | 已实现（旧路径）：按 seq 去重、忽略其他 run 的帧、显示“连接中断/正在恢复”、按服务端记录给出结论 | `lib/agent-run-events.ts`、`agent-chat.tsx` | E2E dedup / reconnect / re-attach | 服务端在客户端断开时会把 run 标为 `interrupted`（不在后台继续），这是旧架构的限制，由 DSH Session 解决 |
+| 流式与重连 | 部分实现：轮询事件，但事件**从未应用到界面**；没有按 seq 去重 | 已实现（旧路径）：按 seq 去重、忽略其他 run 的帧、显示“连接中断/正在恢复”、按服务端记录给出结论 | `lib/agent-run-events.ts`、`agent-chat.tsx` | E2E dedup / reconnect / re-attach | 服务端在客户端断开时会把 run 标为 `interrupted`（不在后台继续），这是旧架构的限制。v0.3.4 的 mock 对照（§14）证实 DSH Session 断线不影响回合、重连后由 follow 快照收到完整回复 |
 | 刷新恢复 | 不可用：忽略 `active_run_id` | 已实现：根据事件日志重新附着进行中的 run | `agent-chat.tsx#observeRun` | E2E `a reload re-attaches…` | 同上 |
 | 重复提交 | **缺陷**：消息 POST 没有幂等键 | 已实现：`client_request_id`，重复时返回 409 `DUPLICATE_SUBMISSION` 并附着原 run；提供“安全重试” | `agent_service.start_run`、`agent.py` | pytest + E2E | — |
 | 取消 | 已实现（停止生成） | 已实现，并明确说明“已执行的工具不会撤销，按实际用量结算”；同一 run 只取消一次 | 同上 | E2E `stop cancels…` | 聊天里没有后台任务；研究任务的取消在 `/research` |
@@ -46,7 +46,7 @@
 | 产物 | 已实现（`/research/[runId]`） | 不变 | `research-run-detail.tsx` | — | 聊天内没有产物下载 |
 | 模型路由 | 部分实现：菜单里有不可用模型，并硬编码 “DeepSeek V4 Pro” | 已实现：只列出当前可用且已定价的模型，显示 provider 和服务端给出的每轮预估；未列出的模型按原因（需升级套餐 / 未配置计价 / 不可用）计数说明（v0.3.3） | `agent-chat.tsx`、`agent.py`、`agent_service.py`、`packages/billing/metering.py` | `test_agent_model_pricing.py`；E2E `model-upgrade` | 没有显式费率的模型（目前 `gpt-6-*`）一律拒绝、不按默认费率计费；需由产品批准费率后通过 `AGENT_MODEL_CREDIT_RATES` 配置（§8） |
 | 用量 | 已实现 | 已实现：发送前显示预估和预留，完成后显示实际扣费/退款（均为服务端值） | `agent-chat.tsx` | E2E `model-upgrade` billing | — |
-| 工具审批 | 仅契约：`STATEFUL_TOOLS` 为空，审批流程不会触发；同时提供笼统的“自动执行” | 部分实现：“自动执行”已停用（服务端按 ask 执行）；审批卡显示动作/范围/影响/权限/有效期；服务端一次性、校验所有者、120 s 过期 | `chat_workspace.py`、`tool-approval-card.tsx` | pytest + E2E | 目前没有需要审批的有状态工具 |
+| 工具审批 | 仅契约：`STATEFUL_TOOLS` 为空，审批流程不会触发；同时提供笼统的“自动执行” | 部分实现：“自动执行”已停用（服务端按 ask 执行）；审批卡显示动作/范围/影响/权限/有效期；服务端一次性、校验所有者、120 s 过期 | `chat_workspace.py`、`tool-approval-card.tsx` | pytest + E2E | 目前没有需要审批的有状态工具；DSH 公开 profile 中同样没有会走 `ask` 的工具，两条路径在出厂配置下都无法触发审批（§14） |
 | 组合/NAV | 部分实现：没有账户时返回 **500**；`str(Decimal)` 输出 `0E-8` | 已实现：返回结构化 404；十进制字符串不再出现指数；界面标注口径、币种、版本、计算/价格时间和 stale | `routers/live_trading.py`、`decimal_text.py`、`NavPanel` | `test_live_trading_nav_http.py`；E2E | — |
 | 回测 | 已实现（旧） | 不变 | `backtest-lab.tsx` | — | 尚未有 Harness UI 插件 |
 | 领域 tool-view（Harness） | 仅契约：catalog 里的 `tool.*` UI 没有实现 | 已实现（Portfolio/NAV、Research、Options、Backtest、Memory）：`@puregamma/dsh-ui-portfolio`、`@puregamma/dsh-ui-research` 通过 `tool.call.toolview` 渲染工具结果的 `presentationMeta`（模型不可见），stale/unavailable/degraded 都会明确标出，缺失的 NAV 不显示为 0 | `harness/plugins/ui-{portfolio,research,options,backtest,memory}`、对应 `tool-*` | `domain-toolviews-check`（8 例） | 研究产物资源视图（`resource.research-artifact`）未做 |
@@ -156,7 +156,7 @@
 ## 8. 尚未上线 / 已知缺口
 
 - **实盘与账务（v0.3.4，§14）**：新增的写入口全部默认关闭——`LIVE_ORDER_RECHECK_ENABLED`（只查询的重新核对）、`LIVE_MANDATE_PROPOSALS_ENABLED`（需先在生产执行迁移 0036）。是否开启、审批人范围、限流间隔、`LIVE_ORDER_SYNC` 审计行的保留策略需要产品决定。管理端 `notes` 改为必填、释放不存在的 kill switch 返回 404，仓库外的脚本需同步。
-- **DSH 多租户**：v0.3.3 已实现每用户隔离 Host 的 session broker、用户级 Host token 和按请求读取的 token 文件（默认关闭，§13）。仍未上线：Caddy/Next 到 broker 的入口；所有 Host 以同一 OS 用户运行（公开实例需要独立 uid/容器或 seccomp/AppArmor）；broker 不做速率限制（应由边缘代理负责）；没有用真实模型 key 做过端到端对话。
+- **DSH 多租户**：v0.3.3 实现了每用户隔离 Host 的 session broker；v0.3.4 补上入口、内核级 Host 隔离、限流审计和登出联动（均默认关闭，§14，上线步骤见 [runbook](upgrade-20261029/dsh-ingress-isolation.md) §5）。仍未上线：需要用户决定上线时间与 `HARNESS_DOMAIN`、提供 staging 与真实模型 key、两个测试账号、选择出口限制方案（user manager 会忽略 `IPAddressDeny`）；硬性磁盘配额、broker 的 systemd 服务文件和 docker 镜像属于部署工作；CSP 仍需 `'unsafe-eval'`（上游限制）。
 - **Harness 编译依赖对齐**：v0.3.3 已把 npm 上的 `@deepseek-ai/*` 升到 `0.1.7-rc.1`（与 vendored gitlink 同 tag）。vendored 源码本身没有在本机构建（磁盘和内存不足），用的是同 tag 的 npm 包。
 - **领域 tool-view 插件**：五个领域都已实现（v0.3.1–v0.3.2）。研究产物和回测产物的资源视图（`resource.*`）尚未实现。
 - **计费**：v0.3.3 起没有显式费率的模型直接拒绝（`AGENT_MODEL_PRICING_NOT_CONFIGURED`），不再按默认费率计费；代码里没有新增任何价格。`gpt-6-luna/sol/astra` 因此在菜单中显示“未配置计价”，需要产品批准费率后通过 `AGENT_MODEL_CREDIT_RATES` 配置。
@@ -251,6 +251,14 @@ v0.3.3 之后合入 `main` 的变更（均未执行生产部署、生产数据�
   - Mandate 提案 → 两名不同管理员审批（提案人和所有者都不能批）→ 生效（生效后处于暂停状态，仍经过全部静态门禁）。`LIVE_MANDATE_PROPOSALS_ENABLED` 默认关；新表来自只增不改的迁移 0036，迁移未执行时接口返回“不可用”，其他路径不访问新表。
   - 测试中发现并修复的既有缺陷：暂停/恢复与撤单的审计键精确到秒，同一秒内的第二次操作审计被去重丢失；并发确认的输家拿到锁后未复查，可能把已批准的 intent 改成 REJECTED；撤单返回 `CANCEL_UNKNOWN` 时界面仍显示“已撤单”。
 
+- **DSH 多租户上线准备**（`933da85`…`080c5ee`，详见 [upgrade-20261029/dsh-ingress-isolation.md](upgrade-20261029/dsh-ingress-isolation.md)，含上线 runbook、回滚和更新后的威胁模型）：
+  - 先修两个真实浏览器才暴露的阻断问题：v0.3.3 的多租户 UI 实际打不开——浏览器端 Session controller 也依赖 `fileUpload`（拒绝型插件新增 client face），以及 broker 用 `URLSearchParams` 删 token 时破坏了 DSH 的合并 URL `plugins/??a,b`。
+  - 入口：DSH Web 可以挂在路径前缀下（实测），但生产推荐独立子域（DSH 需要 `'unsafe-eval'`，不应与主站同源）。Caddy 站点只通过 `docker-compose.harness-sessions.yml` 加载，生产 `Caddyfile` 未改且 CI 守卫；Next 链接由 `NEXT_PUBLIC_DSH_SESSIONS_URL` 控制，默认不出现。broker 对每个响应加 CSP 与安全头。
+  - Host 隔离：可插拔 launcher（`direct` 默认 / `systemd` user transient unit / `docker`），内存、CPU、进程数、文件描述符、单文件大小上限，用户目录软配额（超限 507），只能看到本用户目录；每用户私有 profile 目录（DSH 启动时会重写 `cordis.yml`，v0.3.3 的软链接让所有租户写同一文件）；关闭共享 `/tmp` 的原生扩展缓存。
+  - 限流与审计：每用户令牌桶、在途请求与 WebSocket 上限、按地址的身份查询限流、全局 Host 启动速率（429 + `Retry-After`）；JSON 审计行（user 为 HMAC，含 session/plugin/provider/trace，不记录 prompt/cookie/token）；`traceparent`/`X-Request-Id` 透传给 Host 与 FastAPI。
+  - 登出联动：FastAPI `DSH_BROKER_REVOKE_URL`（默认关）在登出后通知 broker 关闭隧道并停止 Host；broker 另外每 60 s 复查已打开的隧道（补上 v0.3.3“登出后 WebSocket 隧道仍可用”的缺口）。
+  - 端到端对照（本地确定性 mock 模型，**不是真实 key**）：DSH 与旧 Web 路径各 10 个场景，19 通过、0 失败，DSH“工具审批”为缺失（两条路径出厂配置下都无法触发）。DSH 在刷新恢复、断线重连、归档后阻止新回合上优于旧路径；首次跑通“模型工具调用 → legacy-api provider → 用户 Host token → FastAPI”链路；图片走内联，不需要上传 provider。
+
 验证（协调会话在合并前的树上复跑，另附工作会话报告）：
 
 | 项目 | 结果 |
@@ -262,4 +270,11 @@ v0.3.3 之后合入 `main` 的变更（均未执行生产部署、生产数据�
 | Playwright（生产构建 + `next start`，chromium + mobile-chrome） | live-trading-ledger 12、live-trading-recheck 10、live-trading-admin 16、live-trading-workflow 24，全部通过 |
 | 工作会话报告：route-audit（生产构建） | 116/116（新增 `/admin/trading`） |
 | 工作会话报告：变异测试 | 16 项守卫去掉后对应测试失败（所有权、只读保证、限流、自批、双人审批、审计键、锁内复查等） |
+| W1 rebase 到 `main` 后：`pnpm run check`（harness，pnpm 11.7.0） | 90 通过、0 失败、3 跳过（需要真实 caddy/docker 的 live 用例在协调环境跳过；工作会话报告带真实 caddy 与 docker 时全部通过） |
+| W1 rebase 后：`pytest tests` / ruff / web typecheck / lint | 1383 通过、9 跳过、4 xfailed、0 失败 / 通过 / 通过 / 9 个已有警告 |
+| W1 rebase 后：Playwright（生产构建） | harness-sessions-entry 2 通过（开关关闭；开启用例按设计跳过）、chat-design 10 通过；agent-session-reliability 28 通过、2 失败——同样的 2 项在不含 W1 的 `main` 生产构建上也失败（手机历史抽屉选择会话后焦点未返回），CI 的 dev 模式通过，列为遗留项 |
+| 工作会话报告：真实 DSH `0.1.7-rc.1` | direct 13/13；systemd、docker launcher 各 12/12（浏览器、上限回读、目录隔离、空闲回收）；根路径与 `/harness` 前缀下浏览器均正常 |
+| 工作会话报告：端到端对照（mock 模型 + 一次性 Postgres） | 19 通过、0 失败，DSH 工具审批为缺失 |
+
+合并时发现并修复：`0186a72` 新增的 `/admin/trading` 页面没有登记到 Harness 迁移台账，`architecture-check` 因此失败；harness-v2 CI 只在 `harness/**` 变化时运行，所以 `main` 上没有暴露（`1fb1da7` 补登记，owner `admin`）。
 
