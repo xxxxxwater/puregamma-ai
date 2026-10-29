@@ -57,7 +57,7 @@ export default async function AdminPage({ params }: { params: { locale: Locale }
 
       {unauthorized ? <ErrorState title={copy.unauthorizedTitle} description={copy.unauthorizedDescription} /> : null}
       {degraded ? (
-        <ResearchCard className="border-status-warning">
+        <ResearchCard className="border border-status-warning">
           <p className="text-sm text-status-warning">
             {zh
               ? "部分管理数据读取失败，下面对应位置以「—」或「读取失败」显示，未用 0 代替。"
