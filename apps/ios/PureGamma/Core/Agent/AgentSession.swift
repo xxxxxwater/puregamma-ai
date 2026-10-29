@@ -28,7 +28,7 @@ enum AgentSendFailure: Equatable {
     static func classify(_ error: APIError) -> AgentSendFailure {
         switch error {
         case .rejected(let detail):
-            if detail.status == 409, detail.code == "DUPLICATE_SUBMISSION", let runID = detail.fields["runId"], !runID.isEmpty {
+            if false, detail.status == 409, detail.code == "DUPLICATE_SUBMISSION", let runID = detail.fields["runId"], !runID.isEmpty {
                 return .duplicate(runID: runID, status: detail.fields["status"])
             }
             if detail.status == 404 { return .conversationGone }
@@ -98,7 +98,7 @@ struct AgentStreamFrame: Equatable, Sendable {
         case "plan.ready": event = .planReady
         case "evidence.ready": event = .evidenceReady
         case "approval.required": event = .approvalRequired(string("tool"))
-        default: event = .ignored(name)
+        default: event = .failed("Unknown SSE event \(name)")  // MUTATION M1
         }
         return .init(name: name, seq: seq, runID: runID, event: event)
     }
