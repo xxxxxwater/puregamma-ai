@@ -2,6 +2,7 @@ import assert from 'node:assert/strict'
 import { randomBytes } from 'node:crypto'
 import { mkdtempSync, readFileSync, rmSync, statSync } from 'node:fs'
 import http from 'node:http'
+import net from 'node:net'
 import { tmpdir } from 'node:os'
 import path from 'node:path'
 import process from 'node:process'
@@ -18,7 +19,7 @@ import { createBroker, hostEnv, hostPaths, loadConfig, validateConfig } from '..
 const harness = process.cwd()
 const fakeHost = path.join(harness, 'scripts', 'fixtures', 'fake-dsh-host.mjs')
 const SECRET = randomBytes(24).toString('hex')
-const SESSIONS = { 'sess-a': 'user-a', 'sess-b': 'user-b', 'sess-c': 'user-c', 'sess-evil': 'user-evil' }
+const SESSIONS = { 'sess-a': 'user-a', 'sess-b': 'user-b', 'sess-c': 'user-c', 'sess-evil': 'user-evil', 'sess-d': 'user-d' }
 const root = mkdtempSync(path.join(tmpdir(), 'pg-broker-'))
 let mints = 0
 
@@ -184,4 +185,35 @@ test('idle Hosts are reaped and their token files removed', async () => {
   await broker.hosts.reap()
   assert.equal(broker.hosts.size, 0)
   assert.throws(() => statSync(file))
+})
+
+test('a request target URL cannot parse is refused and the broker stays up', async () => {
+  // Node accepts these request lines; `new URL` throws on them. That used to
+  // be an uncaught exception before admission: any client could exit the
+  // broker and orphan every user's Host.
+  const raw = target => new Promise(resolve => {
+    const socket = net.connect(broker.server.address().port, '127.0.0.1', () => socket.write(target))
+    let reply = ''
+    socket.on('data', data => { reply += data })
+    socket.on('close', () => resolve(reply.split('\r\n')[0]))
+    socket.on('error', () => {})
+    setTimeout(() => socket.destroy(), 1000)
+  })
+  for (const target of [
+    'GET http://[ HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n',
+    'GET //[ HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n',
+    'GET http://[ HTTP/1.1\r\nHost: x\r\nConnection: Upgrade\r\nUpgrade: websocket\r\n\r\n',
+  ]) {
+    assert.match(await raw(target), /^HTTP\/1\.1 4\d\d /)
+  }
+  assert.equal((await fetch(`${base}/__broker/healthz`)).status, 200)
+})
+
+test('concurrent first requests for one user share one mint and one Host', async () => {
+  config.idleMs = 60_000
+  const before = mints
+  const replies = await Promise.all(Array.from({ length: 8 }, () => call('/api/session/list', { session: 'sess-d' })))
+  assert.deepEqual(replies.map(reply => reply.status), Array(8).fill(200), JSON.stringify(replies.map(reply => reply.body)))
+  assert.equal(mints - before, 1)
+  assert.equal(broker.hosts.size, 1)
 })

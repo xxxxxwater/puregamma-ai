@@ -29,7 +29,12 @@ export function routeRequest(url: string | undefined, basePath: string): Route {
   const raw = url ?? '/'
   const mark = raw.indexOf('?')
   const search = withoutLaunchToken(mark < 0 ? '' : raw.slice(mark))
-  let pathname = new URL(mark < 0 ? raw : raw.slice(0, mark), 'http://broker.invalid').pathname
+  let pathname: string
+  try {
+    pathname = new URL(mark < 0 ? raw : raw.slice(0, mark), 'http://broker.invalid').pathname
+  } catch {
+    return { kind: 'not-found' }
+  }
   if (basePath) {
     if (pathname === basePath) return { kind: 'redirect', location: `${basePath}/${search}` }
     if (!pathname.startsWith(`${basePath}/`)) return { kind: 'not-found' }
@@ -213,8 +218,9 @@ export function createBroker(
   function closeTunnels(userId: string, reason: string): number {
     const set = tunnels.get(userId)
     if (!set) return 0
+    const count = set.size
     for (const tunnel of [...set]) tunnel.close(reason)
-    return set.size
+    return count
   }
 
   const secretDigest = createHash('sha256').update(config.brokerSecret).digest()
@@ -248,7 +254,7 @@ export function createBroker(
       if (typeof userId !== 'string' || !userId || userId.length > 64) return deny(response, 400, 'user-id-required')
       const forgotten = auth.forgetUser(userId)
       const closed = closeTunnels(userId, 'revoked')
-      void hosts.stop(userId, 'revoked').then(() => {
+      void hosts.stop(userId, 'revoked').catch(error => log(`revoke stop failed: ${(error as Error).message}`)).then(() => {
         audit.write({ event: 'revoke', action: 'revoke', userId, trace: trace.id, result: `ok:${forgotten}c/${closed}s`, status: 204, ms: Date.now() - started })
         response.writeHead(204, { 'cache-control': 'no-store' })
         response.end()
@@ -276,6 +282,7 @@ export function createBroker(
         return deny(response, admission.status, admission.code, request, refusalHeaders(admission, trace))
       }
       const { host, identity, release } = admission
+      if (response.destroyed) return release()
       host.lastActive = Date.now()
       // Small RPC JSON bodies are scanned for identifiers only (Session id,
       // provider id) when the request ends; the bytes are never logged.
@@ -313,12 +320,17 @@ export function createBroker(
         response.writeHead(status, headers)
         reply.pipe(response)
       })
+      response.once('close', () => { if (!response.writableFinished) upstream.destroy() })
       upstream.on('error', () => {
         status = 502
         if (!response.headersSent) deny(response, 502, 'host-unreachable')
         else response.destroy()
       })
       request.pipe(upstream)
+    }).catch(error => {
+      log(`request failed: ${(error as Error).message}`)
+      if (!response.headersSent) deny(response, 500, 'internal-error')
+      else response.destroy()
     })
   })
 
@@ -339,6 +351,10 @@ export function createBroker(
         return fail(admission.status, admission.code, admission.retryAfterSec)
       }
       const { host, identity, release } = admission
+      if (socket.destroyed || socket.readableEnded) {
+        release()
+        return void socket.destroy()
+      }
       const upstream = net.connect(host.port, '127.0.0.1')
       host.openSockets += 1
       let closed = false
@@ -387,6 +403,9 @@ export function createBroker(
         upstream.pipe(socket)
         socket.pipe(upstream)
       })
+    }).catch(error => {
+      log(`upgrade failed: ${(error as Error).message}`)
+      socket.destroy()
     })
   })
 

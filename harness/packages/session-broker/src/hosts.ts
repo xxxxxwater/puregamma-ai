@@ -37,6 +37,7 @@ interface Record_ {
   starting?: Promise<Host>
   child?: ChildProcess
   plan?: LaunchPlan
+  prepared?: Promise<void>
   tokens: TokenKeeper
 }
 
@@ -182,6 +183,10 @@ export class HostManager {
       }
       this.overQuota.delete(userId)
       if (this.records.size >= this.config.maxHosts) await this.reap(true)
+      // Another request for this user may have created the record meanwhile.
+      record = this.records.get(userId)
+    }
+    if (!record) {
       if (this.records.size >= this.config.maxHosts) throw new CapacityError('all Host slots are in use')
       // Global budget for new Hosts: a burst of new users (or one user
       // cycling credentials) cannot fork-bomb the machine with DSH processes.
@@ -195,12 +200,14 @@ export class HostManager {
       this.records.set(userId, record)
     }
     try {
-      await prepareDirs(hostPaths(this.config.hostsRoot, userId), this.config)
+      record.prepared ??= prepareDirs(hostPaths(this.config.hostsRoot, userId), this.config)
+      await record.prepared
       await record.tokens.ensure(credential, trace)
       if (record.host) {
         record.host.lastActive = Date.now()
         return record.host
       }
+      if (this.records.get(userId) !== record) throw new Error('Host was stopped while starting')
       if (!record.starting) {
         const began = Date.now()
         record.starting = this.start(userId, record)
@@ -213,7 +220,7 @@ export class HostManager {
       host.lastActive = Date.now()
       return host
     } catch (error) {
-      if (!record.host) await this.stop(userId, 'start-failed')
+      if (!record.host && this.records.get(userId) === record) await this.stop(userId, 'start-failed')
       throw error
     }
   }
@@ -304,6 +311,9 @@ const PROFILE_WRITABLE = new Set(['cordis.yml'])
 async function prepareDirs(paths: HostPaths, config: BrokerConfig): Promise<void> {
   await fs.mkdir(config.hostsRoot, { recursive: true, mode: 0o700 })
   for (const dir of [paths.dir, paths.home, paths.workspace, path.join(paths.home, 'profiles')]) {
+    // Never follow a link a Host planted in its own directory.
+    const stat = await fs.lstat(dir).catch(() => undefined)
+    if (stat && !stat.isDirectory()) await fs.rm(dir, { force: true })
     await fs.mkdir(dir, { recursive: true, mode: 0o700 })
   }
   await prepareProfile(path.join(paths.home, 'profiles', config.profileName), config.profileDir)

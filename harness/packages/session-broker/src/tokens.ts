@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto'
 import { promises as fs } from 'node:fs'
 import path from 'node:path'
 import { credentialHeaders, type UserCredential } from './identity.ts'
@@ -20,6 +21,7 @@ export class TokenKeeper {
   private current: MintedToken | undefined
   private timer: NodeJS.Timeout | undefined
   private closed = false
+  private minting: Promise<void> | undefined
 
   constructor(
     readonly userId: string,
@@ -35,7 +37,8 @@ export class TokenKeeper {
   async ensure(credential: UserCredential, trace: Record<string, string> = {}): Promise<void> {
     const now = Math.floor(Date.now() / 1000)
     if (this.current && this.current.expiresAt - now > 120) return
-    await this.mint(credentialHeaders(credential), trace)
+    this.minting ??= this.mint(credentialHeaders(credential), trace).finally(() => { this.minting = undefined })
+    await this.minting
   }
 
   private async mint(auth: Record<string, string>, trace: Record<string, string> = {}): Promise<void> {
@@ -62,6 +65,7 @@ export class TokenKeeper {
     if (this.closed) return
     this.current = { token: body.token, userId: body.user_id, expiresAt: body.expires_at }
     await writePrivate(this.file, `${body.token}\n`)
+    if (this.closed) return void await fs.rm(this.file, { force: true }).catch(() => {})
     this.schedule()
   }
 
@@ -85,13 +89,13 @@ export class TokenKeeper {
     this.closed = true
     clearTimeout(this.timer)
     this.current = undefined
-    await fs.rm(this.file, { force: true })
+    await fs.rm(this.file, { force: true }).catch(error => this.log(`token file removal failed: ${(error as NodeJS.ErrnoException).code}`))
   }
 }
 
 /** Atomic 0600 write: the providers refuse group/world-readable token files. */
 export async function writePrivate(file: string, content: string): Promise<void> {
-  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${Date.now()}.tmp`)
+  const tmp = path.join(path.dirname(file), `.${path.basename(file)}.${process.pid}.${randomBytes(6).toString('hex')}.tmp`)
   await fs.writeFile(tmp, content, { mode: 0o600, flag: 'wx' })
   await fs.rename(tmp, file)
 }
