@@ -35,7 +35,7 @@ export function ToolTimeline({ steps, locale }: { steps: ToolStep[]; locale: Loc
   const copy = STATUS_COPY[locale === "zh" ? "zh" : "en"];
   return (
     <section aria-label={copy.title} data-testid="tool-timeline" className="text-xs">
-      <p className="mb-1 text-[11px] uppercase tracking-wide text-text-pg-dim">{copy.title} · {copy.count(steps.length)}</p>
+      <p className="mb-1 text-11 uppercase tracking-wide text-text-pg-dim">{copy.title} · {copy.count(steps.length)}</p>
       <ol className="space-y-1">
         {steps.map((step) => {
           const duration = stepDurationMs(step);
@@ -50,15 +50,15 @@ export function ToolTimeline({ steps, locale }: { steps: ToolStep[]; locale: Loc
                   <span className="hidden tabular-nums text-text-pg-dim sm:inline">{time(step.startedAt, locale)}{duration !== null ? ` · ${(duration / 1000).toFixed(duration < 10_000 ? 1 : 0)}s` : ""}</span>
                 </summary>
                 <div className="ml-6 mt-1 space-y-2 border-l border-border-pg pb-1 pl-3">
-                  <p className="font-mono text-[10px] text-text-pg-dim sm:hidden">{time(step.startedAt, locale)}{step.completedAt ? ` → ${time(step.completedAt, locale)}` : ""}</p>
+                  <p className="font-mono text-11 text-text-pg-dim sm:hidden">{time(step.startedAt, locale)}{step.completedAt ? ` → ${time(step.completedAt, locale)}` : ""}</p>
                   {step.arguments && Object.keys(step.arguments).length ? (
                     <div>
-                      <p className="text-[10px] uppercase tracking-wide text-text-pg-dim">{copy.input}</p>
-                      <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-[var(--pg-surface-2)] p-2 font-mono text-[11px] leading-4">{JSON.stringify(step.arguments, null, 2)}</pre>
+                      <p className="text-11 uppercase tracking-wide text-text-pg-dim">{copy.input}</p>
+                      <pre className="mt-1 max-h-40 overflow-auto whitespace-pre-wrap break-words rounded-md bg-[var(--pg-surface-2)] p-2 font-mono text-11 leading-4">{JSON.stringify(step.arguments, null, 2)}</pre>
                     </div>
                   ) : null}
-                  {step.summary ? <div><p className="text-[10px] uppercase tracking-wide text-text-pg-dim">{copy.result}</p><p className="mt-1 break-words leading-5 text-text-pg-muted">{step.summary}</p></div> : null}
-                  {step.error ? <div><p className="text-[10px] uppercase tracking-wide text-text-pg-dim">{copy.error}</p><p className="mt-1 break-words font-mono text-[11px] text-status-negative">{step.error}</p></div> : null}
+                  {step.summary ? <div><p className="text-11 uppercase tracking-wide text-text-pg-dim">{copy.result}</p><p className="mt-1 break-words leading-5 text-text-pg-muted">{step.summary}</p></div> : null}
+                  {step.error ? <div><p className="text-11 uppercase tracking-wide text-text-pg-dim">{copy.error}</p><p className="mt-1 break-words font-mono text-11 text-status-negative">{step.error}</p></div> : null}
                 </div>
               </details>
             </li>

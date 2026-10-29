@@ -94,7 +94,7 @@ export function PuzzleCaptcha({
 
   return (
     <div className="space-y-2">
-      <div className="flex items-center justify-between text-[11px] text-text-pg-dim">
+      <div className="flex items-center justify-between text-11 text-text-pg-dim">
         <span>{labels.instruction}</span>
         <button type="button" disabled={disabled} onClick={() => { onReset(); void load(); }} className="inline-flex items-center gap-1 text-text-pg-muted transition hover:text-text-pg disabled:cursor-not-allowed disabled:opacity-50" aria-label="refresh captcha">
           <RefreshCw className="h-3 w-3" />
@@ -137,7 +137,7 @@ export function PuzzleCaptcha({
             finishDrag();
           }
         }}
-        className={`relative h-9 border text-[11px]  rounded-lg ${disabled ? "cursor-wait opacity-70" : "cursor-ew-resize"} ${verified ? "border-status-positive bg-bg-panel-muted text-status-positive" : "border-border-pg bg-bg-panel-muted text-text-pg-dim"}`}
+        className={`relative h-9 border text-11  rounded-lg ${disabled ? "cursor-wait opacity-70" : "cursor-ew-resize"} ${verified ? "border-status-positive bg-bg-panel-muted text-status-positive" : "border-border-pg bg-bg-panel-muted text-text-pg-dim"}`}
       >
         <div className={`absolute inset-y-0 left-0 ${verified ? "bg-status-positive/20" : "bg-border-pg"}`} style={{ width: 30 + dragX }} />
         <div

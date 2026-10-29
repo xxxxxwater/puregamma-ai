@@ -82,7 +82,7 @@ export function JevAdvisoryConsole({ locale }: { locale: Locale }) {
         <div className="mt-5 grid gap-3 sm:grid-cols-3">
           {(["up", "down", "neutral"] as const).map((choice) => (
             <div key={choice} className="rounded-lg border border-border-pg bg-bg-panel-muted p-3">
-              <div className="flex items-center justify-between text-[11px] uppercase text-text-pg-muted"><span>{choice}</span>{state.choice === choice ? <Activity className="h-3.5 w-3.5 text-accent-pg" /> : null}</div>
+              <div className="flex items-center justify-between text-11 uppercase text-text-pg-muted"><span>{choice}</span>{state.choice === choice ? <Activity className="h-3.5 w-3.5 text-accent-pg" /> : null}</div>
               <p className="mt-2 text-2xl font-semibold tabular-nums">{percent(probabilities?.[choice])}</p>
             </div>
           ))}

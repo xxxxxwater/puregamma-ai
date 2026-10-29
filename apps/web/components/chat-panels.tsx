@@ -18,15 +18,15 @@ export function ContextControls({ locale, plugins, pluginCounts, skills = [], cu
         user to switch off into a worse answer. */}
     <section data-testid="agent-plugins">
       <div className="mb-1 flex items-center gap-2 text-xs font-semibold"><Boxes className="h-3.5 w-3.5" />{zh ? "内置插件" : "Built-in plugins"}<span className="ml-auto font-normal text-text-pg-dim">{pluginCounts ? `${pluginCounts.enabled}/${pluginCounts.total} · ${pluginCounts.tools} ${zh ? "工具" : "tools"}` : "--"}</span></div>
-      <p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "能力由平台内置插件提供，Agent 根据目标自行调用；不需要在每条消息里选择。" : "Capabilities come from built-in plugins and the Agent picks what to call from the goal; nothing is selected per message."}</p>
+      <p className="mb-2 text-11 leading-4 text-text-pg-dim">{zh ? "能力由平台内置插件提供，Agent 根据目标自行调用；不需要在每条消息里选择。" : "Capabilities come from built-in plugins and the Agent picks what to call from the goal; nothing is selected per message."}</p>
       <div className="space-y-1.5">{plugins.map((plugin) => <div key={plugin.id} className="border border-border-pg px-2.5 py-2 text-xs rounded-lg">
-        <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate">{plugin.name}</span><span className={`shrink-0 border px-1.5 py-0.5 text-[10px] rounded-lg ${plugin.enabled ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-dim"}`}>{plugin.enabled ? (zh ? "已启用" : "Enabled") : (plugin.reason === "plan_required" ? (zh ? "套餐不含" : "Plan") : (zh ? "不可用" : "Unavailable"))}</span></div>
+        <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate">{plugin.name}</span><span className={`shrink-0 border px-1.5 py-0.5 text-11 rounded-lg ${plugin.enabled ? "border-status-positive text-status-positive" : "border-border-pg text-text-pg-dim"}`}>{plugin.enabled ? (zh ? "已启用" : "Enabled") : (plugin.reason === "plan_required" ? (zh ? "套餐不含" : "Plan") : (zh ? "不可用" : "Unavailable"))}</span></div>
         <span className="mt-1 block leading-4 text-text-pg-dim">{plugin.description}</span>
-        <span className="mt-1 block truncate font-mono text-[10px] text-text-pg-dim">{plugin.service}{plugin.tools.length ? ` · ${plugin.tools.length} ${zh ? "个工具" : "tools"}` : ""}</span>
+        <span className="mt-1 block truncate font-mono text-11 text-text-pg-dim">{plugin.service}{plugin.tools.length ? ` · ${plugin.tools.length} ${zh ? "个工具" : "tools"}` : ""}</span>
       </div>)}</div>
     </section>
     {skills.length ? <SkillList locale={locale} skills={skills} /> : null}
-    <section><label className="mb-1 block text-xs font-semibold">{zh ? "回答偏好" : "Response preferences"}</label><p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "只控制表达方式，不改变事实、权限或风险规则。" : "Controls presentation only, not evidence, permissions, or risk rules."}</p><textarea value={customPrompt} onChange={(event) => onPrompt(event.target.value.slice(0, 2000))} rows={4} placeholder={zh ? "例如：使用简洁中文，先结论后证据，列出反方观点。" : "Example: concise answer, conclusion first, include counter-evidence."} className="w-full resize-y border border-border-pg bg-bg-panel p-2 text-xs leading-5 outline-none focus:border-border-pg-strong rounded-lg" /><div className="mt-1 text-right text-[10px] text-text-pg-dim">{customPrompt.length}/2000</div></section>
+    <section><label className="mb-1 block text-xs font-semibold">{zh ? "回答偏好" : "Response preferences"}</label><p className="mb-2 text-11 leading-4 text-text-pg-dim">{zh ? "只控制表达方式，不改变事实、权限或风险规则。" : "Controls presentation only, not evidence, permissions, or risk rules."}</p><textarea value={customPrompt} onChange={(event) => onPrompt(event.target.value.slice(0, 2000))} rows={4} placeholder={zh ? "例如：使用简洁中文，先结论后证据，列出反方观点。" : "Example: concise answer, conclusion first, include counter-evidence."} className="w-full resize-y border border-border-pg bg-bg-panel p-2 text-xs leading-5 outline-none focus:border-border-pg-strong rounded-lg" /><div className="mt-1 text-right text-11 text-text-pg-dim">{customPrompt.length}/2000</div></section>
   </div>;
 }
 
@@ -48,14 +48,14 @@ function SkillList({ locale, skills }: { locale: Locale; skills: SkillSummary[] 
   const ready = skills.filter((skill) => !skillUnavailableReason(skill, zh)).length;
   return <section data-testid="agent-skills">
     <div className="mb-1 flex items-center gap-2 text-xs font-semibold"><Sparkles className="h-3.5 w-3.5" />Skills<span className="ml-auto font-normal text-text-pg-dim">{ready}/{skills.length} {zh ? "可用" : "available"}</span></div>
-    <p className="mb-2 text-[10px] leading-4 text-text-pg-dim">{zh ? "Agent 按目标自动选用；Skill 说明不会提升任何工具权限，工具仍受账户、套餐与审批限制。" : "The Agent picks these from the goal. A Skill's instructions never raise a tool permission; tools stay bound by account, plan and approval."}</p>
+    <p className="mb-2 text-11 leading-4 text-text-pg-dim">{zh ? "Agent 按目标自动选用；Skill 说明不会提升任何工具权限，工具仍受账户、套餐与审批限制。" : "The Agent picks these from the goal. A Skill's instructions never raise a tool permission; tools stay bound by account, plan and approval."}</p>
     <ul className="space-y-1.5">{skills.map((skill) => {
       const reason = skillUnavailableReason(skill, zh);
       return <li key={skill.skill_id} className="rounded-lg border border-border-pg px-2.5 py-2 text-xs">
-        <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate font-medium">{skill.name}</span><span className={`shrink-0 rounded-lg border px-1.5 py-0.5 text-[10px] ${reason ? "border-border-pg text-text-pg-dim" : "border-status-positive text-status-positive"}`}>{reason ?? (zh ? "可用" : "Available")}</span></div>
+        <div className="flex items-center gap-2"><span className="min-w-0 flex-1 truncate font-medium">{skill.name}</span><span className={`shrink-0 rounded-lg border px-1.5 py-0.5 text-11 ${reason ? "border-border-pg text-text-pg-dim" : "border-status-positive text-status-positive"}`}>{reason ?? (zh ? "可用" : "Available")}</span></div>
         <span className="mt-1 block leading-4 text-text-pg-dim">{skill.description}</span>
-        {skill.tool_allowlist?.length ? <span className="mt-1 block break-words font-mono text-[10px] text-text-pg-dim">{zh ? "可用工具" : "Tools"}: {skill.tool_allowlist.join(", ")}</span> : null}
-        {skill.runtime?.human_confirmation_required ? <span className="mt-1 block text-[10px] text-status-warning">{zh ? "执行前需要你的确认" : "Needs your confirmation before acting"}</span> : null}
+        {skill.tool_allowlist?.length ? <span className="mt-1 block break-words font-mono text-11 text-text-pg-dim">{zh ? "可用工具" : "Tools"}: {skill.tool_allowlist.join(", ")}</span> : null}
+        {skill.runtime?.human_confirmation_required ? <span className="mt-1 block text-11 text-status-warning">{zh ? "执行前需要你的确认" : "Needs your confirmation before acting"}</span> : null}
       </li>;
     })}</ul>
   </section>;
@@ -118,7 +118,7 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
   return <section className="mt-3 border border-border-pg-strong bg-bg-panel p-4 text-sm rounded-xl" data-testid="dream-rsi-result">
     <div className="flex flex-wrap items-start justify-between gap-3">
       <div>
-        <p className="text-[10px] uppercase tracking-[0.14em] text-text-pg-dim">Dream-RSI Control Plane</p>
+        <p className="text-11 uppercase tracking-[0.14em] text-text-pg-dim">Dream-RSI Control Plane</p>
         <h3 className="mt-1 font-semibold">{String(goal.symbol || "-")} · {String(goal.timeframe || "-")} {zh ? "策略发现" : "strategy discovery"}</h3>
         <p className="mt-1 text-xs text-text-pg-muted">{zh ? "历史探索树作为 replay world；仅研究，不创建订单。" : "The observed discovery tree is the replay world; research-only, no orders."}</p>
       </div>
@@ -134,7 +134,7 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
       <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "目标约束" : "Goal constraints"}</span><p className="mt-1">Sharpe {targetSharpe} · MaxDD {targetDrawdown}</p></div>
       <div className="border border-border-pg bg-bg-panel-muted p-2.5 rounded-lg"><span className="text-text-pg-dim">{zh ? "最佳策略家族" : "Best strategy family"}</span><p className="mt-1">{bestFamily.replaceAll("_", " ")} · {bestVariant.replaceAll("_", " ")}</p><p className="mt-1 text-text-pg-dim">{parameterText || "-"}</p></div>
     </div>
-    <div className="mt-3 flex flex-wrap gap-2 text-[11px] text-text-pg-muted">
+    <div className="mt-3 flex flex-wrap gap-2 text-11 text-text-pg-muted">
       <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "探索" : "Evaluations"} {String(compute.evaluations ?? nodes.length)}</span>
       <span className="border border-border-pg px-2 py-1 rounded-lg">{zh ? "代数" : "Generations"} {String(compute.generations ?? "-")}</span>
       <span className="border border-border-pg px-2 py-1 rounded-lg">Replay · {String(replay.selected_policy || "-")}</span>
@@ -147,7 +147,7 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
         {families.map((raw, index) => {
           const family = asRecord(raw);
           return <div key={String(family.id || index)} className="border border-border-pg p-2 rounded-lg">
-            <div className="flex items-center justify-between gap-2"><span className="font-medium">{String(family.label || family.family || "-")}</span><span className="font-mono text-[10px]">budget {String(family.generation_1_budget ?? 0)}</span></div>
+            <div className="flex items-center justify-between gap-2"><span className="font-medium">{String(family.label || family.family || "-")}</span><span className="font-mono text-11">budget {String(family.generation_1_budget ?? 0)}</span></div>
             <p className="mt-1 text-text-pg-dim">{String(family.status || "-")} · {String(family.evaluations ?? 0)} eval</p>
           </div>;
         })}
@@ -157,7 +157,7 @@ function DreamRsiToolResult({ data, locale }: { data: Record<string, unknown>; l
           const node = asRecord(raw);
           const nodeMetrics = asRecord(node.metrics);
           return <div key={String(node.id || index)} className="border border-border-pg bg-bg-panel-muted p-2 rounded-lg">
-            <div className="flex items-center justify-between gap-2"><span className="font-mono text-[10px]">{String(node.id || `node-${index + 1}`)}</span><span>{Boolean(node.meets_constraints) ? "✓" : "·"}</span></div>
+            <div className="flex items-center justify-between gap-2"><span className="font-mono text-11">{String(node.id || `node-${index + 1}`)}</span><span>{Boolean(node.meets_constraints) ? "✓" : "·"}</span></div>
             <p className="mt-1">{String(node.family || "-").replaceAll("_", " ")} · {String(node.factor_variant || "-").replaceAll("_", " ")}</p>
             <p className="mt-1">S {numeric(nodeMetrics.sharpe_ratio).toFixed(2)} · DD {(Math.abs(numeric(nodeMetrics.max_drawdown)) * 100).toFixed(1)}%</p>
             <p className="mt-1 text-text-pg-dim">{String(node.factor_quality || "-")} · score {numeric(node.score).toFixed(2)}</p>

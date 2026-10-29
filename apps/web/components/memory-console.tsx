@@ -207,7 +207,7 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
                           <StatusBadge domain="data" value={enabled ? "fresh" : "stale"} locale={locale} className={enabled ? "" : "opacity-80"} />
                         </div>
                         <p className="mt-1 text-xs leading-5 text-text-pg-muted">{zh ? scope.description.zh : scope.description.en}</p>
-                        <p className="mt-1 text-[11px] text-text-pg-dim">
+                        <p className="mt-1 text-11 text-text-pg-dim">
                           {enabled
                             ? zh ? "已开启：经你批准的内容可参与上下文注入。" : "Enabled: approved content may be injected into context."
                             : zh ? "已关闭：该 scope 不会出现在上下文注入结果里。" : "Disabled: this scope is excluded from context injection."}
@@ -268,7 +268,7 @@ export function MemoryConsole({ locale }: { locale: Locale }) {
                           <span className="text-text-pg-dim">{new Date(proposal.created_at).toLocaleString(locale)}</span>
                         </div>
                         <p className="mt-2 text-sm leading-5 text-text-pg">{proposal.content_preview}</p>
-                        <p className="mt-1 text-[11px] text-text-pg-dim">{zh ? "来源" : "Source"}: {proposal.source}</p>
+                        <p className="mt-1 text-11 text-text-pg-dim">{zh ? "来源" : "Source"}: {proposal.source}</p>
                       </div>
                       <div className="flex shrink-0 gap-2">
                         <button type="button" onClick={() => void approve(proposal)} disabled={busy === `proposal:${proposal.id}`} className="inline-flex items-center gap-1 border border-border-pg-strong px-2.5 py-1.5 text-xs font-medium disabled:opacity-40 rounded-lg"><CheckCircle2 className="h-3.5 w-3.5" aria-hidden />{zh ? "批准写入" : "Approve"}</button>

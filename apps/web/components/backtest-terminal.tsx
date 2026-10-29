@@ -165,7 +165,7 @@ export function BacktestTerminal({ run, localeStr }: Props) {
         ref={containerRef}
         role="log"
         aria-live="polite"
-        className="max-h-96 overflow-y-auto border-x border-b border-border-pg bg-[#0a0a0a] px-4 py-3 font-mono text-[11px] leading-[1.55] rounded-xl"
+        className="max-h-96 overflow-y-auto border-x border-b border-border-pg bg-[#0a0a0a] px-4 py-3 font-mono text-11 leading-[1.55] rounded-xl"
       >
         {lines.length === 0 ? (
           <span className="text-neutral-600">

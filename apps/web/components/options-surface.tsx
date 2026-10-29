@@ -151,9 +151,9 @@ export function OptionsSurface({ locale, initialCurrency = "BTC" }: { locale: Lo
       ) : null}
 
       {data && data.surface.rows.length && data.surface.type !== "mark_iv" ? (
-        <p className="mt-3 flex items-center gap-1.5 text-[11px] text-text-pg-dim"><AlertTriangle className="h-3 w-3" />{copy.nonIvNotice}</p>
+        <p className="mt-3 flex items-center gap-1.5 text-11 text-text-pg-dim"><AlertTriangle className="h-3 w-3" />{copy.nonIvNotice}</p>
       ) : null}
-      {data && data.surface.rows.length ? <p className="mt-2 flex items-center gap-1.5 text-[11px] text-text-pg-dim"><FileDown className="h-3 w-3" />{copy.barsNote}</p> : null}
+      {data && data.surface.rows.length ? <p className="mt-2 flex items-center gap-1.5 text-11 text-text-pg-dim"><FileDown className="h-3 w-3" />{copy.barsNote}</p> : null}
     </ResearchCard>
   );
 }

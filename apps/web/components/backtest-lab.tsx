@@ -186,7 +186,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
             {generating ? copy.generate.generating : copy.generate.button}
           </button>
           {specMeta ? (
-            <p className="text-[11px] text-text-pg-dim">
+            <p className="text-11 text-text-pg-dim">
               {specMeta.fallback ? copy.generate.fallbackNotice : `${specMeta.context_notes} ${copy.generate.contextNotes}`}
             </p>
           ) : null}
@@ -195,7 +195,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
         <section className="space-y-4 border border-border-pg bg-bg-panel p-5 rounded-xl">
           <h2 className="text-sm font-semibold">{copy.run.title}</h2>
           <label className="block text-xs text-text-pg-muted">{copy.run.specLabel}</label>
-          <textarea value={specText} onChange={(event) => setSpecText(event.target.value)} rows={10} spellCheck={false} className="w-full border border-border-pg bg-bg-panel-muted p-3 font-mono text-[11px] leading-4 outline-none focus:border-border-pg-strong rounded-lg" />
+          <textarea value={specText} onChange={(event) => setSpecText(event.target.value)} rows={10} spellCheck={false} className="w-full border border-border-pg bg-bg-panel-muted p-3 font-mono text-11 leading-4 outline-none focus:border-border-pg-strong rounded-lg" />
           {specText && !parsedSpec ? <p className="text-xs text-status-negative">{copy.run.invalidSpec}</p> : null}
           <div className="flex flex-wrap items-center gap-3 text-xs">
             <span className="text-text-pg-muted">{copy.run.window}</span>
@@ -225,9 +225,9 @@ export function BacktestLab({ locale }: { locale: Locale }) {
         <section className="space-y-5 border border-border-pg bg-bg-panel p-5 rounded-xl">
           <div className="flex flex-wrap items-baseline justify-between gap-2">
             <h2 className="text-sm font-semibold">{copy.performance.title}: {selected.spec?.name}</h2>
-            {isActive ? <span className="flex items-center gap-1 text-[11px] text-text-pg-muted"><Loader2 className="h-3 w-3 animate-spin" />{selected.status}</span> : null}
-            {selected.is_legacy ? <span className="text-[11px] text-text-pg-dim">Legacy read-only result</span> : null}
-            <span className="text-[11px] text-text-pg-dim">{selected.window.start?.slice(0, 10)} → {selected.window.end?.slice(0, 10)} · {selected.mode}</span>
+            {isActive ? <span className="flex items-center gap-1 text-11 text-text-pg-muted"><Loader2 className="h-3 w-3 animate-spin" />{selected.status}</span> : null}
+            {selected.is_legacy ? <span className="text-11 text-text-pg-dim">Legacy read-only result</span> : null}
+            <span className="text-11 text-text-pg-dim">{selected.window.start?.slice(0, 10)} → {selected.window.end?.slice(0, 10)} · {selected.mode}</span>
           </div>
           <div className="grid grid-cols-2 gap-px border border-border-pg bg-border-pg md:grid-cols-4 rounded-xl overflow-hidden">
             {[
@@ -241,7 +241,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
               [copy.performance.tailLoss, fmtPct(perf.tail_loss_95)],
             ].map(([label, value]) => (
               <div key={label} className="bg-bg-panel p-4">
-                <div className="text-[10px] uppercase tracking-wide text-text-pg-dim">{label}</div>
+                <div className="text-11 uppercase tracking-wide text-text-pg-dim">{label}</div>
                 <div className="mt-1 text-lg font-semibold">{value}</div>
               </div>
             ))}
@@ -275,13 +275,13 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           {selected.trades?.length ? (
             <details className="text-xs text-text-pg-muted">
               <summary className="cursor-pointer font-medium">Trade records ({selected.trades.length})</summary>
-              <pre className="mt-2 max-h-64 overflow-auto border border-border-pg bg-bg-panel-muted p-3 text-[11px] leading-4 rounded-xl">{JSON.stringify(selected.trades, null, 2)}</pre>
+              <pre className="mt-2 max-h-64 overflow-auto border border-border-pg bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.trades, null, 2)}</pre>
             </details>
           ) : null}
           {selected.positions?.length ? (
             <details className="text-xs text-text-pg-muted">
               <summary className="cursor-pointer font-medium">Position records ({selected.positions.length})</summary>
-              <pre className="mt-2 max-h-64 overflow-auto border border-border-pg bg-bg-panel-muted p-3 text-[11px] leading-4 rounded-xl">{JSON.stringify(selected.positions, null, 2)}</pre>
+              <pre className="mt-2 max-h-64 overflow-auto border border-border-pg bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.positions, null, 2)}</pre>
             </details>
           ) : null}
           {perf.per_asset ? (
@@ -303,7 +303,7 @@ export function BacktestLab({ locale }: { locale: Locale }) {
           ) : null}
           <details className="text-xs text-text-pg-muted">
             <summary className="cursor-pointer font-medium">{copy.performance.assumptions}</summary>
-            <pre className="mt-2 overflow-x-auto border border-border-pg bg-bg-panel-muted p-3 text-[11px] leading-4 rounded-xl">{JSON.stringify(selected.assumptions, null, 2)}</pre>
+            <pre className="mt-2 overflow-x-auto border border-border-pg bg-bg-panel-muted p-3 text-11 leading-4 rounded-xl">{JSON.stringify(selected.assumptions, null, 2)}</pre>
           </details>
         </section>
       ) : null}

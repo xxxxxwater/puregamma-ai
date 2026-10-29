@@ -49,7 +49,7 @@ export function OceanShell({ locale, variant = "agent", className = "", children
           onClick={toggleDegrade}
           aria-pressed={staticNow}
           title={zh ? (staticNow ? "恢复动态背景" : "关闭动态背景（降低性能消耗）") : staticNow ? "Re-enable dynamic background" : "Disable dynamic background (performance)"}
-          className="absolute right-2 top-2 z-20 flex items-center gap-1.5 border border-border-pg bg-bg-panel px-2 py-1 text-[10px] text-text-pg-dim opacity-70 transition hover:opacity-100 hover:border-border-pg-strong rounded-lg"
+          className="absolute right-2 top-2 z-20 flex items-center gap-1.5 border border-border-pg bg-bg-panel px-2 py-1 text-11 text-text-pg-dim opacity-70 transition hover:opacity-100 hover:border-border-pg-strong rounded-lg"
         >
           {staticNow ? <WavesLadder className="h-3 w-3" /> : <Waves className="h-3 w-3" />}
           {staticNow ? (zh ? "已静止" : "Static") : (zh ? "动态" : "Motion")}

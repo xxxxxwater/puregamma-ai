@@ -65,7 +65,7 @@ function FactRow({ children }: { children: React.ReactNode }) {
 function DataRow({ label, value }: { label: string; value: string }) {
   return (
     <div className="flex min-w-0 flex-col gap-1 border-t border-border-pg pt-2 first:border-t-0 first:pt-0 sm:flex-row sm:items-baseline sm:justify-between sm:gap-3">
-      <dt className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{label}</dt>
+      <dt className="text-11 font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{label}</dt>
       {/* Muted, not `text-text-pg`: the primary token is tuned for headings and
           loses contrast against the muted panel in the light theme. */}
       <dd className="min-w-0 break-all font-mono text-xs text-text-pg-muted">{value}</dd>
@@ -163,11 +163,11 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
       <details className="mt-6 overflow-hidden rounded-2xl border border-border-pg bg-bg-panel-muted" data-testid="model-upgrade-technical">
         <summary className="flex cursor-pointer flex-wrap items-center gap-x-2 gap-y-1 p-3 text-xs font-medium text-text-pg-muted">
           <span>{copy.preview.technicalTitle}</span>
-          <span className="text-[10px] font-normal uppercase tracking-[0.1em] text-text-pg-dim">{copy.preview.technicalHint}</span>
+          <span className="text-11 font-normal uppercase tracking-[0.1em] text-text-pg-dim">{copy.preview.technicalHint}</span>
         </summary>
         <div className="border-t border-border-pg p-4">
           <p className="text-xs leading-5 text-text-pg-muted">{copy.preview.lead}</p>
-          <p className="mt-1 text-[11px] leading-5 text-text-pg-dim">{copy.preview.runtimeNote}</p>
+          <p className="mt-1 text-11 leading-5 text-text-pg-dim">{copy.preview.runtimeNote}</p>
 
           <dl className="mt-4 space-y-3">
             <DataRow label={copy.preview.modelIdLabel} value={FLASH_MODEL_ID} />
@@ -180,7 +180,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
             {alias ? <DataRow label={copy.preview.aliasTitle} value={FLASH_ALIAS_ID} /> : null}
           </dl>
           {alias ? (
-            <p className="mt-2 text-[11px] leading-5 text-text-pg-dim">
+            <p className="mt-2 text-11 leading-5 text-text-pg-dim">
               {copy.preview.aliasBody.replace("{alias}", FLASH_ALIAS_ID).replace("{canonical}", FLASH_MODEL_ID)}
             </p>
           ) : null}
@@ -191,12 +191,12 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
             <FactRow>{copy.preview.factThinking}</FactRow>
             {copy.preview.routes.map((route) => <FactRow key={route}>{route}</FactRow>)}
           </ul>
-          <p className="mt-3 text-[11px] leading-5 text-text-pg-dim">{copy.preview.routesNote}</p>
-          <p className="mt-3 text-[11px] leading-5 text-text-pg-dim">{copy.preview.clients}</p>
+          <p className="mt-3 text-11 leading-5 text-text-pg-dim">{copy.preview.routesNote}</p>
+          <p className="mt-3 text-11 leading-5 text-text-pg-dim">{copy.preview.clients}</p>
 
           {catalog?.gateway_enabled && state === "available" && priceReviewed ? <div className="mt-4 border border-border-pg bg-bg-app rounded-xl">
             <div className="flex flex-wrap items-center justify-between gap-2 border-b border-border-pg px-3 py-2">
-              <span className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.preview.demoTitle}</span>
+              <span className="text-11 font-semibold uppercase tracking-[0.14em] text-text-pg-dim">{copy.preview.demoTitle}</span>
               <button
                 type="button"
                 onClick={() => void copyValue("request", sampleRequest)}
@@ -206,7 +206,7 @@ export function ModelUpgradePreview({ locale, catalog }: { locale: Locale; catal
                 {copied === "request" ? copy.preview.copied : copy.preview.copy}
               </button>
             </div>
-            <pre className="touch-pan-x overflow-x-auto overscroll-x-contain p-3 text-[11px] leading-5 text-text-pg"><code>{sampleRequest}</code></pre>
+            <pre className="touch-pan-x overflow-x-auto overscroll-x-contain p-3 text-11 leading-5 text-text-pg"><code>{sampleRequest}</code></pre>
           </div> : <p role="status" className="mt-4 rounded-xl border border-border-pg bg-bg-app p-3 text-xs leading-5 text-text-pg-muted">{availability.detail}</p>}
           {catalog?.gateway_enabled && state === "available" && priceReviewed ? <p className="mt-2 text-xs leading-5 text-text-pg-dim">{copy.preview.demoNote}</p> : null}
           <p className="mt-2 text-xs leading-5 text-text-pg-dim">{copy.preview.technicalNote}</p>
