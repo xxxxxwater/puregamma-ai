@@ -521,7 +521,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
         selectedConversation?.let { openConversation(it) }
     }
 
-    fun setPermission(mode: AgentPermissionMode) {
+    fun changePermission(mode: AgentPermissionMode) {
         if (mode == permission || isStreaming) return
         val conversation = selectedConversation ?: run { permission = mode; return }
         val previous = permission

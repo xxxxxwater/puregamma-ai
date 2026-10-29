@@ -565,7 +565,7 @@ private fun AgentScreen(model: AppViewModel) {
             }
         }
         if (showContext && caps != null) {
-            AgentContextPanel(caps.value, model.selectedModel, { model.setModel(it) }, model.permissionModes, model.permission, model::setPermission, onDismiss = { showContext = false })
+            AgentContextPanel(caps.value, model.selectedModel, { model.setModel(it) }, model.permissionModes, model.permission, model::changePermission, onDismiss = { showContext = false })
         }
         when (val state = model.messages) {
             LoadState.Idle, LoadState.Loading -> LoadingBlock(Modifier.weight(1f))
