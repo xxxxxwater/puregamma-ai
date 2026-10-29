@@ -1,0 +1,362 @@
+{
+  "frozenNow": "2026-10-29T12:00:00+00:00",
+  "market": {
+    "live": {
+      "assets": [
+        {
+          "asset_type": "crypto",
+          "change_24h": null,
+          "fallback_reason": null,
+          "funding_rate": 0.0,
+          "is_mock": false,
+          "is_realtime": true,
+          "liquidation_estimate": 0.0,
+          "market_cap": 0.0,
+          "open_interest": null,
+          "price": 64000.5,
+          "risk_score": 33,
+          "sentiment_score": 0.0,
+          "source": "coinbase",
+          "source_display": "COINBASE",
+          "source_symbol": "BTC",
+          "symbol": "BTC",
+          "timestamp": "2026-10-29T11:59:30+00:00",
+          "volatility": 0.0,
+          "volume_24h": 1000000.0
+        },
+        {
+          "asset_type": "crypto",
+          "change_24h": null,
+          "fallback_reason": "fallback",
+          "funding_rate": 0.0,
+          "is_mock": false,
+          "is_realtime": false,
+          "liquidation_estimate": 0.0,
+          "market_cap": 0.0,
+          "open_interest": null,
+          "price": 2500.25,
+          "risk_score": 33,
+          "sentiment_score": 0.0,
+          "source": "kraken",
+          "source_display": "KRAKEN",
+          "source_symbol": "ETH",
+          "symbol": "ETH",
+          "timestamp": "2026-10-29T11:40:00+00:00",
+          "volatility": 0.0,
+          "volume_24h": 1000000.0
+        },
+        {
+          "asset_type": "equity",
+          "change_24h": null,
+          "fallback_reason": null,
+          "funding_rate": 0.0,
+          "is_mock": false,
+          "is_realtime": true,
+          "liquidation_estimate": 0.0,
+          "market_cap": 0.0,
+          "open_interest": null,
+          "price": 230.1,
+          "risk_score": 33,
+          "sentiment_score": 0.0,
+          "source": "polygon",
+          "source_display": "POLYGON",
+          "source_symbol": "AAPL",
+          "symbol": "AAPL",
+          "timestamp": "2026-10-29T11:59:00+00:00",
+          "volatility": 0.0,
+          "volume_24h": 1000000.0
+        }
+      ],
+      "live_assets": 2,
+      "mockMode": false,
+      "source_summary": [
+        "coinbase",
+        "kraken",
+        "polygon"
+      ]
+    },
+    "mock": {
+      "assets": [
+        {
+          "asset_type": "crypto",
+          "change_24h": null,
+          "fallback_reason": "fallback",
+          "funding_rate": 0.0,
+          "is_mock": true,
+          "is_realtime": false,
+          "liquidation_estimate": 0.0,
+          "market_cap": 0.0,
+          "open_interest": null,
+          "price": 50000.0,
+          "risk_score": 33,
+          "sentiment_score": 0.0,
+          "source": "mock",
+          "source_display": "MOCK",
+          "source_symbol": "BTC",
+          "symbol": "BTC",
+          "timestamp": "2026-10-29T12:00:00+00:00",
+          "volatility": 0.0,
+          "volume_24h": 1000000.0
+        }
+      ],
+      "live_assets": 0,
+      "mockMode": true,
+      "source_summary": [
+        "mock"
+      ]
+    }
+  },
+  "portfolio": {
+    "connected": {
+      "accounts": [
+        {
+          "as_of": "2026-10-29T11:55:00+00:00",
+          "available_cash": 2500.5,
+          "daily_change": 120.0,
+          "id": "acct-hl",
+          "liabilities": null,
+          "liabilities_breakdown": null,
+          "name": "Perps",
+          "nav": 12500.25,
+          "net_nav": null,
+          "provider": "hyperliquid",
+          "status": "CONNECTED"
+        },
+        {
+          "as_of": "2026-10-27T10:00:00+00:00",
+          "available_cash": 1000.0,
+          "daily_change": 0.0,
+          "id": "acct-plaid",
+          "liabilities": null,
+          "liabilities_breakdown": null,
+          "name": "Brokerage",
+          "nav": 40000.0,
+          "net_nav": null,
+          "provider": "plaid",
+          "status": "STALE"
+        }
+      ],
+      "asset_classes": {
+        "crypto": 23500.12
+      },
+      "available_cash": 3500.5,
+      "connected": true,
+      "connections": [
+        {
+          "can_refresh": false,
+          "error": null,
+          "id": "acct-hl",
+          "last_sync": "2026-10-29T11:55:00",
+          "name": "Perps",
+          "provider": "hyperliquid",
+          "refresh_requested_at": null,
+          "status": "CONNECTED"
+        },
+        {
+          "can_refresh": false,
+          "error": null,
+          "id": "acct-plaid",
+          "last_sync": "2026-10-27T10:00:00",
+          "name": "Brokerage",
+          "provider": "plaid",
+          "refresh_requested_at": null,
+          "status": "STALE"
+        }
+      ],
+      "daily_change": 120.0,
+      "daily_change_pct": 0.2291,
+      "data_as_of": "2026-10-27T10:00:00",
+      "holdings": [
+        {
+          "asset_class": "crypto",
+          "chain": null,
+          "change_24h": 0.0,
+          "change_24h_pct": 0.0,
+          "instrument": "BTC",
+          "logo": null,
+          "name": "BTC",
+          "native": false,
+          "price": 64000.5,
+          "priced": true,
+          "quantity": 0.25,
+          "symbol": "BTC",
+          "value": 16000.12,
+          "verified": true,
+          "weight": 0.304763
+        },
+        {
+          "asset_class": "crypto",
+          "chain": null,
+          "change_24h": 0.0,
+          "change_24h_pct": 0.0,
+          "instrument": "ETH",
+          "logo": null,
+          "name": "ETH",
+          "native": false,
+          "price": 2500.0,
+          "priced": true,
+          "quantity": -3.0,
+          "symbol": "ETH",
+          "value": 7500.0,
+          "verified": true,
+          "weight": 0.142856
+        }
+      ],
+      "liabilities": null,
+      "nav": 52500.25,
+      "nav_history": [
+        {
+          "date": "2026-10-29T11:55:00+00:00",
+          "nav": 52500.25
+        }
+      ],
+      "net_nav": null,
+      "positions": [
+        {
+          "mark_price": 64000.5,
+          "quantity": 0.25,
+          "side": "long",
+          "symbol": "BTC",
+          "unrealized_pnl": 310.75,
+          "venue": "hyperliquid"
+        },
+        {
+          "mark_price": 2500.0,
+          "quantity": -3.0,
+          "side": "short",
+          "symbol": "ETH",
+          "unrealized_pnl": -42.1,
+          "venue": "hyperliquid"
+        }
+      ],
+      "providers": {
+        "binance": true,
+        "bybit": true,
+        "evm": false,
+        "hyperliquid": true,
+        "ibkr": false,
+        "okx": true,
+        "plaid": false,
+        "plaid_cash_transactions": false,
+        "plaid_liabilities": false,
+        "plaid_refresh": false,
+        "plaid_transactions_refresh": false,
+        "plaid_webhooks": false
+      },
+      "stale": true,
+      "unrealized_pnl": 268.65
+    },
+    "none": {
+      "accounts": [],
+      "asset_classes": {},
+      "available_cash": 0,
+      "connected": false,
+      "connections": [],
+      "daily_change": 0,
+      "daily_change_pct": null,
+      "data_as_of": null,
+      "holdings": [],
+      "liabilities": null,
+      "nav": 0,
+      "nav_history": [],
+      "net_nav": null,
+      "positions": [],
+      "providers": {
+        "binance": true,
+        "bybit": true,
+        "evm": false,
+        "hyperliquid": true,
+        "ibkr": false,
+        "okx": true,
+        "plaid": false,
+        "plaid_cash_transactions": false,
+        "plaid_liabilities": false,
+        "plaid_refresh": false,
+        "plaid_transactions_refresh": false,
+        "plaid_webhooks": false
+      },
+      "stale": false,
+      "unrealized_pnl": 0.0
+    },
+    "partial": {
+      "accounts": [
+        {
+          "as_of": "2026-10-29T11:58:00+00:00",
+          "available_cash": 500.0,
+          "daily_change": 0.0,
+          "id": "acct-ibkr",
+          "liabilities": null,
+          "liabilities_breakdown": null,
+          "name": "IBKR",
+          "nav": 8000.0,
+          "net_nav": null,
+          "provider": "ibkr",
+          "status": "CONNECTED"
+        },
+        {
+          "as_of": null,
+          "available_cash": 0.0,
+          "daily_change": 0.0,
+          "id": "acct-evm",
+          "liabilities": null,
+          "liabilities_breakdown": null,
+          "name": "Wallet",
+          "nav": 0.0,
+          "net_nav": null,
+          "provider": "evm",
+          "status": "CONNECTED"
+        }
+      ],
+      "asset_classes": {},
+      "available_cash": 500.0,
+      "connected": true,
+      "connections": [
+        {
+          "can_refresh": false,
+          "error": null,
+          "id": "acct-ibkr",
+          "last_sync": "2026-10-29T11:58:00",
+          "name": "IBKR",
+          "provider": "ibkr",
+          "refresh_requested_at": null,
+          "status": "CONNECTED"
+        },
+        {
+          "can_refresh": false,
+          "error": null,
+          "id": "acct-evm",
+          "last_sync": "2026-10-29T11:59:00",
+          "name": "Wallet",
+          "provider": "evm",
+          "refresh_requested_at": null,
+          "status": "CONNECTED"
+        }
+      ],
+      "daily_change": 0.0,
+      "daily_change_pct": 0.0,
+      "data_as_of": "2026-10-29T11:58:00",
+      "holdings": [],
+      "liabilities": null,
+      "nav": 8000.0,
+      "nav_history": [],
+      "net_nav": null,
+      "positions": [],
+      "providers": {
+        "binance": true,
+        "bybit": true,
+        "evm": false,
+        "hyperliquid": true,
+        "ibkr": false,
+        "okx": true,
+        "plaid": false,
+        "plaid_cash_transactions": false,
+        "plaid_liabilities": false,
+        "plaid_refresh": false,
+        "plaid_transactions_refresh": false,
+        "plaid_webhooks": false
+      },
+      "stale": false,
+      "unrealized_pnl": 0
+    }
+  }
+}

@@ -1,4 +1,205 @@
 {
   "schemaVersion": 1,
-  "retired": {}
+  "retired": {},
+  "candidates": {
+    "apps/api/routers/market.py": {
+      "owner": "market-data",
+      "note": "Evidence progress only; NOT a retirement certificate. See docs/architecture/upgrade-20261029/harness-repro-visual.md §3.",
+      "gates": {
+        "serviceDefinition": {
+          "status": "partial",
+          "evidence": "Contract tested: scripts/market-portfolio.test.mjs registers subclasses under the stable Cordis names and removes them on dispose.",
+          "next": "Add an explicit contract version (e.g. a `contractVersion` constant checked by consumers) before retirement; owner: harness maintainers."
+        },
+        "providerHealth": {
+          "status": "met",
+          "evidence": "health() reports legacy API and news provider state; unavailable with detail when the API fails or the user token is missing (market-portfolio-parity.test.mjs)."
+        },
+        "dependencyInjection": {
+          "status": "met",
+          "evidence": "Tools declare inject ['tools', service]; scripts/parity/harness-reads.mjs mounts the real providers in a Cordis Context and the tools consume them only through the service."
+        },
+        "lifecycleOwnedResources": {
+          "status": "met",
+          "evidence": "Providers hold no long-lived connections (per-request fetch with timeout); market-portfolio-parity.test.mjs 'disposing the plugin removes the service'."
+        },
+        "toolGating": {
+          "status": "partial",
+          "evidence": "Read-only tools; news requires the user's own bearer and fails explicitly when absent.",
+          "next": "No Harness-side permission declaration beyond server entitlements; decide whether market tools need DSH permission rules. Owner: harness maintainers."
+        },
+        "pluginUi": {
+          "status": "missing",
+          "next": "No Harness client plugin renders quotes/market wire (legacy pages own it); build a ui-market tool view/resource. Owner: market-data plugin owner."
+        },
+        "pluginOwnedJobs": {
+          "status": "missing",
+          "next": "Market snapshot cache refresh and shared intelligence generation still run in FastAPI; move under a plugin-owned worker. Owner: market-data plugin owner."
+        },
+        "restartReconnect": {
+          "status": "partial",
+          "evidence": "Mount/dispose/remount covered; every read is stateless and re-authenticates from the per-user token file (legacy-auth.test.mjs rotation).",
+          "next": "Add a Host restart test against a real DSH Host (session-broker.integration.mjs style); owner: W-session that owns DSH integration."
+        },
+        "observability": {
+          "status": "missing",
+          "next": "Providers do not forward traceparent/X-Request-Id or tag plugin+provider in logs; add it (the session broker already propagates traceparent). Owner: harness maintainers."
+        },
+        "invariants": {
+          "status": "met",
+          "evidence": "Per-user bearer only (authTokenFile, no shared fallback); missing NAV/cash stays null with a reason (never 0, never the legacy 0.0 of a never-synced account); MARKET_DATA_MODE=mock prices are dropped; failures fail the tool explicitly (market-portfolio-parity.test.mjs, 7 mutations caught)."
+        },
+        "parityTests": {
+          "status": "partial",
+          "evidence": "GET /market/snapshot: tests/harness/test_market_portfolio_parity.py pins the real FastAPI response (golden + live uvicorn run); harness market-portfolio-parity.test.mjs maps symbols, prices, times, sources, realtime->stale, mock dropped.",
+          "next": "No Harness equivalent yet for /market/data-capabilities, /market/global, /market/intelligence; add services/tools or record them as admin-only before retirement. Owner: market-data plugin owner."
+        },
+        "e2eArtifact": {
+          "status": "missing",
+          "next": "Needs an HTTPS CI/staging E2E artifact of the Harness path serving this surface; owner: release engineering once a staging DSH ingress exists (user decision: staging + model keys)."
+        },
+        "deploymentImage": {
+          "status": "missing",
+          "next": "Needs the immutable sha256 digest of the deployed image that carries the integrated commit; owner: whoever performs the production deploy (user decision: deploy window)."
+        },
+        "humanReview": {
+          "status": "missing",
+          "next": "Needs a named reviewer to sign the certificate (reviewedBy/verifiedAt); owner: product/engineering owner of the capability."
+        }
+      }
+    },
+    "apps/api/routers/news.py": {
+      "owner": "market-data",
+      "note": "Evidence progress only; NOT a retirement certificate.",
+      "gates": {
+        "serviceDefinition": {
+          "status": "partial",
+          "evidence": "Contract tested: scripts/market-portfolio.test.mjs registers subclasses under the stable Cordis names and removes them on dispose.",
+          "next": "Add an explicit contract version (e.g. a `contractVersion` constant checked by consumers) before retirement; owner: harness maintainers."
+        },
+        "providerHealth": {
+          "status": "met",
+          "evidence": "health() reports legacy-puregamma-news unavailable without a user token or when the API is down."
+        },
+        "dependencyInjection": {
+          "status": "met",
+          "evidence": "Tools declare inject ['tools', service]; scripts/parity/harness-reads.mjs mounts the real providers in a Cordis Context and the tools consume them only through the service."
+        },
+        "lifecycleOwnedResources": {
+          "status": "met",
+          "evidence": "Providers hold no long-lived connections (per-request fetch with timeout); market-portfolio-parity.test.mjs 'disposing the plugin removes the service'."
+        },
+        "toolGating": {
+          "status": "partial",
+          "evidence": "Requires the user's own bearer; server-side entitlement applies.",
+          "next": "Decide DSH permission rules for news tools. Owner: harness maintainers."
+        },
+        "pluginUi": {
+          "status": "missing",
+          "next": "Market Wire UI is still a legacy page; needs a Harness client plugin. Owner: market-data plugin owner."
+        },
+        "pluginOwnedJobs": {
+          "status": "missing",
+          "next": "News ingestion jobs are not plugin-owned. Owner: data-sources/market-data plugin owners."
+        },
+        "restartReconnect": {
+          "status": "partial",
+          "evidence": "Mount/dispose/remount covered; every read is stateless and re-authenticates from the per-user token file (legacy-auth.test.mjs rotation).",
+          "next": "Add a Host restart test against a real DSH Host (session-broker.integration.mjs style); owner: W-session that owns DSH integration."
+        },
+        "observability": {
+          "status": "missing",
+          "next": "Providers do not forward traceparent/X-Request-Id or tag plugin+provider in logs; add it (the session broker already propagates traceparent). Owner: harness maintainers."
+        },
+        "invariants": {
+          "status": "met",
+          "evidence": "Per-user bearer only (authTokenFile, no shared fallback); missing NAV/cash stays null with a reason (never 0, never the legacy 0.0 of a never-synced account); MARKET_DATA_MODE=mock prices are dropped; failures fail the tool explicitly (market-portfolio-parity.test.mjs, 7 mutations caught)."
+        },
+        "parityTests": {
+          "status": "partial",
+          "evidence": "market_news mapping (attribution, drop of items without id/title/time, limit bounds) in market-portfolio-parity.test.mjs against a recorded /api/news shape.",
+          "next": "Pin a real FastAPI /api/news response with seeded news rows and entitlement (golden + live) like /market/snapshot. Owner: market-data plugin owner."
+        },
+        "e2eArtifact": {
+          "status": "missing",
+          "next": "Needs an HTTPS CI/staging E2E artifact of the Harness path serving this surface; owner: release engineering once a staging DSH ingress exists (user decision: staging + model keys)."
+        },
+        "deploymentImage": {
+          "status": "missing",
+          "next": "Needs the immutable sha256 digest of the deployed image that carries the integrated commit; owner: whoever performs the production deploy (user decision: deploy window)."
+        },
+        "humanReview": {
+          "status": "missing",
+          "next": "Needs a named reviewer to sign the certificate (reviewedBy/verifiedAt); owner: product/engineering owner of the capability."
+        }
+      }
+    },
+    "apps/api/routers/portfolio.py": {
+      "owner": "portfolio",
+      "note": "Evidence progress only; NOT a retirement certificate. Only GET /portfolio is mirrored; connector/OAuth/sync routes have no Harness equivalent.",
+      "gates": {
+        "serviceDefinition": {
+          "status": "partial",
+          "evidence": "Contract tested: scripts/market-portfolio.test.mjs registers subclasses under the stable Cordis names and removes them on dispose.",
+          "next": "Add an explicit contract version (e.g. a `contractVersion` constant checked by consumers) before retirement; owner: harness maintainers."
+        },
+        "providerHealth": {
+          "status": "missing",
+          "next": "pgPortfolio has no health(); a failed read fails the tool explicitly but there is no provider health surface. Add health() to the contract. Owner: harness maintainers."
+        },
+        "dependencyInjection": {
+          "status": "met",
+          "evidence": "Tools declare inject ['tools', service]; scripts/parity/harness-reads.mjs mounts the real providers in a Cordis Context and the tools consume them only through the service."
+        },
+        "lifecycleOwnedResources": {
+          "status": "met",
+          "evidence": "Providers hold no long-lived connections (per-request fetch with timeout); market-portfolio-parity.test.mjs 'disposing the plugin removes the service'."
+        },
+        "toolGating": {
+          "status": "partial",
+          "evidence": "Read-only tools; the user's own bearer scopes every read; compatibility reads never trigger billable Plaid refreshes.",
+          "next": "No Harness-side permission declaration; decide DSH permission rules for portfolio tools. Owner: harness maintainers."
+        },
+        "pluginUi": {
+          "status": "partial",
+          "evidence": "@puregamma/dsh-ui-portfolio renders portfolio_nav/portfolio_snapshot results (domain-toolviews-check: missing NAV never 0, stale labelled).",
+          "next": "Holdings, history and connection management pages remain legacy; need resource views. Owner: portfolio plugin owner."
+        },
+        "pluginOwnedJobs": {
+          "status": "missing",
+          "next": "Portfolio NAV/sync workers (workers/portfolio_nav_job) run outside Cordis; move under a plugin-owned worker. Owner: portfolio plugin owner."
+        },
+        "restartReconnect": {
+          "status": "partial",
+          "evidence": "Mount/dispose/remount covered; every read is stateless and re-authenticates from the per-user token file (legacy-auth.test.mjs rotation).",
+          "next": "Add a Host restart test against a real DSH Host (session-broker.integration.mjs style); owner: W-session that owns DSH integration."
+        },
+        "observability": {
+          "status": "missing",
+          "next": "Providers do not forward traceparent/X-Request-Id or tag plugin+provider in logs; add it (the session broker already propagates traceparent). Owner: harness maintainers."
+        },
+        "invariants": {
+          "status": "met",
+          "evidence": "Per-user bearer only (authTokenFile, no shared fallback); missing NAV/cash stays null with a reason (never 0, never the legacy 0.0 of a never-synced account); MARKET_DATA_MODE=mock prices are dropped; failures fail the tool explicitly (market-portfolio-parity.test.mjs, 7 mutations caught)."
+        },
+        "parityTests": {
+          "status": "partial",
+          "evidence": "GET /portfolio: golden + live parity for connected (fresh + stale accounts, positions), partial (never-synced account), none, and account-filtered NAV (tests/harness/test_market_portfolio_parity.py, harness market-portfolio-parity.test.mjs). Found and fixed: empty filter dropped every account; never-synced account surfaced as cash 0; filtered NAV used the all-account total; one stale account made every account stale.",
+          "next": "Connector routes (plaid/ibkr/evm/cex/hyperliquid connect, sync, transactions, pm) have no Harness service or tool; positions' mark_price is flattened to 0 by the legacy endpoint when unknown (needs a legacy-side null). Owner: portfolio plugin owner."
+        },
+        "e2eArtifact": {
+          "status": "missing",
+          "next": "Needs an HTTPS CI/staging E2E artifact of the Harness path serving this surface; owner: release engineering once a staging DSH ingress exists (user decision: staging + model keys)."
+        },
+        "deploymentImage": {
+          "status": "missing",
+          "next": "Needs the immutable sha256 digest of the deployed image that carries the integrated commit; owner: whoever performs the production deploy (user decision: deploy window)."
+        },
+        "humanReview": {
+          "status": "missing",
+          "next": "Needs a named reviewer to sign the certificate (reviewedBy/verifiedAt); owner: product/engineering owner of the capability."
+        }
+      }
+    }
+  }
 }
