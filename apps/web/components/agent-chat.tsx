@@ -24,6 +24,12 @@ import { publishCreditBalance } from "@/lib/user-state";
 
 /** localStorage key for the desktop history column's collapsed state. */
 const HISTORY_COLLAPSED_KEY = "pg:chat-history-collapsed";
+/* Focus return across the remount a conversation switch causes (see
+   `chooseConversation`). Module scope, not state: the instance that sets it is
+   the one being unmounted. Short-lived so a navigation that never lands does
+   not steal focus later. */
+let pendingHistoryFocus: { at: number } | null = null;
+const HISTORY_FOCUS_TTL_MS = 5000;
 
 /**
  * The Agent's `default` selection is a routing sentinel, not a model id: the
@@ -236,6 +242,33 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
     setMobileHistoryOpen(false);
     historyTriggerRef.current?.focus();
   };
+  /* Choosing another conversation navigates to /chat/<id>. The App Router
+     remounts this page for the new segment, so the trigger focused above is
+     discarded with the old tree and focus would fall to <body> once the
+     navigation commits (immediately in a production build, where the route is
+     prefetched; `next dev` was slow enough to hide it). The intent survives the
+     remount and the new instance returns focus to its own trigger. */
+  const chooseConversation = (id: string) => {
+    const fromDrawer = mobileHistoryOpen;
+    if (fromDrawer && id !== conversationId) pendingHistoryFocus = { at: Date.now() };
+    router.push(withLocale(locale, `/chat/${id}`));
+    void openConversation(id);
+    if (fromDrawer) closeMobileHistory();
+  };
+  useEffect(() => {
+    const pending = pendingHistoryFocus;
+    pendingHistoryFocus = null;
+    if (!pending || Date.now() - pending.at > HISTORY_FOCUS_TTL_MS) return;
+    // The trigger renders with the first paint of the chat header.
+    let frame = 0;
+    let tries = 0;
+    const focusTrigger = () => {
+      if (historyTriggerRef.current) historyTriggerRef.current.focus();
+      else if (tries++ < 30) frame = requestAnimationFrame(focusTrigger);
+    };
+    focusTrigger();
+    return () => cancelAnimationFrame(frame);
+  }, []);
   const activeRunRef = useRef("");
   // Highest durable sequence this client has applied. A reconnect asks for
   // everything after it, so the gap is replayed instead of guessed.
@@ -865,7 +898,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         <div className="flex-1 overflow-y-auto p-2 lg:space-y-1">
           {visibleConversations.map((conversation) => (
             <div key={conversation.id} className="group flex items-center">
-              <button type="button" aria-current={conversation.id === conversationId ? "page" : undefined} onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); void openConversation(conversation.id); if (mobileHistoryOpen) closeMobileHistory(); }} className={`min-w-0 flex-1 rounded-xl border px-3 py-2 text-left text-sm ${conversation.id === conversationId ? "border-border-pg bg-bg-panel shadow-card" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel"}`}>
+              <button type="button" aria-current={conversation.id === conversationId ? "page" : undefined} onClick={() => chooseConversation(conversation.id)} className={`min-w-0 flex-1 rounded-xl border px-3 py-2 text-left text-sm ${conversation.id === conversationId ? "border-border-pg bg-bg-panel shadow-card" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel"}`}>
                 <div className="truncate font-medium">{conversation.title}</div>
                 <div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div>
               </button>
@@ -1007,7 +1040,7 @@ export function AgentChat({ locale, initialConversationId }: { locale: Locale; i
         <div className="flex-1 overflow-y-auto p-2 lg:space-y-1">
           {visibleConversations.map((conversation) => (
             <div key={conversation.id} className="group flex items-center">
-              <button type="button" aria-current={conversation.id === conversationId ? "page" : undefined} onClick={() => { router.push(withLocale(locale, `/chat/${conversation.id}`)); void openConversation(conversation.id); if (mobileHistoryOpen) closeMobileHistory(); }} className={`min-w-0 flex-1 rounded-xl border px-3 py-2 text-left text-sm ${conversation.id === conversationId ? "border-border-pg bg-bg-panel shadow-card" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel"}`}>
+              <button type="button" aria-current={conversation.id === conversationId ? "page" : undefined} onClick={() => chooseConversation(conversation.id)} className={`min-w-0 flex-1 rounded-xl border px-3 py-2 text-left text-sm ${conversation.id === conversationId ? "border-border-pg bg-bg-panel shadow-card" : "border-transparent text-text-pg-muted hover:border-border-pg hover:bg-bg-panel"}`}>
                 <div className="truncate font-medium">{conversation.title}</div>
                 <div className="mt-1 text-xs text-text-pg-dim">{new Date(conversation.updated_at).toLocaleDateString(locale)}</div>
               </button>

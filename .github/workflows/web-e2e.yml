@@ -84,6 +84,88 @@ jobs:
             apps/web/test-results
           retention-days: 7
 
+  production-build:
+    # The suites above run on `next dev`. A production build navigates
+    # differently (prefetched RSC, instant segment swaps), which hid a real
+    # focus-return defect in the phone history drawer. This job runs the
+    # agent workspace and the route-wide audit against `next build` +
+    # `next start`, with the same offline fixture API as the other jobs.
+    name: Production build (next start) — agent workspace & route audit
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: apps/web
+    env:
+      CI: 'true'
+      PLAYWRIGHT_PORT: '3000'
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      PLAYWRIGHT_SSR_API_PORT: '3599'
+      DEV_API_PROXY_TARGET: http://127.0.0.1:9
+      NEXT_TELEMETRY_DISABLED: '1'
+      NEXT_DIST_DIR: .next-playwright
+      NEXT_PUBLIC_API_URL: /__dev-api
+      NEXT_PUBLIC_INITIAL_LAUNCH_MODE: 'false'
+      REQUIRE_AUTH: 'false'
+      PUREGAMMA_SERVER_API_URL: http://127.0.0.1:3599
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22.20.0'
+
+      - name: Pin pnpm
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+
+      - name: Install
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Chromium
+        run: pnpm exec playwright install --with-deps chromium
+
+      - name: Build
+        run: pnpm build
+
+      - name: Start fixture API and next start
+        run: |
+          nohup node ../../tests/e2e/playwright/fixtures/ssr-api.mjs 3599 > /tmp/ssr-api.log 2>&1 &
+          nohup node ./node_modules/next/dist/bin/next start --hostname 127.0.0.1 --port 3000 > /tmp/next-start.log 2>&1 &
+          for i in $(seq 1 60); do
+            curl -fsS http://127.0.0.1:3599/__health >/dev/null 2>&1 && curl -fsS -o /dev/null http://127.0.0.1:3000/en 2>/dev/null && exit 0
+            sleep 2
+          done
+          cat /tmp/ssr-api.log /tmp/next-start.log
+          exit 1
+
+      # Playwright reuses both servers (reuseExistingServer: true).
+      - name: Run specs on the production build
+        run: >-
+          pnpm exec playwright test
+          agent-session-reliability.spec.ts
+          route-audit.spec.ts
+          --reporter=line,json
+        env:
+          PLAYWRIGHT_JSON_OUTPUT_NAME: playwright-results.json
+
+      - name: Report flaky tests
+        if: always()
+        run: node ../../tests/e2e/playwright/report-flaky.mjs playwright-results.json
+
+      - name: Upload report on failure
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-production-build
+          path: |
+            playwright-report
+            apps/web/test-results
+            /tmp/next-start.log
+          retention-days: 7
+
   full-suite:
     # Every spec in tests/e2e/playwright on both projects (chromium,
     # mobile-chrome), fully offline: browser calls are stubbed per spec, the
