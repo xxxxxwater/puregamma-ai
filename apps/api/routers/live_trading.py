@@ -22,7 +22,7 @@ from sqlalchemy.orm import Session
 from apps.api.dependencies import get_current_user, get_db, require_admin
 from packages.database.models import TradingAccount, User
 from packages.live_trading import control_plane, nav as nav_service, ledger as ledger_service
-from packages.live_trading import ledger_view, order_sync
+from packages.live_trading import ledger_view, mandate_proposals, order_sync
 from packages.live_trading import price_feed as price_feed_service
 from packages.live_trading.control_plane import ControlPlaneError, OrderRejected
 from packages.live_trading.decimal_text import decimal_text
@@ -466,6 +466,88 @@ def reconciliation_status(
         return ledger_view.reconciliation_view(db, user.id, account_id=account_id)
     except LookupError as exc:
         raise _not_found(exc) from exc
+
+
+# ---------------------------------------------------------------------------
+# /api/trading/mandate-proposals (owner side; LIVE_MANDATE_PROPOSALS_ENABLED)
+# ---------------------------------------------------------------------------
+
+
+class MandateProposalRequest(BaseModel):
+    terms: dict = Field(default_factory=dict)
+    target_mandate_id: str | None = Field(default=None, max_length=64)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class ProposalReasonRequest(BaseModel):
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+def proposal_http_error(exc: Exception) -> HTTPException:
+    if isinstance(exc, mandate_proposals.ProposalsDisabled):
+        return HTTPException(status_code=404, detail={"code": "MANDATE_PROPOSALS_DISABLED", "message": str(exc)})
+    if isinstance(exc, mandate_proposals.ProposalsUnavailable):
+        return HTTPException(status_code=503, detail={"code": "MANDATE_PROPOSALS_UNAVAILABLE", "message": str(exc)})
+    if isinstance(exc, LookupError):
+        return HTTPException(status_code=404, detail={"code": "NOT_FOUND", "message": str(exc)})
+    if isinstance(exc, mandate_proposals.ProposalForbidden):
+        return HTTPException(status_code=403, detail={"code": "PROPOSAL_FORBIDDEN", "message": str(exc)})
+    if isinstance(exc, mandate_proposals.ProposalConflict):
+        return HTTPException(status_code=409, detail={"code": "PROPOSAL_CONFLICT", "message": str(exc)})
+    if isinstance(exc, mandate_proposals.ProposalInvalid):
+        return HTTPException(status_code=400, detail={"code": "PROPOSAL_INVALID", "message": str(exc)})
+    return HTTPException(status_code=500, detail="Mandate proposal failed")
+
+
+_PROPOSAL_ERRORS = (
+    LookupError,
+    mandate_proposals.ProposalsDisabled,
+    mandate_proposals.ProposalsUnavailable,
+    mandate_proposals.ProposalForbidden,
+    mandate_proposals.ProposalConflict,
+    mandate_proposals.ProposalInvalid,
+)
+
+
+@trading_router.get("/mandate-proposals")
+def my_mandate_proposals(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
+    try:
+        return {"proposals": mandate_proposals.list_for_user(db, user.id)}
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
+
+
+@trading_router.post("/mandate-proposals")
+def propose_mandate(
+    payload: MandateProposalRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    """Propose a LIVE mandate (or an amendment) for yourself. It takes effect
+    only after two different administrators approve it, starts paused, and
+    never bypasses the deployment's LIVE gates."""
+    try:
+        return {
+            "proposal": mandate_proposals.propose(
+                db, user, user_id=user.id, terms=payload.terms,
+                target_mandate_id=payload.target_mandate_id, reason=payload.reason,
+            )
+        }
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
+
+
+@trading_router.post("/mandate-proposals/{proposal_id}/revoke")
+def revoke_mandate_proposal(
+    proposal_id: str,
+    payload: ProposalReasonRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict:
+    try:
+        return {"proposal": mandate_proposals.revoke(db, user, proposal_id, reason=payload.reason)}
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
 
 
 @trading_router.get("/safety-status")

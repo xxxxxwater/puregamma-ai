@@ -2293,6 +2293,39 @@ class BrokerConnection(Base, TimestampMixin):
     error_message = Column(Text, nullable=True)
 
 
+class TradingMandateProposal(Base, TimestampMixin):
+    """A proposed LIVE mandate (or amendment) awaiting two-person approval.
+
+    State machine: ``pending`` -> ``applied`` after two approvals by two
+    different administrators, neither of whom is the proposer or the mandate
+    owner; ``pending`` -> ``rejected`` | ``revoked`` | ``expired`` otherwise.
+    Applying never enables LIVE trading: the resulting mandate starts paused
+    and every order still passes the full static/user/kill-switch gate.
+    Added by migration 0036 (feature-flagged; see
+    ``LIVE_MANDATE_PROPOSALS_ENABLED``).
+    """
+
+    __tablename__ = "trading_mandate_proposals"
+    __table_args__ = (UniqueConstraint("idempotency_key", name="uq_trading_mandate_proposal_idempotency"),)
+
+    id = Column(String, primary_key=True, default=new_id)
+    kind = Column(String, nullable=False, default="create")  # create | amend
+    user_id = Column(String, ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    target_mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="CASCADE"), nullable=True, index=True)
+    base_revision = Column(Integer, nullable=True)
+    proposed_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True, index=True)
+    payload_json = Column(JSON, default=dict, nullable=False)
+    status = Column(String, nullable=False, default="pending", index=True)  # pending | applied | rejected | revoked | expired
+    approvals_json = Column(JSON, default=list, nullable=False)
+    decided_by = Column(String, ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+    decided_at = Column(DateTime(timezone=True), nullable=True)
+    decision_reason = Column(Text, nullable=True)
+    expires_at = Column(DateTime(timezone=True), nullable=False, index=True)
+    applied_mandate_id = Column(String, ForeignKey("trading_mandates.id", ondelete="SET NULL"), nullable=True)
+    idempotency_key = Column(String, nullable=False)
+    trace_id = Column(String, nullable=False, index=True)
+
+
 class LiveUserApproval(Base, TimestampMixin):
     """Server-side LIVE eligibility approval for a user.
 

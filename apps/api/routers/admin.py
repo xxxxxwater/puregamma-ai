@@ -2423,3 +2423,105 @@ def admin_trading_audit(
     from packages.live_trading import admin_review
 
     return {"events": admin_review.list_admin_audit(db, limit=limit)}
+
+
+# ---------------------------------------------------------------------------
+# LIVE mandate proposals: two-person approval (LIVE_MANDATE_PROPOSALS_ENABLED)
+# ---------------------------------------------------------------------------
+
+
+class AdminMandateProposalRequest(BaseModel):
+    user_id: str = Field(min_length=1, max_length=64)
+    terms: dict = Field(default_factory=dict)
+    target_mandate_id: str | None = Field(default=None, max_length=64)
+    reason: str = Field(min_length=1, max_length=2000)
+
+
+class AdminProposalNoteRequest(BaseModel):
+    note: str = Field(min_length=1, max_length=2000)
+
+
+@router.get("/trading/mandate-proposals")
+def admin_mandate_proposals(
+    status: str | None = Query(default=None, pattern="^(pending|applied|rejected|revoked|expired)$"),
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from apps.api.routers.live_trading import _PROPOSAL_ERRORS, proposal_http_error
+    from packages.live_trading import mandate_proposals
+
+    try:
+        return {"proposals": mandate_proposals.list_all(db, status=status, limit=limit)}
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
+
+
+@router.post("/trading/mandate-proposals")
+def admin_propose_mandate(
+    payload: AdminMandateProposalRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from apps.api.routers.live_trading import _PROPOSAL_ERRORS, proposal_http_error
+    from packages.live_trading import mandate_proposals
+
+    try:
+        return {
+            "proposal": mandate_proposals.propose(
+                db, user, user_id=payload.user_id, terms=payload.terms,
+                target_mandate_id=payload.target_mandate_id, reason=payload.reason,
+            )
+        }
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
+
+
+@router.post("/trading/mandate-proposals/{proposal_id}/approve")
+def admin_approve_mandate_proposal(
+    proposal_id: str,
+    payload: AdminProposalNoteRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """One of two required approvals. The proposer and the mandate owner can
+    never approve, and one administrator can approve only once."""
+    from apps.api.routers.live_trading import _PROPOSAL_ERRORS, proposal_http_error
+    from packages.live_trading import mandate_proposals
+
+    try:
+        return {"proposal": mandate_proposals.approve(db, user, proposal_id, note=payload.note)}
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
+
+
+@router.post("/trading/mandate-proposals/{proposal_id}/reject")
+def admin_reject_mandate_proposal(
+    proposal_id: str,
+    payload: AdminProposalNoteRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from apps.api.routers.live_trading import _PROPOSAL_ERRORS, proposal_http_error
+    from packages.live_trading import mandate_proposals
+
+    try:
+        return {"proposal": mandate_proposals.reject(db, user, proposal_id, reason=payload.note)}
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
+
+
+@router.post("/trading/mandate-proposals/{proposal_id}/revoke")
+def admin_revoke_mandate_proposal(
+    proposal_id: str,
+    payload: AdminProposalNoteRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from apps.api.routers.live_trading import _PROPOSAL_ERRORS, proposal_http_error
+    from packages.live_trading import mandate_proposals
+
+    try:
+        return {"proposal": mandate_proposals.revoke(db, user, proposal_id, reason=payload.note)}
+    except _PROPOSAL_ERRORS as exc:
+        raise proposal_http_error(exc) from exc
