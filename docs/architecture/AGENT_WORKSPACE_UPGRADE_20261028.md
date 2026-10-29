@@ -51,7 +51,7 @@
 | 回测 | 已实现（旧） | 不变 | `backtest-lab.tsx` | — | 尚未有 Harness UI 插件 |
 | 领域 tool-view（Harness） | 仅契约：catalog 里的 `tool.*` UI 没有实现 | 已实现（Portfolio/NAV、Research、Options、Backtest、Memory）：`@puregamma/dsh-ui-portfolio`、`@puregamma/dsh-ui-research` 通过 `tool.call.toolview` 渲染工具结果的 `presentationMeta`（模型不可见），stale/unavailable/degraded 都会明确标出，缺失的 NAV 不显示为 0 | `harness/plugins/ui-{portfolio,research,options,backtest,memory}`、对应 `tool-*` | `domain-toolviews-check`（8 例） | 研究产物资源视图（`resource.research-artifact`）未做 |
 | 全路由健壮性 | 不可用：`/daily-push` 在 API 故障时崩溃；`/secretary` 在桌面端横向滚动 | 已实现：51 个路由 × 桌面/手机在 API 不可用时不崩溃、不横向滚动，按钮/链接都有可访问名称 | `route-audit.spec.ts`（CI job） | 114/114 | — |
-| 实盘 | 已实现（默认全部关闭），但界面在结果不明时允许重新预览、UNKNOWN 无解释、成交显示“不可用” | 已实现：审批卡、结果不明时只允许核对或重发**同一意图**、UNKNOWN 有解释、展示成交、可吊销连接 | `live-trading-console.tsx` | E2E `live-trading-workflow`（15 例 × 2 端） | 实盘开关仍由部署方控制，本次没有开启 |
+| 实盘 | 已实现（默认全部关闭），但界面在结果不明时允许重新预览、UNKNOWN 无解释、成交显示“不可用” | 已实现：审批卡、结果不明时只允许核对或重发**同一意图**、UNKNOWN 有解释、展示成交、可吊销连接。v0.3.4：用户侧 ledger/对账只读视图（Account 页不再显示“ledger 不可用”）、UNKNOWN 订单的同步状态与只查询的“请求重新核对”（默认关）、管理端审阅（kill switch、LIVE 资格、对账异常）、mandate 提案 → 双人审批 → 生效（默认关，迁移 0036）（§14） | `live-trading-console.tsx`、`admin-live-trading-console.tsx`、`packages/live_trading/{ledger_view,order_sync,admin_review,mandate_proposals}.py` | E2E `live-trading-workflow`、`live-trading-{ledger,recheck,admin}`；pytest `test_live_trading_*`（含 Postgres 并发） | 实盘开关仍由部署方控制，本次没有开启；mandate 提案只有 API、没有界面；`ledger.cash_balance` 仍跨币种求和（需单独评审风控语义） |
 | 通知 | 已实现（旧） | 不变 | `routers/notifications.py` | — | — |
 | 记忆 | 已实现（默认关闭） | 不变 | `routers/memory.py` | — | — |
 | 移动端 | 部分实现：抽屉 Escape 后焦点不返回、导航抽屉关闭时仍可聚焦并漏出 12px、历史抽屉被页头遮挡 | 已实现：键盘与读屏可用，抽屉通过 portal 渲染、不透明，桌面折叠状态持久化 | `nav.tsx`、`agent-chat.tsx`、`use-dialog-focus.ts` | E2E `phone drawers` | — |
@@ -155,6 +155,7 @@
 
 ## 8. 尚未上线 / 已知缺口
 
+- **实盘与账务（v0.3.4，§14）**：新增的写入口全部默认关闭——`LIVE_ORDER_RECHECK_ENABLED`（只查询的重新核对）、`LIVE_MANDATE_PROPOSALS_ENABLED`（需先在生产执行迁移 0036）。是否开启、审批人范围、限流间隔、`LIVE_ORDER_SYNC` 审计行的保留策略需要产品决定。管理端 `notes` 改为必填、释放不存在的 kill switch 返回 404，仓库外的脚本需同步。
 - **DSH 多租户**：v0.3.3 已实现每用户隔离 Host 的 session broker、用户级 Host token 和按请求读取的 token 文件（默认关闭，§13）。仍未上线：Caddy/Next 到 broker 的入口；所有 Host 以同一 OS 用户运行（公开实例需要独立 uid/容器或 seccomp/AppArmor）；broker 不做速率限制（应由边缘代理负责）；没有用真实模型 key 做过端到端对话。
 - **Harness 编译依赖对齐**：v0.3.3 已把 npm 上的 `@deepseek-ai/*` 升到 `0.1.7-rc.1`（与 vendored gitlink 同 tag）。vendored 源码本身没有在本机构建（磁盘和内存不足），用的是同 tag 的 npm 包。
 - **领域 tool-view 插件**：五个领域都已实现（v0.3.1–v0.3.2）。研究产物和回测产物的资源视图（`resource.*`）尚未实现。
@@ -238,3 +239,27 @@ v0.3.2 之后合入 `main` 的变更（均未执行生产部署、数据库迁�
 | 工作会话报告：真实 DSH `0.1.7-rc.1` 两个 Host 的隔离集成测试 | 9/9（未认证 401、A/B Session 互不可见、选择器越界被拒、跨站 403） |
 | 工作会话报告：Playwright 全量（除 route-audit）× 2 端 | 300 通过、0 失败、8 跳过（live-only）；route-audit 114/114 |
 | GitHub Actions（Harness、Commercial Release Gate、commercial readiness、Web E2E） | 见 v0.3.3 release 对应提交 |
+
+## 14. v0.3.4 追加
+
+v0.3.3 之后合入 `main` 的变更（均未执行生产部署、生产数据库迁移、切流或实盘开启；新能力默认关闭）：
+
+- **实盘与账务可审计**（`68833f7`…`0186a72`，详见 [upgrade-20261029/live-ledger-audit.md](upgrade-20261029/live-ledger-audit.md)）：
+  - 用户侧 ledger 与对账只读接口（`GET /api/trading/ledger`、`/reconciliation`）：先按所有权解析，他人与不存在一律 404；keyset 分页（`created_at DESC, id DESC`，游标不携带权限）；金额为十进制字符串；没有数据显示 `empty`/不可用，不显示 0。Account 页接入。
+  - UNKNOWN 订单同步状态（`GET /orders/{id}/sync-status`）与只查询的“请求重新核对”（`LIVE_ORDER_RECHECK_ENABLED`，默认关；每单限流，在订单行锁内先记录再查询；kill switch 期间仍可查询）。后台同步在结果变化时追加 `LIVE_ORDER_SYNC` 审计行（只追加、与状态更新同一事务，不受开关控制）。
+  - 管理端审阅页 `/admin/trading`：kill switch 启用/释放（原因必填、二次确认）、LIVE 资格审批（不能自批）、对账异常审阅；全部由服务端 `admin_user` 授权。
+  - Mandate 提案 → 两名不同管理员审批（提案人和所有者都不能批）→ 生效（生效后处于暂停状态，仍经过全部静态门禁）。`LIVE_MANDATE_PROPOSALS_ENABLED` 默认关；新表来自只增不改的迁移 0036，迁移未执行时接口返回“不可用”，其他路径不访问新表。
+  - 测试中发现并修复的既有缺陷：暂停/恢复与撤单的审计键精确到秒，同一秒内的第二次操作审计被去重丢失；并发确认的输家拿到锁后未复查，可能把已批准的 intent 改成 REJECTED；撤单返回 `CANCEL_UNKNOWN` 时界面仍显示“已撤单”。
+
+验证（协调会话在合并前的树上复跑，另附工作会话报告）：
+
+| 项目 | 结果 |
+| --- | --- |
+| `pytest tests`（`0186a72`，heavy 锁 + 2000M scope） | 1377 通过、9 跳过、4 xfailed、0 失败 |
+| Postgres（一次性 `postgres:17` 容器，`PUREGAMMA_TEST_POSTGRES_DSN`） | `test_live_trading_ledger_postgres.py` + `test_live_trading_concurrency_postgres.py`：8/8，连跑 2 次 |
+| ruff（CI 规则） | 通过 |
+| `apps/web` typecheck / lint | 通过（9 个已有警告） |
+| Playwright（生产构建 + `next start`，chromium + mobile-chrome） | live-trading-ledger 12、live-trading-recheck 10、live-trading-admin 16、live-trading-workflow 24，全部通过 |
+| 工作会话报告：route-audit（生产构建） | 116/116（新增 `/admin/trading`） |
+| 工作会话报告：变异测试 | 16 项守卫去掉后对应测试失败（所有权、只读保证、限流、自批、双人审批、审计键、锁内复查等） |
+
