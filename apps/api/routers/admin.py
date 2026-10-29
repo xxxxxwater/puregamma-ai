@@ -2173,7 +2173,8 @@ class LiveApprovalRequest(BaseModel):
     user_id: str
     approve: bool = True
     max_total_notional: str = Field(default="0", pattern=r"^\d+(\.\d+)?$")
-    notes: str = Field(default="", max_length=2000)
+    # The reason is recorded on the approval and in the audit log.
+    notes: str = Field(min_length=1, max_length=2000)
 
 
 class AdminKillSwitchRequest(BaseModel):
@@ -2191,40 +2192,59 @@ class AdminBrokerConnectionRequest(BaseModel):
     credentials: dict = Field(default_factory=dict)
 
 
+def _review_error(exc: Exception) -> HTTPException:
+    from packages.live_trading.admin_review import AdminForbidden
+
+    if isinstance(exc, LookupError):
+        return HTTPException(status_code=404, detail=str(exc))
+    if isinstance(exc, AdminForbidden):
+        return HTTPException(status_code=403, detail=str(exc))
+    return HTTPException(status_code=400, detail=str(exc))
+
+
+@router.get("/trading/live-approvals")
+def admin_live_approvals(
+    limit: int = Query(default=100, ge=1, le=500),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.live_trading import admin_review
+
+    return {"approvals": admin_review.list_live_approvals(db, limit=limit)}
+
+
 @router.post("/trading/live-approvals")
 def admin_live_approval(
     payload: LiveApprovalRequest,
     db: Session = Depends(get_db),
     user: User = Depends(admin_user),
 ) -> dict:
-    from packages.database.models import LiveUserApproval, utcnow as model_utcnow
+    from packages.live_trading import admin_review
 
-    target = db.query(User).filter_by(id=payload.user_id).one_or_none()
-    if not target:
-        raise HTTPException(status_code=404, detail="User not found")
-    row = db.query(LiveUserApproval).filter_by(user_id=payload.user_id).one_or_none()
-    if not row:
-        row = LiveUserApproval(user_id=payload.user_id)
-        db.add(row)
-    row.status = "approved" if payload.approve else "rejected"
-    row.max_total_notional = payload.max_total_notional
-    row.reviewed_by = user.id
-    row.reviewed_at = model_utcnow()
-    row.notes = payload.notes or None
-    if not payload.approve:
-        row.revoked_at = model_utcnow()
-    db.commit()
-    db.refresh(row)
-    return {
-        "approval": {
-            "id": row.id,
-            "user_id": row.user_id,
-            "status": row.status,
-            "max_total_notional": str(row.max_total_notional),
-            "reviewed_by": row.reviewed_by,
-            "reviewed_at": row.reviewed_at.isoformat() if row.reviewed_at else None,
-        }
-    }
+    try:
+        approval = admin_review.set_live_approval(
+            db,
+            user,
+            user_id=payload.user_id,
+            approve=payload.approve,
+            max_total_notional=payload.max_total_notional,
+            notes=payload.notes,
+        )
+    except (LookupError, ValueError, PermissionError) as exc:
+        raise _review_error(exc) from exc
+    return {"approval": approval}
+
+
+@router.get("/trading/kill-switches")
+def admin_kill_switches(
+    include_released: bool = True,
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.live_trading import admin_review
+
+    return admin_review.list_kill_switches(db, include_released=include_released, limit=limit)
 
 
 @router.post("/trading/kill-switch")
@@ -2233,42 +2253,24 @@ def admin_kill_switch(
     db: Session = Depends(get_db),
     user: User = Depends(admin_user),
 ) -> dict:
-    from packages.live_trading import kill_switch as kill_switch_service
-    from packages.live_trading.audit import new_trace_id
-    from packages.database.models import TradingMandate
+    """Engage or release a kill switch (reason required both ways; audited).
 
-    trace_id = new_trace_id()
-    if payload.active:
-        row = kill_switch_service.engage(
+    A kill switch blocks new exposure only: queries, cancels, fill recording
+    and reconciliation keep working while it is engaged.
+    """
+    from packages.live_trading import admin_review
+
+    try:
+        return admin_review.set_kill_switch(
             db,
+            user,
             scope=payload.scope,
-            scope_id=payload.scope_id,
+            scope_id=payload.scope_id or None,
+            active=payload.active,
             reason=payload.reason,
-            triggered_by="admin",
-            trace_id=trace_id,
         )
-        if payload.scope == "mandate" and payload.scope_id:
-            mandate = db.query(TradingMandate).filter_by(id=payload.scope_id).one_or_none()
-            if mandate:
-                mandate.kill_switch_state = "active"
-                mandate.paused = True
-                mandate.pause_reason = f"admin kill switch: {payload.reason[:500]}"
-    else:
-        released = kill_switch_service.release(
-            db,
-            scope=payload.scope,
-            scope_id=payload.scope_id,
-            resolved_by=user.id,
-            trace_id=trace_id,
-        )
-        if not released:
-            raise HTTPException(status_code=404, detail="No active kill switch in scope")
-        if payload.scope == "mandate" and payload.scope_id:
-            mandate = db.query(TradingMandate).filter_by(id=payload.scope_id).one_or_none()
-            if mandate and mandate.kill_switch_state == "active":
-                mandate.kill_switch_state = "inactive"
-    db.commit()
-    return {"trace_id": trace_id, "active": payload.active, "scope": payload.scope}
+    except (LookupError, ValueError, PermissionError) as exc:
+        raise _review_error(exc) from exc
 
 
 @router.post("/trading/connections")
@@ -2371,33 +2373,53 @@ def admin_ledger_entries(
 
 @router.get("/trading/reconciliations")
 def admin_reconciliations(
+    status: str | None = Query(default=None, pattern="^(ok|discrepancy|error)$"),
+    exceptions_only: bool = False,
+    unreviewed_only: bool = False,
     limit: int = Query(default=50, ge=1, le=500),
     db: Session = Depends(get_db),
     user: User = Depends(admin_user),
 ) -> dict:
-    from packages.database.models import TradingReconciliation
+    from packages.live_trading import admin_review
 
-    rows = (
-        db.query(TradingReconciliation)
-        .order_by(TradingReconciliation.created_at.desc())
-        .limit(limit)
-        .all()
-    )
     return {
-        "reconciliations": [
-            {
-                "id": row.id,
-                "user_id": row.user_id,
-                "account_id": row.account_id,
-                "mandate_id": row.mandate_id,
-                "status": row.status,
-                "exchange_balance": row.exchange_balance_json,
-                "ledger_balance": row.ledger_balance_json,
-                "nav": row.nav_json,
-                "differences": row.differences_json,
-                "actions": row.actions_json,
-                "created_at": row.created_at.isoformat(),
-            }
-            for row in rows
-        ]
+        "reconciliations": admin_review.list_reconciliations(
+            db,
+            status=status,
+            exceptions_only=exceptions_only,
+            unreviewed_only=unreviewed_only,
+            limit=limit,
+        )
     }
+
+
+class ReconciliationReviewRequest(BaseModel):
+    note: str = Field(min_length=1, max_length=2000)
+
+
+@router.post("/trading/reconciliations/{reconciliation_id}/review")
+def admin_review_reconciliation(
+    reconciliation_id: str,
+    payload: ReconciliationReviewRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    """Mark a reconciliation exception reviewed (appends an audit row; the
+    reconciliation and the paused mandate are left as they are)."""
+    from packages.live_trading import admin_review
+
+    try:
+        return {"reconciliation": admin_review.review_reconciliation(db, user, reconciliation_id, note=payload.note)}
+    except (LookupError, ValueError, PermissionError) as exc:
+        raise _review_error(exc) from exc
+
+
+@router.get("/trading/audit")
+def admin_trading_audit(
+    limit: int = Query(default=50, ge=1, le=200),
+    db: Session = Depends(get_db),
+    user: User = Depends(admin_user),
+) -> dict:
+    from packages.live_trading import admin_review
+
+    return {"events": admin_review.list_admin_audit(db, limit=limit)}

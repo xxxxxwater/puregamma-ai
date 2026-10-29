@@ -2235,6 +2235,42 @@ export function recheckLiveOrder(orderId: string) {
   return requestStrict<{ sync: LiveOrderSyncStatus }>(`/api/trading/orders/${encodeURIComponent(orderId)}/recheck`, { method: "POST" });
 }
 
+// ── LIVE admin review (server enforces the admin role on every call) ──────
+export type AdminKillSwitch = { id: string; scope: string; scope_id: string | null; state: string; reason: string; triggered_by: string; triggered_at: string | null; resolved_by: string | null; resolved_at: string | null; trace_id: string | null };
+export type AdminLiveApproval = { id: string; user_id: string; email: string | null; status: string; max_total_notional: string | null; reviewed_by: string | null; reviewed_at: string | null; revoked_at: string | null; notes: string | null };
+export type AdminReconciliation = LiveReconciliationRecord & { user_id: string; trace_id: string };
+export type AdminTradingAuditEvent = { id: string; action: string; status: string; user_id: string; admin_user_id: string | null; request: Record<string, unknown>; result: Record<string, unknown>; trace_id: string | null; created_at: string };
+
+export function getAdminKillSwitches() {
+  return requestStrict<{ active: AdminKillSwitch[]; released: AdminKillSwitch[] }>("/admin/trading/kill-switches");
+}
+
+export function setAdminKillSwitch(payload: { scope: string; scope_id: string | null; active: boolean; reason: string }) {
+  return requestStrict<{ trace_id: string; active: boolean; scope: string }>("/admin/trading/kill-switch", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function getAdminLiveApprovals() {
+  return requestStrict<{ approvals: AdminLiveApproval[] }>("/admin/trading/live-approvals");
+}
+
+export function setAdminLiveApproval(payload: { user_id: string; approve: boolean; max_total_notional: string; notes: string }) {
+  return requestStrict<{ approval: AdminLiveApproval }>("/admin/trading/live-approvals", { method: "POST", body: JSON.stringify(payload) });
+}
+
+export function getAdminReconciliations(options: { unreviewedOnly?: boolean } = {}) {
+  const query = new URLSearchParams({ exceptions_only: "true" });
+  if (options.unreviewedOnly) query.set("unreviewed_only", "true");
+  return requestStrict<{ reconciliations: AdminReconciliation[] }>(`/admin/trading/reconciliations?${query.toString()}`);
+}
+
+export function reviewAdminReconciliation(reconciliationId: string, note: string) {
+  return requestStrict<{ reconciliation: AdminReconciliation }>(`/admin/trading/reconciliations/${encodeURIComponent(reconciliationId)}/review`, { method: "POST", body: JSON.stringify({ note }) });
+}
+
+export function getAdminTradingAudit() {
+  return requestStrict<{ events: AdminTradingAuditEvent[] }>("/admin/trading/audit");
+}
+
 export function getLiveReconciliation(accountId?: string) {
   const query = accountId ? `?account_id=${encodeURIComponent(accountId)}` : "";
   return requestStrict<LiveReconciliationView>(`/api/trading/reconciliation${query}`);
