@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "FULL_ACCESS_ACKNOWLEDGEMENT_REQUIRED"
+  },
+  "request": {
+    "method": "PATCH",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000001"
+  },
+  "status": 400
+}

@@ -1,0 +1,13 @@
+{
+  "body": {
+    "detail": {
+      "code": "TRADING_ACCOUNT_NOT_FOUND",
+      "message": "No active trading account"
+    }
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/portfolio/nav"
+  },
+  "status": 404
+}

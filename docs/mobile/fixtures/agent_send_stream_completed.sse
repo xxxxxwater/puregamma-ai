@@ -1,0 +1,27 @@
+event: run.started
+data: {"at": "2026-10-29T08:00:00.000000+00:00", "creditBalance": 25, "messageId": "00000000-0000-4000-8000-000000000002", "model": "mock-model", "runId": "00000000-0000-4000-8000-000000000001", "seq": 1, "traceId": "00000000-0000-4000-8000-000000000003"}
+
+event: plan.ready
+data: {"assets": ["BTC"], "at": "2026-10-29T08:00:01.000000+00:00", "autoSelectedSkills": true, "clarificationRecommended": false, "evidenceRequirements": ["market_quote", "source_document"], "intent": "market_research", "runId": "00000000-0000-4000-8000-000000000001", "seq": 2}
+
+event: tool.started
+data: {"arguments": {"symbols": ["BTC"]}, "at": "2026-10-29T08:00:02.000000+00:00", "seq": 3, "tool": "get_market_quote", "toolCallId": "00000000-0000-4000-8000-000000000004"}
+
+event: tool.completed
+data: {"at": "2026-10-29T08:00:03.000000+00:00", "data": [], "latencyMs": 12, "seq": 4, "summary": "No synchronized market quote is available", "tool": "get_market_quote", "toolCallId": "00000000-0000-4000-8000-000000000004"}
+
+event: tool.started
+data: {"arguments": {"hours": 72, "providers": ["rss"], "query": "What is the BTC market price?", "symbols": ["BTC"]}, "at": "2026-10-29T08:00:04.000000+00:00", "seq": 5, "tool": "search_source_documents", "toolCallId": "00000000-0000-4000-8000-000000000005"}
+
+event: tool.completed
+data: {"at": "2026-10-29T08:00:05.000000+00:00", "data": [], "latencyMs": 12, "seq": 6, "summary": "Connected sources do not contain enough matching evidence", "tool": "search_source_documents", "toolCallId": "00000000-0000-4000-8000-000000000005"}
+
+event: evidence.ready
+data: {"at": "2026-10-29T08:00:06.000000+00:00", "kinds": ["market_quote", "source_document"], "missing": ["market_quote", "source_document"], "provider_count": 0, "record_count": 2, "schema_version": "1.0", "seq": 7, "source_count": 0, "sufficient": false}
+
+event: message.delta
+data: {"at": "2026-10-29T08:00:07.000000+00:00", "delta": "Mock LLM synthesis for institutional research.", "messageId": "00000000-0000-4000-8000-000000000002", "seq": 8}
+
+event: message.completed
+data: {"at": "2026-10-29T08:00:08.000000+00:00", "creditBalance": 25, "creditsUsed": 5, "evidence": {"kinds": ["market_quote", "source_document"], "missing": ["market_quote", "source_document"], "provider_count": 0, "record_count": 2, "schema_version": "1.0", "source_count": 0, "sufficient": false}, "inputTokens": 887, "messageId": "00000000-0000-4000-8000-000000000002", "model": "mock-model", "nextActions": ["compare_changes", "set_watch", "review_risk"], "outputTokens": 6, "runId": "00000000-0000-4000-8000-000000000001", "seq": 9}
+

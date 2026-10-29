@@ -1,0 +1,27 @@
+{
+  "body": {
+    "daily_pnl": "1234.56789012",
+    "daily_return": "0.0123456789012",
+    "nav": {
+      "account_id": "00000000-0000-4000-8000-000000000002",
+      "calculated_at": "2026-10-29T08:00:00",
+      "calculation_version": "1.0.0",
+      "cash": "25000.50000000",
+      "currency": "USD",
+      "gross_exposure": "76234.06789012",
+      "id": "00000000-0000-4000-8000-000000000001",
+      "is_stale": false,
+      "nav": "101234.56789012",
+      "net_exposure": "-1.00000001",
+      "price_timestamp": "2026-10-29T08:00:00",
+      "realized_pnl": "0.00000000",
+      "reconciliation_status": "ok",
+      "unrealized_pnl": "1234.56789012"
+    }
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/portfolio/nav"
+  },
+  "status": 200
+}

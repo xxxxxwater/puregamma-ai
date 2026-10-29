@@ -1,0 +1,10 @@
+{
+  "body": {
+    "detail": "Run not found"
+  },
+  "request": {
+    "method": "GET",
+    "path": "/api/agent/runs/00000000-0000-4000-8000-000000000001/events"
+  },
+  "status": 404
+}

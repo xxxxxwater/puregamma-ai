@@ -1,0 +1,16 @@
+{
+  "body": {
+    "detail": {
+      "code": "DUPLICATE_SUBMISSION",
+      "messageId": "00000000-0000-4000-8000-000000000002",
+      "runId": "00000000-0000-4000-8000-000000000001",
+      "status": "failed",
+      "userMessageId": "00000000-0000-4000-8000-000000000003"
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000004/messages"
+  },
+  "status": 409
+}

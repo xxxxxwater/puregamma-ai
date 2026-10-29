@@ -1,0 +1,13 @@
+{
+  "body": {
+    "detail": {
+      "code": "AGENT_MODEL_UNAVAILABLE",
+      "message": "The selected Agent model is currently unavailable."
+    }
+  },
+  "request": {
+    "method": "POST",
+    "path": "/api/agent/conversations/00000000-0000-4000-8000-000000000001/messages"
+  },
+  "status": 503
+}
