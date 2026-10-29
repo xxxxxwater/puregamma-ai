@@ -295,9 +295,14 @@
 
   /* ── Scale ───────────────────────────────────────────────────────── */
   --pg-hairline: 1px;              /* Phase 2 narrows neutral rules to 0.5px */
-  --pg-radius-sm: 10px;
-  --pg-radius-md: 14px;
-  --pg-radius-lg: 20px;
+  /* Three radii only (Round 5 §3 rule 9); Tailwind's rounded-* scale maps here. */
+  --pg-radius-sm: 6px;
+  --pg-radius-md: 8px;
+  --pg-radius-lg: 12px;
+  /* Control heights: Button sizes sm / md / lg (and icon-only squares). */
+  --pg-control-sm: 32px;
+  --pg-control-md: 40px;
+  --pg-control-lg: 44px;
   --pg-chat-measure: 48rem;        /* one width contract for both chat routes */
   --pg-chat-measure-max: 880px;
 

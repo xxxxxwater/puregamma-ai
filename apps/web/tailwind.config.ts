@@ -106,9 +106,41 @@ const config: Config = {
         ],
         mono: ["'JetBrains Mono'", "'Fira Code'", "monospace"],
       },
+      // The eight type steps (Round 5 §3 rule 6): size always paired with its
+      // line height. Arbitrary `text-[Npx]` is not allowed; `2xs` (formerly
+      // 10px) is an alias of the smallest step.
       fontSize: {
-        "2xs": ["0.625rem", { lineHeight: "0.875rem" }],
+        "11": ["11px", { lineHeight: "16px" }],
+        "12": ["12px", { lineHeight: "18px" }],
+        "13": ["13px", { lineHeight: "20px" }],
+        "14": ["14px", { lineHeight: "22px" }],
+        "16": ["16px", { lineHeight: "24px" }],
+        "18": ["18px", { lineHeight: "26px" }],
+        "20": ["20px", { lineHeight: "28px" }],
+        "24": ["24px", { lineHeight: "32px" }],
+        "2xs": ["11px", { lineHeight: "16px" }],
         eyebrow: ["0.6875rem", { lineHeight: "1rem", letterSpacing: "0.08em", fontWeight: "600" }],
+      },
+      minHeight: {
+        "control-sm": "var(--pg-control-sm)",
+        "control-md": "var(--pg-control-md)",
+        "control-lg": "var(--pg-control-lg)",
+      },
+      width: {
+        "control-sm": "var(--pg-control-sm)",
+        "control-md": "var(--pg-control-md)",
+        "control-lg": "var(--pg-control-lg)",
+      },
+      // Three radii (6 / 8 / 12) inside `extend`, so the scale stays Tailwind's
+      // own shape; every larger step resolves to the largest radius.
+      borderRadius: {
+        sm: "var(--pg-radius-sm)",
+        DEFAULT: "var(--pg-radius-md)",
+        md: "var(--pg-radius-md)",
+        lg: "var(--pg-radius-lg)",
+        xl: "var(--pg-radius-lg)",
+        "2xl": "var(--pg-radius-lg)",
+        "3xl": "var(--pg-radius-lg)",
       },
       boxShadow: {
         panel: "var(--pg-elevation-raised)",
@@ -139,17 +171,6 @@ const config: Config = {
       backgroundSize: {
         "grid": "40px 40px",
       },
-    },
-    borderRadius: {
-      none: "0px",
-      sm: "0.5rem",
-      DEFAULT: "0.75rem",
-      md: "0.875rem",
-      lg: "0.875rem",
-      xl: "1.125rem",
-      "2xl": "1.5rem",
-      "3xl": "1.875rem",
-      full: "9999px",
     },
   },
   plugins: [],
