@@ -13,7 +13,7 @@ interface PureGammaApi {
     suspend fun emailLogin(@Body body: EmailLoginRequest): AuthResponseDto
 
     @POST("/auth/mobile/email/register")
-    suspend fun emailRegister(@Body body: EmailRegisterRequest): AuthResponseDto
+    suspend fun emailRegister(@Body body: EmailRegisterRequest): EmailRegistrationResponseDto
 
     @POST("/auth/mobile/google/start")
     suspend fun googleOAuthStart(@Body body: GoogleOAuthStartRequest): GoogleOAuthStartResponseDto
@@ -171,3 +171,6 @@ interface PureGammaApi {
     @POST("/api/trading/mandates/{id}/resume")
     suspend fun resumeTradingMandate(@Path("id") id: String): TradingMandateEnvelopeDto
 }
+
+/** Registration completes after the emailed verification link is opened. */
+data class EmailRegistrationResponseDto(val message: String)

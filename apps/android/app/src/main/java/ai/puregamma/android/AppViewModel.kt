@@ -206,12 +206,7 @@ class AppViewModel(application: Application) : AndroidViewModel(application) {
             val response = api.emailRegister(
                 EmailRegisterRequest(email.trim(), password, name.trim(), language),
             )
-            tokenStore.save(response.accessToken)
-            val dto = response.user
-            session = SessionState.SignedIn(
-                User(dto.id, dto.email, dto.name, dto.role, dto.plan, dto.membershipTier, dto.creditBalance, dto.avatarUrl),
-            )
-            loadAll()
+            globalError = response.message
         } catch (e: Exception) {
             globalError = resolveError(e, "Unable to create account")
         }
