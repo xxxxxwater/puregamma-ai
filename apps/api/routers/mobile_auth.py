@@ -15,7 +15,7 @@ from apps.api.config import get_settings
 from apps.api.dependencies import create_access_token, get_current_user, get_db, set_session_cookie
 from apps.api.i18n import normalize_locale
 from apps.api.routers.auth import serialize_user
-from apps.api.routers.email_auth import _email_rate_limit
+from apps.api.routers.email_auth import _email_rate_limit, _send_verification_email
 from apps.api.routers.google_auth import GOOGLE_AUTHORIZE_URL, _challenge, _exchange_code_for_token, _verify_google_id_token, upsert_google_user
 from packages.database.models import MobileOAuthSession, MobileWebSession, User, UserPreference, utcnow
 from packages.security.passwords import hash_password, verify_password
@@ -288,7 +288,6 @@ def mobile_email_register(
         credit_balance=150,
         auth_provider="email",
         password_hash=pw_hash,
-        email_verified_at=utcnow(),
     )
     db.add(user)
     db.flush()
@@ -296,14 +295,21 @@ def mobile_email_register(
     if not user.preference:
         db.add(UserPreference(user_id=user.id, email_recipient=email, locale=locale))
 
-    user.last_login_at = utcnow()
-    user.session_version = int(user.session_version or 0) + 1
+    try:
+        _send_verification_email(user)
+    except Exception as exc:
+        db.rollback()
+        raise HTTPException(
+            status_code=503,
+            detail={"code": "VERIFICATION_EMAIL_FAILED", "message": "Account not created. Please try again."},
+        ) from exc
+
     db.commit()
     db.refresh(user)
 
     return {
-        "access_token": create_access_token(user, TOKEN_TTL_SECONDS),
-        "token_type": "bearer",
-        "expires_in": TOKEN_TTL_SECONDS,
         "user": serialize_user(user),
+        "verification_required": True,
+        "email_sent": True,
+        "message": "Verification email sent. Verify your email before signing in.",
     }
