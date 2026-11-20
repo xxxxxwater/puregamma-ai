@@ -27,6 +27,7 @@ import json
 import logging
 import time
 from dataclasses import dataclass, field
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
@@ -40,7 +41,7 @@ SERIES_SCHEMA = "puregamma.pm_nav_series.v1"
 #: Hard cap on how long a cached read may serve the response, so an operator
 #: never sees an unbounded-stale page if the file mtime is misleading.
 MAX_CACHE_SECONDS = 5.0
-#: Bundles older than this are reported as stale (riskbot reconciles every 60s).
+#: Observations older than this are stale (riskbot reconciles every 60s).
 STALE_AFTER_SECONDS = 180.0
 #: The series is sampled from real snapshots every ~30s. A series whose newest
 #: point is older than this is NOT current, and the UI must say so instead of
@@ -166,7 +167,9 @@ class PmAccountReader:
         snapshot = payload.get("snapshot") or {}
         quality = payload.get("quality") or {}
         coverage = payload.get("coverage") or {}
-        age_seconds = self._age_seconds(snapshot, latest.mtime)
+        captured_at = self._captured_at(snapshot)
+        observation_time = captured_at.timestamp() if captured_at is not None else latest.mtime
+        age_seconds = max(0.0, time.time() - observation_time) if observation_time is not None else None
         stale = age_seconds is not None and age_seconds > STALE_AFTER_SECONDS
         orders_meta = payload.get("orders_meta") or {}
         risk = payload.get("risk") or {}
@@ -176,7 +179,7 @@ class PmAccountReader:
             "partial": bool(snapshot.get("partial") or quality.get("partial")),
             "age_seconds": age_seconds,
             "stale_after_seconds": STALE_AFTER_SECONDS,
-            "data_as_of": snapshot.get("captured_at") or payload.get("generated_at"),
+            "data_as_of": captured_at.isoformat() if captured_at is not None else payload.get("generated_at"),
             "generated_at": payload.get("generated_at"),
             "collector": payload.get("collector") or {},
             "source": {
@@ -270,17 +273,22 @@ class PmAccountReader:
         }
 
     @staticmethod
-    def _age_seconds(snapshot: dict[str, Any], mtime: float | None) -> float | None:
-        """Age of the observation, measured from the reader's own clock.
-
-        ``snapshot.age_seconds`` is relative to riskbot's process clock, which
-        is meaningless here; the file mtime is what this process can verify.
-        """
-        if mtime is not None:
-            return max(0.0, time.time() - mtime)
-        captured = snapshot.get("captured_at_ms")
-        if isinstance(captured, (int, float)) and captured > 0:
-            return max(0.0, time.time() - float(captured) / 1000.0)
+    def _captured_at(snapshot: dict[str, Any]) -> datetime | None:
+        """Read the observation time independently of when the export was written."""
+        captured_at = snapshot.get("captured_at")
+        if isinstance(captured_at, str):
+            try:
+                parsed = datetime.fromisoformat(captured_at)
+            except ValueError:
+                pass
+            else:
+                return parsed if parsed.tzinfo is not None else parsed.replace(tzinfo=timezone.utc)
+        captured_at_ms = snapshot.get("captured_at_ms")
+        if type(captured_at_ms) in (int, float) and captured_at_ms > 0:
+            try:
+                return datetime.fromtimestamp(captured_at_ms / 1_000, tz=timezone.utc)
+            except (OverflowError, OSError, ValueError):
+                pass
         return None
 
 

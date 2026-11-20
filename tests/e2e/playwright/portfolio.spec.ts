@@ -39,4 +39,31 @@ test.describe("/portfolio", () => {
     await expect(page.getByText("Plaid Production is missing its Production Secret, so account connection cannot open yet.")).toBeVisible();
     expect(linkTokenRequests).toBe(0);
   });
+
+  for (const { label, observationAge, collectorStale } of [
+    { label: "an older observation is republished", observationAge: 300, collectorStale: false },
+    { label: "the collector flags a recent observation", observationAge: 10, collectorStale: true },
+  ]) {
+    test(`marks PM data stale when ${label}`, async ({ page }) => {
+      const now = Date.now();
+      await page.clock.setFixedTime(now);
+      await page.route("**/__dev-api/portfolio/pm", (route) => route.fulfill({
+        json: {
+          available: true,
+          stale: collectorStale,
+          data_as_of: new Date(now - observationAge * 1_000).toISOString(),
+          generated_at: new Date(now).toISOString(),
+          account: { account_equity_usd: "100.00" },
+        },
+      }));
+      await page.route("**/__dev-api/portfolio/pm/history", (route) => route.fulfill({
+        json: { available: false, points: [] },
+      }));
+
+      await page.goto("/en/portfolio");
+
+      await expect(page.getByText("Portfolio Margin", { exact: true })).toBeVisible();
+      await expect(page.getByText("STALE", { exact: true })).toBeVisible();
+    });
+  }
 });

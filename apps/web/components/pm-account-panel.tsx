@@ -222,13 +222,14 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   const ySpan = yDomain ? yDomain[1] - yDomain[0] : null;
 
   const ageSeconds = useMemo(() => {
-    const stamp = view?.generated_at ?? view?.data_as_of;
-    if (!stamp) return view?.age_seconds ?? null;
+    const reportedAge = view?.age_seconds ?? null;
+    const stamp = view?.data_as_of ?? view?.generated_at;
+    if (!stamp) return reportedAge;
     const parsed = Date.parse(stamp);
-    return Number.isFinite(parsed) ? Math.max(0, (nowTick - parsed) / 1000) : (view?.age_seconds ?? null);
-  }, [view?.generated_at, view?.data_as_of, view?.age_seconds, nowTick]);
+    return Number.isFinite(parsed) ? Math.max(reportedAge ?? 0, (nowTick - parsed) / 1000) : reportedAge;
+  }, [view?.age_seconds, view?.data_as_of, view?.generated_at, nowTick]);
   const staleAfter = view?.stale_after_seconds ?? 180;
-  const live = ageSeconds !== null && ageSeconds <= staleAfter;
+  const live = !view?.stale && ageSeconds !== null && ageSeconds <= staleAfter;
 
   if (loading && !view) {
     return <ResearchCard><div className="flex items-center gap-2 p-5 text-sm text-text-pg-muted"><Loader2 className="h-4 w-4 animate-spin" />{zh ? "正在读取只读账户数据…" : "Loading read-only account data…"}</div></ResearchCard>;
