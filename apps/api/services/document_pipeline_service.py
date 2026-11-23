@@ -28,8 +28,9 @@ def run_document_pipeline(db: Session, data_source: DataSource, provider: DataPr
         inserted, duplicates = persist_documents(db, data_source.id, documents)
         health = provider.health_check()
         status = _success_status(health.status, fetched)
+        failed = status == DataSourceStatus.ERROR and not documents
         log.status = status.value
-        log.cursor_after = fetched.next_cursor or metadata.get("cursor")
+        log.cursor_after = log.cursor_before if failed else fetched.next_cursor or log.cursor_before
         log.fetched_count = len(fetched.documents)
         log.inserted_count = inserted
         log.duplicate_count = duplicates
@@ -38,14 +39,18 @@ def run_document_pipeline(db: Session, data_source: DataSource, provider: DataPr
         log.rate_limit_reset_at = provider.get_usage().rate_limit_reset_at
         log.usage_json = provider.get_usage().as_dict()
         log.error_message = "; ".join(fetched.errors)[:500] or None
-        metadata.update({"cursor": log.cursor_after, "usage": log.usage_json, "lastHttpStatus": fetched.http_status, "failureCount": 0, "circuitOpenUntil": None})
-        validators = getattr(provider, "validators", None)
-        if validators is not None:
-            metadata["validators"] = validators
         data_source.status = status.value
         data_source.last_error = log.error_message
         data_source.item_count = db.query(NormalizedDocument).filter(NormalizedDocument.provider == data_source.id).count()
-        data_source.last_success_at = utcnow()
+        metadata.update({"cursor": log.cursor_after, "usage": log.usage_json, "lastHttpStatus": fetched.http_status})
+        if failed:
+            _record_circuit_failure(metadata)
+        else:
+            metadata.update({"failureCount": 0, "circuitOpenUntil": None})
+            validators = getattr(provider, "validators", None)
+            if validators is not None:
+                metadata["validators"] = validators
+            data_source.last_success_at = utcnow()
     except Exception as exc:
         _record_failure(data_source, metadata, log, exc)
     log.completed_at = utcnow()
@@ -131,6 +136,13 @@ def _ensure_circuit_available(metadata: dict, *, force: bool) -> None:
         raise ProviderError("circuit_open", f"Provider circuit is open until {value}")
 
 
+def _record_circuit_failure(metadata: dict) -> None:
+    failures = int(metadata.get("failureCount", 0)) + 1
+    metadata["failureCount"] = failures
+    if failures >= CIRCUIT_FAILURE_THRESHOLD:
+        metadata["circuitOpenUntil"] = (utcnow() + timedelta(minutes=CIRCUIT_RECOVERY_MINUTES)).isoformat()
+
+
 def _record_failure(data_source: DataSource, metadata: dict, log: ProviderSyncLog, exc: Exception) -> None:
     status = DataSourceStatus.DEGRADED
     code = "provider_error"
@@ -144,10 +156,7 @@ def _record_failure(data_source: DataSource, metadata: dict, log: ProviderSyncLo
             status = DataSourceStatus.LICENSE_REQUIRED
         elif exc.code == "rate_limited":
             status = DataSourceStatus.DEGRADED
-    failures = int(metadata.get("failureCount", 0)) + 1
-    metadata["failureCount"] = failures
-    if failures >= CIRCUIT_FAILURE_THRESHOLD:
-        metadata["circuitOpenUntil"] = (utcnow() + timedelta(minutes=CIRCUIT_RECOVERY_MINUTES)).isoformat()
+    _record_circuit_failure(metadata)
     message = str(exc)[:500]
     log.status = status.value
     log.error_code = code

@@ -2,10 +2,14 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from apps.api.services.document_pipeline_service import persist_documents
+import httpx
+import pytest
+
+from apps.api.services.document_pipeline_service import persist_documents, run_document_pipeline
 from apps.api.services.data_source_service import data_capability
 from packages.agents.chat.tools import AgentToolRegistry
-from packages.data.provider import ProviderDocument
+from packages.data.chaincatcher_provider import ChainCatcherProvider
+from packages.data.provider import ProviderDocument, ProviderError
 from packages.database.models import DataSource
 from tests.conftest import auth_headers
 
@@ -103,3 +107,40 @@ def test_news_feed_rejects_user_without_rss_entitlement(api_client, normal_user,
 def test_chaincatcher_data_source_inherits_rss_plan_entitlement(db, normal_user):
     capability = data_capability(db, db.get(DataSource, "chaincatcher"), normal_user.id)
     assert capability["entitled"] is True
+
+
+def test_chaincatcher_outage_preserves_last_success_and_opens_circuit(db, monkeypatch):
+    now = datetime(2026, 11, 23, 12, tzinfo=timezone.utc)
+    monkeypatch.setattr("apps.api.services.document_pipeline_service.utcnow", lambda: now)
+    source = db.get(DataSource, "chaincatcher")
+    source.last_success_at = now - timedelta(hours=1)
+    db.commit()
+    last_success = source.last_success_at
+    online = False
+
+    def request(url, **_kwargs):
+        if not online:
+            return httpx.Response(404)
+        if url.endswith("/rss/clist"):
+            return httpx.Response(200, content=b'<rss version="2.0"><channel /></rss>')
+        return httpx.Response(200, json={"result": 1, "data": {"items": []}})
+
+    provider = ChainCatcherProvider(languages=("en",), request_get=request, now=lambda: now)
+    for failures in range(1, 4):
+        run = run_document_pipeline(db, source, provider)
+        assert run.status == "ERROR"
+        assert source.last_success_at == last_success
+        assert source.metadata_json["failureCount"] == failures
+        now += timedelta(minutes=1)
+
+    with pytest.raises(ProviderError) as error:
+        run_document_pipeline(db, source, provider)
+    assert error.value.code == "circuit_open"
+
+    online = True
+    recovered = run_document_pipeline(db, source, provider, force=True)
+    assert recovered.status == "HEALTHY"
+    assert recovered.fetched_count == 0
+    assert source.last_success_at > last_success
+    assert source.metadata_json["failureCount"] == 0
+    assert source.metadata_json["circuitOpenUntil"] is None
