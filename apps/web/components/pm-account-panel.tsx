@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { Loader2, RefreshCw } from "lucide-react";
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 import { ResearchCard } from "@/components/puregamma";
-import type { PmAccountView, PmNavHistory, PmNavPoint } from "@/lib/api";
+import type { PmAccountView, PmBalanceRow, PmNavHistory, PmNavPoint } from "@/lib/api";
 import type { Locale } from "@/i18n/routing";
 import { Button } from "@/components/ui";
 
@@ -42,10 +42,21 @@ const RANGES: Array<{ key: RangeKey; seconds: number }> = [
 // Server values are Decimal strings; the account bag also carries booleans, so
 // every formatter accepts `unknown` and narrows instead of casting.
 function num(value: unknown): number | null {
-  if (value === null || value === undefined || value === "") return null;
-  if (typeof value === "boolean") return null;
+  if (typeof value !== "number" && (typeof value !== "string" || !value.trim())) return null;
   const parsed = typeof value === "number" ? value : Number(value);
   return Number.isFinite(parsed) ? parsed : null;
+}
+
+function totalLiabilitiesUsd(rows: PmBalanceRow[]): number | null {
+  if (!rows.length) return null;
+  let total = 0;
+  for (const row of rows) {
+    if (row.is_liability === false) continue;
+    const value = num(row.value_usd);
+    if (row.is_liability !== true || value === null) return null;
+    total += Math.abs(value);
+  }
+  return Number.isFinite(total) ? total : null;
 }
 
 function fmtUsd(value: unknown, locale: Locale, digits = 2): string {
@@ -258,15 +269,9 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
   const availableUsd = num(account.total_available_balance_usd);
   const availableBtc = num(account.available_btc_equivalent);
 
-  // 市值 − 负债：逐币种余额派生出的诊断口径。它与交易所官方
-  // accountEquity 分开展示，不能互换标签或替代 NAV 主数字。
-  const liabilityUsd = balances.reduce((total, row) => total + (row.is_liability ? Math.abs(num(row.value_usd) ?? 0) : 0), 0);
-  const assetUsd = balances.reduce((total, row) => total + (row.is_liability ? 0 : (num(row.value_usd) ?? 0)), 0);
-  const netWorthUsd = assetUsd - liabilityUsd;
-  const netWorthBtc = btcPrice && btcPrice > 0 ? netWorthUsd / btcPrice : null;
-
-  const upnlSum = balances.reduce((total, row) => total + (num(row.unrealized_pnl) ?? 0), 0);
-  const upnlValue = num(account.total_unrealized_pnl_usd) ?? upnlSum;
+  const liabilityUsd = view.partial ? null : totalLiabilitiesUsd(balances);
+  // The export does not declare a currency for balance-level unrealized_pnl.
+  const upnlValue = num(account.total_unrealized_pnl_usd);
 
   const adjustedBtc = adjustedUsd !== null && btcPrice && btcPrice > 0 ? adjustedUsd / btcPrice : null;
   const heroValue = currency === "USD" ? equityUsd : equityBtc;
@@ -422,8 +427,7 @@ export function PmAccountPanel({ view, history, loading, locale, onRefresh }: {
         <Metric
           label={zh ? "未实现盈亏" : "Unrealized PnL"}
           value={fmtUsd(upnlValue, locale)}
-          tone={upnlValue >= 0 ? "positive" : "negative"}
-          hint={account.total_unrealized_pnl_usd ? undefined : (zh ? "逐币种汇总" : "summed per asset")}
+          tone={upnlValue === null ? undefined : upnlValue >= 0 ? "positive" : "negative"}
         />
       </div>
 
