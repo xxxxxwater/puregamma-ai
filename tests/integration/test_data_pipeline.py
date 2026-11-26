@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import httpx
 import pytest
 
 from apps.api.services.market_intelligence_service import generate_shared_market_intelligence
@@ -20,7 +21,7 @@ def test_coindesk_mock_provider_contract_with_market_mock():
 
 def test_rss_provider_returns_headlines(monkeypatch):
     feed = b'''<?xml version="1.0"?><rss version="2.0"><channel><title>Test</title><item><guid>btc-1</guid><title>BTC inflow growth</title><link>https://www.coindesk.com/test</link><description>Market update</description><pubDate>Fri, 10 Jul 2026 00:00:00 GMT</pubDate></item></channel></rss>'''
-    monkeypatch.setattr(RSSProvider, "_fetch", lambda self, source: feed)
+    monkeypatch.setattr(RSSProvider, "_fetch", lambda self, source: httpx.Response(200, content=feed))
     headlines = RSSProvider().headlines()
 
     assert len(headlines) >= 1

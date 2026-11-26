@@ -3,6 +3,8 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from decimal import Decimal
 
+import httpx
+
 from apps.api.config import Settings
 from apps.api.services import agent_service
 from packages.agents.llm.mock_provider import MockLLMProvider
@@ -19,7 +21,7 @@ def test_rss_real_parser_deduplicates_and_sanitizes(monkeypatch):
     source = RSSSource(id="coindesk", name="CoinDesk", url="https://www.coindesk.com/feed")
     feed = b'''<rss version="2.0"><channel><item><guid>1</guid><title>BTC rally</title><link>https://www.coindesk.com/a?utm_source=x</link><description><![CDATA[<script>alert(1)</script><b>Growth</b> update]]></description></item></channel></rss>'''
     provider = RSSProvider(sources=[source])
-    monkeypatch.setattr(provider, "_fetch", lambda item: feed)
+    monkeypatch.setattr(provider, "_fetch", lambda item: httpx.Response(200, content=feed))
 
     result = provider.sync()
 

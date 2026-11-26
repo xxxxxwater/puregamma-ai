@@ -72,7 +72,7 @@ class RSSProvider(DataSourceProvider):
         self.sources = sources or self.load_sources(settings.rss_config_path)
         self.timeout_seconds = timeout_seconds or settings.rss_request_timeout
         self.max_response_bytes = max_response_bytes or settings.provider_max_response_bytes
-        self._validators: dict[str, dict[str, str]] = validators or {}
+        self._validators: dict[str, dict[str, str]] = dict(validators or {})
         self._usage = ProviderUsage()
 
     @staticmethod
@@ -80,7 +80,7 @@ class RSSProvider(DataSourceProvider):
         raw = yaml.safe_load(Path(path).read_text()) or {}
         return [RSSSource(**item) for item in raw.get("sources", []) if item.get("enabled", True)]
 
-    def _fetch(self, source: RSSSource) -> bytes | None:
+    def _fetch(self, source: RSSSource) -> httpx.Response | None:
         host = urlsplit(source.url).hostname or ""
         validate_public_https_url(source.url, {host}, resolve_dns=False)
         headers = {"User-Agent": "PureGamma AI/1.0 RSS", **self._validators.get(source.id, {})}
@@ -109,14 +109,7 @@ class RSSProvider(DataSourceProvider):
             raise ProviderError("http_error", f"{source.name} returned HTTP {response.status_code}", status_code=response.status_code)
         if len(response.content) > self.max_response_bytes:
             raise ProviderError("response_too_large", f"{source.name} response exceeded size limit")
-        validators = {}
-        if response.headers.get("etag"):
-            validators["If-None-Match"] = response.headers["etag"]
-        if response.headers.get("last-modified"):
-            validators["If-Modified-Since"] = response.headers["last-modified"]
-        if validators:
-            self._validators[source.id] = validators
-        return response.content
+        return response
 
     @property
     def validators(self) -> dict[str, dict[str, str]]:
@@ -131,11 +124,11 @@ class RSSProvider(DataSourceProvider):
         unchanged = 0
         for source in self.sources:
             try:
-                content = self._fetch(source)
-                if content is None:
+                response = self._fetch(source)
+                if response is None:
                     unchanged += 1
                     continue
-                parsed = feedparser.parse(content)
+                parsed = feedparser.parse(response.content)
                 if getattr(parsed, "bozo", False) and not parsed.entries:
                     raise ProviderError("parse_error", f"{source.name} feed could not be parsed")
                 for entry in parsed.entries[:100]:
@@ -165,6 +158,16 @@ class RSSProvider(DataSourceProvider):
                         retention_policy=source.retention_policy,
                         redistribution_allowed=source.redistribution_allowed,
                     ))
+                # A health probe or a rejected feed must leave the ingestion checkpoint intact.
+                validators = {}
+                if response.headers.get("etag"):
+                    validators["If-None-Match"] = response.headers["etag"]
+                if response.headers.get("last-modified"):
+                    validators["If-Modified-Since"] = response.headers["last-modified"]
+                if validators:
+                    self._validators[source.id] = validators
+                else:
+                    self._validators.pop(source.id, None)
             except Exception as exc:
                 errors.append(f"{source.name}: {str(exc)[:240]}")
         self._usage.items += len(documents)

@@ -40,7 +40,7 @@ def test_rss_xml_parse_dedup_symbols_topics(monkeypatch):
     source = RSSSource(id="test", name="Test RSS", url="https://news.example.com/feed")
     feed = b'<rss><channel><item><guid>1</guid><title>Bitcoin ETF inflow lifts BTC</title><link>https://news.example.com/a?utm_source=x</link><description>Market rally</description></item><item><guid>1</guid><title>Bitcoin ETF inflow lifts BTC</title><link>https://news.example.com/a</link><description>Market rally</description></item></channel></rss>'
     provider = RSSProvider(sources=[source])
-    monkeypatch.setattr(provider, "_fetch", lambda _: feed)
+    monkeypatch.setattr(provider, "_fetch", lambda _: FakeResponse(content=feed))
 
     fetched = provider.fetch_latest()
 
@@ -65,10 +65,46 @@ def test_rss_etag_and_last_modified_are_reused(monkeypatch):
     monkeypatch.setattr("packages.data.rss_provider.httpx.Client", Client)
     source = RSSSource(id="etag", name="ETag", url="https://news.example.com/feed")
     provider = RSSProvider(sources=[source])
-    assert provider._fetch(source)
-    assert provider._fetch(source) is None
+    assert not provider.fetch_latest().errors
+    assert provider.fetch_latest().not_modified
     assert requests[1]["If-None-Match"] == '"v1"'
     assert requests[1]["If-Modified-Since"] == "Fri, 10 Jul 2026 00:00:00 GMT"
+
+
+def test_rss_only_checkpoints_a_feed_after_ingestion(monkeypatch):
+    source = RSSSource(id="test", name="Test RSS", url="https://news.example.com/feed")
+    stored = {source.id: {"If-None-Match": '"old"'}}
+    provider = RSSProvider(sources=[source], validators=stored)
+    feed = (b"<rss><channel><item><title>BTC update</title>"
+            b"<link>https://news.example.com/new</link></item></channel></rss>")
+    versions = iter([
+        FakeResponse(headers={"etag": '"new"'}, content=feed),
+        FakeResponse(headers={"etag": '"broken"'}, content=b"<broken"),
+        FakeResponse(headers={"etag": '"new"'}, content=feed),
+    ])
+    requested = []
+
+    class Client:
+        def __init__(self, **kwargs):
+            requested.append(kwargs["headers"]["If-None-Match"])
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *args):
+            return None
+
+        def get(self, url):
+            return next(versions)
+
+    monkeypatch.setattr("packages.data.rss_provider.httpx.Client", Client)
+
+    assert provider.health_check().status == DataSourceStatus.HEALTHY
+    assert provider.fetch_latest().errors
+    assert [doc.title for doc in provider.fetch_latest().documents] == ["BTC update"]
+    assert requested == ['"old"', '"old"', '"old"']
+    assert provider.validators[source.id]["If-None-Match"] == '"new"'
+    assert stored[source.id]["If-None-Match"] == '"old"'
 
 
 def test_rss_retries_then_recovers(monkeypatch):
@@ -206,7 +242,7 @@ def test_raw_and_normalized_documents_are_traceable(db):
 def test_four_provider_mock_transport_full_pipeline(db, monkeypatch):
     feed = b'<rss><channel><item><guid>rss-flow</guid><title>ETH market rally</title><link>https://flow.example/rss</link><description>ETH gains</description></item></channel></rss>'
     rss = RSSProvider(sources=[RSSSource(id="flow", name="Flow RSS", url="https://flow.example/feed")])
-    monkeypatch.setattr(rss, "_fetch", lambda _: feed)
+    monkeypatch.setattr(rss, "_fetch", lambda _: FakeResponse(content=feed))
     x = XTwitterProvider(bearer_token="test-token", request_get=lambda *args, **kwargs: FakeResponse(x_payload(next_token=None)))
     fintwit_x = XTwitterProvider(bearer_token="test-token", request_get=lambda *args, **kwargs: FakeResponse(x_payload(next_token=None)))
     fintwit = FinTwitProvider(accounts=[FinTwitAccountConfig(username="analyst", display_name="Analyst", platform="x", category="quant researcher", provider_user_id="42")], x_provider=fintwit_x)
