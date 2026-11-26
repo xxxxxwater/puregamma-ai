@@ -132,6 +132,15 @@ def test_provenance_survives_reranking():
     assert result.kept[0].index == 1
 
 
+def test_skipped_blank_evidence_keeps_original_source_indexes():
+    candidates = ["", "weak", "   ", "strong", "strong"]
+    client = _client(_scores({"0": 0.1, "1": 2.0, "2": 4.0}))
+    result = rerank_evidence("q", candidates, client=client)
+    assert result is not None
+    assert [item.index for item in result.kept] == [4, 3]
+    assert [candidates[item.index] for item in result.kept] == ["strong", "strong"]
+
+
 def test_no_key_keeps_the_original_order():
     assert rerank_evidence("q", ["a", "b"], client=JevClient(api_key="")) is None
 

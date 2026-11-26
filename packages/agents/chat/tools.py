@@ -969,7 +969,9 @@ class AgentToolRegistry:
             from packages.decisions.rerank import rerank_evidence
 
             candidates = [
-                (f'{row.title} {row.summary}' if row.summary else str(row.title or ''))
+                f"{row.title} {row.summary}"
+                if row.summary and (row.redistribution_allowed or allow_nonredistributable)
+                else str(row.title or "")
                 for row in selected
             ]
             ranked = rerank_evidence(query, candidates, limit=len(selected))

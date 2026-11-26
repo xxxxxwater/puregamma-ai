@@ -78,7 +78,10 @@ def rerank_evidence(
     as "keep the original order" -- never as "nothing is relevant".
     """
     query = (question or "").strip()
-    items = [c for c in (candidates or []) if isinstance(c, str) and c.strip()]
+    items = [
+        (index, text) for index, text in enumerate(candidates or [])
+        if isinstance(text, str) and text.strip()
+    ]
     if not query or not items:
         return None
 
@@ -88,7 +91,7 @@ def rerank_evidence(
 
     window = items[:MAX_CANDIDATES]
     questions: dict[str, dict[str, Any]] = {}
-    for position, text in enumerate(window):
+    for position, (_, text) in enumerate(window):
         questions[f"relevance_{position}"] = score(
             f"How well does this evidence answer the question?\n\n"
             f"QUESTION: {query}\n\nEVIDENCE:\n{text[:MAX_CANDIDATE_CHARS]}",
@@ -102,12 +105,12 @@ def rerank_evidence(
 
     answers = result.get("answers") or {}
     ranked: list[RankedEvidence] = []
-    for position, text in enumerate(window):
+    for position, (source_index, text) in enumerate(window):
         answer = answers.get(f"relevance_{position}") or {}
         value = answer.get("score")
         if not isinstance(value, (int, float)):
             continue
-        ranked.append(RankedEvidence(index=position, score=float(value), text=text))
+        ranked.append(RankedEvidence(index=source_index, score=float(value), text=text))
 
     if not ranked:
         # Every answer was malformed: no opinion, not "all irrelevant".

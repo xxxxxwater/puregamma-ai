@@ -1,9 +1,12 @@
 from __future__ import annotations
 
+from dataclasses import replace
 from datetime import datetime, timedelta, timezone
+from unittest.mock import Mock
 
 import pytest
 
+from apps.api.config import get_settings
 from apps.api.services.document_pipeline_service import _ensure_circuit_available, aggregate_events, persist_documents, run_document_pipeline
 from packages.agents.chat.tools import AgentToolRegistry
 from packages.data.bloomberg_provider import BloombergProvider
@@ -183,6 +186,36 @@ def test_agent_retrieval_returns_source_citations(db, normal_user):
     assert result.data[0]["evidenceType"] == "reported_fact"
     assert result.sources[0].url == "https://research.example/sol"
     assert result.sources[0].published_at is not None
+
+
+@pytest.mark.parametrize(
+    "redistributable, allow_internal, expected",
+    [
+        (False, False, "Research update"),
+        (False, True, "Research update Publisher summary"),
+        (True, False, "Research update Publisher summary"),
+    ],
+)
+def test_reranker_receives_only_permitted_document_text(
+    db, normal_user, monkeypatch, redistributable, allow_internal, expected
+):
+    item = ProviderDocument(
+        external_id="rank-input", source_name="Publisher", source_type="rss_news",
+        title="Research update", summary="Publisher summary", url="https://publisher.example/report",
+        published_at=datetime.now(timezone.utc), redistribution_allowed=redistributable,
+    )
+    persist_documents(db, "rss", [item])
+    db.commit()
+    settings = replace(
+        get_settings(), jev_rerank_enabled=True, allow_nonredistributable_llm_input=allow_internal
+    )
+    monkeypatch.setattr("packages.agents.chat.tools.get_settings", lambda: settings)
+    rerank = Mock(return_value=None)
+    monkeypatch.setattr("packages.decisions.rerank.rerank_evidence", rerank)
+
+    result = AgentToolRegistry(db, normal_user.id).search_source_documents(query="Research")
+    rerank.assert_called_once_with("Research", [expected], limit=1)
+    assert result.sources[0].url == item.url
 
 
 def test_data_source_admin_apis_require_admin(api_client, normal_user, admin_user):
