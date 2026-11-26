@@ -101,6 +101,7 @@ export interface PureGammaNotificationDelivery {
 }
 
 export interface PureGammaNotificationsView {
+  accountId?: string
   available: boolean
   observedAt: string
   source: string
@@ -155,6 +156,7 @@ export interface PureGammaDailyBriefUpdate {
 }
 
 export interface PureGammaNotificationActionResult {
+  preferences?: PureGammaDailyBriefUpdate
   available: boolean
   observedAt: string
   source: string

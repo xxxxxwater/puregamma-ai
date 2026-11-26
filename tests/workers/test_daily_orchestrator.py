@@ -303,6 +303,7 @@ def test_preference_api_exposes_channels_report_types_and_failure_state(db, api_
 
     fetched = api_client.get("/notifications/preferences/daily-brief", headers=auth_headers(user))
     assert fetched.status_code == 200
+    assert fetched.json()["account_id"] == user.id
     serialized = fetched.json()["preference"]
     assert serialized["failure_count"] == 3
     assert serialized["last_error"] == "RuntimeError"

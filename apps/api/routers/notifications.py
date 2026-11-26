@@ -132,7 +132,7 @@ def test_imessage(db: Session = Depends(get_db), user: User = Depends(get_curren
 def daily_brief_preference(db: Session = Depends(get_db), user: User = Depends(get_current_user)) -> dict:
     row = get_or_create_preference(db, user)
     history = delivery_history(db, user.id, row.channel)
-    return {"preference": serialize_preference(row), "history": [serialize_delivery(item) for item in history]}
+    return {"account_id": user.id, "preference": serialize_preference(row), "history": [serialize_delivery(item) for item in history]}
 
 
 @router.put("/preferences/daily-brief")
