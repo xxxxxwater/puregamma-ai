@@ -28,7 +28,7 @@ def _now() -> datetime:
 def pricing_policy(db: Session) -> GatewayPricingPolicy:
     row = db.query(GatewayPricingPolicy).filter_by(name="default").one_or_none()
     if row is None:
-        row = GatewayPricingPolicy(name="default", markup_bps=3000, active=True)
+        row = GatewayPricingPolicy(name="default", markup_bps=-5000, active=True)
         db.add(row)
         db.flush()
     return row
@@ -241,6 +241,8 @@ def approve_price_revision(db: Session, revision_id: str, admin_user_id: str) ->
         previous = db.get(GatewayPriceRevision, model.active_pricing_id)
         if previous and previous.status == "active":
             previous.status = "superseded"
+    revision.markup_bps = pricing_policy(db).markup_bps
+    revision.final_prices_json = final_prices(revision.official_prices_json, revision.markup_bps)
     revision.status = "active"
     revision.approved_at = _now()
     revision.approved_by_user_id = admin_user_id
@@ -252,7 +254,7 @@ def approve_price_revision(db: Session, revision_id: str, admin_user_id: str) ->
 
 
 def set_default_markup(db: Session, markup_bps: int, admin_user_id: str) -> GatewayPricingPolicy:
-    if markup_bps < 0 or markup_bps > 100_000:
+    if markup_bps < -10_000 or markup_bps > 100_000:
         raise ValueError("GATEWAY_MARKUP_INVALID")
     policy = pricing_policy(db)
     policy.markup_bps = markup_bps

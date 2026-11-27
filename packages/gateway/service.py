@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from packages.gateway.time_prices import effective_prices, deepseek_peak
+
 import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -236,8 +238,9 @@ def record_request(
     error_code: str | None = None,
 ) -> GatewayRequestLog:
     measured = usage or GatewayUsage()
-    official_cost = usage_cost(route.pricing.official_prices_json, measured) if route else Decimal("0")
-    retail_cost = usage_cost(route.pricing.final_prices_json, measured) if route else Decimal("0")
+    peak = deepseek_peak()
+    official_cost = usage_cost(effective_prices(route.pricing, retail=False, peak=peak), measured) if route else Decimal("0")
+    retail_cost = usage_cost(effective_prices(route.pricing, retail=True, peak=peak), measured) if route else Decimal("0")
     row = GatewayRequestLog(
         request_id=request_id,
         user_id=api_key.user_id,

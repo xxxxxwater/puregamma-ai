@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from packages.gateway.time_prices import effective_prices, deepseek_peak
+
 import json
 import logging
 import time
@@ -89,8 +91,8 @@ class CreateKeyRequest(BaseModel):
 
 
 class MarkupRequest(BaseModel):
-    # Basis points: 3000 is the required default 30% markup.
-    markup_bps: int = Field(ge=0, le=100_000)
+    # Basis points: -5000 corresponds to 50% of the official rate.
+    markup_bps: int = Field(ge=-10000, le=100_000)
 
 
 class IPBlockRequest(BaseModel):
@@ -199,7 +201,7 @@ def _gateway_reservation_ceiling(db: Session, public_model: str, payload: dict[s
     requested = int(max_output_tokens or 0)
     output_tokens = requested if requested > 0 else _GATEWAY_MAX_OUTPUT_TOKENS
     output_tokens = min(output_tokens, _GATEWAY_ABSOLUTE_TOKEN_CEILING)
-    prices = revision.final_prices_json or {}
+    prices = effective_prices(revision, retail=True, maximum=True) or {}
     return usage_cost(prices, GatewayUsage(input_tokens=input_tokens, output_tokens=output_tokens))
 
 

@@ -60,8 +60,8 @@ def normalize_official_prices(prices: dict[str, Any]) -> dict[str, dict[str, str
 
 
 def final_prices(official_prices: dict[str, Any], markup_bps: int) -> dict[str, dict[str, str]]:
-    if markup_bps < 0 or markup_bps > 100_000:
-        raise ValueError("Markup must be between 0 and 100000 basis points")
+    if markup_bps < -10_000 or markup_bps > 100_000:
+        raise ValueError("Markup must be between -10000 and 100000 basis points")
     multiplier = Decimal("1") + Decimal(markup_bps) / Decimal("10000")
     result: dict[str, dict[str, str]] = {}
     for key, item in normalize_official_prices(official_prices).items():

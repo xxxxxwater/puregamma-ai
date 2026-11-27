@@ -188,7 +188,8 @@ def test_funded_request_holds_then_releases_after_settlement(api_client, pro_use
     # 25 input tokens at 1 USD per unit settle the real 25 USD charge, while the
     # 4142 USD worst-case hold (payload-derived input plus the 1000-token output
     # allowance, both at 1 USD per unit) is fully returned to the balance.
-    assert refreshed.available_balance_usd == Decimal("858.00000000")
+    assert refreshed.available_balance_usd == Decimal("4975.00000000")
+    assert refreshed.lifetime_debited_usd == Decimal("25.00000000")
 
 
 def test_openai_models_endpoint_is_untouched(api_client, pro_user, db, monkeypatch):

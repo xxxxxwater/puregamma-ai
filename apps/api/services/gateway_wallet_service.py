@@ -69,7 +69,7 @@ def topup_amount_to_cents(amount_usd: Decimal | int | float | str) -> int:
 def gateway_wallet(db: Session, user_id: str, *, lock: bool = False) -> GatewayWallet:
     query = db.query(GatewayWallet).filter_by(user_id=user_id)
     if lock:
-        query = query.with_for_update()
+        query = query.populate_existing().with_for_update()
     wallet = query.one_or_none()
     if wallet is None:
         wallet = GatewayWallet(user_id=user_id, currency="USD")
@@ -190,15 +190,22 @@ def debit_gateway_wallet_for_request(
     existing = db.query(GatewayWalletLedger).filter_by(gateway_request_log_id=request_log.id).one_or_none()
     if existing:
         return wallet
-    current = gateway_wallet_available_usd(wallet)
-    if current < amount:
+    reservation = db.query(GatewayRequestReservation).filter_by(
+        request_id=request_log.request_id, wallet_id=wallet.id, status="held"
+    ).populate_existing().one_or_none()
+    own_hold = _usd(reservation.amount_usd) if reservation else Decimal("0")
+    if gateway_wallet_available_usd(wallet) + own_hold < amount:
         raise GatewayProviderError(
             "GATEWAY_INSUFFICIENT_BALANCE",
             "Gateway wallet balance is insufficient for this request. Add prepaid USD credit and retry.",
             status_code=402,
             retryable=False,
         )
-    balance_after = _usd(current - amount)
+    if reservation:
+        wallet.reserved_usd = _usd(wallet.reserved_usd - own_hold)
+        reservation.status = "released"
+        reservation.resolved_at = datetime.now(timezone.utc)
+    balance_after = _usd(wallet.available_balance_usd - amount)
     wallet.available_balance_usd = balance_after
     wallet.lifetime_debited_usd = _usd(Decimal(str(wallet.lifetime_debited_usd or 0)) + amount)
     db.add(
@@ -267,7 +274,9 @@ def release_gateway_request_funds(db: Session, *, request_id: str) -> GatewayReq
     if reservation is None or reservation.status != "held":
         return reservation
     wallet = gateway_wallet(db, reservation.user_id, lock=True)
-    db.refresh(wallet)
+    db.refresh(reservation)
+    if reservation.status != "held":
+        return reservation
     held = _usd(reservation.amount_usd or 0)
     wallet.reserved_usd = _usd(max(Decimal("0"), _usd(Decimal(str(getattr(wallet, "reserved_usd", 0) or 0)) - held)))
     reservation.status = "released"

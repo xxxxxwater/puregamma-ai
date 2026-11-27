@@ -316,6 +316,7 @@ export function ApiDocsEmbed() {
   const narrative = narrativeFor(selectedId, selectedCatalog, zh, modelCopy);
   const selectedName = narrative.title;
   const currency = selectedCatalog?.pricing?.currency || "USD";  const pricingHeading = zh ? "价格明细" : "Pricing details";
+  const tariffPeriod = selectedCatalog?.metadata.pricing_period;
   const priceComparisonDescription = zh
     ? "目录报价仅供参考，不能替代可计费价格。"
     : "Catalog quotes are for reference and do not replace billable prices.";
@@ -590,14 +591,14 @@ PUREGAMMA_MODEL=${selectedId}
                     <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogProvider}</th>
                     <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogUpstream}</th>
                     <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogAvailability}</th>
-                    <th className="px-3 py-3 font-medium">{modelCopy.preview.catalogPrice}</th>
+                    <th className="px-3 py-3 font-medium">{zh ? "PureGamma 输入 / 输出价格" : "PureGamma input / output prices"}</th>
                   </tr>
                 </thead>
                 <tbody>
                   {catalogModels.map((model) => {
                     const live = model.availability === "available" && Boolean(catalog?.gateway_enabled);
-                    const input = model.pricing?.official.input;
-                    const output = model.pricing?.official.output;
+                    const input = model.pricing?.final.input;
+                    const output = model.pricing?.final.output;
                     const symbol = model.pricing?.currency === "USD" ? "$" : model.pricing?.currency === "CNY" ? "¥" : `${model.pricing?.currency || ""} `;
                     return (
                       <tr key={model.id} className="border-t border-border-pg align-top">
@@ -644,7 +645,7 @@ PUREGAMMA_MODEL=${selectedId}
           </section>
 
           <section className="min-w-0 max-w-full border border-border-pg bg-bg-panel p-4 sm:p-5 rounded-xl">
-            <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4"><div><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><CircleDollarSign className="h-3.5 w-3.5" />02 / {content.pricing}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{pricingHeading}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{priceComparisonDescription}</p></div>{selectedCatalog?.source_reference ? <a href={selectedCatalog.source_reference} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 border border-border-pg px-2.5 py-2 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ExternalLink className="h-3.5 w-3.5" />{content.source}</a> : null}</div>
+            <div className="flex flex-col items-start gap-3 sm:flex-row sm:justify-between sm:gap-4"><div><div className="flex items-center gap-2 text-[0.68rem] font-semibold uppercase tracking-[0.16em] text-text-pg-dim"><CircleDollarSign className="h-3.5 w-3.5" />02 / {content.pricing}</div><h2 className="mt-2 text-lg font-semibold text-text-pg">{pricingHeading}</h2><p className="mt-2 max-w-3xl text-sm leading-6 text-text-pg-muted">{priceComparisonDescription} {tariffPeriod === "peak" && (zh ? "当前为高峰价。" : "Peak rates apply.")}{tariffPeriod === "off_peak" && (zh ? "当前报价为非高峰价。" : "Off-peak rates shown.")}</p></div>{selectedCatalog?.source_reference ? <a href={selectedCatalog.source_reference} target="_blank" rel="noopener noreferrer" className="inline-flex min-h-10 items-center gap-1.5 border border-border-pg px-2.5 py-2 text-xs text-text-pg-muted hover:border-border-pg-strong hover:text-text-pg rounded-lg"><ExternalLink className="h-3.5 w-3.5" />{content.source}</a> : null}</div>
             <div className="mt-5 grid gap-3 md:grid-cols-3"><PriceCompare label={zh ? "输入 / cache miss" : "Input / cache miss"} official={official.input} final={final.input} currency={currency} zh={zh} /><PriceCompare label={zh ? "输出" : "Output"} official={official.output} final={final.output} currency={currency} zh={zh} /><PriceCompare label={zh ? "缓存命中" : "Cache hit"} official={official.cache} final={final.cache} currency={currency} zh={zh} /></div>
             {selectedCatalog?.pricing?.status === "requires_currency_policy" ? <p role="status" className="mt-4 border-l-2 border-border-pg-strong pl-3 text-xs leading-5 text-text-pg-muted">{content.currencyNote}</p> : null}
           </section>

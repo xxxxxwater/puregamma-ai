@@ -398,7 +398,7 @@ class GatewayPricingPolicy(Base, TimestampMixin):
 
     id = Column(String, primary_key=True, default=new_id)
     name = Column(String, nullable=False, unique=True, default="default")
-    markup_bps = Column(Integer, nullable=False, default=3000)
+    markup_bps = Column(Integer, nullable=False, default=-5000)
     active = Column(Boolean, nullable=False, default=True, index=True)
     updated_by_user_id = Column(String, ForeignKey("users.id"), nullable=True)
 
@@ -412,7 +412,7 @@ class GatewayPriceRevision(Base):
     model_id = Column(String, ForeignKey("gateway_models.id", ondelete="CASCADE"), nullable=False, index=True)
     status = Column(String, nullable=False, default="pending", index=True)
     currency = Column(String, nullable=False, default="USD")
-    markup_bps = Column(Integer, nullable=False, default=3000)
+    markup_bps = Column(Integer, nullable=False, default=-5000)
     official_prices_json = Column("official_prices", JSON, default=dict, nullable=False)
     final_prices_json = Column("final_prices", JSON, default=dict, nullable=False)
     source_type = Column(String, nullable=False, default="config")

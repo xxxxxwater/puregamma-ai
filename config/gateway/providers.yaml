@@ -1,262 +1,246 @@
-# Official provider catalog. This is deliberately data-only: pricing never
-# appears in application code. Populate `official_prices` from a provider's
-# official pricing API, JSON/YAML export, or published configuration before
-# approving a sync in Admin.
 providers:
   moonshot:
     display_name: Moonshot AI
-    # China-region Moonshot account: official Kimi endpoint is api.moonshot.cn.
-    # Official CNY prices are converted to the USD ledger at the operator-
-    # approved rate (6.6 CNY/USD).
     base_url: https://api.moonshot.cn/v1
     health_path: models
     models:
-      - public_id: kimi-k3-max
-        # `kimi-k3-max` remains the PureGamma public compatibility alias. The
-        # official Kimi API model id is `kimi-k3`.
-        provider_model_id: kimi-k3
-        display_name: Kimi K3
-        capabilities:
-          chat: true
-          stream: true
-          tool_calling: true
-          json_mode: true
-          reasoning: true
-          context_cache: true
-          max_context_tokens: 1048576
-        metadata:
-          public_alias: kimi-k3-max
-          billing_region: global
-          reasoning_priced_as: output
-        official_prices:
-          input:
-            usd: "3.0303"
-            unit: per_million_tokens
-            description: cache-miss input
-          output:
-            usd: "15.1515"
-            unit: per_million_tokens
-          cache:
-            usd: "0.3030"
-            unit: per_million_tokens
-            description: cache-hit input
-        source_reference: https://platform.kimi.ai/docs/pricing/chat-k3
+    - public_id: kimi-k3.1-pro
+      provider_model_id: kimi-k3.1-pro
+      display_name: Kimi K3.1 Pro
+      capabilities:
+        chat: true
+        stream: true
+        tool_calling: true
+        json_mode: true
+        reasoning: true
+        context_cache: true
+        max_context_tokens: 1048576
+      metadata:
+        billing_region: CN
+        reasoning_priced_as: output
+        official_currency: CNY
+        official_prices_cny:
+          input: '13'
+          output: '68'
+          cache: '1.3'
+        cny_per_usd: '6.6'
+      official_prices:
+        input:
+          usd: '1.96969697'
+          unit: per_million_tokens
+          description: cache-miss input
+        output:
+          usd: '10.30303030'
+          unit: per_million_tokens
+        cache:
+          usd: '0.19696970'
+          unit: per_million_tokens
+          description: cache-hit input
+      source_reference: https://www.kimi.com/news/kimi-k3-1-pro
+    - public_id: kimi-k3-max
+      provider_model_id: kimi-k3.1-pro
+      display_name: Kimi K3.1 Pro
+      capabilities:
+        chat: true
+        stream: true
+        tool_calling: true
+        json_mode: true
+        reasoning: true
+        context_cache: true
+        max_context_tokens: 1048576
+      metadata:
+        public_alias: kimi-k3-max
+        billing_region: CN
+        reasoning_priced_as: output
+        official_currency: CNY
+        official_prices_cny:
+          input: '13'
+          output: '68'
+          cache: '1.3'
+        cny_per_usd: '6.6'
+      official_prices:
+        input:
+          usd: '1.96969697'
+          unit: per_million_tokens
+          description: cache-miss input
+        output:
+          usd: '10.30303030'
+          unit: per_million_tokens
+        cache:
+          usd: '0.19696970'
+          unit: per_million_tokens
+          description: cache-hit input
+      source_reference: https://www.kimi.com/news/kimi-k3-1-pro
   deepseek:
     display_name: DeepSeek
     health_path: models
     models:
-      # DeepSeek V4.1 Flash (released 2026-09-10). Official API model name is
-      # `deepseek-flash`; the previous `deepseek-v4-flash` name still resolves
-      # to this same model. Pricing below is the OFF-PEAK official tariff
-      # converted at the operator-approved 6.6 CNY/USD rate. DeepSeek also
-      # charges a peak tariff (Mon-Fri 09:00-12:00 and 14:00-18:00 Beijing
-      # time) exactly 2x these amounts; review the peak/off-peak spread against
-      # the markup policy before treating this as a margin-safe rate.
-      # https://api-docs.deepseek.com/quick_start/pricing/
-      - public_id: deepseek-flash
-        provider_model_id: deepseek-flash
-        display_name: DeepSeek V4.1 Flash
-        capabilities:
-          chat: true
-          stream: true
-          tool_calling: true
-          json_mode: true
-          reasoning: true
-          context_cache: true
-          vision: true
-          max_context_tokens: 1048576
-          max_output_tokens: 393216
-        metadata:
-          reasoning_priced_as: output
-          pricing_period: off_peak
-          official_currency: CNY
-          official_prices_cny:
-            input: "1"
-            output: "4"
-            cache: "0.02"
-          peak_multiplier: "2"
-          source_published_at: "2026-09-10"
-        official_prices:
-          input:
-            usd: "0.15151515"
-            unit: per_million_tokens
-            description: cache-miss input (off-peak)
-          output:
-            usd: "0.60606061"
-            unit: per_million_tokens
-            description: output (off-peak)
-          cache:
-            usd: "0.00303030"
-            unit: per_million_tokens
-            description: cache-hit input (off-peak)
-        source_reference: https://api-docs.deepseek.com/quick_start/pricing/
-      # Compatibility alias. The name is still accepted by DeepSeek and routed
-      # to V4.1 Flash, so it is kept as a first-class catalog entry with the
-      # same upstream id and the same reviewed price rather than being dropped.
-      - public_id: deepseek-v4-flash
-        provider_model_id: deepseek-flash
-        display_name: DeepSeek V4.1 Flash (legacy id alias)
-        capabilities:
-          chat: true
-          stream: true
-          tool_calling: true
-          json_mode: true
-          reasoning: true
-          context_cache: true
-          vision: true
-          max_context_tokens: 1048576
-          max_output_tokens: 393216
-        metadata:
-          reasoning_priced_as: output
-          pricing_period: off_peak
-          official_currency: CNY
-          canonical_model_id: deepseek-flash
-          compatibility_alias: "true"
-        official_prices:
-          input:
-            usd: "0.15151515"
-            unit: per_million_tokens
-            description: cache-miss input (off-peak)
-          output:
-            usd: "0.60606061"
-            unit: per_million_tokens
-            description: output (off-peak)
-          cache:
-            usd: "0.00303030"
-            unit: per_million_tokens
-            description: cache-hit input (off-peak)
-        source_reference: https://api-docs.deepseek.com/quick_start/pricing/
-      # DeepSeek V4 Pro. Announced for orderly retirement: from 2026-09-14
-      # 12:00 Beijing time requests to this id are routed to V4.1 Flash and
-      # billed at V4.1 Flash prices. It stays a distinct catalog entry until
-      # that cut-over so historical attribution remains correct.
-      - public_id: deepseek-v4-pro
-        provider_model_id: deepseek-v4-pro
-        display_name: DeepSeek V4 Pro
-        capabilities:
-          chat: true
-          stream: true
-          tool_calling: true
-          json_mode: true
-          reasoning: true
-          context_cache: true
-          max_context_tokens: 1048576
-          max_output_tokens: 393216
-        metadata:
-          reasoning_priced_as: output
-          pricing_period: off_peak
-          official_currency: CNY
-          retirement_scheduled: "2026-09-14T12:00+08:00"
-          retirement_note: requests route to DeepSeek V4.1 Flash after the scheduled cut-over
-        official_prices:
-          input:
-            usd: "0.68181818"
-            unit: per_million_tokens
-            description: cache-miss input (off-peak)
-          output:
-            usd: "2.04545455"
-            unit: per_million_tokens
-            description: output (off-peak)
-          cache:
-            usd: "0.02272727"
-            unit: per_million_tokens
-            description: cache-hit input (off-peak)
-        source_reference: https://api-docs.deepseek.com/quick_start/pricing/
+    - public_id: deepseek-flash
+      provider_model_id: deepseek-flash
+      display_name: DeepSeek V4.1 Flash-1017
+      capabilities:
+        chat: true
+        stream: true
+        tool_calling: true
+        json_mode: true
+        reasoning: true
+        context_cache: true
+        vision: true
+        max_context_tokens: 1048576
+        max_output_tokens: 393216
+      metadata:
+        reasoning_priced_as: output
+        pricing_period: off_peak
+        official_currency: USD
+        peak_multiplier: '2'
+        source_published_at: '2026-09-10'
+      official_prices:
+        input:
+          usd: '0.15'
+          unit: per_million_tokens
+          description: cache-miss input (off-peak)
+        output:
+          usd: '0.6'
+          unit: per_million_tokens
+          description: output (off-peak)
+        cache:
+          usd: '0.003'
+          unit: per_million_tokens
+          description: cache-hit input (off-peak)
+      source_reference: https://api-docs.deepseek.com/quick_start/pricing/
+    - public_id: deepseek-v4-flash
+      provider_model_id: deepseek-flash
+      display_name: DeepSeek V4.1 Flash-1017 (legacy alias)
+      capabilities:
+        chat: true
+        stream: true
+        tool_calling: true
+        json_mode: true
+        reasoning: true
+        context_cache: true
+        vision: true
+        max_context_tokens: 1048576
+        max_output_tokens: 393216
+      metadata:
+        reasoning_priced_as: output
+        pricing_period: off_peak
+        official_currency: USD
+        canonical_model_id: deepseek-flash
+        compatibility_alias: 'true'
+      official_prices:
+        input:
+          usd: '0.15'
+          unit: per_million_tokens
+          description: cache-miss input (off-peak)
+        output:
+          usd: '0.6'
+          unit: per_million_tokens
+          description: output (off-peak)
+        cache:
+          usd: '0.003'
+          unit: per_million_tokens
+          description: cache-hit input (off-peak)
+      source_reference: https://api-docs.deepseek.com/quick_start/pricing/
+    - public_id: deepseek-v4-pro
+      provider_model_id: deepseek-v4-pro
+      display_name: DeepSeek V4 Pro-0813
+      capabilities:
+        chat: true
+        stream: true
+        tool_calling: true
+        json_mode: true
+        reasoning: true
+        context_cache: true
+        max_context_tokens: 1048576
+        max_output_tokens: 393216
+      metadata:
+        reasoning_priced_as: output
+        pricing_period: off_peak
+        official_currency: USD
+        retirement_scheduled: 2026-09-14T12:00+08:00
+        retirement_note: requests route to DeepSeek V4.1 Flash after the scheduled
+          cut-over
+      official_prices:
+        input:
+          usd: '0.66'
+          unit: per_million_tokens
+          description: cache-miss input (off-peak)
+        output:
+          usd: '1.98'
+          unit: per_million_tokens
+          description: output (off-peak)
+        cache:
+          usd: '0.022'
+          unit: per_million_tokens
+          description: cache-hit input (off-peak)
+      source_reference: https://api-docs.deepseek.com/quick_start/pricing/
   glm:
     display_name: Zhipu AI
     health_path: models
     models:
-      - public_id: glm-5.2
-        provider_model_id: glm-5.2
-        display_name: GLM 5.2
-        capabilities:
-          chat: true
-          stream: true
-          tool_calling: true
-          json_mode: true
-          context_cache: true
-          max_context_tokens: 1048576
-          max_output_tokens: 131072
-        # The official China-region SKU is CNY-denominated. Keep these values
-        # separate from `official_prices`: the Gateway wallet is USD-only and
-        # must not accidentally bill CNY values as USD before an operator has
-        # approved an auditable FX / regional pricing policy.
-        display_prices:
-          currency: CNY
-          input:
-            amount: "8"
-            unit: per_million_tokens
-            description: cache-miss input
-          output:
-            amount: "28"
-            unit: per_million_tokens
-          cache:
-            amount: "2"
-            unit: per_million_tokens
-            description: cache-hit input
-        # Zhipu's official public price is CNY. The current Gateway ledger is
-        # USD-denominated, so do not create a billable price snapshot until an
-        # operator approves an auditable CNY-to-USD conversion policy.
-        metadata:
-          official_currency: CNY
-          pricing_status: requires_usd_conversion_approval
-          cache_storage: limited_time_free
-        source_reference: https://bigmodel.cn/pricing
+    - public_id: glm-5.2
+      provider_model_id: glm-5.2
+      display_name: GLM 5.2
+      capabilities:
+        chat: true
+        stream: true
+        tool_calling: true
+        json_mode: true
+        context_cache: true
+        max_context_tokens: 1048576
+        max_output_tokens: 131072
+      display_prices:
+        currency: CNY
+        input:
+          amount: '8'
+          unit: per_million_tokens
+          description: cache-miss input
+        output:
+          amount: '28'
+          unit: per_million_tokens
+        cache:
+          amount: '2'
+          unit: per_million_tokens
+          description: cache-hit input
+      metadata:
+        official_currency: CNY
+        pricing_status: requires_usd_conversion_approval
+        cache_storage: limited_time_free
+      source_reference: https://bigmodel.cn/pricing
   typesafe:
     display_name: TypeSafe AI
-    # System One endpoint. Jev does NOT speak chat-completions: a request is a
-    # `state` plus typed `questions`, and the reply is structured `answers`
-    # with probabilities. The adapter in packages/gateway/providers/typesafe
-    # implements that shape and reports every chat-shaped capability as
-    # unavailable rather than approximating one.
     base_url: https://api.typesafe.ai/v1
     health_path: models
     models:
-      - public_id: jev
-        # `jev-latest` is an alias that moves when a new release ships. The
-        # response's own `model` field carries the versioned id that answered,
-        # so a stored answer can always be traced to the version behind it.
-        provider_model_id: jev-latest
-        display_name: Jev
-        capabilities:
-          # Declared false rather than omitted, so a caller gets an explicit
-          # "no" instead of assuming a default.
-          chat: false
-          stream: false
-          tool_calling: false
-          json_mode: false
-          context_cache: false
-          reasoning: false
-          vision: false
-          system_one: true
-          text_only: true
-          max_context_tokens: 65536
-        metadata:
-          # USD-native. Unlike the CNY-denominated providers above, TypeSafe
-          # publishes in USD, so no FX conversion policy gate applies.
-          official_currency: USD
-          official_price_per_btok: "42"
-          output_priced_as: free
-          # The 64k request budget covers state plus all questions; this is the
-          # ceiling for state plus the single longest question.
-          state_budget_tokens: 32768
-          input_modality: text
-          alias_target: jev-1.13.0
-          rate_limit_tokens_per_second: 250000
-          rate_limit_requests_per_minute: 1200
-          # A live public demo of the model doing real-time high-frequency
-          # trading. Shown on the model page so a prospective customer can see
-          # the model working before they spend anything.
-          showcase_url: https://jev-trader.vercel.app/
-          showcase_label: Jev 实时高频交易演示
-          showcase_label_en: Jev live high-frequency trading demo
-        official_prices:
-          # $42 per Btok (a billion tokens) == $0.042 per million. Only
-          # `input` is defined because output tokens are free: usage_cost()
-          # charges nothing for a tariff the catalog does not carry, so this
-          # entry bills input only without needing a zero-rate special case.
-          input:
-            usd: "0.042"
-            unit: per_million_tokens
-            description: state plus questions; output tokens are free
-        source_reference: https://docs.typesafe.ai/models
+    - public_id: jev
+      provider_model_id: jev-latest
+      display_name: Jev
+      capabilities:
+        chat: false
+        stream: false
+        tool_calling: false
+        json_mode: false
+        context_cache: false
+        reasoning: false
+        vision: false
+        system_one: true
+        text_only: true
+        max_context_tokens: 65536
+      metadata:
+        official_currency: USD
+        official_price_per_btok: '42'
+        output_priced_as: free
+        state_budget_tokens: 32768
+        input_modality: text
+        alias_target: jev-1.13.0
+        rate_limit_tokens_per_second: 250000
+        rate_limit_requests_per_minute: 1200
+        showcase_url: https://jev-trader.vercel.app/
+        showcase_label: "Jev \u5B9E\u65F6\u9AD8\u9891\u4EA4\u6613\u6F14\u793A"
+        showcase_label_en: Jev live high-frequency trading demo
+      official_prices:
+        input:
+          usd: '0.042'
+          unit: per_million_tokens
+          description: state plus questions; output tokens are free
+      source_reference: https://docs.typesafe.ai/models

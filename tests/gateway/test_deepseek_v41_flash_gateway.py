@@ -30,7 +30,7 @@ def deepseek_models():
 def test_catalog_exposes_the_official_v41_flash_model_id(deepseek_models):
     model = deepseek_models[DEEPSEEK_MODEL_FLASH]
 
-    assert model.display_name == "DeepSeek V4.1 Flash"
+    assert model.display_name == "DeepSeek V4.1 Flash-1017"
     assert model.provider_model_id == DEEPSEEK_MODEL_FLASH
     assert model.official_prices, "V4.1 Flash must carry a reviewed price"
 
@@ -63,7 +63,7 @@ def test_other_vendors_keep_their_own_models():
     kimi = {item.public_id: item for item in provider_models("moonshot")}
     glm = {item.public_id: item for item in provider_models("glm")}
 
-    assert kimi["kimi-k3-max"].provider_model_id == "kimi-k3"
+    assert kimi["kimi-k3-max"].provider_model_id == "kimi-k3.1-pro"
     assert glm["glm-5.2"].provider_model_id == "glm-5.2"
     for model in (*kimi.values(), *glm.values()):
         assert not model.provider_model_id.startswith("deepseek")
@@ -115,9 +115,9 @@ def test_output_tariff_without_reasoning_rate_charges_the_full_completion():
 def test_v41_flash_price_is_the_off_peak_official_tariff(deepseek_models):
     model = deepseek_models[DEEPSEEK_MODEL_FLASH]
 
-    assert Decimal(model.official_prices["input"]["usd"]) == Decimal("0.15151515")
-    assert Decimal(model.official_prices["output"]["usd"]) == Decimal("0.60606061")
-    assert Decimal(model.official_prices["cache"]["usd"]) == Decimal("0.00303030")
+    assert Decimal(model.official_prices["input"]["usd"]) == Decimal("0.15")
+    assert Decimal(model.official_prices["output"]["usd"]) == Decimal("0.6")
+    assert Decimal(model.official_prices["cache"]["usd"]) == Decimal("0.003")
     # The peak tariff is exactly double; the catalog must say so.
     assert model.metadata.get("peak_multiplier") == "2"
     assert model.metadata.get("pricing_period") == "off_peak"
@@ -154,7 +154,7 @@ def test_public_catalog_reports_setup_required_without_approved_pricing(db):
     assert flash["availability"] != "available"
     # Peak/off-peak must be visible to API customers, not hidden.
     assert flash["metadata"]["peak_multiplier"] == "2"
-    assert flash["pricing"]["official"]["input"]["amount"] == "0.15151515"
+    assert flash["pricing"]["official"]["input"]["amount"] == "0.15"
 
 
 def test_public_catalog_exposes_the_alias_relationship(db):

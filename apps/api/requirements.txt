@@ -26,3 +26,4 @@ alembic==1.16.5
 
 pypdf==6.18.1
 Pillow==12.3.0
+holidays==0.80

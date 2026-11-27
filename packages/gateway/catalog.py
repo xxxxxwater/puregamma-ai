@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from packages.gateway.time_prices import effective_prices, deepseek_peak
+
 from decimal import Decimal, InvalidOperation, ROUND_HALF_UP
 from functools import lru_cache
 from pathlib import Path
@@ -153,8 +155,9 @@ def _catalog_price_snapshot(model: dict[str, Any], markup_bps: int) -> dict[str,
 
 def _revision_price_snapshot(revision: GatewayPriceRevision) -> dict[str, Any] | None:
     currency = str(revision.currency or "USD").upper()
-    official = _price_items(dict(revision.official_prices_json or {}), currency)
-    final = _price_items(dict(revision.final_prices_json or {}), currency)
+    peak = deepseek_peak()
+    official = _price_items(effective_prices(revision, retail=False, peak=peak), currency)
+    final = _price_items(effective_prices(revision, retail=True, peak=peak), currency)
     if not official or not final:
         return None
     return {
@@ -192,6 +195,8 @@ def public_model_catalog(db: Session, *, markup_bps: int) -> list[dict[str, Any]
             database_model, database_provider, revision = records.get(public_id, (None, None, None))
             capabilities = dict(raw_model.get("capabilities") or {})
             metadata = dict(raw_model.get("metadata") or {})
+            if provider_name == "deepseek" and revision:
+                metadata["pricing_period"] = "peak" if deepseek_peak() else "off_peak"
             snapshot = _revision_price_snapshot(revision) if revision else None
             if snapshot is None:
                 snapshot = _catalog_price_snapshot(raw_model, markup_bps)

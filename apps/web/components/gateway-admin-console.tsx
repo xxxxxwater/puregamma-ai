@@ -277,7 +277,7 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
   const [accounts, setAccounts] = useState<GatewayAdminAccount[]>([]);
   const [accountEdits, setAccountEdits] = useState<Record<string, AccountEdit>>({});
   const [metrics, setMetrics] = useState<GatewayMetrics | null>(null);
-  const [markup, setMarkup] = useState("3000");
+  const [markup, setMarkup] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -333,8 +333,8 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
 
   const saveMarkup = () => {
     const parsed = Number(markup);
-    if (!Number.isInteger(parsed) || parsed < 0 || parsed > 100000) {
-      setError(zh ? "Markup 必须为 0–100000 个基点。" : "Markup must be 0–100000 basis points.");
+    if (!markup.trim() || !Number.isInteger(parsed) || parsed < -10000 || parsed > 100000) {
+      setError(zh ? "Markup 必须为 −10000–100000 个基点。" : "Markup must be −10000–100000 basis points.");
       return;
     }
     return run(async () => { await updateGatewayMarkup(parsed); }, zh ? "默认 Markup 已更新。" : "Default markup updated.");
@@ -399,10 +399,10 @@ export function GatewayAdminConsole({ locale }: { locale: Locale }) {
 
         <DswCard title={zh ? "默认 Markup" : "Default markup"}>
           <div style={{ display: "flex", gap: 8 }}>
-            <input value={markup} onChange={(event) => setMarkup(event.target.value)} inputMode="numeric" style={{ minWidth: 0, flex: 1, border: `1px solid ${dsw.line}`, background: dsw.panelBg, color: dsw.ink, padding: "8px 12px", fontSize: 13, borderRadius: 14 }} aria-label="Markup basis points" />
+            <input value={markup} onChange={(event) => setMarkup(event.target.value)} type="number" min={-10000} max={100000} step={1} style={{ minWidth: 0, flex: 1, border: `1px solid ${dsw.line}`, background: dsw.panelBg, color: dsw.ink, padding: "8px 12px", fontSize: 13, borderRadius: 14 }} aria-label="Markup basis points" />
             <Button variant="ghost" type="button" onClick={() => void saveMarkup()} disabled={busy} style={{ display: "inline-flex", alignItems: "center", gap: 4, border: `1px solid ${dsw.line}`, background: dsw.cardBg, color: dsw.ink, padding: "8px 12px", fontSize: 13, borderRadius: 14, cursor: "pointer", opacity: busy ? 0.5 : 1 }}><Save className="h-4 w-4" />{zh ? "保存" : "Save"}</Button>
           </div>
-          <p style={{ margin: "8px 0 0", fontSize: 12, color: dsw.inkMuted }}>3000 bp = 30%. {zh ? "保存后，会基于官方价格重新计算所有已激活模型。" : "Saving recalculates every active model from official prices."}</p>
+          <p style={{ margin: "8px 0 0", fontSize: 12, color: dsw.inkMuted }}>{zh ? "−5000 个基点 = 官网价的 50%。" : "−5000 basis points = 50% of official prices."} {zh ? "保存后，会基于官方价格重新计算所有已激活模型。" : "Saving recalculates every active model from official prices."}</p>
           <p style={{ margin: "12px 0 0", fontSize: 12, color: dsw.inkMuted }}>{zh ? "此设置不会修改 Provider 的官方价格，也不会变更用户 Stripe 订阅。" : "This does not change Provider official pricing or a user's Stripe subscription."}</p>
         </DswCard>
       </div>
