@@ -101,7 +101,7 @@ _EVM_MIN_POSITION_VALUE = 0.01
 def _finite(value: object, default: float = 0.0) -> float:
     try:
         number = float(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError):
+    except (TypeError, ValueError, OverflowError):
         return default
     return number if math.isfinite(number) else default
 
@@ -969,6 +969,13 @@ def _plaid_realtime_accounts(token: str) -> list[dict] | None:
         return None
 
 
+def _liability_amount(value: object) -> float | None:
+    if isinstance(value, bool):
+        return None
+    amount = _finite(value, math.nan)
+    return amount if math.isfinite(amount) else None
+
+
 def _parse_plaid_liabilities(payload: dict) -> dict:
     # /liabilities/get supplies detail arrays and a separate list of accounts
     # with their current balances. Both identify the liability by account_id.
@@ -1006,14 +1013,15 @@ def _parse_plaid_liabilities(payload: dict) -> dict:
     balances = {key: accounts.get(key, {}).get("balances") or {} for key in debt_ids}
     for item in breakdown:
         balance = balances[item["account_id"]]
-        item.update(current_balance=balance.get("current"), currency=balance.get("iso_currency_code"))
+        item.update(current_balance=_liability_amount(balance.get("current")), currency=balance.get("iso_currency_code"))
     # The portfolio reports USD. Missing and foreign-currency balances cannot
     # be included in that total without a valuation.
     total = 0.0
     for balance in balances.values():
-        current = _finite(balance.get("current"), math.nan)
-        if not math.isfinite(current) or balance.get("iso_currency_code") != "USD":
+        current = _liability_amount(balance.get("current"))
+        if current is None or balance.get("iso_currency_code") != "USD":
             return {"total": None, "breakdown": breakdown, "request_id": payload.get("request_id")}
+        # A negative card/loan balance is credit owed back to the holder.
         total += max(current, 0.0)
     return {"total": round(total, 2), "breakdown": breakdown, "request_id": payload.get("request_id")}
 
@@ -1597,7 +1605,9 @@ def portfolio_view(db: Session, user: User) -> dict:
         liabilities_info = None
         if snapshot:
             liabilities_info = ((snapshot.raw_event_reference or {}).get("payload") or {}).get("liabilities")
-        liabilities_total = (liabilities_info or {}).get("total")
+        if not isinstance(liabilities_info, dict):
+            liabilities_info = {}
+        liabilities_total = _liability_amount(liabilities_info.get("total"))
         account_summaries.append({
             "id": account.id,
             "provider": account.venue.lower(),
@@ -1608,7 +1618,7 @@ def portfolio_view(db: Session, user: User) -> dict:
             "daily_change": round(float(snapshot.daily_pnl), 2) if snapshot else 0.0,
             "as_of": snapshot.captured_at.astimezone(timezone.utc).isoformat() if snapshot else None,
             "liabilities": round(liabilities_total, 2) if liabilities_total is not None else None,
-            "liabilities_breakdown": (liabilities_info or {}).get("breakdown") if liabilities_info else None,
+            "liabilities_breakdown": liabilities_info.get("breakdown"),
             "net_nav": round(float(snapshot.equity) - liabilities_total, 2) if snapshot and liabilities_total is not None else None,
         })
     data_as_of = min((row.captured_at for row in latest), default=None)

@@ -8,7 +8,7 @@ import requests
 
 from apps.api.config import Settings
 from apps.api.services import portfolio_service
-from packages.database.models import ExchangeConnection, TradingAccount
+from packages.database.models import AccountSnapshot, ExchangeConnection, TradingAccount
 from tests.conftest import auth_headers
 
 
@@ -105,7 +105,7 @@ def test_realtime_balance_failure_falls_back(api_client, db, demo_user, monkeypa
 
 @pytest.mark.parametrize(
     ("card_balance", "currency", "loan_balance", "expected_total"),
-    [(250, "USD", 60, 310), (0, "USD", 0, 0), (None, "USD", 60, None), (250, "CAD", 60, None)],
+    [(250, "USD", 60, 310), (0, "USD", 0, 0), (-25, "USD", 60, 60), (None, "USD", 60, None), (250, "CAD", 60, None)],
 )
 def test_liabilities_feed_net_nav(api_client, db, demo_user, monkeypatch, card_balance, currency, loan_balance, expected_total):
     account = _plaid_account(db, demo_user)
@@ -163,6 +163,24 @@ def test_liabilities_feed_net_nav(api_client, db, demo_user, monkeypatch, card_b
         combined = api_client.get("/portfolio", headers=auth_headers(demo_user)).json()
         assert combined["liabilities"] is None
         assert combined["net_nav"] is None
+
+
+@pytest.mark.parametrize(("stored", "expected"), [("250.75", 250.75), ("0", 0), (False, None),
+                                                 ("not recorded", None), ("NaN", None), ("Infinity", None)])
+def test_portfolio_reads_historical_liability_totals(api_client, db, demo_user, stored, expected):
+    account = _plaid_account(db, demo_user)
+    db.add(AccountSnapshot(
+        user_id=demo_user.id, account_id=account.id, balance=1000, equity=1000, available_margin=200,
+        raw_event_reference={"payload": {"liabilities": {"total": stored}}},
+    ))
+    db.commit()
+
+    response = api_client.get("/portfolio", headers=auth_headers(demo_user))
+    assert response.status_code == 200
+    portfolio = response.json()
+    summary = next(row for row in portfolio["accounts"] if row["id"] == account.id)
+    assert portfolio["liabilities"] == summary["liabilities"] == expected
+    assert portfolio["net_nav"] == summary["net_nav"] == (1000 - expected if expected is not None else None)
 
 
 @pytest.mark.parametrize("failure", ["product_not_enabled", "request_failed", "invalid_response"])
