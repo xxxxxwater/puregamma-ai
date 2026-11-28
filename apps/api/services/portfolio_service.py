@@ -969,55 +969,75 @@ def _plaid_realtime_accounts(token: str) -> list[dict] | None:
         return None
 
 
-def _plaid_liabilities_payload(db: Session, connection: ExchangeConnection, token: str) -> dict | None:
-    """Debt snapshot via /liabilities/get (credit cards, mortgages, student
-    loans). Product gaps are recorded on the connection metadata and never
-    break the core NAV sync."""
+def _parse_plaid_liabilities(payload: dict) -> dict:
+    # /liabilities/get supplies detail arrays and a separate list of accounts
+    # with their current balances. Both identify the liability by account_id.
+    details = payload["liabilities"]
+    if not isinstance(details, dict) or not isinstance(payload["accounts"], list):
+        raise ValueError("expected Plaid liabilities and accounts")
+    accounts = {row["account_id"]: row for row in payload["accounts"]}
+    breakdown = []
+    debt_ids = {key for key, row in accounts.items() if row.get("type") in {"credit", "loan"}}
+    for key, label in (("credit", "credit_card"), ("mortgage", "mortgage"), ("student", "student_loan"),
+                       ("loan", "loan"), ("line_of_credit", "line_of_credit")):
+        rows = details[key] if key in {"credit", "mortgage", "student"} else details.get(key)
+        if rows is not None and not isinstance(rows, list):
+            raise ValueError(f"invalid {key} liabilities")
+        for row in rows or []:
+            account_id = row["account_id"]
+            debt_ids.add(account_id)
+            item = {"type": label, "account_id": account_id}
+            if key == "credit":
+                item.update({
+                    "last_statement_balance": row.get("last_statement_balance"),
+                    "minimum_payment": row.get("minimum_payment_amount"),
+                    "aprs": [{"type": apr.get("apr_type"), "percentage": apr.get("apr_percentage")}
+                             for apr in (row.get("aprs") or [])[:4]],
+                })
+            else:
+                item.update({
+                    "interest_rate": row.get("interest_rate_percentage") if key == "student"
+                                     else (row.get("interest_rate") or {}).get("percentage"),
+                    "next_monthly_payment": row.get("next_monthly_payment"),
+                    "origination_principal": row.get("origination_principal_amount"),
+                })
+            breakdown.append(item)
+
+    balances = {key: accounts.get(key, {}).get("balances") or {} for key in debt_ids}
+    for item in breakdown:
+        balance = balances[item["account_id"]]
+        item.update(current_balance=balance.get("current"), currency=balance.get("iso_currency_code"))
+    # The portfolio reports USD. Missing and foreign-currency balances cannot
+    # be included in that total without a valuation.
+    total = 0.0
+    for balance in balances.values():
+        current = _finite(balance.get("current"), math.nan)
+        if not math.isfinite(current) or balance.get("iso_currency_code") != "USD":
+            return {"total": None, "breakdown": breakdown, "request_id": payload.get("request_id")}
+        total += max(current, 0.0)
+    return {"total": round(total, 2), "breakdown": breakdown, "request_id": payload.get("request_id")}
+
+
+def _plaid_liabilities_payload(connection: ExchangeConnection, token: str) -> dict | None:
+    """Read optional debt data while allowing the core holdings sync to finish."""
     if not bool(getattr(get_settings(), "plaid_liabilities_enabled", False)):
         return None
-    response = _plaid_request("/liabilities/get", token, timeout=30)
-    error_code = _plaid_error_code(response)
-    if response.status_code >= 400:
-        metadata = dict(connection.metadata_json or {})
-        metadata["plaid_liabilities_status"] = (error_code or f"http_{response.status_code}").lower()
-        connection.metadata_json = metadata
-        db.commit()
-        logger.warning("plaid_liabilities_rejected code=%s", error_code)
-        return None
-    payload = response.json()
-    liabilities = payload.get("liabilities") or {}
-    breakdown: list[dict] = []
-    total = 0.0
-    for account_id, credit in (liabilities.get("credit") or {}).items():
-        balance = _finite((credit.get("balances") or {}).get("current"))
-        total += max(balance, 0.0)
-        breakdown.append({
-            "type": "credit_card",
-            "account_id": str(account_id),
-            "current_balance": balance,
-            "last_statement_balance": _finite(credit.get("last_statement_balance")),
-            "minimum_payment": _finite(credit.get("minimum_payment_amount")),
-            "aprs": [
-                {"type": str(apr.get("apr_type") or ""), "percentage": _finite(apr.get("apr_percentage"))}
-                for apr in (credit.get("aprs") or [])[:4]
-            ],
-        })
-    for key, loan_type in (("mortgage", "mortgage"), ("student", "student_loan")):
-        for account_id, loan in (liabilities.get(key) or {}).items():
-            outstanding = _finite(loan.get("outstanding_balance") or (loan.get("balances") or {}).get("current"))
-            total += max(outstanding, 0.0)
-            breakdown.append({
-                "type": loan_type,
-                "account_id": str(account_id),
-                "current_balance": outstanding,
-                "interest_rate": _finite((loan.get("interest_rate") or {}).get("percentage")),
-                "next_monthly_payment": _finite(loan.get("next_monthly_payment")),
-                "origination_principal": _finite(loan.get("origination_principal_amount")),
-            })
-    metadata = dict(connection.metadata_json or {})
-    metadata["plaid_liabilities_status"] = "ok"
-    connection.metadata_json = metadata
-    return {"total": round(total, 2), "breakdown": breakdown, "request_id": payload.get("request_id")}
+    snapshot = None
+    try:
+        response = _plaid_request("/liabilities/get", token, timeout=30)
+        if response.status_code >= 400:
+            status = (_plaid_error_code(response) or f"http_{response.status_code}").lower()
+        else:
+            snapshot = _parse_plaid_liabilities(response.json())
+            status = "ok" if snapshot["total"] is not None else "incomplete"
+    except requests.RequestException:
+        status = "request_failed"
+    except (KeyError, TypeError, AttributeError, ValueError):
+        status = "invalid_response"
+    connection.metadata_json = {**(connection.metadata_json or {}), "plaid_liabilities_status": status}
+    if snapshot is None:
+        logger.warning("plaid_liabilities_unavailable status=%s", status)
+    return snapshot
 
 
 def _sync_plaid(db: Session, account: TradingAccount, *, include_transactions: bool = True) -> None:
@@ -1032,14 +1052,11 @@ def _sync_plaid(db: Session, account: TradingAccount, *, include_transactions: b
     realtime_accounts = _plaid_realtime_accounts(token)
     if realtime_accounts:
         holdings_accounts = {str(item.get("account_id") or ""): item for item in data.get("accounts", [])}
-        merged = []
         for item in realtime_accounts:
             account_id = str(item.get("account_id") or "")
-            base = holdings_accounts.get(account_id) or {}
-            merged.append({**base, **item})
-        if merged:
-            data["accounts"] = merged
-    liabilities = _plaid_liabilities_payload(db, connection, token)
+            holdings_accounts[account_id] = {**holdings_accounts.get(account_id, {}), **item}
+        data["accounts"] = list(holdings_accounts.values())
+    liabilities = _plaid_liabilities_payload(connection, token)
     securities = {str(item["security_id"]): item for item in data.get("securities", []) if item.get("security_id")}
     positions = []
     holdings_value_by_account: dict[str, float] = {}
@@ -1085,6 +1102,9 @@ def _sync_plaid(db: Session, account: TradingAccount, *, include_transactions: b
     available = 0.0
     account_summaries = []
     for item in data.get("accounts", []):
+        # Credit/loan current balances represent debts; available may be credit.
+        if item.get("type") in {"credit", "loan"}:
+            continue
         provider_account_id = str(item.get("account_id") or "")
         balances = item.get("balances") or {}
         current = balances.get("current")
@@ -1577,7 +1597,7 @@ def portfolio_view(db: Session, user: User) -> dict:
         liabilities_info = None
         if snapshot:
             liabilities_info = ((snapshot.raw_event_reference or {}).get("payload") or {}).get("liabilities")
-        liabilities_total = _finite((liabilities_info or {}).get("total")) if liabilities_info else None
+        liabilities_total = (liabilities_info or {}).get("total")
         account_summaries.append({
             "id": account.id,
             "provider": account.venue.lower(),
@@ -1595,13 +1615,9 @@ def portfolio_view(db: Session, user: User) -> dict:
     nav = sum(row.equity for row in latest)
     daily_change = sum(float(row.daily_pnl) for row in latest)
     previous_nav = nav - daily_change
-    liabilities_total = 0.0
-    liabilities_known = False
-    for row in latest:
-        info = ((row.raw_event_reference or {}).get("payload") or {}).get("liabilities")
-        if info and info.get("total") is not None:
-            liabilities_total += _finite(info.get("total"))
-            liabilities_known = True
+    account_debts = [summary["liabilities"] for summary in account_summaries
+                     if summary["provider"] == "plaid" or summary["liabilities"] is not None]
+    liabilities_total = sum(account_debts) if account_debts and None not in account_debts else None
     holdings = _aggregate_holdings(db, user.id, accounts, latest, limit=50)
     unrealized, positions = _unrealized_positions(db, user.id, accounts, latest)
     return {
@@ -1609,8 +1625,8 @@ def portfolio_view(db: Session, user: User) -> dict:
         "stale": any(_snapshot_is_stale(account, next(row for row in latest if row.account_id == account.id)) for account in accounts if any(row.account_id == account.id for row in latest)),
         "data_as_of": data_as_of.isoformat() if data_as_of else None,
         "nav": nav,
-        "liabilities": round(liabilities_total, 2) if liabilities_known else None,
-        "net_nav": round(nav - liabilities_total, 2) if liabilities_known else None,
+        "liabilities": round(liabilities_total, 2) if liabilities_total is not None else None,
+        "net_nav": round(nav - liabilities_total, 2) if liabilities_total is not None else None,
         "available_cash": sum(row.available_margin for row in latest),
         "daily_change": round(daily_change, 2),
         "daily_change_pct": round(daily_change / previous_nav * 100, 4) if previous_nav > 0 else None,

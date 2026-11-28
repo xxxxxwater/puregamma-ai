@@ -4,10 +4,12 @@ and Transactions Refresh — all with honest degradation."""
 from __future__ import annotations
 
 import pytest
+import requests
 
 from apps.api.config import Settings
 from apps.api.services import portfolio_service
 from packages.database.models import ExchangeConnection, TradingAccount
+from tests.conftest import auth_headers
 
 
 class FakeResponse:
@@ -27,8 +29,6 @@ class FakeResponse:
 
     def raise_for_status(self):
         if self.status_code >= 400:
-            import requests
-
             raise requests.HTTPError(f"{self.status_code}")
 
 
@@ -103,18 +103,27 @@ def test_realtime_balance_failure_falls_back(api_client, db, demo_user, monkeypa
     assert summary["nav"] == 1000.0  # holdings-derived value survives
 
 
-def test_liabilities_feed_net_nav(api_client, db, demo_user, monkeypatch):
+@pytest.mark.parametrize(
+    ("card_balance", "currency", "loan_balance", "expected_total"),
+    [(250, "USD", 60, 310), (0, "USD", 0, 0), (None, "USD", 60, None), (250, "CAD", 60, None)],
+)
+def test_liabilities_feed_net_nav(api_client, db, demo_user, monkeypatch, card_balance, currency, loan_balance, expected_total):
     account = _plaid_account(db, demo_user)
     monkeypatch.setattr(
         portfolio_service, "get_settings",
         lambda: Settings(plaid_client_id="id", plaid_secret="secret", plaid_env="production", plaid_liabilities_enabled=True),
     )
+    liability_accounts = [
+        {"account_id": "card", "type": "credit", "balances": {"current": card_balance, "iso_currency_code": currency}},
+        {"account_id": "loan", "type": "loan", "balances": {"current": loan_balance, "iso_currency_code": "USD"}},
+    ]
     liabilities = {
         "request_id": "r2",
+        "accounts": liability_accounts,
         "liabilities": {
-            "credit": {"acc1": {"balances": {"current": 250.0}, "last_statement_balance": 240.0, "aprs": []}},
-            "mortgage": {},
-            "student": {},
+            "credit": [{"account_id": "card", "last_statement_balance": 240, "aprs": []}],
+            "mortgage": None,
+            "student": [{"account_id": "loan", "interest_rate_percentage": 4.25}],
         },
     }
     monkeypatch.setattr(portfolio_service, "decrypt_token", lambda ciphertext: "access-token")
@@ -124,23 +133,40 @@ def test_liabilities_feed_net_nav(api_client, db, demo_user, monkeypatch):
         if path == "/investments/holdings/get":
             return FakeResponse(HOLDINGS)
         if path == "/accounts/balance/get":
-            return FakeResponse({"error_code": "X"}, status=400)
+            # A realtime response can include debt accounts and omit a holdings account.
+            return FakeResponse({"accounts": liability_accounts})
         if path == "/liabilities/get":
             return FakeResponse(liabilities)
         raise AssertionError(path)
 
     monkeypatch.setattr(portfolio_service, "_plaid_request", fake_request)
     portfolio_service.sync_account(db, demo_user, account, include_transactions=False)
-    view = portfolio_service.portfolio_view(db, demo_user)
-    assert view["liabilities"] == 250.0
-    assert view["net_nav"] == 750.0
+    response = api_client.get("/portfolio", headers=auth_headers(demo_user))
+    assert response.status_code == 200
+    view = response.json()
     summary = next(item for item in view["accounts"] if item["id"] == account.id)
-    assert summary["liabilities"] == 250.0
-    assert summary["net_nav"] == 750.0
-    assert summary["liabilities_breakdown"][0]["type"] == "credit_card"
+    expected_net = 1000 - expected_total if expected_total is not None else None
+    assert summary["nav"] == 1000
+    assert summary["available_cash"] == 200
+    assert view["liabilities"] == summary["liabilities"] == expected_total
+    assert view["net_nav"] == summary["net_nav"] == expected_net
+    details = summary["liabilities_breakdown"]
+    assert details[0]["type"] == "credit_card"
+    assert details[0]["current_balance"] == card_balance
+    assert details[0]["currency"] == currency
+    assert details[1]["interest_rate"] == 4.25
+    if expected_total is None:
+        # A second Item with a known balance must not hide the unvalued debt.
+        second = _plaid_account(db, demo_user)
+        liability_accounts[0]["balances"] = {"current": 99, "iso_currency_code": "USD"}
+        portfolio_service.sync_account(db, demo_user, second, include_transactions=False)
+        combined = api_client.get("/portfolio", headers=auth_headers(demo_user)).json()
+        assert combined["liabilities"] is None
+        assert combined["net_nav"] is None
 
 
-def test_liabilities_product_gap_degrades(api_client, db, demo_user, monkeypatch):
+@pytest.mark.parametrize("failure", ["product_not_enabled", "request_failed", "invalid_response"])
+def test_liabilities_product_gap_degrades(api_client, db, demo_user, monkeypatch, failure):
     account = _plaid_account(db, demo_user)
     monkeypatch.setattr(
         portfolio_service, "get_settings",
@@ -155,6 +181,10 @@ def test_liabilities_product_gap_degrades(api_client, db, demo_user, monkeypatch
         if path == "/accounts/balance/get":
             return FakeResponse({"error_code": "X"}, status=400)
         if path == "/liabilities/get":
+            if failure == "invalid_response":
+                return FakeResponse({"accounts": [], "liabilities": {"credit": {}, "student": None, "mortgage": None}})
+            if failure == "request_failed":
+                raise requests.Timeout("simulated upstream timeout")
             return FakeResponse({"error_code": "PRODUCT_NOT_ENABLED"}, status=400)
         raise AssertionError(path)
 
@@ -164,7 +194,8 @@ def test_liabilities_product_gap_degrades(api_client, db, demo_user, monkeypatch
     assert view["liabilities"] is None
     assert view["net_nav"] is None
     connection = db.query(ExchangeConnection).filter_by(account_id=account.id).one()
-    assert connection.metadata_json["plaid_liabilities_status"] == "product_not_enabled"
+    assert connection.metadata_json["plaid_liabilities_status"] == failure
+    assert view["accounts"][0]["nav"] == 1000
 
 
 def test_transactions_refresh_flow(api_client, db, demo_user, monkeypatch):
